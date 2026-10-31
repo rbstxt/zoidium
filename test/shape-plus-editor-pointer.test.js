@@ -184,7 +184,7 @@ test("Pen close, insert and delete clicks commit on release, on capture loss and
     const state = {
       layer: { contents: [item] }, activeId: "path", tool: "pen", penFinished: false,
       selection: new Set(), editor: { playback: {} },
-      canvasApi: { hit: () => hit, activeMatrix: () => [] },
+      canvasApi: { hit: () => hit, activeMatrix: () => [], scoped: (work) => work(), invalidateScene: () => {} },
       active: () => item, localFrame: () => 0, valid: () => true,
       nextId: () => "new", preview() {}, refresh() {},
       topology() { data.edits++; }, message(text) { assert.fail(text); },

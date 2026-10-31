@@ -97,6 +97,7 @@ function createPointer(s, canvas) {
         frame,
         target: path.id,
         move(e) {
+        return api.scoped(() => {
           const p = api.local(point(e));
           if (!p) return;
           let vector = g.sub(p, origin[index].point);
@@ -111,6 +112,7 @@ function createPointer(s, canvas) {
           points[index] = g.handle(points[index], "out", vector, mode);
           path.vertexModes[id] = mode;
           s.setPoints(points);
+        });
         },
         end() {
           s.gesture.finish();
@@ -128,7 +130,7 @@ function createPointer(s, canvas) {
       return null;
     }
   }
-  function begin(event) {
+  function beginInner(event) {
     canvas.focus({ preventScroll: true });
     s.closeMenu?.();
     // An arrow-key nudge still holding the history transaction ends first, so
@@ -151,6 +153,7 @@ function createPointer(s, canvas) {
       const origin = s.pathPoints(), startLocal = api.local(start);
       if (!startLocal) return null;
       return { frame, target: item.id, move(e) {
+        return api.scoped(() => {
         if (Math.hypot(...g.sub(point(e),start)) < 2 && !s.gesture.active) return;
         const p = api.local(point(e)); if (!p) return;
         transaction(() => {
@@ -158,7 +161,7 @@ function createPointer(s, canvas) {
           const next = (hit.index + 1) % item.vertexIds.length;
           for (const index of [hit.index,next]) item.vertexModes[item.vertexIds[index]] = "independent";
         });
-      }, end() { s.gesture.finish(); }, cancel() { s.gesture.finish(true); } };
+      }); }, end() { s.gesture.finish(); }, cancel() { s.gesture.finish(true); } };
     }
     if (hit && ["anchor", "handle"].includes(hit.kind)) {
       const id = item.vertexIds[hit.index],
@@ -182,6 +185,7 @@ function createPointer(s, canvas) {
         frame,
         target: item.id,
         move(e) {
+        return api.scoped(() => {
           if (Math.hypot(...g.sub(point(e), start)) < 2 && !s.gesture.active)
             return;
           const p = api.local(point(e));
@@ -234,6 +238,7 @@ function createPointer(s, canvas) {
             }
             s.setPoints(points);
           });
+        });
         },
         end() {
           s.gesture.finish();
@@ -289,6 +294,7 @@ function createPointer(s, canvas) {
       frame,
       target: s.activeId,
       move(e) {
+      return api.scoped(() => {
         const end = point(e);
         s.marquee = { start, end };
         moved = moved || Math.hypot(...g.sub(end, start)) >= 3;
@@ -314,6 +320,7 @@ function createPointer(s, canvas) {
           s.refresh();
         }
         s.dirty = true;
+      });
       },
       end() {
         s.marquee = null;
@@ -327,6 +334,12 @@ function createPointer(s, canvas) {
         s.refresh();
       },
     };
+  }
+  // One press shares a single scene snapshot across its hit, active, local
+  // and outline reads. The returned gesture runs on later events, after this
+  // scope has closed; each of its moves opens its own scope.
+  function begin(event) {
+    return api.scoped(() => beginInner(event));
   }
   function insideSelection(p) {
     const b = xf.selectedBox(s);
@@ -349,6 +362,7 @@ function createPointer(s, canvas) {
   // the group and selects the drawn leaf (path anchors appear); on empty
   // space it steps out to the containing group.
   const double = (event) => {
+    return api.scoped(() => {
     // The second press of a quick re-grab is a drag, not a double-click.
     if (s.tool !== "select" || !s.valid() || pointer.lastMoved) return;
     const p = point(event),
@@ -374,10 +388,12 @@ function createPointer(s, canvas) {
     const parent = s.activeId && parentOf(s.layer.contents, s.activeId);
     if (parent) s.selectItem(parent);
     else s.clearSelection?.();
+    });
   };
   // Hover feedback: outline what a click would select and show the cursor
   // for the handle, anchor or shape under the pointer.
   const hover = (event) => {
+    return api.scoped(() => {
     if (pointer.active || !s.valid()) return;
     const p = point(event);
     let cursor = "default",
@@ -400,6 +416,7 @@ function createPointer(s, canvas) {
       s.hover = id;
       s.dirty = true;
     }
+    });
   };
   const leave = () => {
     if (s.hover !== null) {
