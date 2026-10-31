@@ -25,6 +25,10 @@ and animate **Amount**. To animate either Shake mode, animate **Phase**.
 
 For native Text, use X and Y for Position and Scale. Rotation turns in the layer's
 plane. Keep the native **Text**, **Font**, **Size**, **Fill**, and **Stroke** controls.
+
+Imported fonts appear in the **Font** picker under **Project fonts**, sorted by
+family name. The picker lists built-in fonts first, then project fonts, then
+**custom...**.
 To move the whole text, edit the native **Position**, **Rotation**, and **Scale**
 controls above **Character**.
 

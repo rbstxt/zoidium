@@ -99,7 +99,9 @@
       "./plugins/core/asset-registry-collect.js",
       "./plugins/core/asset-registry.js",
       "./plugins/core/font-presets.js",
-      "./plugins/core/font-empty-state.js"
+      "./plugins/core/font-empty-state.js",
+      "./plugins/core/font-picker-list.js",
+      "./plugins/core/font-picker.js"
     ],
     postInitScripts: [
       // ui-panels.js queues its installer for ui-kit.js, so it loads first.

@@ -171,6 +171,24 @@ function installControls({ PZ, doc, register, editor }) {
       if (index >= 0 && index < presets.length) write({ font: "/assets/fonts/2d/" + presets[index] + ".ttf" });
       else file.click();
     };
+    // Descriptor dispatch for the project-font picker (see
+    // plugins/core/font-picker.js): the rebuilt dropdown calls this with
+    // {kind:"preset",index} | {kind:"project",key} | {kind:"custom"}
+    // instead of a raw row index, so project rows select correctly.
+    fontButton.pz_setDescriptor = descriptor => {
+      if (!descriptor || descriptor.kind === "custom") { file.click(); return; }
+      if (descriptor.kind === "preset" && descriptor.index >= 0 && descriptor.index < presets.length) {
+        write({ font: "/assets/fonts/2d/" + presets[descriptor.index] + ".ttf" });
+        return;
+      }
+      if (descriptor.kind === "project" && descriptor.key) write({ font: descriptor.key });
+    };
+    fontButton._zoidiumFontValue = () => {
+      try {
+        const value = parseText(property.get());
+        return value.font || null;
+      } catch { return null; }
+    };
     fontButton.pz_update = function () { sprite.style.backgroundPositionY = -25 * this.pz_value + "px"; };
     file.onchange = async () => {
       const chosen = file.files?.[0]; file.value = "";
@@ -198,7 +216,9 @@ function installControls({ PZ, doc, register, editor }) {
       sprite.hidden = index < 0;
       const asset = !match && value.font ? property.parentProject?.assets.list[value.font] : null;
       fontName.hidden = index >= 0;
-      fontName.textContent = asset?.filename || (value.font ? "Imported font" : "Choose a font");
+      if (index >= 0) fontName.textContent = "";
+      else if (asset) fontName.textContent = asset.filename || value.font;
+      else fontName.textContent = value.font ? "(missing)" : "Choose a font";
       if (doc.activeElement !== text) text.value = value.text;
       if (doc.activeElement !== size) size.value = value.size;
       if (doc.activeElement !== lineHeight) lineHeight.value = value.lineHeight;

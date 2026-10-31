@@ -46,6 +46,10 @@ Control reference: [shape-plus](/docs/reference/shape-plus/).
 For Japanese text, choose a font with Japanese glyphs. To use a second font
 for missing glyphs, set **Fallback Font**.
 
+Imported fonts appear in **Font Family** and **Fallback Font** under
+**Project fonts**, sorted by family name. The picker lists built-in fonts
+first, then project fonts, then **custom...**.
+
 To use paragraph text, set **Text Mode** to **box** and edit **Box Size**.
 To animate variable fonts, choose a **Style**, then animate the individual axis
 properties. Most built-in fonts are static, so they show no axis rows. The

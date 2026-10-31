@@ -46,6 +46,10 @@ Commands are enabled only when they apply to the selected item. Uses inside clos
 
 Composition rows use composition commands. File reload and download do not apply to them. Used compositions cannot be deleted until their referring clips are removed.
 
+## Project fonts in font pickers
+
+A font imported in Assets appears in every **Font** picker: native Text, 3D Text, Shape+ **Font Family** and **Fallback Font**, and Shader+ text. The picker lists built-in fonts first, then imported fonts under **Project fonts** sorted by family name, then **custom...**. The button shows the selected project font in its own typeface. Choosing a project font stores the existing asset key in one undo step. A project font that fails to parse shows its file name with a **failed** badge. Removing a font that is in use shows a Missing state on the property without breaking the panel.
+
 ## Project commands
 
 **Project commands** contains the following operations.
