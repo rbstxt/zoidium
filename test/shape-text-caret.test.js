@@ -91,7 +91,8 @@ test("empty lines keep their paragraph offsets and draw no rects", () => {
   assert.equal(layout.rows.length, 3);
   const spans = spansOf(source, layout);
   assert.deepEqual(spans, [{ srcStart: 0, srcEnd: 1 }, { srcStart: 2, srcEnd: 2 }, { srcStart: 3, srcEnd: 4 }]);
-  assert.equal(caret.xForOffset(layout.rows, layout.glyphs, spans, 2, 7), 7);
+  // An empty row puts the caret at the row start, not at the caller fallback.
+  assert.equal(caret.xForOffset(layout.rows, layout.glyphs, spans, 2, 7), layout.rows[1].left);
   assert.deepEqual(caret.rectsForRange(layout.rows, layout.glyphs, spans, 0, 4, 120).length, 2);
 });
 
@@ -145,4 +146,17 @@ test("caps map display positions back to source clusters", () => {
   assert.deepEqual(spans, [{ srcStart: 0, srcEnd: 6 }]);
   assert.equal(caret.xForOffset(layout.rows, layout.glyphs, spans, 0), layout.glyphs[0].x);
   assert.equal(caret.offsetForPoint(source, layout.rows, layout.glyphs, spans, layout.glyphs[0].x, layout.rows[0].baseline, 120), 0);
+});
+
+test("caret boxes sit on the baseline in Y-up layout space and follow Position", () => {
+  const layout = layoutOf(latin, { sourceText: "AV", position: [40, 25] });
+  const row = layout.rows[0], lineHeight = 120;
+  assert.equal(row.baseline, 25);
+  assert.equal(row.left, 40);
+  const bottom = caret.rowTop(row.baseline, lineHeight), top = bottom + lineHeight;
+  // Mostly above the baseline (ascent share), a little below it (descent share).
+  assert.ok(bottom < row.baseline && top > row.baseline);
+  assert.ok(top - row.baseline > row.baseline - bottom);
+  const rect = caret.rectsForRange(layout.rows, layout.glyphs, spansOf("AV", layout), 0, 2, lineHeight)[0];
+  assert.equal(rect.y, bottom);
 });
