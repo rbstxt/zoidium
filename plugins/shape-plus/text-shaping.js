@@ -11,10 +11,11 @@ function script(text) {
   return null;
 }
 function shapeRuns(primary, fallback, text, coordinates = {}) {
-  const key = JSON.stringify([fontId(primary),fontId(fallback),text,coordinates]);
+  const primaryCoords = primary.coordinates(coordinates), fallbackCoords = fallback ? fallback.coordinates(coordinates) : null;
+  const key = JSON.stringify([fontId(primary),fontId(fallback),text,primaryCoords,fallbackCoords]);
   const cached = runsCache.get(key);
   if (cached) return cached.map(({fontSlot,...g})=>({...g,font:fontSlot?fallback:primary}));
-  const runs = [], coveragePrefix = JSON.stringify([fontId(primary),coordinates]);
+  const runs = [], coveragePrefix = JSON.stringify([fontId(primary),primaryCoords]);
   for (const cluster of clusters(text)) {
     let font = primary;
     if (fallback) {

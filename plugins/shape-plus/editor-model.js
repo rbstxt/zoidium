@@ -82,6 +82,7 @@ function createEditorModel(s) {
     if (!data) {
       entry.item.unload();
       entry.list.splice(entry.index, 1);
+      layer.contentsState?.invalidate();
       return;
     }
     const item = new Content(data.kind, data);
@@ -89,6 +90,7 @@ function createEditorModel(s) {
     entry.item.unload();
     entry.list.splice(entry.index, 1, item);
     layer.signature = null;
+    layer.contentsState?.invalidate();
   };
   s.topology = (operation) => {
     const item = s.active();

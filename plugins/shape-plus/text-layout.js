@@ -82,9 +82,13 @@ function layoutText(primary, fallback, p) {
     }
     y -= p.spaceAfter || 0;
   }
-  const parsed = new Map(), coordinatesKey = JSON.stringify(coordinates);
+  const parsed = new Map(), clampedKeys = new Map();
+  const coordinatesKey = font => {
+    if (!clampedKeys.has(font)) clampedKeys.set(font, JSON.stringify(font.coordinates(coordinates)));
+    return clampedKeys.get(font);
+  };
   for (const glyph of glyphs) {
-    const key=fontId(glyph.font)+":"+glyph.g+":"+coordinatesKey;
+    const key=fontId(glyph.font)+":"+glyph.g+":"+coordinatesKey(glyph.font);
     if(!parsed.has(key)) {
       let contours=contoursCache.get(key);
       if(!contours){const outline=glyph.font.outline(glyph.g,coordinates);contours=outline.length?parsePath(outline.map(c=>c.type+c.values.join(",")).join("")):[];contoursCache.set(key,contours,128+contours.reduce((n,p)=>n+p.vertices.length*256,0));}
