@@ -7,6 +7,7 @@ const { GEOMETRY, PAINTS, paintScope } = require("./contents-ops.js");
 const { stops } = require("./paint.js");
 const RULE = "A fill or stroke draws the paths above it in the same group.";
 const NO_PAINT = "no fill or stroke", NO_PATHS = "no paths above";
+const NO_TEXT = "No text above this animator";
 const HINT_STYLE = "color:#7d7d7d;margin-left:6px;font-size:11px;white-space:nowrap;pointer-events:none";
 const SWATCH_STYLE = "display:inline-block;box-sizing:border-box;width:10px;height:10px;margin-left:6px;vertical-align:middle;pointer-events:none;";
 const valueOf = property => property && typeof property.get === "function" ? property.get() : property;
@@ -22,6 +23,7 @@ function outline(items) {
 }
 function hintFor(scope, item) {
   const entry = scope.get(item.id);
+  if (item.kind === "textAnimator") return !entry?.enabled || entry.texts ? "" : NO_TEXT;
   if (!entry?.enabled) return "";
   if (GEOMETRY.includes(item.kind)) return entry.painted ? "" : NO_PAINT;
   if (PAINTS.includes(item.kind)) return entry.paths ? "" : NO_PATHS;
@@ -116,4 +118,4 @@ function createHints({ PZ, Layer, Content, document, view = document.defaultView
   }
   return { attach, detach, dispose, tick, get size() { return rows.size; } };
 }
-module.exports = { RULE, NO_PAINT, NO_PATHS, outline, hintFor, swatchStyle, gradientCss, createHints };
+module.exports = { RULE, NO_PAINT, NO_PATHS, NO_TEXT, outline, hintFor, swatchStyle, gradientCss, createHints };

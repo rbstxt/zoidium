@@ -3,7 +3,7 @@
   "id": "shape-plus",
   "name": "Shape+",
   "author": "Zoidium",
-  "version": "24",
+  "version": "25",
   "kind": "extension",
   "description": "Animated vector layers, procedural contents, SVG import and native preview path editing.",
   "category": "scene",
@@ -374,6 +374,21 @@
       "id": "text-fill",
       "type": "text",
       "source": "./plugins/shape-plus/text-fill.js?v=24"
+    },
+    {
+      "id": "text-animator-properties",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-animator-properties.js?v=24"
+    },
+    {
+      "id": "text-selectors",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-selectors.js?v=24"
+    },
+    {
+      "id": "text-animate",
+      "type": "text",
+      "source": "./plugins/shape-plus/text-animate.js?v=24"
     }
   ]
 }

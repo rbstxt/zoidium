@@ -75,6 +75,8 @@ function createModel(PZ, textService) {
       const result = { ...this.extra, id: this.id, kind: this.kind, properties: { ...this.extra.properties, ...clone(this.properties) } };
       if (this.kind === "text" && Object.keys(this.hiddenAxes || {}).length) result.axisStore = clone(this.hiddenAxes);
       else if (this.kind === "text") delete result.axisStore;
+      if (this.kind === "textAnimator" && Object.keys(this.hiddenAxes || {}).length) result.axisStore = clone(this.hiddenAxes);
+      else if (this.kind === "textAnimator") delete result.axisStore;
       if (this.contents) result.contents = this.contents;
       if (this.kind === "path") Object.assign(result, { vertexIds: this.vertexIds, vertexModes: this.vertexModes });
       return result;
