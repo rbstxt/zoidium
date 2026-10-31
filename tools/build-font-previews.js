@@ -4,10 +4,10 @@
  * Build the generated font-picker preview sprite (fonts/font-previews.svg).
  *
  * The CM3 font dropdown renders one 200x25 row per preset from a sprite
- * sheet. This tool renders every preset name in its own font as outline
- * paths through the Shape+ HarfBuzz engine in Node, so adding a preset is
- * just a TTF plus a presets.json entry. No system fonts or browsers are
- * involved. Output is byte-deterministic: fixed row geometry, fixed float
+ * sheet. This tool renders every preset's display label in its own font as
+ * outline paths through the Shape+ HarfBuzz engine in Node, so adding a
+ * preset is just a TTF plus a presets.json entry. No system fonts or browsers
+ * are involved. Output is byte-deterministic: fixed row geometry, fixed float
  * precision, and no timestamps or absolute paths.
  *
  * Usage:
@@ -46,21 +46,32 @@ function readPresetList() {
   } catch (error) {
     throw new Error(`Could not read fonts/presets.json: ${error.message}`);
   }
-  if (!Array.isArray(list) || list.length === 0 || list.some(name => typeof name !== "string")) {
-    throw new Error("fonts/presets.json must be a non-empty array of preset names.");
+  if (!Array.isArray(list) || list.length === 0) {
+    throw new Error("fonts/presets.json must be a non-empty array of preset entries.");
   }
+  // The key stays lowercase: asset paths, sort order, and indexOf behaviour
+  // all depend on it. The optional label only changes the sprite row text.
+  const entries = [];
   const seen = new Set();
-  for (const name of list) {
-    if (!/^[a-z0-9][a-z0-9 ]*$/.test(name)) {
+  for (const entry of list) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new Error("fonts/presets.json entries must be {name, label?} objects.");
+    }
+    const { name, label } = entry;
+    if (typeof name !== "string" || !/^[a-z0-9][a-z0-9 ]*$/.test(name)) {
       throw new Error(`Invalid preset name (lowercase, valid file name required): ${name}`);
+    }
+    if (label !== undefined && (typeof label !== "string" || label.length === 0)) {
+      throw new Error(`Invalid display label for preset ${name}.`);
     }
     if (seen.has(name)) throw new Error(`Duplicate preset name: ${name}`);
     seen.add(name);
     if (!fs.existsSync(presetFile(name))) {
       throw new Error(`Missing preset file for ${name}: fonts/presets/${name}.ttf`);
     }
+    entries.push({ name, label: label ?? name });
   }
-  return [...list].sort();
+  return entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
 function readHostPresets() {
@@ -96,12 +107,14 @@ function readHostPresets() {
 }
 
 function mergedPresets() {
-  const host = readHostPresets();
+  const host = readHostPresets().map(name => ({ name, label: name }));
   const extra = readPresetList();
-  for (const name of extra) {
-    if (host.includes(name)) throw new Error(`Preset name collides with a host preset: ${name}`);
+  for (const { name } of extra) {
+    if (host.some(entry => entry.name === name)) {
+      throw new Error(`Preset name collides with a host preset: ${name}`);
+    }
   }
-  return [...host, ...extra].sort();
+  return [...host, ...extra].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
 async function loadEngine() {
@@ -202,15 +215,15 @@ function rowPath(row, rowTop) {
 }
 
 async function buildSprite() {
-  const names = mergedPresets();
+  const entries = mergedPresets();
   const engine = await loadEngine();
   try {
     const hostDirectory = path.join(defaultResourceCacheRoot, "assets", "fonts", "2d");
     const rows = [];
-    for (const name of names) {
+    for (const { name, label } of entries) {
       const filePath = presetFile(name);
       const source = fs.existsSync(filePath) ? filePath : path.join(hostDirectory, `${name}.ttf`);
-      const row = renderRow(engine, source, name);
+      const row = renderRow(engine, source, label);
       try {
         rows.push(rowPath(row, rows.length * ROW_HEIGHT));
       } finally {
@@ -247,7 +260,7 @@ async function main() {
     if (checkedIn !== sprite) {
       throw new Error("fonts/font-previews.svg is stale (run node tools/build-font-previews.js).");
     }
-    const wanted = readPresetList();
+    const wanted = readPresetList().map(entry => entry.name);
     const embedded = patchNames();
     if (JSON.stringify(embedded) !== JSON.stringify(wanted)) {
       throw new Error("plugins/core/font-presets.js preset list differs from fonts/presets.json.");
@@ -278,4 +291,6 @@ module.exports = {
   patchNames,
   readHostPresets,
   readPresetList,
+  renderRow,
+  rowPath,
 };

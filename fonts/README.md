@@ -70,7 +70,9 @@ Name.
 1. Drop the TTF into `presets/`, named `<preset name>.ttf`. The name must be
    lowercase, must be a valid file name, and must not collide with a host
    preset.
-2. Add the name to `presets.json` (alphabetical order).
+2. Add a `{ "name": ... }` entry to `presets.json` (alphabetical order). The
+   optional `"label"` field changes only the sprite row text and defaults to
+   the key.
 3. Run `node tools/build-font-previews.js` to rebuild `font-previews.svg`.
 4. Record the source URL, version, size, SHA-256, and license above.
 5. `pnpm run verify` fails when the sprite or the runtime preset list

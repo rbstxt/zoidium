@@ -312,11 +312,11 @@ async function copyProjectFiles(stageRoot, { includeDesktopFiles = false } = {})
 // copyProjectFiles, so one step here covers all of them.
 async function copyFontPresets(stageRoot) {
   const listPath = path.join(projectRoot, "fonts", "presets.json");
-  const names = JSON.parse(await fs.promises.readFile(listPath, "utf8"));
-  if (!Array.isArray(names) || names.some(name => typeof name !== "string")) {
-    throw new Error("fonts/presets.json must be an array of preset names.");
+  const entries = JSON.parse(await fs.promises.readFile(listPath, "utf8"));
+  if (!Array.isArray(entries) || entries.some(entry => !entry || typeof entry.name !== "string")) {
+    throw new Error("fonts/presets.json must be an array of {name, label?} entries.");
   }
-  for (const name of names) {
+  for (const { name } of entries) {
     const source = path.resolve(projectRoot, "fonts", "presets", `${name}.ttf`);
     if (!isPathInside(projectRoot, source)) {
       throw new Error(`Font preset escapes the repository: ${name}`);

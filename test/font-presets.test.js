@@ -19,10 +19,14 @@ const cacheMissing = !fs.existsSync(path.join(cache, "core-1.0.102.js")) ||
 const skipCache = cacheMissing ? "CM3 cache missing (run pnpm run setup)" : false;
 
 const previews = require("../tools/build-font-previews");
-const PRESET_FILES = previews.readPresetList().map(name => `fonts/presets/${name}.ttf`);
+const PRESET_FILES = previews.readPresetList().map(entry => `fonts/presets/${entry.name}.ttf`);
+
+function presetEntries() {
+  return previews.readPresetList();
+}
 
 function presetNames() {
-  return previews.readPresetList();
+  return presetEntries().map(entry => entry.name);
 }
 
 function hostNames() {
@@ -64,23 +68,53 @@ function nativeHost() {
 }
 
 test("preset list is sorted, valid file names, and every file exists", () => {
-  const names = presetNames();
+  const entries = presetEntries();
+  const names = entries.map(entry => entry.name);
   assert.deepEqual(names, [...names].sort(), "fonts/presets.json must stay alphabetically sorted");
-  for (const name of names) {
+  for (const { name, label } of entries) {
     assert.match(name, /^[a-z0-9][a-z0-9 ]*$/, `invalid preset name: ${name}`);
+    assert.equal(typeof label, "string", `missing display label: ${name}`);
+    assert.ok(label.length > 0, `empty display label: ${name}`);
     assert.ok(fs.existsSync(path.join(root, "fonts", "presets", `${name}.ttf`)), `missing file: ${name}.ttf`);
+  }
+});
+
+test("sprite rows render the display label in key order", { skip: skipCache }, async () => {
+  const merged = previews.mergedPresets();
+  const names = merged.map(entry => entry.name);
+  assert.deepEqual(names, [...names].sort(), "sprite row order must follow the lowercase preset keys");
+  const labels = new Map(merged.map(entry => [entry.name, entry.label]));
+  assert.equal(labels.get("geist"), "Geist");
+  assert.equal(labels.get("geist pixel square"), "Geist Pixel Square");
+  assert.equal(labels.get("geist serif"), "Geist Serif");
+  assert.equal(labels.get("inter"), "inter");
+  assert.equal(labels.get("paper mono"), "paper mono");
+  // The sprite row for a labelled preset matches label shaping, not key shaping.
+  const engine = await shapeEngine();
+  const file = path.join(root, "fonts", "presets", "geist.ttf");
+  const labelRow = previews.renderRow(engine, file, "Geist");
+  const keyRow = previews.renderRow(engine, file, "geist");
+  try {
+    assert.notEqual(labelRow.advance, keyRow.advance, "display label must change the shaped row");
+    const index = names.indexOf("geist");
+    const rows = spriteRows(await previews.buildSprite());
+    assert.equal(rows[index], previews.rowPath(labelRow, index * previews.ROW_HEIGHT));
+  } finally {
+    labelRow.font.dispose();
+    keyRow.font.dispose();
   }
 });
 
 test("preset order is alphabetical and contains every host and preset file", { skip: skipCache }, () => {
   const merged = previews.mergedPresets();
-  assert.deepEqual(merged, [...merged].sort(), "merged preset order must be alphabetical");
-  assert.deepEqual([...hostNames(), ...presetNames()].sort(), merged);
+  const names = merged.map(entry => entry.name);
+  assert.deepEqual(names, [...names].sort(), "merged preset order must be alphabetical");
+  assert.deepEqual([...hostNames(), ...presetNames()].sort(), names);
   for (const name of hostNames()) {
-    assert.ok(merged.includes(name), `host preset missing from sprite order: ${name}`);
+    assert.ok(names.includes(name), `host preset missing from sprite order: ${name}`);
   }
   for (const name of presetNames()) {
-    assert.ok(merged.includes(name), `new preset missing from sprite order: ${name}`);
+    assert.ok(names.includes(name), `new preset missing from sprite order: ${name}`);
   }
 });
 

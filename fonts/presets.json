@@ -1,12 +1,12 @@
 [
-  "geist",
-  "geist mono",
-  "geist pixel circle",
-  "geist pixel grid",
-  "geist pixel line",
-  "geist pixel square",
-  "geist pixel triangle",
-  "geist serif",
-  "inter",
-  "paper mono"
+  { "name": "geist", "label": "Geist" },
+  { "name": "geist mono", "label": "Geist Mono" },
+  { "name": "geist pixel circle", "label": "Geist Pixel Circle" },
+  { "name": "geist pixel grid", "label": "Geist Pixel Grid" },
+  { "name": "geist pixel line", "label": "Geist Pixel Line" },
+  { "name": "geist pixel square", "label": "Geist Pixel Square" },
+  { "name": "geist pixel triangle", "label": "Geist Pixel Triangle" },
+  { "name": "geist serif", "label": "Geist Serif" },
+  { "name": "inter" },
+  { "name": "paper mono" }
 ]
