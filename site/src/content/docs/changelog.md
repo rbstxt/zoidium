@@ -10,6 +10,9 @@ each line describes one visible change.
 
 ### Added
 
+- Fonts imported in Assets appear under **Project fonts** in every font
+  picker, drawn in their own lettering, and can be chosen and keyframed like
+  built-in fonts. Arrow keys and Enter now work in the font list.
 - Built-in fonts: Geist, Geist Mono, Geist Pixel (Circle, Grid, Line, Square,
   Triangle), Geist Serif (with Square, Triangle, and Heart styles), Inter, and
   Paper Mono, in every font picker. Geist, Geist Mono, and Inter are variable

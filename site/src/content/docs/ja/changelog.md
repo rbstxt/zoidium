@@ -9,6 +9,7 @@ sidebar:
 
 ### 追加
 
+- Assets に読み込んだフォントが、すべてのフォント選択欄の **Project fonts** に、それぞれの書体で表示されます。組み込みフォントと同じように選択でき、キーフレームも打てます。フォント一覧で矢印キーと Enter が使えるようになりました。
 - 組み込みフォントを追加しました。Geist、Geist Mono、Geist Pixel (Circle、Grid、Line、Square、Triangle)、Geist Serif (Square、Triangle、Heart の各スタイルを含む)、Inter、Paper Mono を、すべてのフォント選択欄で使用できます。Geist、Geist Mono、Inter は可変フォントのため、Shape+ Text ではフォントを読み込まずにウェイトをアニメーションできます。
 - フォント選択欄のプレビュー画像を、フォント一覧から生成するようにしました。追加した組み込みフォントも、それぞれの書体で表示されます。
 - Shape+ Text。Shape+ のコンテンツに置く、打ち直せるテキスト項目です。Fill、Stroke、グラデーション、パス修飾、Repeater、Merge Paths が、ほかのパスと同じように文字に効きます。Source Text、フォント、Fallback Font、サイズ、トラッキング、行送り、ベースラインシフト、比率、大文字、揃え、折り返し付きのボックステキストをアニメーションできます。プレビューでテキストをダブルクリックすると編集できます。
