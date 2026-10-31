@@ -59,7 +59,7 @@ function install(context) {
     const input = document.createElement("textarea");
     input.className = "pz-inputbox shape-plus-source-text";
     input.setAttribute("aria-label", "Source Text");
-    wrap.append(input);
+    wrap.appendChild(input);
     let editing = false, frame;
     wrap.pz_update = () => {
       input.readOnly = !!property.expression;
@@ -84,7 +84,7 @@ function install(context) {
     const select = document.createElement("select");
     select.className = "pz-inputbox";
     select.setAttribute("aria-label", "Style");
-    wrap.append(select);
+    wrap.appendChild(select);
     wrap.pz_update = () => {
       const items = property.definition.items || [];
       const signature = JSON.stringify(items);
