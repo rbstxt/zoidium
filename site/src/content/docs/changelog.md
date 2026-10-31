@@ -158,6 +158,13 @@ each line describes one visible change.
 
 ### Fixed
 
+- Native Text set in the built-in Geist, Geist Mono, Geist Serif, or Inter
+  fonts no longer draws broken letters such as a wedge-shaped "i" or a filled
+  "A". These presets now use the official static Regular files; Shape+ Text
+  still animates their variable axes. Native Text in these fonts changes
+  only where letters were drawn wrong.
+- Font names in the font picker are centred in their rows and buttons, and an
+  empty Fallback Font shows **None**.
 - The Shape+ Text editing caret and selection now sit on the text line
   instead of below it, including text moved by Position or Baseline Shift.
 - `pnpm dev` picks up source, plugin and font changes, including added and
