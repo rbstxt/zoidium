@@ -161,13 +161,13 @@ function createRecursiveWatcher(roots, onChange, options = {}) {
   const {
     debounceMs = 150,
     forcePoll = false,
+    forceRecursive = false,
     pollMs = 1000,
     onError = null,
     fsWatch = fs.watch,
   } = options;
   const targets = normalizeWatchRoots(roots);
   if (typeof onChange !== "function") throw new Error("createRecursiveWatcher needs an onChange callback");
-
   const reportError = (error) => {
     if (typeof onError === "function") {
       try {
@@ -178,7 +178,9 @@ function createRecursiveWatcher(roots, onChange, options = {}) {
     }
   };
 
-  const debounced = createDebouncer(debounceMs, (changed) => {
+  const debounced = createDebouncer(debounceMs, () => {
+    const changed = pendingChanged;
+    pendingChanged = [];
     try {
       onChange(changed);
     } catch (error) {
@@ -186,14 +188,18 @@ function createRecursiveWatcher(roots, onChange, options = {}) {
     }
   });
   let closed = false;
+  let pendingChanged = [];
   const watchers = [];
   let pollTimer = null;
-  const recursiveSupported = process.platform === "darwin" || process.platform === "win32";
+  const recursiveSupported = forceRecursive || process.platform === "darwin" || process.platform === "win32";
   const mode = !forcePoll && recursiveSupported ? "recursive" : "poll";
 
   const noteChanged = (changed) => {
     if (closed || !changed || changed.length === 0) return;
-    debounced.trigger(changed);
+    // Accumulate across the debounce window (deduplicated) so one rebuild
+    // batch covers every file that changed, not just the latest event.
+    pendingChanged = [...new Set([...pendingChanged, ...changed])];
+    debounced.trigger();
   };
 
   if (mode === "recursive") {
@@ -242,10 +248,16 @@ function createRecursiveWatcher(roots, onChange, options = {}) {
   return {
     mode,
     roots: targets,
+    // Run a pending debounced batch now. Tests drive injected events through
+    // this instead of waiting on wall-clock delivery.
+    flush() {
+      return debounced.flush();
+    },
     close() {
       if (closed) return;
       closed = true;
       debounced.cancel();
+      pendingChanged = [];
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = null;
       for (const watcher of watchers) {

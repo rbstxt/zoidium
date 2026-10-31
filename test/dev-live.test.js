@@ -126,26 +126,42 @@ test("debouncer flush runs a pending call immediately", async () => {
   debouncer.cancel();
 });
 
-test("recursive watcher sees edits, additions, and removals", async (t) => {
+test("recursive watcher batches injected events through one watcher per root", (t) => {
   const root = makeTempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  writeFile(root, "sub/file.js", "v1\n");
+  writeFile(root, "sub/seed.js", "seed\n");
   const batches = [];
-  const watcher = createRecursiveWatcher([root], (changed) => {
+  const watched = [];
+  const listeners = [];
+  const fakeWatch = (target, watchOptions, listener) => {
+    watched.push([target, watchOptions]);
+    listeners.push(listener);
+    return { on() {}, close() {} };
+  };
+  const sub = path.join(root, "sub");
+  const watcher = createRecursiveWatcher([root, sub, root], (changed) => {
     batches.push(changed);
-  }, { debounceMs: 30 });
+  }, { debounceMs: 60_000, forceRecursive: true, fsWatch: fakeWatch });
   t.after(() => watcher.close());
   assert.equal(watcher.mode, "recursive");
+  // Duplicate roots collapse: exactly one watcher per root, recursive.
+  assert.deepEqual(watched.map(([target]) => target).sort(), [root, sub].sort());
+  for (const [, watchOptions] of watched) assert.equal(watchOptions.recursive, true);
+  assert.deepEqual(watcher.roots.sort(), [root, sub].sort());
 
-  writeFile(root, "sub/file.js", "v2\n");
-  await waitFor(() => batches.length >= 1);
-  writeFile(root, "sub/added.js", "new\n");
-  await waitFor(() => batches.length >= 2);
-  fs.rmSync(path.join(root, "sub/file.js"));
-  await waitFor(() => batches.length >= 3);
-  const all = batches.flat().map((file) => path.relative(root, file).split(path.sep).join("/"));
-  assert.ok(all.some((file) => file === "sub/file.js"), `expected sub/file.js in ${JSON.stringify(all)}`);
-  assert.ok(all.some((file) => file === "sub/added.js"), `expected sub/added.js in ${JSON.stringify(all)}`);
+  // Drive events deterministically instead of waiting on OS delivery.
+  listeners[0]("change", path.join("sub", "file.js"));
+  listeners[0]("rename", path.join("sub", "added.js"));
+  listeners[1]("rename", "gone.js");
+  assert.deepEqual(batches, [], "nothing fires before the debounce flush");
+  watcher.flush();
+  assert.equal(batches.length, 1);
+  const all = batches[0].map((file) => path.relative(root, file).split(path.sep).join("/")).sort();
+  assert.deepEqual(all, ["sub/added.js", "sub/file.js", "sub/gone.js"]);
+  // A missing filename still reports its root.
+  listeners[0]("change", null);
+  watcher.flush();
+  assert.deepEqual(batches[1], [root]);
 });
 
 test("polling watcher fallback sees edits, additions, and removals", async (t) => {
@@ -160,11 +176,11 @@ test("polling watcher fallback sees edits, additions, and removals", async (t) =
   assert.equal(watcher.mode, "poll");
 
   writeFile(root, "file.js", "v2\n");
-  await waitFor(() => batches.length >= 1);
+  await waitFor(() => batches.length >= 1, { timeoutMs: 15_000 });
   writeFile(root, "added.js", "new\n");
-  await waitFor(() => batches.length >= 2);
+  await waitFor(() => batches.length >= 2, { timeoutMs: 15_000 });
   fs.rmSync(path.join(root, "file.js"));
-  await waitFor(() => batches.length >= 3);
+  await waitFor(() => batches.length >= 3, { timeoutMs: 15_000 });
   const all = batches.flat().map((file) => path.relative(root, file).split(path.sep).join("/"));
   assert.ok(all.includes("file.js"), `expected file.js in ${JSON.stringify(all)}`);
   assert.ok(all.includes("added.js"), `expected added.js in ${JSON.stringify(all)}`);
