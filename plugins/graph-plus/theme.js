@@ -169,7 +169,8 @@ return [
     ".g2-wrap .g2-eye{min-width:26px;min-height:26px;padding:2px}",
     ".g2-track-row{min-height:28px;box-sizing:border-box}",
     ".g2-track-name{min-width:0}",
-    ".g2-wrap .g2-status{flex-wrap:wrap;max-height:48px;gap:4px}",
+    // One fixed-height row: hover details must never add a second row and shift the canvas under the pointer.
+    ".g2-wrap .g2-status{flex-wrap:nowrap;height:34px;box-sizing:border-box;gap:4px}",
     ".g2-wrap .g2-toolbar{flex:0 0 auto;max-height:52%;padding:4px}",
     ".g2-wrap .g2-group[data-label]{padding:14px 6px 3px;gap:4px}",
     ".g2-wrap .g2-toolbar .g2-tlabel{display:none}",
