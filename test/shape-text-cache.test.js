@@ -73,3 +73,24 @@ test("Trim and Repeater order cannot reuse pre-modifier glyph fill geometry",asy
  for(const contents of cases){const optimized=compile(contents),reference=compile(expandText(contents));assert.deepEqual(region(optimized.commands),region(reference.commands));}
  assert.notDeepEqual(region(compile(cases[0]).commands),region(compile(cases[1]).commands));font.dispose();
 });
+test("keyed fonts stay loaded across scrubs and release when their keys are removed",async()=>{
+ class PropertyList extends host.propertyList{add(key,definition){this[key]=new host.property(definition);this[key].parent=this;}remove(key){delete this[key];}}
+ const bytes=fs.readFileSync("test/fixtures/shape-text/RobotoFlex-subset.ttf"), assets={a:{source:1,file:new Blob([bytes])},b:{source:1,file:new Blob([bytes])}},loads=[],unloads=[];
+ const project={assets:{load(ref){loads.push(ref);return assets[ref];},unload(asset){unloads.push(asset);}}};
+ const PZ={...host,propertyList:PropertyList,project:class{},asset:{type:{FONT:1},source:{FILE:1},font:class{constructor(asset){this.asset=asset;}}}};
+ let dispose;const service=require("../plugins/shape-plus/text-service").createService({PZ,getAsset:(_,name)=>fs.readFileSync(name,"utf8"),lifecycle:{onDispose:fn=>{dispose=fn;}}});
+ const node=new (require("../plugins/shape-plus/model").createModel(PZ,service).Content)("text");node.tryGetParentOfType=()=>project;
+ node.load({properties:{font:{animated:true,keyframes:[{frame:0,value:"a",tween:0},{frame:30,value:"b",tween:0}]}}});
+ await node.prepare(0);await node.prepare(30);await node.prepare(0);assert.deepEqual(loads,["a","b"]);assert.equal(unloads.length,0);
+ node.properties.font.data.keyframes.pop();await node.prepare(0);assert.deepEqual(unloads,[assets.b]);
+ node.unload();assert.deepEqual(unloads,[assets.b,assets.a]);dispose();
+});
+test("releasing a preset decoder does not emit an asset deletion outside history",async()=>{
+ class PropertyList extends host.propertyList{add(key,definition){this[key]=new host.property(definition);this[key].parent=this;}remove(key){delete this[key];}}
+ const file=new Blob([fs.readFileSync("test/fixtures/shape-text/RobotoFlex-subset.ttf")]),asset={source:2,file,references:0};let removed=0,dispose;
+ const project={assets:{load(){asset.references++;return asset;},unload(){removed++;}}};
+ const PZ={...host,propertyList:PropertyList,project:class{},asset:{type:{FONT:1},source:{FILE:1},font:class{constructor(a){this.asset=a;}}}};
+ const service=require("../plugins/shape-plus/text-service").createService({PZ,getAsset:(_,name)=>fs.readFileSync(name,"utf8"),lifecycle:{onDispose:fn=>{dispose=fn;}}});
+ const node=new (require("../plugins/shape-plus/model").createModel(PZ,service).Content)("text");node.tryGetParentOfType=()=>project;node.load({properties:{font:"preset"}});
+ await node.prepare(0);assert.equal(asset.references,1);node.unload();assert.equal(asset.references,0);assert.equal(removed,0);dispose();
+});

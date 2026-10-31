@@ -9,60 +9,89 @@ function createService(context) {
   const PZ = context.PZ || window.PZ, load = createLoader(context.getAsset), records = new Map();
   const { resolveStaticRef, resolveVariableRef } = require("./preset-variables.js");
   const layouts = createCache(8 * 1024 * 1024);
+  function releaseEntry(record, entry) {
+    entry.alive = false;
+    entry.font?.dispose();
+    if (entry.asset) {
+      // Preset assets are created by the native font control. Collecting one
+      // during a render emits an editor history event outside an operation.
+      // Release our reference without triggering that unrelated deletion.
+      if (entry.asset.source !== PZ.asset.source.FILE && typeof entry.asset.references === "number") entry.asset.references--;
+      else record.project.assets.unload(entry.asset);
+    }
+  }
   function release(node) {
     const record = records.get(node);
     if (!record) return;
     records.delete(node); record.alive = false;
-    for (const entry of record.entries) { entry.font?.dispose(); if (entry.asset) record.project.assets.unload(entry.asset); }
+    for (const entry of record.cache.values()) releaseEntry(record, entry);
   }
   function prepare(node, frame = node.textFrame || 0) {
     const project = node.tryGetParentOfType?.(PZ.project);
     if (!project) return Promise.resolve();
-    const value = property => holdValue(property, frame);
-    // Built-in presets served at /assets/fonts/2d/<name>.ttf are host-safe
-    // static instances. Shape+ loads the variable file from
-    // /assets/fonts/2d-variable/ instead (see preset-variables.js) so axis
-    // animation keeps working; custom files pass through unchanged.
-    const refs = [value(node.properties.font), value(node.properties.fallbackFont)]
-      .map(ref => resolveVariableRef(ref));
-    const signature = JSON.stringify(refs), previous = records.get(node);
-    if (previous?.project === project && previous.signature === signature && previous.entries.every(entry => entry.file === entry.asset.file)) return previous.pending;
-    release(node);
-    const record = { project, signature, alive: true, entries: [], state: "loading", message: "Loading text font" };
-    records.set(node, record); node.textState = record;
-    record.pending = (async () => {
-      const engine = await load();
-      if (!record.alive) return;
-      record.cacheStats = () => ({ ...engine.stats(), layouts: layouts.stats(), contours: contoursStats(), runCaches: coverageStats(), geometry: textGeometry.stats() });
-      for (const [index, ref] of refs.entries()) {
-        if (!ref && index === 1) continue;
-        if (!ref) { record.state = "missing"; record.message = "The text font is missing from the project."; return; }
-        const entry = { asset: project.assets.load(ref), font: null }; entry.file = entry.asset.file; record.entries.push(entry);
-        let wrapper = new PZ.asset.font(entry.asset);
-        let result = entry.asset.source === PZ.asset.source.FILE && !entry.asset.file
-          ? { state: "missing", message: "The text font is missing from the project." } : await openAsset(engine, wrapper, ref);
-        if (result.state !== "ready") {
-          const staticRef = resolveStaticRef(ref);
-          if (staticRef !== ref && record.alive) {
-            // The variable file failed to load (stale stage, bad cache):
-            // fall back to the static preset twin and note it on the record.
-            record.variableFallback = true;
-            try { record.project.assets.unload(entry.asset); } catch (_ignored) { /* Best effort. */ }
-            entry.asset = project.assets.load(staticRef);
-            entry.file = entry.asset.file;
-            wrapper = new PZ.asset.font(entry.asset);
-            result = await openAsset(engine, wrapper, staticRef);
-          }
-        }
-        if (!record.alive) { result.font?.dispose(); return; }
-        if (result.state !== "ready") { record.state = result.state; record.message = result.message; return; }
-        entry.font = result.font;
+    const properties = [node.properties.font, node.properties.fallbackFont];
+    const refs = properties.map(property => holdValue(property, frame));
+    let record = records.get(node);
+    if (record && record.project !== project) { release(node); record = null; }
+    if (!record) {
+      record = { project, alive: true, cache: new Map(), generation: 0 };
+      records.set(node, record); node.textState = record;
+    }
+    const used = new Set(refs.filter(Boolean));
+    for (const property of properties) for (const key of property.keyframes || property.data?.keyframes || [])
+      if (key.value) used.add(key.value);
+    for (const [ref, entry] of record.cache) {
+      if (!used.has(ref) || entry.asset?.file !== entry.file) {
+        record.cache.delete(ref); releaseEntry(record, entry);
       }
-      if (!record.alive) return;
-      record.primary = record.entries[0].font; record.fallback = record.entries[1]?.font;
+    }
+    const signature = JSON.stringify(refs);
+    if (record.signature === signature && record.activeEntries?.every(entry => entry.alive)) return record.pending;
+    record.signature = signature; record.state = "loading"; record.message = "Loading text font";
+    const generation = ++record.generation;
+    const getEntry = ref => {
+      let entry = record.cache.get(ref);
+      if (entry) return entry;
+      // Built-in presets served at /assets/fonts/2d/<name>.ttf are host-safe
+      // static instances. Shape+ loads the variable twin from
+      // /assets/fonts/2d-variable/ (preset-variables.js) so axes keep working;
+      // keys and the cache stay on the original reference.
+      const loadRef = resolveVariableRef(ref);
+      entry = { alive: true, asset: project.assets.load(loadRef), font: null };
+      entry.file = entry.asset.file; record.cache.set(ref, entry);
+      entry.pending = (async () => {
+        const engine = await load();
+        if (!entry.alive) return;
+        record.cacheStats = () => ({ ...engine.stats(), layouts: layouts.stats(), contours: contoursStats(), runCaches: coverageStats(), geometry: textGeometry.stats() });
+        const open = async (asset, target) => asset.source === PZ.asset.source.FILE && !asset.file
+          ? { state: "missing", message: "The text font is missing from the project." } : openAsset(engine, new PZ.asset.font(asset), target);
+        let result = await open(entry.asset, loadRef);
+        const staticRef = resolveStaticRef(loadRef);
+        if (result.state !== "ready" && staticRef !== loadRef && entry.alive) {
+          // The variable twin failed to load (stale stage, bad cache): use the
+          // static preset and note it on the record.
+          releaseEntry(record, { asset: entry.asset });
+          entry.asset = project.assets.load(staticRef); entry.file = entry.asset.file;
+          entry.variableFallback = record.variableFallback = true;
+          result = await open(entry.asset, staticRef);
+        }
+        if (!entry.alive) { result.font?.dispose(); return; }
+        Object.assign(entry, result);
+      })();
+      return entry;
+    };
+    const entries = refs.map(ref => ref ? getEntry(ref) : null);
+    record.activeEntries = entries.filter(Boolean);
+    record.pending = (async () => {
+      if (!entries[0]) { record.state = "missing"; record.message = "The text font is missing from the project."; return; }
+      await Promise.all(entries.filter(Boolean).map(entry => entry.pending));
+      if (!record.alive || generation !== record.generation) return;
+      const failed = entries.filter(Boolean).find(entry => entry.state !== "ready");
+      if (failed) { record.state = failed.state; record.message = failed.message; return; }
+      record.primary = entries[0].font; record.fallback = entries[1]?.font;
       axes(PZ, node, record.primary);
       record.state = "ready"; record.message = "";
-    })().catch(error => { if (record.alive) { record.state = "error"; record.message = error.message; } });
+    })().catch(error => { if (record.alive && generation === record.generation) { record.state = "error"; record.message = error.message; } });
     return record.pending;
   }
   function evaluate(node, properties, frame) {

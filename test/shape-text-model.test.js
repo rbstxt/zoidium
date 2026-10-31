@@ -54,3 +54,19 @@ test("named instances retain expression-driven axes and notify once",()=>{
  applyInstance({wght:900,wdth:150},properties,(p,value)=>writes.push([p,value]),message=>notices.push(message));
  assert.deepEqual(writes,[[properties.axis_wdth,150]]);assert.equal(properties.axis_wght.expression,"value*2");assert.equal(notices.length,1);assert.match(notices[0],/wght/);
 });
+test("text choice setters use the clip-relative frame when native controls omit it",()=>{
+ class Property extends PZ.property { set(value,frame){this.lastWrite=[value,frame];} }
+ Property.type=PZ.property.type;
+ class PropertyList extends PZ.propertyList {
+  constructor(definitions,parent){super(definitions,parent);for(const key of Object.keys(this)){this[key]=new Property(definitions[key]);this[key].parent=this;this[key].tryGetParentOfType=()=>({start:20,offset:7});}}
+ }
+ const host={...PZ,property:Property,propertyList:PropertyList,clip:class{}};
+ const old=global.window;global.window={CM:{playback:{currentFrame:30}}};
+ try {
+  const node=new (createModel(host).Content)("text");
+  for(const key of ["font","fallbackFont","fontStyle","caps","alignment","textMode","sourceText"]){
+   node.properties[key].set("value");assert.deepEqual(node.properties[key].lastWrite,["value",17]);
+   node.properties[key].set("other",3);assert.deepEqual(node.properties[key].lastWrite,["other",3]);
+  }
+ } finally {if(old===undefined)delete global.window;else global.window=old;}
+});
