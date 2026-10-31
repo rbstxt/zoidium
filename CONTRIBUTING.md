@@ -32,6 +32,12 @@ pnpm run desktop:build         # fetch CM3 and build the desktop installer
 The repository `index.html` is a placeholder. Test the app through the local
 HTTP server. Do not open it with `file://`.
 
+The development server rebuilds plugin bundles and the registry in memory
+from their sources, so edits, additions, and removals show on the next
+browser reload without a restart or a manual bundle build. Run
+`pnpm run build:plugin-bundles` before committing so the generated bundles
+stay consistent with their sources.
+
 ## Plugin changes
 
 Edit the plugin manifest and its source assets, then run:
