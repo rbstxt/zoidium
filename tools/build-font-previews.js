@@ -29,6 +29,12 @@ const ROW_WIDTH = 200;
 const ROW_HEIGHT = 25;
 const NOMINAL_EM_PX = 20;
 const BASELINE_PX = 18.5;
+// Rows centre the label ink vertically by its outline bounds, so caps-only
+// fonts (Bebas) and labels with descenders sit on the row middle. The ink
+// stays left-aligned with a fixed inset; scale shrinks only when the ink
+// would overflow the row (or, as a safety net, its height).
+const ROW_PAD_X = 2;
+const ROW_PAD_Y = 1;
 const CUSTOM_LABEL = "custom";
 const PRESETS_PATH = path.join(projectRoot, "fonts", "presets.json");
 const PRESETS_VARIABLE_PATH = path.join(projectRoot, "fonts", "presets-variable");
@@ -205,20 +211,24 @@ function renderRow(engine, filePath, label) {
 
 function rowPath(row, rowTop) {
   if (!isFinite(row.minX)) return "";
-  const width = Math.max(row.advance, row.maxX - row.minX);
-  // Keep ink inside the row: shift right past a negative left bearing, then
+  const inkWidth = row.maxX - row.minX;
+  const inkHeight = row.maxY - row.minY;
+  // Keep ink inside the row: start the ink at a fixed left inset, then
   // scale down only when too wide (or, as a safety net, too tall).
-  const shift = row.minX < 0 ? -row.minX : 0;
+  const shift = ROW_PAD_X - row.minX;
+  const width = Math.max(row.advance, inkWidth);
   const fitWidth = ROW_WIDTH / Math.max(width + shift, 1e-9);
-  const fitTop = row.maxY > 0 ? BASELINE_PX / row.maxY : 1;
-  const fitBottom = row.minY < 0 ? (ROW_HEIGHT - BASELINE_PX) / -row.minY : 1;
-  const scale = Math.min(1, fitWidth, fitTop, fitBottom);
+  const fitHeight = (ROW_HEIGHT - 2 * ROW_PAD_Y) / Math.max(inkHeight, 1e-9);
+  const scale = Math.min(1, fitWidth, fitHeight);
+  // Centre the scaled ink block in the row; SVG y grows down while font y
+  // grows up, so the ink top (maxY) lands on the centred block top.
+  const top = rowTop + (ROW_HEIGHT - inkHeight * scale) / 2;
   const d = [];
   for (const run of row.runs) {
     for (const command of run.placed) {
       const values = [];
       for (let i = 0; i + 1 < command.values.length; i += 2) {
-        values.push((command.values[i] + shift) * scale, rowTop + BASELINE_PX - command.values[i + 1] * scale);
+        values.push((command.values[i] + shift) * scale, top + (row.maxY - command.values[i + 1]) * scale);
       }
       appendPath(d, command.type, values);
     }
@@ -297,6 +307,8 @@ module.exports = {
   CUSTOM_LABEL,
   NOMINAL_EM_PX,
   ROW_HEIGHT,
+  ROW_PAD_X,
+  ROW_PAD_Y,
   ROW_WIDTH,
   buildSprite,
   mergedPresets,
