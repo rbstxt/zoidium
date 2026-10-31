@@ -308,6 +308,9 @@ async function copyProjectFiles(stageRoot, { includeDesktopFiles = false } = {})
 // Zoidium built-in font presets are stored in the repository as
 // fonts/presets/<name>.ttf (listed in fonts/presets.json) and served at the
 // path the host fetches: assets/fonts/2d/<name>.ttf, relative to the page.
+// Entries with a variable file (fonts/presets-variable/<file>) serve it at
+// assets/fonts/2d-variable/<file> for Shape+ text, which keeps the variable
+// axes while native text uses the host-safe static preset file.
 // Every stage (web build, development server, desktop packaging) is built by
 // copyProjectFiles, so one step here covers all of them.
 async function copyFontPresets(stageRoot) {
@@ -316,7 +319,7 @@ async function copyFontPresets(stageRoot) {
   if (!Array.isArray(entries) || entries.some(entry => !entry || typeof entry.name !== "string")) {
     throw new Error("fonts/presets.json must be an array of {name, label?} entries.");
   }
-  for (const { name } of entries) {
+  for (const { name, variable } of entries) {
     const source = path.resolve(projectRoot, "fonts", "presets", `${name}.ttf`);
     if (!isPathInside(projectRoot, source)) {
       throw new Error(`Font preset escapes the repository: ${name}`);
@@ -332,6 +335,23 @@ async function copyFontPresets(stageRoot) {
       throw new Error(`Missing font preset file fonts/presets/${name}.ttf: ${error.message}`);
     }
     await writeStageFile(stageRoot, `assets/fonts/2d/${name}.ttf`, bytes);
+    if (typeof variable === "string" && variable.length > 0) {
+      const variableSource = path.resolve(projectRoot, "fonts", "presets-variable", variable);
+      if (!isPathInside(projectRoot, variableSource)) {
+        throw new Error(`Font variable file escapes the repository: ${variable}`);
+      }
+      let variableBytes;
+      try {
+        const stat = await fs.promises.lstat(variableSource);
+        if (!stat.isFile() || stat.isSymbolicLink()) {
+          throw new Error(`Font variable file is not a regular file: ${variable}`);
+        }
+        variableBytes = await fs.promises.readFile(variableSource);
+      } catch (error) {
+        throw new Error(`Missing font variable file fonts/presets-variable/${variable}: ${error.message}`);
+      }
+      await writeStageFile(stageRoot, `assets/fonts/2d-variable/${variable}`, variableBytes);
+    }
   }
 }
 

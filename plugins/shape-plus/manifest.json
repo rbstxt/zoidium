@@ -3,7 +3,7 @@
   "id": "shape-plus",
   "name": "Shape+",
   "author": "Zoidium",
-  "version": "27",
+  "version": "28",
   "kind": "extension",
   "description": "Animated vector layers, procedural contents, SVG import and native preview path editing.",
   "category": "scene",
@@ -268,6 +268,11 @@
       "id": "native-hints",
       "type": "text",
       "source": "./plugins/shape-plus/native-hints.js?v=27"
+    },
+    {
+      "id": "preset-variables",
+      "type": "text",
+      "source": "./plugins/shape-plus/preset-variables.js?v=28"
     },
     {
       "id": "text-engine",

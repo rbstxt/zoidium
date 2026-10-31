@@ -7,6 +7,7 @@ const { axes, holdValue } = require("./text-properties.js");
 const { layoutText, contoursStats } = require("./text-layout.js");
 function createService(context) {
   const PZ = context.PZ || window.PZ, load = createLoader(context.getAsset), records = new Map();
+  const { resolveVariableRef } = require("./preset-variables.js");
   const layouts = createCache(8 * 1024 * 1024);
   function release(node) {
     const record = records.get(node);
@@ -18,7 +19,12 @@ function createService(context) {
     const project = node.tryGetParentOfType?.(PZ.project);
     if (!project) return Promise.resolve();
     const value = property => holdValue(property, frame);
-    const refs = [value(node.properties.font), value(node.properties.fallbackFont)];
+    // Built-in presets served at /assets/fonts/2d/<name>.ttf are host-safe
+    // static instances. Shape+ loads the variable file from
+    // /assets/fonts/2d-variable/ instead (see preset-variables.js) so axis
+    // animation keeps working; custom files pass through unchanged.
+    const refs = [value(node.properties.font), value(node.properties.fallbackFont)]
+      .map(ref => resolveVariableRef(ref));
     const signature = JSON.stringify(refs), previous = records.get(node);
     if (previous?.project === project && previous.signature === signature && previous.entries.every(entry => entry.file === entry.asset.file)) return previous.pending;
     release(node);

@@ -13,3 +13,6 @@
 
 /assets/fonts/2d/*
   Cache-Control: public, max-age=604800
+
+/assets/fonts/2d-variable/*
+  Cache-Control: public, max-age=604800

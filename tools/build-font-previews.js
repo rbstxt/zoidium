@@ -31,6 +31,7 @@ const NOMINAL_EM_PX = 20;
 const BASELINE_PX = 18.5;
 const CUSTOM_LABEL = "custom";
 const PRESETS_PATH = path.join(projectRoot, "fonts", "presets.json");
+const PRESETS_VARIABLE_PATH = path.join(projectRoot, "fonts", "presets-variable");
 const SPRITE_PATH = path.join(projectRoot, "fonts", "font-previews.svg");
 const PATCH_PATH = path.join(projectRoot, "plugins", "core", "font-presets.js");
 const INTER_TTF = path.join(projectRoot, "fonts", "presets", "inter.ttf");
@@ -51,25 +52,36 @@ function readPresetList() {
   }
   // The key stays lowercase: asset paths, sort order, and indexOf behaviour
   // all depend on it. The optional label only changes the sprite row text.
+  // The optional variable names the variable file in fonts/presets-variable/
+  // that Shape+ text uses for this preset; the preset file itself stays a
+  // host-safe static instance for the native font parser.
   const entries = [];
   const seen = new Set();
   for (const entry of list) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
       throw new Error("fonts/presets.json entries must be {name, label?} objects.");
     }
-    const { name, label } = entry;
+    const { name, label, variable } = entry;
     if (typeof name !== "string" || !/^[a-z0-9][a-z0-9 ]*$/.test(name)) {
       throw new Error(`Invalid preset name (lowercase, valid file name required): ${name}`);
     }
     if (label !== undefined && (typeof label !== "string" || label.length === 0)) {
       throw new Error(`Invalid display label for preset ${name}.`);
     }
+    if (variable !== undefined) {
+      if (typeof variable !== "string" || !/^[a-z0-9][a-z0-9 ]*\.ttf$/.test(variable)) {
+        throw new Error(`Invalid variable file for preset ${name}.`);
+      }
+      if (!fs.existsSync(path.join(PRESETS_VARIABLE_PATH, variable))) {
+        throw new Error(`Missing variable file for preset ${name}: fonts/presets-variable/${variable}`);
+      }
+    }
     if (seen.has(name)) throw new Error(`Duplicate preset name: ${name}`);
     seen.add(name);
     if (!fs.existsSync(presetFile(name))) {
       throw new Error(`Missing preset file for ${name}: fonts/presets/${name}.ttf`);
     }
-    entries.push({ name, label: label ?? name });
+    entries.push({ name, label: label ?? name, ...(variable === undefined ? null : { variable }) });
   }
   return entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
