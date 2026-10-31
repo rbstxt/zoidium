@@ -653,3 +653,70 @@ transformed Repeater views invalidate the per-glyph shortcut.
 Inactive variable axes are stored in the serialized `axisStore` field. Their
 keys and expressions return when the selected font exposes the tag again.
 A named Style leaves expression-driven axes unchanged and displays a notice.
+
+## Text Animators
+
+A Text Animator contents item animates the Text items above it in the same
+group, including text in nested groups above it. Place it below the text, as
+with Trim Paths. Several animators stack in list order from top to bottom. An
+animator with no text above it shows "No text above this animator" and changes
+nothing. Add one from the text item's context menu, choosing its first
+animated property, or from the Contents + menu.
+
+Each animated property applies as neutral + (value - neutral) x s, where s is
+the combined selector value for each unit. Supported properties: Anchor Point,
+Position, Scale (neutral 100), Skew with Skew Axis, Rotation, Tracking Amount,
+Character Offset, Grouping Alignment, and one offset per variable axis of the
+text's font. Skew applies after scale and before rotation about the pivot;
+position translates the result.
+
+Every animated property has a static enabled flag, off by default except the
+property chosen at creation. A disabled property contributes nothing and hides
+its row. Toggle properties through the animator's context menu (Add Property,
+Remove Property); each toggle is one undo step. Per-character Opacity, Fill
+Color, Stroke Color and Stroke Width are not yet supported.
+
+Anchor Point Grouping selects the pivot unit: Character (the advance centre
+on the baseline), Word, Line or All (the advance-span centre on the group's
+first baseline). Grouping Alignment shifts the pivot by a percentage of the
+group box: the advance span horizontally and font ascent to descent vertically.
+For variable fonts the ascent and descent come from the font's hhea table.
+
+The Range Selector is always present. Units count Percentage (0-100) or Index
+units over the whole text item in logical order across lines. In Index units
+an End with no keys, no expression, and the default value 100 means the last
+unit; a keyed or expression-driven End of 100 counts literally.
+Based On counts Characters, Characters Excluding Spaces (spaces take 0),
+Words (spaces take 0) or Lines. Start, End and Offset define a normalised
+range; equal bounds select nothing. Shape Square measures the covered fraction
+of each unit span; Ramp Up, Ramp Down, Triangle, Round (sqrt(1-u^2)) and
+Smooth (0.5-0.5cos(2 pi t)) sample the unit centre. Ease High reshapes values
+toward 1 and Ease Low toward 0; 0% is the identity and negative values
+sharpen the curve. Randomize Order permutes unit indices with a deterministic
+seeded shuffle. Amount (-100% to 100%) multiplies the result. Mode combines
+with the running value from 0: Add, Subtract, Intersect, Min, Max and
+Difference, clamped to [-1, 1].
+
+The optional Wiggly Selector adds smooth seeded noise over time, scaled into
+Minimum to Maximum Amount. Correlation 100% shares one value across units; 0%
+is independent. Spatial Phase offsets the noise per unit and Temporal Phase
+offsets it in time. With Lock Dimensions off, vector properties wiggle each
+component independently. The noise is frame-based and deterministic: two
+evaluations of the same frame always agree.
+
+Tracking Amount adds value x s x Size / 1000 after each affected character,
+shifting later characters on the same line. Alignment is computed before these
+shifts. Character Offset shifts letters by round(value x s) within a-z, A-Z
+or 0-9 with wraparound; other characters are unchanged. A glyph that shapes
+several characters (a ligature) reshapes as its whole cluster: Character
+Offset shifts every letter in the cluster before reshaping, and the cluster
+moves as one unit with its first character's selector value. This differs
+from AE, which breaks ligatures under per-character animation. The new
+advance replaces the old one for later characters. Kerning stays from the
+base shaping. Variable-axis offsets are clamped to the axis range; outlines
+and advances come from the engine at the new coordinates, and later
+characters shift by the advance difference. Ligature glyphs reshape as one
+cluster in the same way.
+
+Create Shapes from Text bakes the displayed frame, animators included, into
+static paths. The animator items stay in the list.

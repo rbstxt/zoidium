@@ -47,6 +47,18 @@ To animate variable fonts, choose a **Style**, then animate the individual axis
 properties. See [Text](/reference/shape-plus/#text) for the supported formats
 and layout controls.
 
+## Animate text with animators
+
+1. Select a Text contents item.
+2. In the preview context menu, choose **Add Text Animator**, then a property.
+3. Animate the property and the Range Selector bounds.
+4. To animate more properties, select the animator and choose **Add Property**.
+5. To vary values over time, choose **Add Wiggly Selector**.
+
+Each animator affects the Text items above it in the same group. Stack several
+animators to combine their effects. See [Text Animator](/reference/shape-plus/#text-animator)
+for the properties, grouping, and selectors.
+
 ## Create shapes from text
 
 1. Select a Text contents item.
@@ -54,5 +66,6 @@ and layout controls.
 3. To use the Objects row instead, click **Create Shapes from Text**.
 4. Expand the character groups to edit each contour as a Path.
 
-Conversion captures the current frame and creates one undo step. To restore
-the live text and its animation, use Undo.
+Conversion captures the current frame and creates one undo step. With Text
+Animators, conversion bakes the displayed animated frame into the paths. To
+restore the live text and its animation, use Undo.

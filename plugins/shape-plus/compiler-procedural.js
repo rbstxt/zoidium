@@ -1,6 +1,8 @@
 "use strict";
 const textGeometry = require("./text-geometry.js");
 const textFill = require("./text-fill.js");
+const { expandAnimatedText } = require("./text-paths.js");
+const { matchAnimators, belowAnimators } = require("./text-animate.js");
 const isIdentity = m => m[0]===1 && m[1]===0 && m[2]===0 && m[3]===1 && m[4]===0 && m[5]===0;
 const { primitivePath } = require("./primitives.js");
 const { flattenPath } = require("./path.js");
@@ -92,8 +94,11 @@ function procedural(contents, tolerance, depth, budget, api) {
   let descriptorVisits = 0;
   const viewPaths = (view) =>
     view.base.paths.map((path) => transformed(path, view.matrix, transform));
-  function scope(list, tolerance, depth) {
+  function scope(list, tolerance, depth, outer = []) {
     if (depth > 16) throw Error("Shape+ group depth budget exceeded");
+    // One shared animator collector per list: text sites below read their
+    // animators from this map, in the same order expandText uses.
+    const matches = matchAnimators(list, outer);
     let views = [],
       commands = [];
     const futureScales = new Array(list.length);
@@ -122,8 +127,20 @@ function procedural(contents, tolerance, depth, budget, api) {
       const p = item.properties;
       if (p.enabled === 0) continue;
       try {
+      if (item.kind === "textAnimator") continue;
       if (item.kind === "text") {
-        views.push({base:{paths:textGeometry.textGeometry(item,itemTolerance)},matrix:identity});
+        // Animators below the text in this list apply first (top to bottom),
+        // then animators inherited from ancestor lists. Without a
+        // contribution the text keeps exactly the unanimated geometry path.
+        let sequence = 0;
+        const expanded = expandAnimatedText(item, matches.get(item.id) || [], () => item.id + "-anim-" + (sequence++));
+        if (!expanded) {
+          views.push({base:{paths:textGeometry.textGeometry(item,itemTolerance)},matrix:identity});
+        } else {
+          const child = scope(expanded.contents, itemTolerance, depth + 1);
+          views.push(...child.views.map(view => ({ ...view })));
+          commands.unshift({ kind: "group", id: item.id, matrix: identity, opacity: 1, commands: child.commands });
+        }
       } else if (item.kind === "group") {
         const m = matrix(p),
           scale = Math.max(
@@ -131,7 +148,7 @@ function procedural(contents, tolerance, depth, budget, api) {
             Math.hypot(m[2], m[3]),
             1e-6,
           );
-        const child = scope(item.contents, itemTolerance / scale, depth + 1);
+        const child = scope(item.contents, itemTolerance / scale, depth + 1, [...belowAnimators(list, index), ...outer]);
         views.push(
           ...child.views.map((view) => ({
             ...view,

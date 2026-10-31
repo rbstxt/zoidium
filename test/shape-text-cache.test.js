@@ -28,6 +28,10 @@ test("per-glyph fill rejects intersections, containment and touching for both wi
   assert.ok(geometry.glyphFill(paths([batch(0),batch(20)]),rule));
   assert.equal(geometry.glyphFill(paths([batch(0),batch(5)]),rule),null);
   assert.equal(geometry.glyphFill(paths([batch(0),batch(10)]),rule),null);
+  // Identical rectangles share every edge; a shared edge or corner touches.
+  assert.equal(geometry.glyphFill(paths([batch(0),batch(0)]),rule),null);
+  assert.equal(geometry.glyphFill(paths([batch(10),batch(10)]),rule),null);
+  const corner={key:"corner",x:10,y:10,canonical:[rectangle(0,0)]};assert.equal(geometry.glyphFill(paths([batch(0),corner]),rule),null);
   const inner={key:"inner",x:2,y:2,canonical:[rectangle(0,0,3,3)]};assert.equal(geometry.glyphFill(paths([batch(0),inner]),rule),null);
  }
  const sloped={key:"triangle",x:20,y:0,canonical:[{closed:true,points:[[0,0],[10,0],[5,10]]}]};

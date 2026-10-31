@@ -82,6 +82,7 @@ function createEditorModel(s) {
     if (!data) {
       entry.item.unload();
       entry.list.splice(entry.index, 1);
+      layer.contentsState?.invalidate();
       return;
     }
     const item = new Content(data.kind, data);
@@ -89,6 +90,7 @@ function createEditorModel(s) {
     entry.item.unload();
     entry.list.splice(entry.index, 1, item);
     layer.signature = null;
+    layer.contentsState?.invalidate();
   };
   s.topology = (operation) => {
     const item = s.active();
@@ -193,6 +195,25 @@ function createEditorModel(s) {
         s.treeSelection = new Set(selected);
       }
       s.selection.clear();
+    });
+  // Text Animator items: one history step per add or feature toggle.
+  s.addAnimator = (textId, propertyKey) =>
+    s.mutate(() => {
+      const contents = read();
+      const { planAnimator } = require("./contents-ops.js");
+      const animator = planAnimator(contents, textId, s.nextId, propertyKey);
+      validate(contents);
+      write(contents);
+      s.activeId = animator.id;
+      s.treeSelection = new Set([animator.id]);
+      s.selection.clear();
+    });
+  s.setAnimatorFlag = (animatorId, key, value) =>
+    s.mutate(() => {
+      const contents = read();
+      require("./contents-ops.js").setAnimatorFlag(contents, animatorId, key, value);
+      validate(contents);
+      write(contents);
     });
   const convertPrimitive = () =>
     s.mutate(() => {

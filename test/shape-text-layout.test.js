@@ -42,3 +42,13 @@ test("Japanese justification distributes spacing between grapheme clusters",()=>
  const result=layoutText(japanese,null,{...p,sourceText:"日本語",textMode:"box",boxSize:[600,400],alignment:"justifyAll"});
  assert.equal(result.glyphs[0].x,0);assert.equal(result.glyphs[1].x,250);assert.equal(result.glyphs[2].x,500);
 });
+
+test("out-of-range variation coordinates share shaped-run cache entries",()=>{
+ const {shapeRuns,coverageStats}=require("../plugins/shape-plus/text-shaping");
+ const first=shapeRuns(latin,null,"Aq clamp probe",{wght:5000,wdth:5000});
+ const mid=coverageStats();
+ const second=shapeRuns(latin,null,"Aq clamp probe",{wght:6000,wdth:6000});
+ assert.deepEqual(second,first);
+ const after=coverageStats();
+ assert.equal(after.runs.misses,mid.runs.misses);assert.equal(after.runs.hits,mid.runs.hits+1);
+});

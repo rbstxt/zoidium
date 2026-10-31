@@ -2,12 +2,16 @@
 const geometryBudget = require("./geometry-budget.js");
 const geometryFailure = require("./geometry-failure.js");
 const { procedural } = require("./compiler-procedural.js");
+const { levelMatrix } = require("./text-animate.js");
 const { hasText } = require("./text-paths.js");
 const { primitive } = require("./primitives.js");
 const { triangulate } = require("./fill.js");
 const { stroke } = require("./stroke.js");
 const identity = [1, 0, 0, 1, 0, 0];
 function matrix(p) {
+  // Skew is opt-in: items without it take the historical formula with
+  // bit-identical output, so existing projects render exactly as before.
+  if (p.skew) return levelMatrix(p);
   const a = p.anchor || [0, 0], t = p.position || [0, 0], s = p.scale || [1, 1], c = Math.cos(p.rotation || 0), n = Math.sin(p.rotation || 0);
   const m = [c * s[0], n * s[0], -n * s[1], c * s[1], t[0], t[1]];
   m[4] -= m[0] * a[0] + m[2] * a[1]; m[5] -= m[1] * a[0] + m[3] * a[1];
@@ -46,6 +50,7 @@ function compileContents(contents, tolerance, depth, budget) {
   for (const item of contents) {
     const p = item.properties;
     if (p.enabled === 0) continue;
+    if (item.kind === "textAnimator") continue;
     if (item.kind === "group") {
       const m = matrix(p), scale = Math.max(Math.hypot(m[0], m[1]), Math.hypot(m[2], m[3]), 1e-6);
       const child = compile(item.contents, tolerance / scale, depth + 1, budget, false);

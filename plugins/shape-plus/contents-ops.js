@@ -3,6 +3,7 @@
 // the Objects panel hints. Nothing here touches CM3 objects or the DOM.
 const { titles } = require("./properties.js");
 const { find } = require("./editor-tree-data.js");
+const { ANIMATED_KEYS, enabledKey } = require("./text-animator-properties.js");
 const GEOMETRY = ["rectangle", "ellipse", "polystar", "path", "text"];
 const PAINTS = ["fill", "stroke", "gradientFill", "gradientStroke"];
 const nameOf = item => typeof item.properties?.name === "string" ? item.properties.name : titles[item.kind];
@@ -69,6 +70,7 @@ function planAdd(contents, kind, options = {}) {
     return { item, group, select: group.id };
   }
   if (kind === "group") item.properties.name = uniqueName(contents, "Group");
+  if (kind === "textAnimator") item.properties.name = uniqueName(contents, "Animator");
   if (GEOMETRY.includes(kind) || kind === "group") list.unshift(item);
   else list.push(item);
   return { item, group: target, select: item.id };
@@ -77,16 +79,30 @@ function planAdd(contents, kind, options = {}) {
 // in its group, including paths of nested groups above it. Returns
 // one Map: id -> { painted, enabled } for geometry and
 // id -> { paths, enabled, targets } for paints.
+// Text animators act on every text above them in the same list, including
+// text in nested groups above them; they get id -> { texts, enabled }.
+function countTexts(list) {
+  let count = 0;
+  for (const item of list || []) {
+    if (item.kind === "text") count++;
+    else if (item.contents) count += countTexts(item.contents);
+  }
+  return count;
+}
 function paintScope(contents) {
   const result = new Map();
   function walk(list, enabled) {
     const above = [];
+    let texts = 0;
     for (const item of list) {
       const on = enabled && item.properties?.enabled !== 0;
-      if (item.kind === "group") above.push(...walk(item.contents || [], on));
+      if (item.kind === "group") { texts += countTexts(item.contents); above.push(...walk(item.contents || [], on)); }
       else if (GEOMETRY.includes(item.kind)) {
+        if (item.kind === "text") texts++;
         result.set(item.id, { painted: false, enabled: on });
         if (on) above.push(item.id);
+      } else if (item.kind === "textAnimator") {
+        result.set(item.id, { texts: on ? texts : 0, enabled: on });
       } else if (PAINTS.includes(item.kind)) {
         result.set(item.id, { paths: on ? above.length : 0, enabled: on, targets: on ? above.slice() : [] });
         if (on) for (const id of above) result.get(id).painted = true;
@@ -97,4 +113,27 @@ function paintScope(contents) {
   walk(contents, true);
   return result;
 }
-module.exports = { GEOMETRY, PAINTS, uniqueName, contextGroup, planAdd, paintScope, itemData };
+// Insert a Text Animator directly below a text item in the text's own list,
+// with one animated property enabled. Returns the new animator data.
+function planAnimator(contents, textId, nextId, propertyKey) {
+  const entry = find(contents, textId);
+  if (!entry || entry.item.kind !== "text") throw Error("Select a Text item to add an animator.");
+  if (!ANIMATED_KEYS.includes(propertyKey) && !propertyKey.startsWith("axis_")) throw Error("Unknown animator property: " + propertyKey);
+  const item = itemData("textAnimator", nextId);
+  item.properties.name = uniqueName(contents, "Animator");
+  item.properties[enabledKey(propertyKey)] = 1;
+  entry.list.splice(entry.index + 1, 0, item);
+  return item;
+}
+// Toggle one animator feature in plain contents data: an animated property
+// key, or "wiggly" for the Wiggly Selector. Each call is one history step
+// through the caller's gesture.
+function setAnimatorFlag(contents, animatorId, key, value) {
+  const entry = find(contents, animatorId);
+  if (!entry || entry.item.kind !== "textAnimator") throw Error("Select a Text Animator item.");
+  const flag = key === "wiggly" ? "wigglyOn" : enabledKey(key);
+  if (key !== "wiggly" && !ANIMATED_KEYS.includes(key) && !key.startsWith("axis_")) throw Error("Unknown animator property: " + key);
+  entry.item.properties = { ...(entry.item.properties || {}), [flag]: value ? 1 : 0 };
+  return entry.item;
+}
+module.exports = { GEOMETRY, PAINTS, uniqueName, contextGroup, planAdd, paintScope, itemData, planAnimator, setAnimatorFlag };

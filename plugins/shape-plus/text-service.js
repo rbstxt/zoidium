@@ -62,6 +62,26 @@ function createService(context) {
     return layouts.set(key, result, 256 + result.glyphs.length*512 + vertices*256 + result.rows.length*256);
   }
   context.lifecycle.onDispose(() => { for (const node of records.keys()) release(node); layouts.clear(); textGeometry.clear(); });
-  return { prepare, evaluate, release };
+  // Variable-axis offset properties follow the primary fonts of the texts
+  // above the animator in its own list (union, first text first), including
+  // texts in nested groups above it. Inactive channels are preserved like
+  // text axisStore so they survive font switches and save/load.
+  function prepareAnimator(node) {
+    const list = node.parent && Array.from(node.parent);
+    if (!Array.isArray(list)) return Promise.resolve();
+    const above = list.slice(0, list.indexOf(node));
+    const fonts = [];
+    const collect = items => {
+      for (const child of items || []) {
+        if (child.kind === "text") { const font = records.get(child)?.primary; if (font && !fonts.includes(font)) fonts.push(font); }
+        else if (child.contents) collect(child.contents);
+      }
+    };
+    collect(above);
+    const { animatorAxes } = require("./text-animator-properties.js");
+    if (fonts.length) animatorAxes(PZ, node, fonts);
+    return Promise.resolve();
+  }
+  return { prepare, evaluate, release, prepareAnimator };
 }
 module.exports = { createService };

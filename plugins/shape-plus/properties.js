@@ -6,6 +6,7 @@ const titles = {
   polystar: "Polystar",
   path: "Path",
   text: "Text",
+  textAnimator: "Text Animator",
   fill: "Fill",
   stroke: "Stroke",
   gradientFill: "Gradient Fill",
@@ -52,6 +53,7 @@ function definitions(PZ, kind, vertexIds) {
     enabled: { name: "Enabled", type: T.OPTION, value: 1, items: "off;on" },
   };
   if (kind === "text") Object.assign(result, require("./text-properties.js").definitions(PZ, number, vector, list));
+  if (kind === "textAnimator") Object.assign(result, require("./text-animator-properties.js").definitions(PZ, number, vector, list));
   if (kind === "group")
     Object.assign(result, {
       anchor: vector("Anchor", [0, 0]),

@@ -99,6 +99,18 @@ function createEngine(hb, memoryBytes = () => 0, maxOutlineBytes = 4 * 1024 * 10
     }
     return {
       ...info, reference, upem: face.upem, axes, shape, outline, coordinates,
+      metrics() {
+        live();
+        try {
+          const table = face.reference_table("hhea");
+          if (table && table.length >= 10) {
+            const bytes = table.buffer.slice(table.byteOffset, table.byteOffset + table.length);
+            const view = new DataView(bytes);
+            return { ascent: view.getInt16(4), descent: -view.getInt16(6) };
+          }
+        } catch (_error) { /* Fall through to the upem fallback. */ }
+        return { ascent: face.upem, descent: 0 };
+      },
       dispose() {
         if (disposed) return;
         disposed = true;

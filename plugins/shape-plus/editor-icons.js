@@ -18,6 +18,7 @@ const paths = {
   puckerBloat: "M4 4Q12 10 20 4Q14 12 20 20Q12 14 4 20Q10 12 4 4Z",
   wigglePaths: "M2 14q3-16 7-4t7 0 6 2",
   wiggleTransform: "M5 5h11v11H5Z M3 20h16M16 17l3 3-3 3M20 3v12M17 6l3-3 3 3",
+  textAnimator: "M5 18L12 5l7 13M7.5 14h9 M3 21h18",
   offsetPaths: "M3 3h18v18H3Z M8 8h8v8H8Z",
   mergePaths: "M3 3h12v12H3Z M9 9h12v12H9Z",
   pen: "m4 20 3-11 9-7 6 6-7 9Z M4 20l9-9 M11 9h4v4h-4Z",
