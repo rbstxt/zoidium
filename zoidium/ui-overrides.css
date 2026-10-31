@@ -478,6 +478,23 @@ body > .pz-dropdown li > span[style],
   background-image: url("../fonts/font-previews.svg") !important;
 }
 
+/* The font button carries an inline height:auto around its 200x25 sprite
+   span. Centre the span vertically so caps-only rows do not sit low, and
+   kill the button line-height strut that leaves a gap below the span. The
+   dropdown rows get the same treatment. Horizontal placement stays
+   left-aligned: the sprite tool keeps a fixed left inset. */
+.zoidium-editor-window button.pz-tweens[title="font"],
+.zoidium-window button.pz-tweens[title="font"] {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+body > .pz-dropdown li,
+.zoidium-editor-window .pz-dropdown li,
+.zoidium-window .pz-dropdown li {
+  line-height: 0;
+}
+
 .zoidium-editor-window select,
 .zoidium-window select {
   color: var(--zoidium-theme-link, #7e8fb9);
