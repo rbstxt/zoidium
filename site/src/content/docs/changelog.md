@@ -18,6 +18,11 @@ each line describes one visible change.
 - Variable fonts in Shape+ Text: each font axis (weight, width and others) is
   an animatable property, and **Style** applies the font's named styles.
   TTF, OTF and WOFF fonts work; WOFF2 shows an unsupported-format notice.
+- Shape+ Text Animators: a Text Animator below a text item moves, scales,
+  rotates, skews, tracks or offsets selected characters, and shifts each
+  variable font axis per character. A Range Selector (shape, ease, mode,
+  randomize) and an optional Wiggly Selector choose the characters by
+  character, word or line. Add one from the text's right-click menu.
 - **Create Shapes from Text** in Shape+ turns a text item into editable paths,
   one group per character, with the same pixels as the text.
 - Graph Editor 2 shows expression output as a read-only dashed curve, draws
