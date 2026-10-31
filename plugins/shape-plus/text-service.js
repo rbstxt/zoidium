@@ -7,7 +7,7 @@ const { axes, holdValue } = require("./text-properties.js");
 const { layoutText, contoursStats } = require("./text-layout.js");
 function createService(context) {
   const PZ = context.PZ || window.PZ, load = createLoader(context.getAsset), records = new Map();
-  const { resolveVariableRef } = require("./preset-variables.js");
+  const { resolveStaticRef, resolveVariableRef } = require("./preset-variables.js");
   const layouts = createCache(8 * 1024 * 1024);
   function release(node) {
     const record = records.get(node);
@@ -38,9 +38,22 @@ function createService(context) {
         if (!ref && index === 1) continue;
         if (!ref) { record.state = "missing"; record.message = "The text font is missing from the project."; return; }
         const entry = { asset: project.assets.load(ref), font: null }; entry.file = entry.asset.file; record.entries.push(entry);
-        const wrapper = new PZ.asset.font(entry.asset);
-        const result = entry.asset.source === PZ.asset.source.FILE && !entry.asset.file
+        let wrapper = new PZ.asset.font(entry.asset);
+        let result = entry.asset.source === PZ.asset.source.FILE && !entry.asset.file
           ? { state: "missing", message: "The text font is missing from the project." } : await openAsset(engine, wrapper, ref);
+        if (result.state !== "ready") {
+          const staticRef = resolveStaticRef(ref);
+          if (staticRef !== ref && record.alive) {
+            // The variable file failed to load (stale stage, bad cache):
+            // fall back to the static preset twin and note it on the record.
+            record.variableFallback = true;
+            try { record.project.assets.unload(entry.asset); } catch (_ignored) { /* Best effort. */ }
+            entry.asset = project.assets.load(staticRef);
+            entry.file = entry.asset.file;
+            wrapper = new PZ.asset.font(entry.asset);
+            result = await openAsset(engine, wrapper, staticRef);
+          }
+        }
         if (!record.alive) { result.font?.dispose(); return; }
         if (result.state !== "ready") { record.state = result.state; record.message = result.message; return; }
         entry.font = result.font;
