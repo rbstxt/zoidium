@@ -158,6 +158,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Keyframing Font Family, Fallback Font, or Style on Shape+ Text no longer
+  freezes the editor. Font changes at other frames add hold keys, and
+  keyed fonts stay loaded while scrubbing.
 - Native Text set in the built-in Geist, Geist Mono, Geist Serif, or Inter
   fonts no longer draws broken letters such as a wedge-shaped "i" or a filled
   "A". These presets now use the official static Regular files; Shape+ Text
