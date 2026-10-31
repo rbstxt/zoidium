@@ -516,6 +516,95 @@ body > .pz-dropdown li:has(> span[style]:only-child),
   white-space: nowrap;
 }
 
+/* Project fonts render at runtime instead of using the preset sprite, so the
+   sprite background is removed while the theme tint filter stays: the white
+   preview ink tints exactly like the preset rows. The extra classes outrank
+   the sprite rules above. */
+.zoidium-editor-window button.pz-tweens[title="font"] > span.zoidium-font-project,
+.zoidium-window button.pz-tweens[title="font"] > span.zoidium-font-project,
+body > .pz-dropdown li > span[style].zoidium-font-project,
+.zoidium-editor-window .pz-dropdown li > span[style].zoidium-font-project,
+.zoidium-window .pz-dropdown li > span[style].zoidium-font-project {
+  background-image: none !important;
+}
+
+.zoidium-font-preview {
+  width: 200px;
+  height: 25px;
+  display: block;
+  pointer-events: none;
+}
+
+/* Rows and buttons that show a font name as text (a project font that has
+   not parsed yet, a failed font, or a removed font still in use) read in the
+   theme colour instead of the transparent sprite tint. */
+.zoidium-editor-window button.pz-tweens[title="font"] > span.zoidium-font-text,
+.zoidium-window button.pz-tweens[title="font"] > span.zoidium-font-text,
+body > .pz-dropdown li > span[style].zoidium-font-text,
+.zoidium-editor-window .pz-dropdown li > span[style].zoidium-font-text,
+.zoidium-window .pz-dropdown li > span[style].zoidium-font-text {
+  background-image: none !important;
+  filter: none !important;
+  color: var(--zoidium-theme-link, #7e8fb9) !important;
+  font-size: 11px;
+  line-height: 25px;
+  padding-left: 2px;
+  box-sizing: border-box;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.zoidium-editor-window button.pz-tweens[title="font"] > span.zoidium-font-missing,
+.zoidium-window button.pz-tweens[title="font"] > span.zoidium-font-missing,
+body > .pz-dropdown li > span[style].zoidium-font-missing,
+.zoidium-editor-window .pz-dropdown li > span[style].zoidium-font-missing,
+.zoidium-window .pz-dropdown li > span[style].zoidium-font-missing,
+.zoidium-editor-window button.pz-tweens[title="font"] > span.zoidium-font-failed,
+.zoidium-window button.pz-tweens[title="font"] > span.zoidium-font-failed,
+body > .pz-dropdown li > span[style].zoidium-font-failed,
+.zoidium-editor-window .pz-dropdown li > span[style].zoidium-font-failed,
+.zoidium-window .pz-dropdown li > span[style].zoidium-font-failed {
+  color: var(--zui-danger, #c0392b) !important;
+}
+
+/* The failed badge reads like the Assets panel status text: a small pill in
+   the panel danger colour next to the file name. */
+.zoidium-font-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: 10px;
+  line-height: 16px;
+  border: 1px solid var(--zui-danger, #c0392b);
+  color: var(--zui-danger, #c0392b);
+  border-radius: 8px;
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+/* The thin labelled separator between built-in presets and project fonts.
+   It is never selectable: keyboard navigation skips it and it takes no
+   pointer events. */
+body > .pz-dropdown > li.zoidium-font-separator,
+.zoidium-editor-window .pz-dropdown > li.zoidium-font-separator,
+.zoidium-window .pz-dropdown > li.zoidium-font-separator {
+  pointer-events: none;
+  padding: 4px 8px 2px;
+  line-height: 1.4;
+}
+
+body > .pz-dropdown li.zoidium-font-separator > span:not([style]),
+.zoidium-editor-window .pz-dropdown li.zoidium-font-separator > span:not([style]),
+.zoidium-window .pz-dropdown li.zoidium-font-separator > span:not([style]) {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--zui-text-muted, #999) !important;
+  filter: none !important;
+}
+
 .zoidium-editor-window select,
 .zoidium-window select {
   color: var(--zoidium-theme-link, #7e8fb9);

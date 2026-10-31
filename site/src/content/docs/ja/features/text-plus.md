@@ -24,6 +24,8 @@ sidebar:
 
 ネイティブの Text では、Position と Scale に X と Y を使用します。Rotation はレイヤーの平面内で回転します。
 ネイティブの **Text**、**Font**、**Size**、**Fill**、**Stroke** コントロールを使用します。
+
+Assets に読み込んだフォントは、**Font** ピッカーの **Project fonts** にファミリー名順で表示されます。ピッカーは組み込みフォント、プロジェクトフォント、**custom...** の順に並べます。
 テキスト全体を移動するには、**Character** より上にあるネイティブの **Position**、**Rotation**、**Scale** コントロールを編集します。
 
 複数のアニメーションを組み合わせるには、**Character** > **Mode** を設定してから **Character 2** を使います。
