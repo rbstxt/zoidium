@@ -294,7 +294,6 @@ async function copyProjectFiles(stageRoot, { includeDesktopFiles = false } = {})
     await copyEntry(resolvedStageRoot, entry, { required: true });
   }
   await copyPluginRuntime(resolvedStageRoot);
-  await copyFontPresets(resolvedStageRoot);
   await writeStageFile(resolvedStageRoot, approvals.approvalPath, approvals.stagedSource());
   // Supply fixed Worker bytes as host data. Activation never loads a
   // package-selected URL or fetches interpreter/WASM/module dependencies.

@@ -64,19 +64,35 @@ function readPresetList() {
 }
 
 function readHostPresets() {
-  const directory = path.join(defaultResourceCacheRoot, "assets", "fonts", "2d");
-  let entries;
+  // The host preset names come from the cached CM3 resource metadata, not a
+  // directory listing: copyFontPresets overlays the same directory in runtime
+  // stages, so only the metadata graph is authoritative for the host set.
+  const metadataPath = path.join(defaultResourceCacheRoot, ".zoidium-cache.json");
+  let metadata;
   try {
-    entries = fs.readdirSync(directory);
+    metadata = JSON.parse(fs.readFileSync(metadataPath, "utf8"));
   } catch (error) {
     throw new Error(
-      `CM3 font cache is missing at ${directory} (run pnpm run setup): ${error.message}`
+      `CM3 resource cache is missing at ${defaultResourceCacheRoot} (run pnpm run setup): ${error.message}`
     );
   }
-  return entries
-    .filter(entry => entry.endsWith(".ttf"))
-    .map(entry => entry.slice(0, -".ttf".length))
+  const prefix = "assets/fonts/2d/";
+  const names = (metadata.resources || [])
+    .map(resource => resource && resource.sourcePath)
+    .filter(sourcePath => typeof sourcePath === "string" &&
+      sourcePath.startsWith(prefix) && sourcePath.endsWith(".ttf"))
+    .map(sourcePath => sourcePath.slice(prefix.length, -".ttf".length))
     .sort();
+  if (names.length === 0) {
+    throw new Error(`CM3 resource cache lists no host fonts: ${metadataPath}`);
+  }
+  const directory = path.join(defaultResourceCacheRoot, prefix);
+  for (const name of names) {
+    if (!fs.existsSync(path.join(directory, `${name}.ttf`))) {
+      throw new Error(`Host font file is missing from the CM3 cache: ${prefix}${name}.ttf`);
+    }
+  }
+  return names;
 }
 
 function mergedPresets() {

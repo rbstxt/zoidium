@@ -26,10 +26,7 @@ function presetNames() {
 }
 
 function hostNames() {
-  return fs.readdirSync(path.join(cache, "assets", "fonts", "2d"))
-    .filter(entry => entry.endsWith(".ttf"))
-    .map(entry => entry.slice(0, -".ttf".length))
-    .sort();
+  return previews.readHostPresets();
 }
 
 function readSprite() {
