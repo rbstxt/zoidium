@@ -495,6 +495,24 @@ body > .pz-dropdown li,
   line-height: 0;
 }
 
+/* Empty optional fonts (the Shape+ fallback font) show a clear None label on
+   the picker button instead of the "custom" sprite row. Picking still works;
+   only the button display changes. The extra class outranks the sprite and
+   tint rules above, so no sprite shows and the text keeps the theme colour. */
+.zoidium-editor-window button.pz-tweens[title="font"] > span.zoidium-font-none,
+.zoidium-window button.pz-tweens[title="font"] > span.zoidium-font-none {
+  background-image: none !important;
+  filter: none !important;
+  color: var(--zoidium-theme-link, #7e8fb9) !important;
+  font-size: 11px;
+  line-height: 25px;
+  padding-left: 2px;
+  box-sizing: border-box;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .zoidium-editor-window select,
 .zoidium-window select {
   color: var(--zoidium-theme-link, #7e8fb9);

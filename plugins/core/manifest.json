@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "104",
+  "version": "105",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -338,6 +338,11 @@
     {
       "id": "font-presets",
       "source": "./plugins/core/font-presets.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "font-empty-state",
+      "source": "./plugins/core/font-empty-state.js",
       "phase": "pre-init"
     }
   ],
