@@ -114,7 +114,10 @@ function createEditorModel(s) {
       axes.some((axis) => axis.expression || axis.definition.readOnly)
     )
       throw Error("Expression-driven properties cannot be edited");
-    axes.forEach((axis, i) => {
+    // Auto-keys keep the old behavior: every animated axis without a key at
+    // this frame acquires one, once, before any channel is written. Later
+    // moves find the keys and only update the channels that changed.
+    axes.forEach((axis) => {
       if (axis.animated && !axis.hasKeyframe(frame)) {
         const closest = axis.keyframes[axis.getClosestKeyframeIndex(frame)];
         const key = new PZ.keyframe(
@@ -125,6 +128,18 @@ function createEditorModel(s) {
         axis.addKeyframe(key);
         axis.onKeyframeCreated.update(key);
       }
+    });
+    // A 240-vertex path holds 1,440 channels while a drag changes a few.
+    // Unchanged channels keep their keys, values and notifications: only the
+    // channels whose new value differs are written and announced.
+    let changed = null;
+    if (property.objects) {
+      const current = property.get(frame);
+      if (Array.isArray(current) && current.length === values.length)
+        changed = values.map((v, i) => v !== current[i]);
+    }
+    axes.forEach((axis, i) => {
+      if (changed && !changed[i]) return;
       axis.set(values[i], frame);
       const key = axis.keyframes?.[axis.getClosestKeyframeIndex(frame)];
       axis.onKeyframeChanged?.update(key);
