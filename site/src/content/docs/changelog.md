@@ -158,6 +158,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- The Shape+ Text editing caret and selection now sit on the text line
+  instead of below it, including text moved by Position or Baseline Shift.
 - `pnpm dev` picks up source, plugin and font changes, including added and
   removed files, without a restart, and no longer crashes with "too many open
   files" under heavy request load.
