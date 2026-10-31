@@ -75,21 +75,26 @@ function createCanvas(s, canvas) {
   let projection = null;
   // Operation-scoped scene snapshot. One read-only pointer event or one draw
   // shares a single scene build across hit, active lookup, local conversion,
-  // snap and selection bounds. The scope is synchronous only: it never spans
-  // frames, and any mutation invalidates it so later reads see fresh data.
+  // snap and selection bounds. CSS vertices, cubic hulls and the projection
+  // times entry matrix are cached per entry inside the snapshot. The scope is
+  // synchronous only: it never spans frames, and any mutation invalidates it
+  // so later reads see fresh data.
   let scope = null;
   function ensureScope() {
     if (!scope)
-      scope = { list: null, byId: null };
+      scope = { list: null, byId: null, css: null, combined: null, shapes: null };
     if (!scope.list) {
       scope.list = scene(s.layer.contents, s.localFrame());
       scope.byId = new Map(scope.list.map((e) => [e.item.id, e]));
+      scope.css = new Map();
+      scope.combined = new Map();
+      scope.shapes = new Map();
     }
     return scope;
   }
   function scoped(work) {
     if (scope) return work();
-    scope = { list: null, byId: null };
+    scope = { list: null, byId: null, css: null, combined: null, shapes: null };
     try {
       return work();
     } finally {
@@ -100,6 +105,9 @@ function createCanvas(s, canvas) {
     if (scope) {
       scope.list = null;
       scope.byId = null;
+      scope.css = null;
+      scope.combined = null;
+      scope.shapes = null;
     }
   }
   function entries() {
@@ -113,23 +121,96 @@ function createCanvas(s, canvas) {
   function screen(point, m = identity) {
     return transform(point, g.multiply(projection || identity, m));
   }
+  // Projection times the entry matrix, computed once per entry per scope.
+  // Synthetic matrices without an entry (gradient/control handles) bypass
+  // the cache; their holder objects are recreated on every call.
+  function projected(entry) {
+    if (scope && entry?.item) {
+      const sc = ensureScope();
+      let m = sc.combined.get(entry);
+      if (!m) {
+        m = g.multiply(projection || identity, entry.matrix);
+        sc.combined.set(entry, m);
+      }
+      return m;
+    }
+    return g.multiply(projection || identity, entry?.matrix || identity);
+  }
   function local(point, entry = active()) {
     if (!projection) return null;
-    const inv = g.inverse(g.multiply(projection, entry?.matrix || identity));
+    const inv = g.inverse(projected(entry));
     return inv ? transform(point, inv) : null;
   }
+  function buildCssPoints(entry, combined) {
+    return entry.path.vertices.map((v) => {
+      const point = transform(v.point, combined);
+      return {
+        point,
+        in: g.sub(transform(g.add(v.point, v.in), combined), point),
+        out: g.sub(transform(g.add(v.point, v.out), combined), point),
+      };
+    });
+  }
   function cssPoints(entry) {
-    return entry.path.vertices.map((v) => ({
-      point: screen(v.point, entry.matrix),
-      in: g.sub(
-        screen(g.add(v.point, v.in), entry.matrix),
-        screen(v.point, entry.matrix),
-      ),
-      out: g.sub(
-        screen(g.add(v.point, v.out), entry.matrix),
-        screen(v.point, entry.matrix),
-      ),
-    }));
+    if (scope) {
+      const sc = ensureScope();
+      let points = sc.css.get(entry);
+      if (!points) {
+        points = buildCssPoints(entry, projected(entry));
+        sc.css.set(entry, points);
+      }
+      return points;
+    }
+    return buildCssPoints(entry, g.multiply(projection || identity, entry.matrix));
+  }
+  // Cubic segments and their control-box hulls per entry, keyed by the closed
+  // flag the caller traces or hit-tests with. The hulls are the same
+  // conservative Bezier bound batch A's hit test uses internally.
+  function shapeFor(entry, closed) {
+    const sc = ensureScope();
+    let shape = sc.shapes.get(entry);
+    if (!shape) {
+      shape = { css: cssPoints(entry), variants: new Map() };
+      sc.shapes.set(entry, shape);
+    }
+    let variant = shape.variants.get(closed);
+    if (!variant) {
+      const cubics = verticesToCubics(shape.css, closed);
+      const hulls = cubics.map((c) => {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (let k = 0; k < c.length; k++) {
+          const p = c[k];
+          if (p[0] < minX) minX = p[0];
+          if (p[0] > maxX) maxX = p[0];
+          if (p[1] < minY) minY = p[1];
+          if (p[1] > maxY) maxY = p[1];
+        }
+        return { minX, maxX, minY, maxY };
+      });
+      variant = { cubics, hulls };
+      shape.variants.set(closed, variant);
+    }
+    return variant;
+  }
+  // Exact outline-band prefilter for itemAt: g.hit is called with scale 1, so
+  // its radius is 8 px. Every anchor and handle knob is a cubic control
+  // point inside one hull, so a point farther than 8 px from every expanded
+  // hull cannot hit the band. Interiors are still tested by the caller.
+  function outlineHit(entry, points, point) {
+    if (scope) {
+      const { cubics, hulls } = shapeFor(entry, entry.path.closed);
+      if (cubics.length) {
+        let near = false;
+        for (const h of hulls) {
+          if (point[0] >= h.minX - 8 && point[0] <= h.maxX + 8 && point[1] >= h.minY - 8 && point[1] <= h.maxY + 8) {
+            near = true;
+            break;
+          }
+        }
+        if (!near) return null;
+      }
+    }
+    return g.hit(points, entry.path.closed, point, 1, false);
   }
   function hit(point) {
     const entry = active();
@@ -151,22 +232,26 @@ function createCanvas(s, canvas) {
     for (const e of entries()) {
       if (!e.enabled) continue;
       const points = cssPoints(e);
-      if (g.hit(points, e.path.closed, point, 1, false)) return e;
+      if (outlineHit(e, points, point)) return e;
       if (points.length < 3) continue;
       context.save();
       context.setTransform(1, 0, 0, 1, 0, 0);
-      trace(points, true);
+      trace(e, points, true);
       const inside = context.isPointInPath(point[0], point[1]);
       context.restore();
       if (inside) return e;
     }
     return null;
   }
-  function trace(points, closed) {
+  function trace(entry, points, closed) {
     context.beginPath();
     if (!points.length) return;
     context.moveTo(...points[0].point);
-    for (const c of verticesToCubics(points, closed))
+    // Inside a scope the cubics come from the snapshot instead of being
+    // rebuilt per stroke or interior test; the input array is the cached
+    // cssPoints result, so the segments are bit-identical.
+    const cubics = scope ? shapeFor(entry, closed).cubics : verticesToCubics(points, closed);
+    for (const c of cubics)
       context.bezierCurveTo(...c[1], ...c[2], ...c[3]);
     if (closed) context.closePath();
   }
@@ -196,7 +281,7 @@ function createCanvas(s, canvas) {
     return entries().filter((e) => e.enabled && inside.has(e.item.id));
   }
   function strokeOutline(e, color, width = 1, dash = []) {
-    trace(cssPoints(e), e.path.closed);
+    trace(e, cssPoints(e), e.path.closed);
     context.setLineDash(dash);
     context.lineWidth = width + 2;
     context.strokeStyle = "rgba(0,0,0,.55)";
@@ -318,7 +403,7 @@ function createCanvas(s, canvas) {
   function snap(point, exclude = []) {
     if (!s.snap) return point;
     const entry = active(),
-      world = screen(point, entry?.matrix),
+      world = transform(point, projected(entry)),
       excluded = new Set(exclude);
     let closest = null,
       distance = 8;
@@ -329,7 +414,7 @@ function createCanvas(s, canvas) {
           excluded.has(other.item.vertexIds[i])
         )
           return;
-        const p = screen(v.point, other.matrix),
+        const p = transform(v.point, projected(other)),
           d = Math.hypot(...g.sub(world, p));
         if (d < distance) {
           closest = p;

@@ -456,3 +456,66 @@ test("marquee inputs match the old walk", () => {
   }
   assert.deepEqual(picked, refPicked);
 });
+test("CSS vertices are cached within a scope and rebuilt across scopes", () => {
+  const { api } = host({ value: 15 });
+  const same = api.scoped(() => {
+    const a = api.active();
+    const first = api.cssPoints(a), second = api.cssPoints(a);
+    assert.equal(first, second, "same array within a scope");
+    api.itemAt([300, 300]);
+    assert.equal(api.cssPoints(a), first, "itemAt shares the cached vertices");
+    return first;
+  });
+  const next = api.scoped(() => api.cssPoints(api.active()));
+  assert.notEqual(next, same, "a new scope rebuilds");
+  assert.deepEqual(next, same, "rebuilt vertices are equal");
+});
+test("repeated reads in one scope still build the scene once", () => {
+  const { api, layer } = host({ value: 15 });
+  let counted = 0, leaves = 0;
+  (function walk(list) {
+    for (const item of list) {
+      if (item.kind === "group") walk(item.contents);
+      else {
+        leaves++;
+        const original = item.evaluate.bind(item);
+        item.evaluate = (frame, rate) => { counted++; return original(frame, rate); };
+      }
+    }
+  })(layer.contents);
+  api.scoped(() => {
+    for (let i = 0; i < 3; i++) {
+      api.hit([300, 300]);
+      api.itemAt([200, 200]);
+      api.itemAt([10, 10]);
+      api.snap([60, 30], []);
+      api.active();
+      api.outlines("outer");
+      api.cssPoints(api.active());
+    }
+  });
+  assert.equal(counted, leaves, `repeated reads share one build (${leaves} leaves)`);
+});
+test("drawn handle positions match the old walk", () => {
+  const frameState = { value: 15 };
+  const { s, api, layer, ctx } = host(frameState);
+  s.treeSelection = new Set(["path"]);
+  s.activeId = "path";
+  api.scoped(() => api.draw());
+  const squares = ctx.calls.filter(([name]) => name === "fillRect").map(([, ...args]) => args);
+  const knobs = ctx.calls.filter(([name]) => name === "arc").map(([, ...args]) => args);
+  const refEntry = oldScene(layer.contents, 15).find((e) => e.item.id === "path");
+  const css = refCss(api.projection(), refEntry);
+  const expectedSquares = css.map((v) => [v.point[0] - 4, v.point[1] - 4, 8, 8]);
+  const expectedKnobs = [];
+  css.forEach((v, i) => {
+    for (const side of ["in", "out"]) {
+      if ((side === "in" && i === 0) || (side === "out" && i === css.length - 1)) continue;
+      if (Math.hypot(...v[side]) < 1e-8) continue;
+      const p = [v.point[0] + v[side][0], v.point[1] + v[side][1]];
+      expectedKnobs.push([p[0], p[1], 3.5, 0, Math.PI * 2]);
+    }
+  });
+  assert.deepEqual(squares, expectedSquares, "anchor squares");
+  assert.deepEqual(knobs, expectedKnobs, "handle knobs");
+});
