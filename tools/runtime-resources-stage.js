@@ -294,6 +294,7 @@ async function copyProjectFiles(stageRoot, { includeDesktopFiles = false } = {})
     await copyEntry(resolvedStageRoot, entry, { required: true });
   }
   await copyPluginRuntime(resolvedStageRoot);
+  await copyFontPresets(resolvedStageRoot);
   await writeStageFile(resolvedStageRoot, approvals.approvalPath, approvals.stagedSource());
   // Supply fixed Worker bytes as host data. Activation never loads a
   // package-selected URL or fetches interpreter/WASM/module dependencies.
@@ -302,6 +303,36 @@ async function copyProjectFiles(stageRoot, { includeDesktopFiles = false } = {})
   if (!includeDesktopFiles) return;
   for (const entry of ["desktop", "package.json"]) {
     await copyEntry(resolvedStageRoot, entry, { required: true });
+  }
+}
+
+// Zoidium built-in font presets are stored in the repository as
+// fonts/presets/<name>.ttf (listed in fonts/presets.json) and served at the
+// path the host fetches: assets/fonts/2d/<name>.ttf, relative to the page.
+// Every stage (web build, development server, desktop packaging) is built by
+// copyProjectFiles, so one step here covers all of them.
+async function copyFontPresets(stageRoot) {
+  const listPath = path.join(projectRoot, "fonts", "presets.json");
+  const names = JSON.parse(await fs.promises.readFile(listPath, "utf8"));
+  if (!Array.isArray(names) || names.some(name => typeof name !== "string")) {
+    throw new Error("fonts/presets.json must be an array of preset names.");
+  }
+  for (const name of names) {
+    const source = path.resolve(projectRoot, "fonts", "presets", `${name}.ttf`);
+    if (!isPathInside(projectRoot, source)) {
+      throw new Error(`Font preset escapes the repository: ${name}`);
+    }
+    let bytes;
+    try {
+      const stat = await fs.promises.lstat(source);
+      if (!stat.isFile() || stat.isSymbolicLink()) {
+        throw new Error(`Font preset is not a regular file: ${name}`);
+      }
+      bytes = await fs.promises.readFile(source);
+    } catch (error) {
+      throw new Error(`Missing font preset file fonts/presets/${name}.ttf: ${error.message}`);
+    }
+    await writeStageFile(stageRoot, `assets/fonts/2d/${name}.ttf`, bytes);
   }
 }
 
@@ -491,6 +522,7 @@ module.exports = {
   buildResourceStage,
   cleanupStage,
   copyEntry,
+  copyFontPresets,
   copyPath,
   copyPluginRuntime,
   copyProjectFiles,
