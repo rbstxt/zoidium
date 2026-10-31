@@ -261,7 +261,13 @@ test("live presets serve listed fonts and ignore anything else", async (t) => {
   assert.equal(bytes && bytes.toString(), "fake-ttf-bytes");
   assert.equal(await presets.getPresetBytes("missing"), null);
   assert.equal(await presets.getPresetBytes("../presets"), null);
+  assert.equal(await presets.getPresetBytes("a/b"), null);
+  assert.equal(await presets.getPresetBytes(".."), null);
   assert.equal(await presets.getPresetBytes(""), null);
+
+  writeFile(root, "fonts/presets.json", JSON.stringify([{ name: "_led.preset-1" }]));
+  writeFile(root, "fonts/presets/_led.preset-1.ttf", "dash-bytes");
+  assert.equal((await presets.getPresetBytes("_led.preset-1")).toString(), "dash-bytes");
 });
 
 test("live community source refreshes on edit and holds last good on removal", async (t) => {

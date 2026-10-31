@@ -383,7 +383,7 @@ function createLiveBundles(options = {}) {
   };
 };
 
-const PRESET_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _.-]*$/;
+const PRESET_NAME_PATTERN = /^[A-Za-z0-9_.-][A-Za-z0-9 _.-]*$/;
 
 function createLivePresets(options = {}) {
   const root = options.root ? path.resolve(options.root) : require("./build-plugin-bundles").projectRoot;
