@@ -89,7 +89,10 @@ function createModel(PZ, textService) {
         if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && key !== "stops" && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
         properties[key] = Array.isArray(value) ? value.slice() : value;
       }
-      if (["wigglePaths", "wiggleTransform", "textAnimator"].includes(this.kind)) properties.time = frame / rate;
+      // Text Animator time feeds only the Wiggly Selector (text-animate.js
+      // animatorTime); range selectors never read it. Omitting time while
+      // Wiggly is off keeps advancing frames on the layer compile cache.
+      if (["wigglePaths", "wiggleTransform"].includes(this.kind) || (this.kind === "textAnimator" && properties.wigglyOn)) properties.time = frame / rate;
       if (this.kind === "textAnimator") {
         // An Index End of exactly the default means "the last unit" only
         // while End has no keys, no expression, and the default value. The
