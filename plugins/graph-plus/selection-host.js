@@ -71,6 +71,8 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
   function renameItem(row, panel) {
     const name = row?.pz_object?.properties?.name;
     if (!name || (name.definition && name.definition.readOnly)) return null;
+    // Expressions+ controls add their own Rename, which keeps names unique.
+    if (row.pz_object.definition?.zoidiumControlId) return null;
     if (!panel || typeof panel.renameClick !== "function") return null;
     if (row.tagName !== "LI" || row.classList.contains("kftrack") || row.classList.contains("g2-property-label")) return null;
     return { label: "Rename…", action: () => { panel.renameClick({ currentTarget: row, preventDefault() {} }); row.querySelector("input.rename")?.select(); } };

@@ -218,3 +218,16 @@ test("control rows keep their own Rename item", () => {
   assert.ok(labels.includes("Remove control"), "control items are unchanged: " + labels.join(", "));
   assert.equal(labels.filter(label => label === "Rename…").length, 1, "no duplicate Rename item");
 });
+
+test("shared row menu leaves Rename to Expressions+ for control rows", () => {
+  const menu = installSharedMenu();
+  const panel = fakePanel(menu.PZ, menu.editor);
+  // Real controls are keyframes or group properties with a name, so they reach the shared menu.
+  const control = Object.assign(dynamicProperty(menu.PZ, "Amount"), { definition: { type: 0, zoidiumControlId: "c1" } });
+  menu.fire(fakeRow(control, panel));
+  try {
+    assert.deepEqual(menu.items().filter(item => item.label).map(item => item.label), ["Show in Graph Editor"]);
+  } finally {
+    menu.dispose();
+  }
+});
