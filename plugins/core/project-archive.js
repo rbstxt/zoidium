@@ -167,7 +167,9 @@
       const type = header[156];
       // Archives packed from a folder name entries "./meta"; libarchive
       // extracted those to the same paths.
-      const rawName = (longName ?? ((prefix ? prefix + "/" : "") + field(header, 0, 100))).replace(/^(?:\.\/)+/, "");
+      // CM2-era projects keep every entry in a "pz/" folder. CM3 extracted
+      // with bsdtar -s /pz//, which removed that folder from the names.
+      const rawName = (longName ?? ((prefix ? prefix + "/" : "") + field(header, 0, 100))).replace(/^(?:\.\/)+/, "").replace(/^pz\//, "");
       longName = null;
       const checksum = numberField(header, 148, 8, rawName);
       const expected = header.reduce((sum, value, index) => sum + (index >= 148 && index < 156 ? 32 : value), 0);

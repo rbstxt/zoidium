@@ -89,3 +89,9 @@ test('non-expression observables keep the native update untouched',{skip:!fs.exi
   engine.restore({forEachItemOfType(_type,visit){visit(a);visit(b);}});
   assert.equal(a.onExpressionChanged.update,nativeUpdate);
 });
+test('a property whose default is an expression evaluates without keyframes, like CM3 Glitch Time',{skip:!fs.existsSync(core)},()=>{
+ const {PZ,owner}=host();
+ const list=new PZ.propertyList({time:{name:'Time',dynamic:true,type:0,value:e=>{e.animated=true;e.expression=new PZ.expression('frame*2');}}},owner);list.load();
+ assert.equal(list.time.keyframes.length,0);assert.equal(list.time.get(30),60);
+ list.time.expression=new PZ.expression('value');assert.equal(list.time.get(30),undefined);
+});

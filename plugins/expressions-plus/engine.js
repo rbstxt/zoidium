@@ -49,6 +49,9 @@ function installEngine(options) {
   for (const proto of protos) baseGetters.set(proto, proto.get);
   function baseAt(p, frame) {
     if (!p) return undefined;
+    // A property whose default is an expression, such as CM3's Glitch Time,
+    // has no keyframes. Its native getter would read a missing keyframe.
+    if (p.keyframes && p.keyframes.length === 0 && protos[2].isPrototypeOf(p)) return undefined;
     const expression = p.expression;
     try {
       // The host stores an observable backing slot. Avoid firing UI events
