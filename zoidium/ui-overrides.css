@@ -54,7 +54,9 @@
 }
 
 .zoidium-project-name {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   grid-column: 1;
   min-width: 0;
   width: 100%;
@@ -86,8 +88,9 @@
 
 .zoidium-project-name input {
   display: block;
+  flex: 1 1 auto;
   min-width: 0;
-  width: 100%;
+  width: auto;
   height: 29px;
   padding: 2px 5px;
   overflow: hidden;
@@ -98,6 +101,36 @@
   text-align: start;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Save reminder: quiet status next to the project name. The fixed width
+   reserves its space while hidden (visibility, not display), so transitions
+   between saved, never-saved, and unsaved never shift the toolbar. Longer
+   minute counts ellipsize instead of growing it. Only the overdue accent
+   uses a colour token beyond the muted text. */
+.zoidium-save-reminder {
+  flex: none;
+  width: 18ch;
+  overflow: hidden;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--zui-text-muted);
+  font-family: inherit;
+  font-size: var(--zui-font-size);
+  line-height: 23px;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.zoidium-save-reminder:hover {
+  text-decoration: underline;
+}
+
+.zoidium-save-reminder.is-overdue {
+  color: var(--zui-danger);
 }
 
 .zoidium-restore-panel {
@@ -189,6 +222,29 @@
 }
 
 .zoidium-backup-interval {
+  flex: 0 0 116px;
+  width: 116px !important;
+  min-width: 0;
+}
+
+.zoidium-save-reminder-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.zoidium-save-reminder-setting > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--zui-text);
+  font-size: var(--zui-font-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoidium-save-reminder-threshold {
   flex: 0 0 116px;
   width: 116px !important;
   min-width: 0;
