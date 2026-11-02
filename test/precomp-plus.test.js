@@ -8,7 +8,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
-const { createPZ, projectRoot } = require("./precomp-fixtures.js");
+const { createPZ, projectRoot, addAudioClip } = require("./precomp-fixtures.js");
 
 const runtimePath = path.join(projectRoot, "plugins/precomp-plus/precomp-runtime.js");
 
@@ -560,4 +560,15 @@ test("A2: closing the menu from an item or on disable removes its document liste
   await h.lifecycle.dispose();
   assert.deepEqual(listeners("mousedown"), [], "disable removes the mousedown listener");
   assert.deepEqual(listeners("keydown"), [], "disable removes the keydown listener");
+});
+
+
+test("audio source menus identify the audio object without a layer type", () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  const clip = addAudioClip(h, 0, { start: 0, length: 30, name: "tone.wav", hasMedia: true });
+  assert.equal(clip.object.type, undefined);
+  clip.properties.media = { get: () => "audio-asset" };
+  rightClick(h, clip);
+  assert.equal(openMenu(h).children[0].innerText, "Source: tone.wav (Audio) • media:audio-as");
 });

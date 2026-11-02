@@ -364,7 +364,8 @@ function clipSourceInfo(clip) {
     name = clip.properties.name.get();
   } catch (error) { /* keep empty */ }
   const layerType = clip.object ? clip.object.type : -1;
-  const typeName = CLIP_LAYER_NAMES[layerType] !== undefined ? CLIP_LAYER_NAMES[layerType] : ("type " + layerType);
+  const isAudio = session && typeof session.PZ.audio === "function" && clip.object instanceof session.PZ.audio;
+  const typeName = isAudio ? "Audio" : (CLIP_LAYER_NAMES[layerType] !== undefined ? CLIP_LAYER_NAMES[layerType] : ("type " + layerType));
   let mediaName = "";
   try {
     const media = clip.properties.media ? clip.properties.media.get() : null;

@@ -494,6 +494,7 @@ function createPZ() {
   Object.assign(PZ, {
     Observable, Obj, ObjectList, Layer, Clip, Track, Sequence, Media, Project, Editor,
     layer: Object.assign(Layer, { composite: Composite, create: createLayer }),
+    audio: AudioObject,
     clip: { create: (kind, objType) => new Clip(objType) },
     track: Object.assign(Track, { video: VideoTrack, audio: AudioTrack }),
     media: Media,
