@@ -10,7 +10,7 @@ Restore checks the selected point first, then backs up the current project befor
 
 ## Save reminder
 
-A status next to the project name shows whether the project is saved to disk: nothing when it is saved, "Not saved to disk" when it has never been saved to a file, and "Unsaved · N min" once it has changes since the last disk save. After the configured threshold (10 minutes by default) the status is highlighted. Click it to save.
+A dot on the Save button shows whether the project is saved to disk: no dot when it is saved, a muted dot when it has never been saved to a file or has unsaved changes, and an accent dot once unsaved changes are older than the configured threshold (10 minutes by default). The Save button tooltip names the state ("Not saved to disk" or "Unsaved · N min").
 
 Automatic restore points stay in the browser; they do not count as a disk save. To turn the reminder off or choose the threshold (5, 10, 20, or 30 minutes), use **Save reminder** in the **Restore** panel.
 
