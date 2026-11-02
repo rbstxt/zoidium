@@ -1,15 +1,17 @@
-// Zoidium save reminder: a quiet status next to the project name.
-// Shows nothing when the project matches the file on disk, "Not saved to
-// disk" when it has never been saved to a file, and "Unsaved · N min" once
-// it has changes since the last disk save, counting from the first unsaved
-// change. Past the configured threshold the status takes an accent colour.
-// Clicking it runs Save. Restore points and automatic backups never count
-// as a disk save: they stay in the browser, and the tooltip says so.
+// Zoidium save reminder: a dot badge on the toolbar Save button.
+// No dot when the project matches the file on disk, a muted dot when it has
+// never been saved to a file or has unsaved changes, and an accent dot once
+// unsaved changes are older than the configured threshold. The Save button's
+// tooltip names the state ("Not saved to disk" or "Unsaved · N min") and
+// explains that automatic restore points stay in this browser only. The badge
+// is absolutely positioned inside the Save button, so no toolbar element
+// moves. Clicks pass through to the Save button itself. Restore points and
+// automatic backups never count as a disk save.
 // Loads after project-restore.js (see zoidium/runtime-config.js), which owns
-// the toolbar field and the Restore panel this status and its setting attach
-// to. The refresh tick and the edit watcher only read the project revision
-// and update the status element; they never touch project data, and no code
-// here runs on export or rendering paths.
+// the toolbar and the Restore panel this badge and its setting attach to.
+// The refresh tick and the edit watcher only read the project revision
+// and update the badge; they never touch project data, and no code here runs
+// on export or rendering paths.
 (function installProjectSaveReminder(global) {
   "use strict";
 
@@ -19,10 +21,7 @@
   var REFRESH_MS = 30000;
   var INSTALL_RETRY_MS = 250;
   var TEXT_NEVER = "Not saved to disk";
-  var TITLE_NEVER = "This project has never been saved to a file. " +
-    "Automatic restore points stay in this browser only. Click to save.";
-  var TITLE_UNSAVED = "Unsaved changes. " +
-    "Automatic restore points stay in this browser only. Click to save.";
+  var RESTORE_NOTE = "Automatic restore points stay in this browser only.";
 
   function storageOf() {
     try {
@@ -86,11 +85,13 @@
       observedProject: null,
       watched: null,
       watcher: null,
-      button: null,
+      saveButton: null,
+      badge: null,
+      baseTitle: null,
       setting: null,
-      lastText: null,
+      lastDotVisible: null,
       lastOverdue: null,
-      lastVisible: null,
+      lastTitle: null,
       refreshTimer: null,
       installTimer: null,
       observer: null,
@@ -140,48 +141,37 @@
     };
   }
 
-  function textOf(view) {
+  function statusLineOf(view) {
     if (view.kind === "never") return TEXT_NEVER;
     if (view.kind === "unsaved") return "Unsaved · " + view.minutes + " min";
     return "";
   }
 
-  // The button keeps a fixed width (see ui-overrides.css) and hides through
-  // visibility, so saved/unsaved transitions never shift the toolbar. DOM
-  // writes happen only when the visible state actually changes, so the
-  // 30-second tick is the only recurring update.
+  // The badge is absolutely positioned inside the Save button (see
+  // ui-overrides.css), so showing, hiding, or recolouring it never changes
+  // the button size or any toolbar position. DOM writes happen only when the
+  // visible state actually changes, so the 30-second tick is the only
+  // recurring update. The button keeps its own label and shortcut text; the
+  // status line and the restore note are appended below it.
   function render(state, view) {
-    var button = state.button;
-    if (!button) return;
-    var visible = !view.hidden;
-    var text = !visible || view.kind === "clean" ? "" : textOf(view);
-    var overdue = visible && view.kind === "unsaved" && !!view.overdue;
-    if (text === state.lastText && overdue === state.lastOverdue && visible === state.lastVisible) return;
-    state.lastText = text;
+    var saveButton = state.saveButton;
+    var badge = state.badge;
+    if (!saveButton || !badge) return;
+    var dotVisible = !view.hidden && view.kind !== "clean";
+    var overdue = dotVisible && view.kind === "unsaved" && !!view.overdue;
+    var title = state.baseTitle || "";
+    if (dotVisible) title += "\n" + statusLineOf(view) + "\n" + RESTORE_NOTE;
+    if (dotVisible === state.lastDotVisible && overdue === state.lastOverdue && title === state.lastTitle) return;
+    state.lastDotVisible = dotVisible;
     state.lastOverdue = overdue;
-    state.lastVisible = visible;
-    if (!visible) {
-      button.style.display = "none";
-      return;
-    }
-    button.style.display = "";
-    button.textContent = text;
-    button.title = view.kind === "never" ? TITLE_NEVER : view.kind === "unsaved" ? TITLE_UNSAVED : "";
-    if (overdue) button.classList.add("is-overdue");
-    else button.classList.remove("is-overdue");
-    button.style.visibility = text ? "visible" : "hidden";
-  }
-
-  function runSave() {
-    var editor = editorOf();
-    if (!editor) return;
+    state.lastTitle = title;
+    badge.style.display = dotVisible ? "" : "none";
+    if (overdue) badge.classList.add("is-overdue");
+    else badge.classList.remove("is-overdue");
     try {
-      if (typeof editor.save === "function") editor.save();
-      else if (projectFilesOf() && typeof projectFilesOf().saveProject === "function") {
-        projectFilesOf().saveProject(editor);
-      }
+      if (saveButton.title !== title) saveButton.title = title;
     } catch (_error) {
-      // Save failures surface through zoidium:project-error.
+      // A read-only title must not break the status update.
     }
   }
 
@@ -255,36 +245,91 @@
     return !detail.editor || detail.editor === editorOf();
   }
 
-  function findNameField() {
+  // CM3 builds the toolbar Save button with title "save (ctrl-s)" and moves
+  // it into .zoidium-project-actions (see installProjectNameField in
+  // project-restore.js). Match on that title prefix; the UI language is
+  // English-only, so no locale variants apply.
+  function findSaveButton() {
     if (!global.document || typeof global.document.querySelector !== "function") return null;
-    return global.document.querySelector(".zoidium-project-name");
+    var scope = null;
+    try {
+      scope = global.document.querySelector(".zoidium-project-actions");
+    } catch (_error) {
+      scope = null;
+    }
+    if (!scope) scope = global.document;
+    if (typeof scope.querySelectorAll !== "function") return null;
+    var buttons = null;
+    try {
+      buttons = scope.querySelectorAll("button[title]");
+    } catch (_error) {
+      return null;
+    }
+    for (var i = 0; i < buttons.length; i++) {
+      var title = "";
+      try {
+        title = buttons[i].title || buttons[i].getAttribute("title") || "";
+      } catch (_titleError) {
+        title = "";
+      }
+      if (/^save(\s|\()/i.test(title)) return buttons[i];
+    }
+    return null;
   }
 
-  function ensureButton(state) {
-    var field = findNameField();
-    if (!field || typeof global.document.createElement !== "function") return false;
-    var existing = null;
+  // The badge must not change the button size or any toolbar position: it is
+  // absolutely positioned (see ui-overrides.css), and the button only gains a
+  // positioning context. position: relative with no offsets never moves
+  // layout; the classList guard keeps the steady-state cost at one query.
+  function ensureBadge(state) {
+    var saveButton = findSaveButton();
+    if (!saveButton || typeof global.document.createElement !== "function") return false;
+    if (saveButton !== state.saveButton) {
+      state.saveButton = saveButton;
+      state.badge = null;
+      state.baseTitle = null;
+      state.lastDotVisible = null;
+      state.lastOverdue = null;
+      state.lastTitle = null;
+    }
+    if (state.baseTitle === null || state.baseTitle === undefined) {
+      var base = "";
+      try {
+        base = saveButton.title || saveButton.getAttribute("title") || "";
+      } catch (_error) {
+        base = "";
+      }
+      // A previous install already extended the title; the first line is the
+      // button's own label and shortcut text.
+      state.baseTitle = String(base).split("\n")[0];
+    }
+    if (saveButton.classList && typeof saveButton.classList.add === "function") {
+      try {
+        if (!saveButton.classList.contains("zoidium-save-reminder-host")) {
+          saveButton.classList.add("zoidium-save-reminder-host");
+        }
+      } catch (_error) {
+        // The badge still positions against the button in most themes.
+      }
+    }
+    var badge = null;
     try {
-      existing = field.querySelector(".zoidium-save-reminder");
+      badge = saveButton.querySelector(".zoidium-save-reminder-dot");
     } catch (_error) {
-      existing = null;
+      badge = null;
     }
-    if (existing) {
-      state.button = existing;
-      return true;
+    if (!badge) {
+      badge = global.document.createElement("span");
+      badge.className = "zoidium-save-reminder-dot";
+      badge.setAttribute("aria-hidden", "true");
+      try {
+        saveButton.appendChild(badge);
+      } catch (_error) {
+        return false;
+      }
+      // pointer-events stays in CSS so clicks reach the Save button itself.
     }
-    var button = global.document.createElement("button");
-    button.type = "button";
-    button.className = "zoidium-save-reminder";
-    button.setAttribute("aria-label", "Save reminder. Activate to save.");
-    button.addEventListener("click", function () {
-      runSave();
-    });
-    field.appendChild(button);
-    state.button = button;
-    state.lastText = null;
-    state.lastOverdue = null;
-    state.lastVisible = null;
+    state.badge = badge;
     render(state, describe(state, Date.now()));
     return true;
   }
@@ -315,9 +360,9 @@
     state.thresholdMin = value;
     writeThreshold(storageOf(), value);
     notifySetting(value);
-    state.lastText = null;
+    state.lastDotVisible = null;
     state.lastOverdue = null;
-    state.lastVisible = null;
+    state.lastTitle = null;
     refresh(state, Date.now());
   }
 
@@ -366,7 +411,7 @@
   }
 
   function tryInstall(state) {
-    return ensureButton(state) && ensureSetting(state);
+    return ensureBadge(state) && ensureSetting(state);
   }
 
   function stop(state) {
@@ -425,10 +470,10 @@
       refresh(state, Date.now());
     }, REFRESH_MS);
 
-    // The toolbar field and the Restore panel install on their own retry
+    // The toolbar and the Restore panel install on their own retry
     // loops, and CM3 can rebuild the toolbar later. Keep retrying until both
-    // anchors exist; the observer then reinstalls the button after rebuilds.
-    // steady-state mutations short-circuit on one querySelector each.
+    // anchors exist; the observer then reinstalls the badge after rebuilds.
+    // Steady-state mutations short-circuit on one querySelector each.
     if (tryInstall(state)) {
       state.installTimer = null;
     } else {
@@ -445,7 +490,7 @@
       try {
         state.observer = new global.MutationObserver(function () {
           if (state.stopped) return;
-          ensureButton(state);
+          ensureBadge(state);
         });
         state.observer.observe(global.document.body, { childList: true, subtree: true });
       } catch (_error) {

@@ -103,34 +103,28 @@
   white-space: nowrap;
 }
 
-/* Save reminder: quiet status next to the project name. The fixed width
-   reserves its space while hidden (visibility, not display), so transitions
-   between saved, never-saved, and unsaved never shift the toolbar. Longer
-   minute counts ellipsize instead of growing it. Only the overdue accent
-   uses a colour token beyond the muted text. */
-.zoidium-save-reminder {
-  flex: none;
-  width: 18ch;
-  overflow: hidden;
-  padding: 2px 4px;
-  border: 0;
-  background: none;
-  color: var(--zui-text-muted);
-  font-family: inherit;
-  font-size: var(--zui-font-size);
-  line-height: 23px;
-  text-align: start;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
+/* Save reminder: a dot badge at the Save button's top-right corner. The badge
+   is absolutely positioned inside the button, so showing, hiding, or
+   recolouring it never changes the button size or any toolbar position. The
+   button only gains a positioning context (no offsets), which never moves
+   layout. Clicks pass through to the Save button itself. */
+.zoidium-save-reminder-host {
+  position: relative;
 }
 
-.zoidium-save-reminder:hover {
-  text-decoration: underline;
+.zoidium-save-reminder-dot {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--zui-text-muted);
+  pointer-events: none;
 }
 
-.zoidium-save-reminder.is-overdue {
-  color: var(--zui-danger);
+.zoidium-save-reminder-dot.is-overdue {
+  background-color: var(--zui-accent);
 }
 
 .zoidium-restore-panel {
