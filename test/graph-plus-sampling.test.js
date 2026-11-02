@@ -140,3 +140,18 @@ test("vector expressions supply component samples and override child keys", () =
     assert.equal(result.points[10][1], 10 * (axis + 1));
   }
 });
+
+test("expression samples denser than the screen become one min-max stroke per pixel column", () => {
+  const { expressionPath } = require("../plugins/graph-plus/sampling.js");
+  // A per-frame zigzag at 2 frames per pixel: every column holds two samples.
+  const dense = [];
+  for (let frame = 0; frame < 40; frame++) dense.push([frame, frame % 2 ? 10 : -10]);
+  const built = expressionPath(dense, frame => frame / 2, value => value);
+  assert.equal(built.dense, true);
+  const columns = built.d.match(/[ML] [-\d.]+ [-\d.]+/g).map(step => Number(step.split(" ")[1]));
+  assert.deepEqual([...new Set(columns)], Array.from({ length: 20 }, (_, i) => i + 0.5));
+  assert.match(built.d, /L 0\.5 -10 L 0\.5 10/);
+  // Sparse samples keep their exact positions and gaps.
+  const sparse = expressionPath([[0, 1], [1, 2], [2, NaN], [3, 4]], frame => frame * 4, value => value);
+  assert.deepEqual(sparse, { d: " M 0 1 L 4 2 M 12 4", dense: false });
+});

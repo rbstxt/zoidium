@@ -61,4 +61,38 @@ class ExpressionSamples {
     return record;
   }
 }
-module.exports = { easingPoints, ExpressionSamples };
+// Builds the SVG path of sampled expression values in screen pixels. When
+// several samples fall in one pixel column (a fast expression seen zoomed
+// out), that column becomes one vertical stroke from its lowest to its
+// highest value, like an audio waveform. A zigzag through every sample made
+// those columns look like noise. Returns dense: true when any column was
+// reduced.
+function expressionPath(points, toX, toY) {
+  let d = "", connected = false, dense = false, group = [];
+  const flush = () => {
+    if (!group.length) return;
+    if (group.length === 1) {
+      d += (connected ? " L " : " M ") + group[0][0] + " " + group[0][1];
+    } else {
+      dense = true;
+      const x = Math.floor(group[0][0]) + 0.5;
+      let low = group[0][1], high = group[0][1];
+      for (const point of group) { low = Math.min(low, point[1]); high = Math.max(high, point[1]); }
+      const first = group[0][1], last = group[group.length - 1][1];
+      // Enter at the first value and leave at the last, so neighbouring
+      // columns connect where the samples do.
+      d += (connected ? " L " : " M ") + x + " " + first + " L " + x + " " + low + " L " + x + " " + high + " L " + x + " " + last;
+    }
+    connected = true;
+    group = [];
+  };
+  for (const point of points) {
+    if (!Number.isFinite(point[1])) { flush(); connected = false; continue; }
+    const screen = [toX(point[0]), toY(point[1])];
+    if (group.length && Math.floor(group[0][0]) !== Math.floor(screen[0])) flush();
+    group.push(screen);
+  }
+  flush();
+  return { d, dense };
+}
+module.exports = { easingPoints, ExpressionSamples, expressionPath };
