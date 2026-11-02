@@ -164,6 +164,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- 3D and native Text in an opened project appear on the first frame, also when
+  they sit on tracks outside the visible timeline or start later. Before, they
+  could stay missing until the next redraw.
+- The clip menu of an audio clip names its source type as Audio instead of
+  "type undefined".
 - Expressions that read the `velocity` or `speed` of another layer's vector
   property (for example `thisComp.layer("Ball").property("Position").velocity`)
   return the real per-second value. They returned `[0, 0]` or `0` before, so

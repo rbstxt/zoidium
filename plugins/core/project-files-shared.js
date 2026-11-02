@@ -1,7 +1,7 @@
-// Project file naming and error helpers shared by the project-files core
-// scripts. Pure functions only: no archive, editor, or UI access, so every
-// consumer (runtime scripts and node test harnesses) can load this file
-// first and read the helpers off PZ.zoidium.projectFilesShared.
+// Project file naming, error, and open-readiness helpers shared by the
+// project-files core scripts. No archive or UI access, so every consumer
+// (runtime scripts and node test harnesses) can load this file first and
+// read the helpers off PZ.zoidium.projectFilesShared.
 (function installProjectFilesShared(global) {
   "use strict";
 
@@ -107,6 +107,38 @@
     return error;
   }
 
+  // Warms each video clip's first frame when a project opens, including clips
+  // on tracks outside the visible timeline and clips that start later. Clips
+  // warm concurrently. A clip whose content fails or never settles (CM3 opens
+  // projects with a failed object; a missing font file never settles) must
+  // not stop the open: the viewport prepares again at the live frame, so
+  // giving up after CLIP_WARM_MS only delays that clip's first draw.
+  var CLIP_WARM_MS = 10000;
+  function warmClip(object, sequence) {
+    var timer;
+    var warmed = Promise.resolve().then(function () {
+      return object.prepare(0, { sequence: sequence });
+    }).then(function () { return true; }, function (error) {
+      if (global.console) global.console.warn("[Zoidium] Clip content could not be prepared; it opens with what is available.", error);
+      return true;
+    });
+    var limit = new Promise(function (resolve) { timer = global.setTimeout(function () { resolve(false); }, CLIP_WARM_MS); });
+    return Promise.race([warmed, limit]).then(function (settled) {
+      global.clearTimeout(timer);
+      if (!settled && global.console) global.console.warn("[Zoidium] Clip content is still preparing; the project opens now.");
+    });
+  }
+  function warmProjectClips(project) {
+    var sequence = project && project.sequence;
+    var pending = [];
+    for (var track of (sequence && sequence.videoTracks) || []) {
+      for (var clip of track.clips || []) {
+        if (clip && clip.object && typeof clip.object.prepare === "function") pending.push(warmClip(clip.object, sequence));
+      }
+    }
+    return Promise.all(pending);
+  }
+
   PZ.zoidium.projectFilesShared = {
     DEFAULT_PROJECT_NAME: DEFAULT_PROJECT_NAME,
     normalizeProjectName: normalizeProjectName,
@@ -120,5 +152,6 @@
     VALIDATION_PREFIX: VALIDATION_PREFIX,
     isProjectDataError: isProjectDataError,
     projectDataError: projectDataError,
+    warmProjectClips: warmProjectClips,
   };
 })(window);
