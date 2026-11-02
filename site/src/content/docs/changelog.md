@@ -10,6 +10,10 @@ each line describes one visible change.
 
 ### Added
 
+- A small dot on the Save button shows that the project has changes that are
+  not saved to disk. It turns to the accent colour after 10 minutes, and the
+  Save button's tooltip says how long. Automatic restore points do not count
+  as saving. Choose the time or turn it off in the Restore panel.
 - Shader+ has a "Velocity from a property" code template, and the docs explain
   how to pass another property's velocity to a shader. Expressions can use
   `thisComp.frameDuration`.
