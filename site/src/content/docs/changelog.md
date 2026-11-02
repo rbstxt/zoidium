@@ -161,6 +161,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- Custom properties can be renamed again from their right-click menu
+  (**Rename…**). The Zoidium menus had replaced the native right-click rename.
+- Graph Editor 2 draws fast expressions (for example `shake()`) as a clean band
+  when zoomed out, after Fit (`\`) and when it opens, instead of a blurry
+  streak of dashes.
 - Projects saved by Clipmaker 2 open again. They failed with "The project
   data is missing from the archive".
 - Projects that use the Glitch effect no longer stop rendering with an
