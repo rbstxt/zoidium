@@ -851,7 +851,18 @@
   if (typeof originalLoadProject === "function") {
     editorPrototype.loadProject = async function () {
       var project = await originalLoadProject.apply(this, arguments);
-      return prepareProject(project);
+      await prepareProject(project);
+      // Loading promises do not start native text font or particle texture
+      // preparation. Do this before exposing the project to the viewport,
+      // including clips outside the initial frame and visible timeline rows.
+      for (var track of project?.sequence?.videoTracks || []) {
+        for (var clip of track.clips || []) {
+          if (typeof clip.object?.prepare === "function") {
+            await clip.object.prepare(0, { sequence: project.sequence });
+          }
+        }
+      }
+      return project;
     };
   }
 

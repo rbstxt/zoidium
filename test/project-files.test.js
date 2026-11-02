@@ -507,3 +507,33 @@ test("community payloads survive archives and restore points without package byt
   assert.equal(await read(restored.peekFile("project").data), saved);
   for (const entry of restored.files) assert.doesNotMatch(await read(entry.data), /PRIVATE_PACKAGE_CODE|PRIVATE_APPROVAL/);
 });
+
+
+test("opening prepares offscreen video content before exposing the project", async () => {
+  const h = createHarness();
+  const editor = h.makeEditor();
+  const load = deferred(), content = deferred();
+  const calls = [];
+  const object = { loading: load.promise, async prepare(frame, context) {
+    calls.push({ frame, sequence: context.sequence });
+    await content.promise;
+  } };
+  const tracks = Array.from({ length: 48 }, () => ({ clips: [] }));
+  tracks[32].clips.push({ start: 100, object, children: [object] });
+  for (const track of tracks) track.children = track.clips;
+  const sequence = { videoTracks: tracks, children: [tracks] };
+  editor.loadedProject = { sequence, children: [sequence] };
+  let ready = false;
+  const opening = editor.loadProject().then(project => { ready = true; return project; });
+  await flush();
+  assert.equal(ready, false);
+  assert.equal(calls.length, 0);
+  load.resolve();
+  await flush();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].frame, 0);
+  assert.equal(calls[0].sequence, sequence);
+  assert.equal(ready, false, "opening waits for content, not just object loading");
+  content.resolve();
+  assert.equal(await opening, editor.loadedProject);
+});
