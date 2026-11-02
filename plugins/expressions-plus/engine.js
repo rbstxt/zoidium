@@ -63,7 +63,7 @@ function installEngine(options) {
   }
   function read(p, frame) {
     if (active.has(p)) throw new Error("Expression property cycle detected");
-    const result = p.get(frame);
+    const result = copy(p.get(frame));
     if (active.size && errors.get(p)?.includes("cycle detected")) throw new Error("Expression property cycle detected");
     return result;
   }
