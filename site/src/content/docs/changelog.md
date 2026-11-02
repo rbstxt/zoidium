@@ -161,6 +161,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Projects saved by Clipmaker 2 open again. They failed with "The project
+  data is missing from the archive".
+- Projects that use the Glitch effect no longer stop rendering with an
+  error.
 - Keyframing Font Family, Fallback Font, or Style on Shape+ Text no longer
   freezes the editor. Font changes at other frames add hold keys, and
   keyed fonts stay loaded while scrubbing.

@@ -92,6 +92,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Projects saved by Clipmaker 2 open again. They failed with "The project
+  data is missing from the archive".
+- Projects that use the Glitch effect no longer stop rendering with an
+  error.
 - The preview cache keeps working when an unused, disabled plugin failed to
   download, and pre-renders frames in projects with video when no video is
   near those frames.

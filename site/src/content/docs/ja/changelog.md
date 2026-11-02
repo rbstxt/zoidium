@@ -69,6 +69,8 @@ sidebar:
 
 ### 修正
 
+- Clipmaker 2 で保存したプロジェクトが再び開けるようになりました。「The project data is missing from the archive」で失敗していました。
+- Glitch エフェクトを使ったプロジェクトで、描画がエラーで止まらなくなりました。
 - Shape+ Text の Font Family、Fallback Font、Style にキーフレームを打ってもエディターが固まらなくなりました。ほかのフレームでフォントを変えるとホールドキーが追加され、キーに使ったフォントはスクラブ中も読み込まれたままになります。
 - 組み込みの Geist、Geist Mono、Geist Serif、Inter を使ったネイティブ Text で、くさび形の "i" や塗りつぶされた "A" のような崩れた文字が描かれなくなりました。これらのプリセットは公式のスタティック Regular ファイルを使い、Shape+ Text では引き続き可変軸をアニメーションできます。これらのフォントのネイティブ Text は、崩れていた文字だけが変わります。
 - フォント選択欄のフォント名が行とボタンの中央にそろい、空の Fallback Font には **None** と表示されます。
