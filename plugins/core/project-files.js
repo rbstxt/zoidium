@@ -810,6 +810,22 @@
     ]).finally(function () { global.clearTimeout(timer); });
   }
 
+  // A clip whose content fails or never settles (CM3 opens projects with a
+  // failed object; a missing font file never settles) must not stop the
+  // open. The viewport prepares again at the live frame, so giving up after
+  // CLIP_WARM_MS only delays that clip's first draw.
+  var CLIP_WARM_MS = 10000;
+  function warmClipContent(object, sequence) {
+    var warmed = Promise.resolve().then(function () {
+      return object.prepare(0, { sequence: sequence });
+    }).catch(function (error) {
+      if (global.console) global.console.warn("[Zoidium] Clip content could not be prepared; it opens with what is available.", error);
+    });
+    return settledWithin(warmed, CLIP_WARM_MS).then(function (settled) {
+      if (!settled && global.console) global.console.warn("[Zoidium] Clip content is still preparing; the project opens now.");
+    });
+  }
+
   // A step of a user-started save or open that outlives its size-scaled
   // budget asks instead of failing: reading a large video from a slow or
   // cloud-backed disk is valid. The question closes itself when the step
@@ -853,15 +869,19 @@
       var project = await originalLoadProject.apply(this, arguments);
       await prepareProject(project);
       // Loading promises do not start native text font or particle texture
-      // preparation. Do this before exposing the project to the viewport,
-      // including clips outside the initial frame and visible timeline rows.
-      for (var track of project?.sequence?.videoTracks || []) {
+      // preparation. Warm each clip's first frame before exposing the project
+      // to the viewport, including clips outside the initial frame and
+      // visible timeline rows. Clips warm concurrently and each is isolated.
+      var sequence = project && project.sequence;
+      var pending = [];
+      for (var track of (sequence && sequence.videoTracks) || []) {
         for (var clip of track.clips || []) {
-          if (typeof clip.object?.prepare === "function") {
-            await clip.object.prepare(0, { sequence: project.sequence });
+          if (clip && clip.object && typeof clip.object.prepare === "function") {
+            pending.push(warmClipContent(clip.object, sequence));
           }
         }
       }
+      await Promise.all(pending);
       return project;
     };
   }
