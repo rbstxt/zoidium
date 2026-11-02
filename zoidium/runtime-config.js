@@ -123,6 +123,7 @@
       "./zoidium/project-restore-snapshots.js",
       "./zoidium/project-restore-toasts.js",
       "./zoidium/project-restore.js",
+      "./zoidium/project-save-reminder.js",
       "./zoidium/shared/random.js",
       "./zoidium/shared/props.js",
       "./zoidium/shared/color.js",

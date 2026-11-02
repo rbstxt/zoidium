@@ -54,7 +54,9 @@
 }
 
 .zoidium-project-name {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   grid-column: 1;
   min-width: 0;
   width: 100%;
@@ -86,8 +88,9 @@
 
 .zoidium-project-name input {
   display: block;
+  flex: 1 1 auto;
   min-width: 0;
-  width: 100%;
+  width: auto;
   height: 29px;
   padding: 2px 5px;
   overflow: hidden;
@@ -98,6 +101,30 @@
   text-align: start;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Save reminder: a dot badge at the Save button's top-right corner. The badge
+   is absolutely positioned inside the button, so showing, hiding, or
+   recolouring it never changes the button size or any toolbar position. The
+   button only gains a positioning context (no offsets), which never moves
+   layout. Clicks pass through to the Save button itself. */
+.zoidium-save-reminder-host {
+  position: relative;
+}
+
+.zoidium-save-reminder-dot {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--zui-text-muted);
+  pointer-events: none;
+}
+
+.zoidium-save-reminder-dot.is-overdue {
+  background-color: var(--zui-accent);
 }
 
 .zoidium-restore-panel {
@@ -189,6 +216,29 @@
 }
 
 .zoidium-backup-interval {
+  flex: 0 0 116px;
+  width: 116px !important;
+  min-width: 0;
+}
+
+.zoidium-save-reminder-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.zoidium-save-reminder-setting > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--zui-text);
+  font-size: var(--zui-font-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zoidium-save-reminder-threshold {
   flex: 0 0 116px;
   width: 116px !important;
   min-width: 0;
