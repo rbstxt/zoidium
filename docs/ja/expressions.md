@@ -34,7 +34,7 @@ Expressions+ の構文または API を必要とするプログラムには、�
 
 `thisProperty` は、`value`、`valueAtTime(seconds)`、`velocity`、`speed`、`numKeys`、`key(index)`、`nearestKey(seconds)` を持ちます。キーインデックスは 1 から開始します。キーレコードは `index`、`time`、`value` を含みます。Velocity は 0.01 秒の対称微分です。speed はその大きさです。自身の valueAtTime は、式を経由して再帰せず、元のキーフレームをサンプリングします。
 
-`thisObject` は、所有するオブジェクトまたはエフェクトです。`thisLayer`、`thisClip`、`thisSequence` とその別名 `thisComp` は上位レベルを提供します。ハンドルは次を公開します:
+`thisObject` は、所有するオブジェクトまたはエフェクトです。`thisLayer`、`thisClip`、`thisSequence` とその別名 `thisComp` は上位レベルを提供します。`thisComp.frameDuration` は、シーケンスのレートにおける 1 フレームの秒数です。そのため、`valueAtTime(time - thisComp.frameDuration)` は 1 フレーム前をサンプリングします。ハンドルは次を公開します:
 
 - `.parent` は、最も近い所有オブジェクト用です。`.parent(n)` は、その親から n レベル移動します。自由なブラウザー識別子 `parent` は引き続き利用できません。
 - `.layer(nameOrIndex)` は、現在アクティブなビデオレイヤーを選択します。インデックス 1 は最初のビデオトラックです。`layer(nameOrIndex)` はシーケンスから開始します。

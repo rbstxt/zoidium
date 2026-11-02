@@ -3,7 +3,7 @@
   "id": "shader-plus",
   "name": "Shader+",
   "author": "Zoidium",
-  "version": "22",
+  "version": "23",
   "kind": "extension",
   "description": "Native custom shader controls and baked gradient, curve, palette and text inputs.",
   "modules": [

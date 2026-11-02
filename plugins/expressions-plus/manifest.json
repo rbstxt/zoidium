@@ -3,7 +3,7 @@
   "id": "expressions-plus",
   "name": "Expressions+",
   "author": "Zoidium",
-  "version": "15",
+  "version": "16",
   "kind": "extension",
   "description": "Modern deterministic expressions, property links and Sequence Controls in native CM3 panels.",
   "modules": [
