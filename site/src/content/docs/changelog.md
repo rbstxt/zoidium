@@ -10,6 +10,9 @@ each line describes one visible change.
 
 ### Added
 
+- Shader+ has a "Velocity from a property" code template, and the docs explain
+  how to pass another property's velocity to a shader. Expressions can use
+  `thisComp.frameDuration`.
 - Fonts imported in Assets appear under **Project fonts** in every font
   picker, drawn in their own lettering, and can be chosen and keyframed like
   built-in fonts. Arrow keys and Enter now work in the font list.
@@ -161,6 +164,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Expressions that read the `velocity` or `speed` of another layer's vector
+  property (for example `thisComp.layer("Ball").property("Position").velocity`)
+  return the real per-second value. They returned `[0, 0]` or `0` before, so
+  projects that use them render differently. Scalar properties are unchanged.
 - Custom properties can be renamed again from their right-click menu
   (**Rename…**). The Zoidium menus had replaced the native right-click rename.
 - Graph Editor 2 draws fast expressions (for example `shake()`) as a clean band

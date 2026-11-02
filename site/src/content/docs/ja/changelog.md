@@ -9,6 +9,7 @@ sidebar:
 
 ### 追加
 
+- Shader+ にコードテンプレート「Velocity from a property」を追加し、別のプロパティの速度をシェーダーに渡す方法をドキュメントで説明しました。エクスプレッションで `thisComp.frameDuration` を使えます。
 - Assets に読み込んだフォントが、すべてのフォント選択欄の **Project fonts** に、それぞれの書体で表示されます。組み込みフォントと同じように選択でき、キーフレームも打てます。フォント一覧で矢印キーと Enter が使えるようになりました。
 - 組み込みフォントを追加しました。Geist、Geist Mono、Geist Pixel (Circle、Grid、Line、Square、Triangle)、Geist Serif (Square、Triangle、Heart の各スタイルを含む)、Inter、Paper Mono を、すべてのフォント選択欄で使用できます。Geist、Geist Mono、Inter は可変フォントのため、Shape+ Text ではフォントを読み込まずにウェイトをアニメーションできます。
 - フォント選択欄のプレビュー画像を、フォント一覧から生成するようにしました。追加した組み込みフォントも、それぞれの書体で表示されます。
@@ -69,6 +70,7 @@ sidebar:
 
 ### 修正
 
+- 別のレイヤーのベクトルプロパティの `velocity` や `speed` を読むエクスプレッション (`thisComp.layer("Ball").property("Position").velocity` など) が、正しい毎秒の値を返すようになりました。これまでは `[0, 0]` か `0` を返していたため、これを使うプロジェクトは描画が変わります。スカラーのプロパティは変わりません。
 - カスタムプロパティを右クリックメニューの **Rename…** で再び改名できるようになりました。Zoidium のメニューが本来の右クリックでの改名を置き換えていました。
 - Graph Editor 2 で、速く動くエクスプレッション (`shake()` など) を縮小表示したとき、Fit (`\`) のあと、開いたときに、にじんだ破線ではなく、すっきりした帯として描くようになりました。
 - Clipmaker 2 で保存したプロジェクトが再び開けるようになりました。「The project data is missing from the archive」で失敗していました。
