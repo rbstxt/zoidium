@@ -9,89 +9,89 @@
   "modules": [
     {
       "id": "expressions-runtime",
-      "source": "./plugins/expressions-plus/expressions-plus.js?v=15"
+      "source": "./plugins/expressions-plus/expressions-plus.js?v=16"
     }
   ],
   "resources": [
     {
       "id": "0",
       "type": "text",
-      "source": "./plugins/expressions-plus/compiler.js?v=15"
+      "source": "./plugins/expressions-plus/compiler.js?v=16"
     },
     {
       "id": "1",
       "type": "text",
-      "source": "./plugins/expressions-plus/call-guard.js?v=15"
+      "source": "./plugins/expressions-plus/call-guard.js?v=16"
     },
     {
       "id": "2",
       "type": "text",
-      "source": "./plugins/expressions-plus/api.js?v=15"
+      "source": "./plugins/expressions-plus/api.js?v=16"
     },
     {
       "id": "3",
       "type": "text",
-      "source": "./plugins/expressions-plus/engine.js?v=15"
+      "source": "./plugins/expressions-plus/engine.js?v=16"
     },
     {
       "id": "4",
       "type": "text",
-      "source": "./plugins/expressions-plus/vendor/acorn.txt?v=15"
+      "source": "./plugins/expressions-plus/vendor/acorn.txt?v=16"
     },
     {
       "id": "5",
       "type": "text",
-      "source": "./plugins/expressions-plus/vendor/astring.txt?v=15"
+      "source": "./plugins/expressions-plus/vendor/astring.txt?v=16"
     },
     {
       "id": "wiggle-source",
       "type": "text",
-      "source": "./plugins/trapcode-suite/trapcode-expressions.js?v=15"
+      "source": "./plugins/trapcode-suite/trapcode-expressions.js?v=16"
     },
     {
       "id": "controls",
       "type": "text",
-      "source": "./plugins/expressions-plus/controls.js?v=15"
+      "source": "./plugins/expressions-plus/controls.js?v=16"
     },
     {
       "id": "controls-ui",
       "type": "text",
-      "source": "./plugins/expressions-plus/controls-ui.js?v=15"
+      "source": "./plugins/expressions-plus/controls-ui.js?v=16"
     },
     {
       "id": "p3-0",
       "type": "text",
-      "source": "./plugins/expressions-plus/world.js?v=15"
+      "source": "./plugins/expressions-plus/world.js?v=16"
     },
     {
       "id": "p3-1",
       "type": "text",
-      "source": "./plugins/expressions-plus/shaders.js?v=15"
+      "source": "./plugins/expressions-plus/shaders.js?v=16"
     },
     {
       "id": "p3-2",
       "type": "text",
-      "source": "./plugins/expressions-plus/glsl-library.js?v=15"
+      "source": "./plugins/expressions-plus/glsl-library.js?v=16"
     },
     {
       "id": "p3-3",
       "type": "text",
-      "source": "./plugins/constraints/track-to-evaluate.js?v=15"
+      "source": "./plugins/constraints/track-to-evaluate.js?v=16"
     },
     {
       "id": "p3-4",
       "type": "text",
-      "source": "./plugins/constraints/track-to-math.js?v=15"
+      "source": "./plugins/constraints/track-to-math.js?v=16"
     },
     {
       "id": "p3-5",
       "type": "text",
-      "source": "./plugins/constraints/constraint-graph.js?v=15"
+      "source": "./plugins/constraints/constraint-graph.js?v=16"
     },
     {
       "id": "world-index",
       "type": "text",
-      "source": "./plugins/expressions-plus/world-index.js?v=15"
+      "source": "./plugins/expressions-plus/world-index.js?v=16"
     }
   ]
 }
