@@ -2,7 +2,7 @@
 const { visibleHandle } = require("./targets.js");
 const { expressionOf, segmentType } = require("./property-state.js");
 
-const { easingPoints, ExpressionSamples } = require("./sampling.js");
+const { easingPoints, ExpressionSamples, expressionPath } = require("./sampling.js");
 var gpNextGroupId = 1;
 
 module.exports = function (environment) {
@@ -332,18 +332,21 @@ PZ.ui.graph.prototype.drawExpression = function (gel) {
     gel.pz_valueScale = 80 / (maxAbs > 1e-9 ? maxAbs : 1);
   }
   var ox = this.centerX - off, oy = this.centerY;
-  var path = gel._expression, d = "", connected = false;
-  record.points.forEach((point) => {
-    if (!Number.isFinite(point[1])) { connected = false; return; }
-    d += (connected ? " L " : " M ") + ((point[0] - ox) / this.zoomX) + " " +
-      ((-point[1] * gel.pz_valueScale - oy) / this.zoomY);
-    connected = true;
-  });
-  path.setAttributeNS(null, "transform", "translate(" + ox + " " + oy + ") scale(" + this.zoomX + " " + this.zoomY + ")");
-  path.setAttributeNS(null, "d", d);
+  var path = gel._expression, zoomX = this.zoomX, zoomY = this.zoomY;
+  // Screen x is counted from the left edge of the view so pixel columns line
+  // up with the screen; the transform puts the path back in graph units.
+  var left = this.width / 2;
+  var built = expressionPath(record.points,
+    (frame) => (frame - ox) / zoomX + left,
+    (value) => (-value * gel.pz_valueScale - oy) / zoomY);
+  path.setAttributeNS(null, "transform", "translate(" + ox + " " + oy + ") scale(" + zoomX + " " + zoomY + ") translate(" + (-left) + " 0)");
+  path.setAttributeNS(null, "d", built.d);
   path.setAttributeNS(null, "stroke", gel.pz_color);
   path.setAttributeNS(null, "stroke-width", this.options.curveLineWidth);
-  path.setAttributeNS(null, "stroke-dasharray", "6 4");
+  // Dashes on a waveform of vertical strokes read as noise; dense curves are
+  // solid and slightly faded so they still differ from keyframe curves.
+  path.setAttributeNS(null, "stroke-dasharray", built.dense ? "none" : "6 4");
+  path.setAttributeNS(null, "stroke-opacity", built.dense ? "0.75" : "1");
 };
 PZ.ui.graph.prototype.redrawAllKeyframes = function (gel) {
   // BUGFIX: preserve selection across redraw (was losing sel on move)
