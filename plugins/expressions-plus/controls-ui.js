@@ -70,7 +70,19 @@ function installControlsUI({ context, store, patch }) {
     }) })) }) }];
   }
   function linkMenu(row, p, event) {
-    ui.openMenu({ x: event.clientX, y: event.clientY, owner: row, items: linkItems(row, p, event) });
+    const rename = renameItem(row);
+    ui.openMenu({ x: event.clientX, y: event.clientY, owner: row, items: [...(rename ? [rename] : []), ...linkItems(row, p, event)] });
+  }
+  // CM3 starts its inline rename editor from a row's own contextmenu handler
+  // (PZ.ui.edit.prototype.renameClick). Zoidium menus replace that handler, so
+  // offer the same editor as a menu item instead of a custom rename flow: it
+  // commits through one native history operation.
+  function renameItem(row) {
+    const name = row?.pz_object?.properties?.name;
+    if (!name || (name.definition && name.definition.readOnly)) return null;
+    const panel = row?.closest?.(".editorpanel")?.pz_panel;
+    if (!panel || typeof panel.renameClick !== "function") return null;
+    return { label: "Rename…", action: () => { panel.renameClick({ currentTarget: row, preventDefault() {} }); row.querySelector("input.rename")?.select(); } };
   }
   patch(PZ.ui.edit.prototype, "generatePropertyList", original => function propertyListWithControls(row, properties) {
     const result = original.apply(this, arguments);

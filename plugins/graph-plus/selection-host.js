@@ -64,6 +64,17 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
     return panel instanceof PZ.ui.edit && panel.editor === editor && panel.options.showPropertyControls ? row : null;
   }
   function targetProperty(row) { return labels.get(row) || row.pz_object; }
+  // CM3 starts its inline rename editor from a row's own contextmenu handler
+  // (PZ.ui.edit.prototype.renameClick). Zoidium menus replace that handler, so
+  // offer the same editor as a menu item instead of a custom rename flow: it
+  // commits through one native history operation.
+  function renameItem(row, panel) {
+    const name = row?.pz_object?.properties?.name;
+    if (!name || (name.definition && name.definition.readOnly)) return null;
+    if (!panel || typeof panel.renameClick !== "function") return null;
+    if (row.tagName !== "LI" || row.classList.contains("kftrack") || row.classList.contains("g2-property-label")) return null;
+    return { label: "Rename…", action: () => { panel.renameClick({ currentTarget: row, preventDefault() {} }); row.querySelector("input.rename")?.select(); } };
+  }
   function paint() {
     for (const row of decorated.keys()) {
       if (!row.isConnected) { decorated.delete(row); continue; }
@@ -94,13 +105,15 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
     // including detached CM3 property windows (owner document aware).
     const kit = (doc?.defaultView || globalThis).ZoidiumUI;
     if (typeof kit?.openMenu !== "function") return;
+    const panel = editPanel(row), rename = renameItem(row, panel);
     const handle = kit.openMenu({
       document: row.ownerDocument || doc,
       owner: row,
       x: event.clientX,
       y: event.clientY,
       focusReturn: row,
-      items: [{ label: "Show in Graph Editor", shortcut: "Alt+Shift+G", action: () => show(row) }],
+      items: [...(rename ? [rename] : []),
+        { label: "Show in Graph Editor", shortcut: "Alt+Shift+G", action: () => show(row) }],
       onClose: () => { if (menu === handle) menu = null; },
     });
     menu = handle;
