@@ -127,6 +127,9 @@ function createAPI(options) {
     Object.defineProperties(handle, {
       name: { configurable: true, get: () => named(node) },
       parent: { get: () => objectHandle(parentObject(node)) },
+      // One frame in seconds at the owning sequence rate, so
+      // `valueAtTime(time - thisComp.frameDuration)` samples the previous frame.
+      frameDuration: { enumerable: true, get: () => 1 / rate },
     });
     if (options.world) Object.assign(handle, options.world(node, { frame: localFrame(node), absolute, sequence, read, propertyHandle, cache: worldCache }));
     return handle;

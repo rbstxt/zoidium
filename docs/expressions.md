@@ -73,7 +73,10 @@ Key records contain `index`, `time` and `value`. Velocity is a symmetric
 the original keyframes rather than recursing through the expression.
 
 `thisObject` is the owning object or effect. `thisLayer`, `thisClip`,
-`thisSequence` and its alias `thisComp` provide higher levels. Handles expose:
+`thisSequence` and its alias `thisComp` provide higher levels.
+`thisComp.frameDuration` is one frame in seconds at the sequence rate, so
+`valueAtTime(time - thisComp.frameDuration)` samples the previous frame.
+Handles expose:
 
 - `.parent` for the nearest owning object. `.parent(n)` navigates n levels
   from that parent. The free browser identifier `parent` stays unavailable.

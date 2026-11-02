@@ -21,6 +21,24 @@ Dropdown 項目は、名前を変更してもインデックスを保持しま�
 
 グループは、ネイティブ一覧内に折りたたみ可能な見出しとして表示されます。ツールチップは行に表示されます。"Visible when" は、そのエフェクトの別のプロパティを選びます。その行を表示する値とともに選びます。例として `1; 2` を指定した Mode があります。これは `{"property":"Mode","values":[1,2]}` として保存されます。コントローラーのネイティブ評価値を使い、エディターにだけ影響します。
 
+## シェーダーでのキーフレームデータ
+
+Slider と Point コントロールはネイティブの動的プロパティです。そのため、ネイティブの行とまったく同じように式を受け付けます。コントロールの横にあるアニメーションボタンを Alt キーを押しながらクリックします。別のプロパティを読み取る式を入力します。uniform は、評価値から毎フレーム更新されます。
+
+Ball という名前のレイヤーの動きで Point コントロールを駆動するには、次を使います:
+
+```js
+thisComp.layer("Ball").property("Position").velocity
+```
+
+`velocity` は秒単位で報告します。スカラープロパティには数値を返します。ベクトルプロパティには配列を返します。`speed` は大きさを報告します。`valueAtTime(seconds)` は過去をサンプリングします。`time - thisComp.frameDuration` は 1 フレーム前です:
+
+```js
+thisComp.layer("Ball").property("Position").valueAtTime(time - thisComp.frameDuration)
+```
+
+同じエフェクトのコントロールには、`thisObject` でアドレス指定します。例として `thisObject.property("Source").velocity` があります。動作するシェーダーから始めるには、New from template を選びます。次に Velocity from a property を選びます。テンプレートは Point コントロールを宣言します。このレシピをコメントで繰り返します。
+
 ## グラデーション
 
 Gradient は静的 TEXT JSON を保存します:

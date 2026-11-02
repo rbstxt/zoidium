@@ -41,6 +41,32 @@ the values that show this row, for example Mode with `1; 2`. It is stored as
 `{"property":"Mode","values":[1,2]}`, uses the controller's native evaluated
 value and affects the editor only.
 
+## Keyframe data in shaders
+
+Slider and Point controls are native dynamic properties, so they accept
+expressions exactly like native rows. Alt-click the animation button beside
+the control and enter an expression that reads another property. The uniform
+updates every frame from the evaluated value.
+
+To drive a Point control from the motion of a layer named Ball, use:
+
+```js
+thisComp.layer("Ball").property("Position").velocity
+```
+
+`velocity` reports per-second units: a number for scalar properties, an array
+for vector properties. `speed` reports the magnitude. `valueAtTime(seconds)`
+samples the past; `time - thisComp.frameDuration` is the previous frame:
+
+```js
+thisComp.layer("Ball").property("Position").valueAtTime(time - thisComp.frameDuration)
+```
+
+For controls on the same effect, address them with `thisObject`, for example
+`thisObject.property("Source").velocity`. To start from a working shader,
+choose New from template, then Velocity from a property. The template declares
+the Point control and repeats this recipe in a comment.
+
 ## Gradient
 
 Gradient stores static TEXT JSON:
