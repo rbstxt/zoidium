@@ -8,6 +8,12 @@ Zoidium stores restore points automatically every five minutes by default. To ch
 
 Restore checks the selected point first, then backs up the current project before loading it. A failure keeps the current project. If storage is full, Zoidium removes the oldest extra automatic points and keeps the newest one for each project.
 
+## Save reminder
+
+A status next to the project name shows whether the project is saved to disk: nothing when it is saved, "Not saved to disk" when it has never been saved to a file, and "Unsaved · N min" once it has changes since the last disk save. After the configured threshold (10 minutes by default) the status is highlighted. Click it to save.
+
+Automatic restore points stay in the browser; they do not count as a disk save. To turn the reminder off or choose the threshold (5, 10, 20, or 30 minutes), use **Save reminder** in the **Restore** panel.
+
 Restore points live in browser storage, local to the application. Clearing site data can remove them. Download important projects separately.
 
 ## Missing assets
