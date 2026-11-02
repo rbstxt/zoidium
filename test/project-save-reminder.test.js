@@ -1,10 +1,11 @@
 "use strict";
 
-// Coverage for zoidium/project-save-reminder.js: state transitions (new,
-// opened, edited, saved, save failed, save-as, restore), the threshold, the
-// setting, and the cleared timer on project change. The script runs
+// Coverage for zoidium/project-save-reminder.js: the Save-button dot badge,
+// its tooltip lines, the threshold setting, and state transitions (new,
+// opened, edited, saved, save failed, save-as, restore). The script runs
 // unmodified in a fake browser; every assertion goes through its real event
-// listeners, timers, and status element.
+// listeners, timers, and badge element. The toolbar Save button is faked with
+// the same title CM3 assigns it ("save (ctrl-s)").
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -81,13 +82,11 @@ class FakeElement {
       },
       configurable: true,
     });
-    this.style = {};
     this.attributes = {};
     this.listeners = {};
-    this.title = "";
     this.value = "";
     this.type = "";
-    this.writes = { text: 0, class: 0 };
+    this.writes = { text: 0, class: 0, display: 0, title: 0 };
     let text = "";
     Object.defineProperty(this, "textContent", {
       get() {
@@ -99,11 +98,41 @@ class FakeElement {
       },
       configurable: true,
     });
+    let titleValue = "";
+    Object.defineProperty(this, "title", {
+      get() {
+        return titleValue;
+      },
+      set(value) {
+        this.writes.title += 1;
+        titleValue = String(value);
+      },
+      configurable: true,
+    });
+    const writes = this.writes;
+    let displayValue = "";
+    this.style = {};
+    Object.defineProperty(this.style, "display", {
+      get() {
+        return displayValue;
+      },
+      set(value) {
+        writes.display += 1;
+        displayValue = String(value);
+      },
+      configurable: true,
+    });
   }
 
   appendChild(child) {
     this.children.push(child);
     child.parent = this;
+    return child;
+  }
+
+  removeChild(child) {
+    this.children = this.children.filter((value) => value !== child);
+    child.parent = null;
     return child;
   }
 
@@ -114,6 +143,10 @@ class FakeElement {
 
   setAttribute(name, value) {
     this.attributes[name] = String(value);
+  }
+
+  getAttribute(name) {
+    return Object.hasOwn(this.attributes, name) ? this.attributes[name] : null;
   }
 
   matchesClass(selector) {
@@ -135,6 +168,20 @@ class FakeElement {
     return visit(this);
   }
 
+  querySelectorAll(selector) {
+    const found = [];
+    const visit = (element) => {
+      for (const child of element.children) {
+        if (selector === "button[title]" && child.tagName === "BUTTON" && child.getAttribute("title")) {
+          found.push(child);
+        }
+        visit(child);
+      }
+    };
+    visit(this);
+    return found;
+  }
+
   fire(type, event) {
     for (const listener of (this.listeners[type] || []).slice()) listener(event || {});
   }
@@ -142,6 +189,15 @@ class FakeElement {
 
 function makeProject() {
   return { ui: { onChanged: new Observable() } };
+}
+
+const SAVE_TITLE = "save (ctrl-s)";
+
+function makeToolbarButton(title) {
+  const button = new FakeElement("button");
+  button.setAttribute("title", title);
+  button.title = title;
+  return button;
 }
 
 function createHarness({ stored = null, anchors = true } = {}) {
@@ -161,10 +217,19 @@ function createHarness({ stored = null, anchors = true } = {}) {
   label.classList.add("zoidium-project-name");
   const input = new FakeElement("input");
   label.appendChild(input);
+  const actions = new FakeElement("div");
+  actions.classList.add("zoidium-project-actions");
+  actions.appendChild(makeToolbarButton("new (ctrl-m)"));
+  actions.appendChild(makeToolbarButton("open (ctrl-o)"));
+  const saveButton = makeToolbarButton(SAVE_TITLE);
+  actions.appendChild(saveButton);
+  actions.appendChild(makeToolbarButton("undo (ctrl-z)"));
+  actions.appendChild(makeToolbarButton("redo (ctrl-y)"));
   const note = new FakeElement("div");
   note.classList.add("zoidium-restore-note");
 
   const anchorsPresent = { value: anchors };
+  const roots = [label, actions, note];
   const documentObject = {
     body: new FakeElement("body"),
     createElement(tag) {
@@ -172,9 +237,20 @@ function createHarness({ stored = null, anchors = true } = {}) {
     },
     querySelector(selector) {
       if (!anchorsPresent.value) return null;
-      if (selector === ".zoidium-project-name") return label;
+      if (selector === ".zoidium-project-actions") return actions;
       if (selector === ".zoidium-restore-note") return note;
+      for (const root of roots) {
+        if (selector === ".zoidium-project-name" && root === label) return label;
+        const found = root.querySelector(selector);
+        if (found) return found;
+      }
       return null;
+    },
+    querySelectorAll(selector) {
+      if (!anchorsPresent.value) return [];
+      const found = [];
+      for (const root of roots) found.push(...root.querySelectorAll(selector));
+      return found;
     },
   };
 
@@ -258,17 +334,40 @@ function createHarness({ stored = null, anchors = true } = {}) {
     editor.project.ui.onChanged.update();
   }
 
-  function button() {
-    return label.querySelector(".zoidium-save-reminder");
+  function saveButtonOf() {
+    return actions.querySelectorAll("button[title]").find((button) => /^save(\s|\()/i.test(button.title));
+  }
+
+  function badge() {
+    const current = saveButtonOf();
+    return current ? current.querySelector(".zoidium-save-reminder-dot") : null;
   }
 
   function setting() {
     return note.querySelector(".zoidium-save-reminder-setting select");
   }
 
+  function resetWrites() {
+    for (const root of roots) {
+      const visit = (element) => {
+        element.writes.text = 0;
+        element.writes.class = 0;
+        element.writes.display = 0;
+        element.writes.title = 0;
+        for (const child of element.children) visit(child);
+      };
+      visit(root);
+    }
+  }
+  resetWrites();
+
+  function mutate() {
+    for (const observer of observers.slice()) observer.callback();
+  }
+
   return {
-    editor, label, note, toasts, backing, intervals, globalListeners, observers,
-    advance, fire, edit, button, setting,
+    editor, label, actions, note, toasts, backing, intervals, globalListeners, observers,
+    advance, fire, edit, badge, setting, saveButtonOf, resetWrites, mutate,
     now: () => now,
     setAnchors(value) {
       anchorsPresent.value = value;
@@ -276,63 +375,73 @@ function createHarness({ stored = null, anchors = true } = {}) {
   };
 }
 
-test("a new project shows Not saved to disk, even after edits", () => {
+function badgeTitle(h) {
+  return h.saveButtonOf().title;
+}
+
+test("a new project shows a muted badge and names the state in the tooltip", () => {
   const h = createHarness();
-  const status = h.button();
-  assert.ok(status, "expected the status button to be installed");
-  assert.equal(status.textContent, "Not saved to disk");
-  assert.match(status.title, /stay in this browser only/);
-  assert.equal(status.style.visibility, "visible");
-  assert.ok(!status.classList.contains("is-overdue"));
+  const dot = h.badge();
+  assert.ok(dot, "expected the badge to be installed on the Save button");
+  assert.equal(dot.style.display, "", "expected a visible badge for a never-saved project");
+  assert.ok(!dot.classList.contains("is-overdue"));
+  assert.equal(dot.getAttribute("aria-hidden"), "true");
+  const lines = badgeTitle(h).split("\n");
+  assert.equal(lines[0], SAVE_TITLE, "expected the button label and shortcut first");
+  assert.equal(lines[1], "Not saved to disk");
+  assert.match(lines[2], /stay in this browser only/);
+  assert.ok(h.saveButtonOf().classList.contains("zoidium-save-reminder-host"));
 
   h.edit();
   h.advance(20 * 60000);
-  assert.equal(h.button().textContent, "Not saved to disk");
-  assert.ok(!h.button().classList.contains("is-overdue"));
+  assert.equal(h.badge().style.display, "");
+  assert.ok(!h.badge().classList.contains("is-overdue"));
+  assert.match(badgeTitle(h), /Not saved to disk/);
 });
 
 test("opened projects start clean; an edit starts the unsaved count", () => {
   const h = createHarness();
   h.fire("zoidium:project-changed", { editor: h.editor, reason: "open" });
-  assert.equal(h.button().textContent, "");
-  assert.equal(h.button().style.visibility, "hidden");
+  assert.equal(h.badge().style.display, "none", "expected no dot when the project is saved");
+  assert.equal(badgeTitle(h), SAVE_TITLE, "expected the plain button tooltip when saved");
 
   h.edit();
-  assert.equal(h.button().textContent, "Unsaved · 0 min");
-  assert.match(h.button().title, /stay in this browser only/);
-  assert.equal(h.button().style.visibility, "visible");
-  assert.ok(!h.button().classList.contains("is-overdue"));
+  assert.equal(h.badge().style.display, "");
+  assert.match(badgeTitle(h), /Unsaved · 0 min/);
+  assert.match(badgeTitle(h), /stay in this browser only/);
+  assert.ok(badgeTitle(h).startsWith(SAVE_TITLE + "\n"));
+  assert.ok(!h.badge().classList.contains("is-overdue"));
 
   h.advance(9 * 60000 + 30000);
-  assert.equal(h.button().textContent, "Unsaved · 9 min");
-  assert.ok(!h.button().classList.contains("is-overdue"));
+  assert.match(badgeTitle(h), /Unsaved · 9 min/);
+  assert.ok(!h.badge().classList.contains("is-overdue"));
 
   h.advance(30000);
-  assert.equal(h.button().textContent, "Unsaved · 10 min");
-  assert.ok(h.button().classList.contains("is-overdue"));
+  assert.match(badgeTitle(h), /Unsaved · 10 min/);
+  assert.ok(h.badge().classList.contains("is-overdue"));
 });
 
-test("saving clears the reminder; save-as counts as a disk save", () => {
+test("saving clears the badge; save-as counts as a disk save", () => {
   const h = createHarness();
   h.fire("zoidium:project-changed", { editor: h.editor, reason: "open" });
   h.edit();
   h.advance(12 * 60000);
-  assert.equal(h.button().textContent, "Unsaved · 12 min");
+  assert.match(badgeTitle(h), /Unsaved · 12 min/);
 
   h.editor._zoidiumSaveFileHandle = { name: "project.pz" };
   h.fire("zoidium:project-saved", { editor: h.editor, filename: "project.pz" });
-  assert.equal(h.button().textContent, "");
-  assert.equal(h.button().style.visibility, "hidden");
-  assert.ok(!h.button().classList.contains("is-overdue"));
+  assert.equal(h.badge().style.display, "none");
+  assert.equal(badgeTitle(h), SAVE_TITLE);
+  assert.ok(!h.badge().classList.contains("is-overdue"));
 
   // Saving again under a picked name (save-as) stays clean.
   h.editor._zoidiumSaveFileHandle = { name: "renamed.pz" };
   h.fire("zoidium:project-saved", { editor: h.editor, filename: "renamed.pz" });
-  assert.equal(h.button().textContent, "");
+  assert.equal(h.badge().style.display, "none");
 
   // Later edits count from the save.
   h.edit();
-  assert.equal(h.button().textContent, "Unsaved · 0 min");
+  assert.match(badgeTitle(h), /Unsaved · 0 min/);
 });
 
 test("a failed save keeps counting from the first unsaved change", () => {
@@ -341,10 +450,10 @@ test("a failed save keeps counting from the first unsaved change", () => {
   h.edit();
   h.advance(3 * 60000);
   h.fire("zoidium:project-error", { editor: h.editor, message: "Write failed" });
-  assert.equal(h.button().textContent, "Unsaved · 3 min");
+  assert.match(badgeTitle(h), /Unsaved · 3 min/);
   h.advance(9 * 60000);
-  assert.equal(h.button().textContent, "Unsaved · 12 min");
-  assert.ok(h.button().classList.contains("is-overdue"));
+  assert.match(badgeTitle(h), /Unsaved · 12 min/);
+  assert.ok(h.badge().classList.contains("is-overdue"));
 });
 
 test("a project change clears the unsaved timer", () => {
@@ -352,26 +461,28 @@ test("a project change clears the unsaved timer", () => {
   h.fire("zoidium:project-changed", { editor: h.editor, reason: "open" });
   h.edit();
   h.advance(25 * 60000);
-  assert.equal(h.button().textContent, "Unsaved · 25 min");
+  assert.match(badgeTitle(h), /Unsaved · 25 min/);
 
   // Opening another project starts clean, with the watcher moved over.
   const previous = h.editor.project;
   h.editor.project = makeProject();
   h.editor._rev = 0;
   h.fire("zoidium:project-changed", { editor: h.editor, reason: "open" });
-  assert.equal(h.button().textContent, "");
-  assert.ok(!h.button().classList.contains("is-overdue"));
-  const writes = h.button().writes.text;
+  assert.equal(h.badge().style.display, "none");
+  assert.equal(badgeTitle(h), SAVE_TITLE);
+  assert.ok(!h.badge().classList.contains("is-overdue"));
+  h.resetWrites();
   h.advance(60000);
-  assert.equal(h.button().writes.text, writes, "expected no DOM writes while clean");
+  assert.equal(h.saveButtonOf().writes.title, 0, "expected no tooltip writes while clean");
+  assert.equal(h.badge().writes.display, 0, "expected no badge writes while clean");
 
   // Edits to the detached project no longer count.
   previous.ui.onChanged.update();
-  assert.equal(h.button().textContent, "");
+  assert.equal(h.badge().style.display, "none");
 
   // A new project was never saved to a file.
   h.fire("zoidium:project-changed", { editor: h.editor, reason: "new" });
-  assert.equal(h.button().textContent, "Not saved to disk");
+  assert.match(badgeTitle(h), /Not saved to disk/);
 });
 
 test("a restore restarts the count instead of inheriting the old timer", () => {
@@ -379,26 +490,42 @@ test("a restore restarts the count instead of inheriting the old timer", () => {
   h.fire("zoidium:project-changed", { editor: h.editor, reason: "open" });
   h.edit();
   h.advance(25 * 60000);
-  assert.ok(h.button().classList.contains("is-overdue"));
+  assert.ok(h.badge().classList.contains("is-overdue"));
 
   h.editor.project = makeProject();
   h.editor._rev = 0;
   h.fire("zoidium:project-changed", { editor: h.editor, reason: "restore" });
-  assert.equal(h.button().textContent, "Unsaved · 0 min");
-  assert.ok(!h.button().classList.contains("is-overdue"));
+  assert.match(badgeTitle(h), /Unsaved · 0 min/);
+  assert.ok(!h.badge().classList.contains("is-overdue"));
 
   // A restore of a never-saved project stays on Not saved to disk.
   const fresh = createHarness();
   fresh.fire("zoidium:project-changed", { editor: fresh.editor, reason: "restore" });
-  assert.equal(fresh.button().textContent, "Not saved to disk");
+  assert.match(badgeTitle(fresh), /Not saved to disk/);
 });
 
-test("clicking the status runs Save", () => {
+test("a rebuilt toolbar gets a fresh badge without moving the button", () => {
   const h = createHarness();
   h.fire("zoidium:project-changed", { editor: h.editor, reason: "open" });
   h.edit();
-  h.button().fire("click");
-  assert.equal(h.editor.saves, 1);
+
+  // CM3 rebuilds the toolbar: swap in a new Save button element.
+  const actions = h.actions;
+  const old = h.saveButtonOf();
+  const index = actions.children.indexOf(old);
+  actions.removeChild(old);
+  const rebuilt = makeToolbarButton(SAVE_TITLE);
+  actions.children.splice(index, 0, rebuilt);
+  rebuilt.parent = actions;
+  h.mutate();
+  assert.ok(h.badge(), "expected the badge to reinstall after a rebuild");
+  assert.equal(h.badge().parent, h.saveButtonOf());
+  assert.match(badgeTitle(h), /Unsaved · 0 min/);
+  assert.ok(badgeTitle(h).startsWith(SAVE_TITLE + "\n"));
+  // The badge is absolutely positioned inside the button, so the toolbar
+  // order is unchanged: New, Open, Save, Undo, Redo.
+  const order = actions.querySelectorAll("button[title]").map((button) => button.getAttribute("title"));
+  assert.deepEqual(order, ["new (ctrl-m)", "open (ctrl-o)", SAVE_TITLE, "undo (ctrl-z)", "redo (ctrl-y)"]);
 });
 
 test("the setting turns the reminder off and chooses the threshold", () => {
@@ -415,16 +542,18 @@ test("the setting turns the reminder off and chooses the threshold", () => {
   assert.equal(h.backing["zoidium.save-reminder"], "0");
   assert.equal(h.toasts.length, 1);
   assert.match(h.toasts[0].message, /Save reminder: Off/);
-  assert.equal(h.button().style.display, "none");
+  assert.equal(h.badge().style.display, "none");
+  assert.equal(badgeTitle(h), SAVE_TITLE, "expected no tooltip line when off");
   h.advance(60 * 60000);
-  assert.equal(h.button().style.display, "none");
+  assert.equal(h.badge().style.display, "none");
+  assert.equal(badgeTitle(h), SAVE_TITLE);
 
   select.value = "20";
   select.fire("change", { target: select });
   assert.equal(h.backing["zoidium.save-reminder"], "20");
-  assert.equal(h.button().style.display, "");
-  assert.equal(h.button().textContent, "Unsaved · 60 min");
-  assert.ok(h.button().classList.contains("is-overdue"));
+  assert.equal(h.badge().style.display, "");
+  assert.match(badgeTitle(h), /Unsaved · 60 min/);
+  assert.ok(h.badge().classList.contains("is-overdue"));
 
   // A fresh install keeps counting from the first change, and the 20-minute
   // threshold applies from the start.
@@ -433,31 +562,32 @@ test("the setting turns the reminder off and chooses the threshold", () => {
   later.fire("zoidium:project-changed", { editor: later.editor, reason: "open" });
   later.edit();
   later.advance(19 * 60000);
-  assert.ok(!later.button().classList.contains("is-overdue"));
+  assert.ok(!later.badge().classList.contains("is-overdue"));
   later.advance(60000);
-  assert.ok(later.button().classList.contains("is-overdue"));
+  assert.ok(later.badge().classList.contains("is-overdue"));
 });
 
 test("stored settings fall back to the 10-minute default and stay off when off", () => {
   for (const stored of ["banana", "7", "-5", ""]) {
     const h = createHarness({ stored });
     assert.equal(h.setting().value, "10", `stored ${JSON.stringify(stored)}`);
-    assert.equal(h.button().style.display, "");
+    assert.equal(h.badge().style.display, "");
   }
   const off = createHarness({ stored: "0" });
   assert.equal(off.setting().value, "0");
-  assert.equal(off.button().style.display, "none");
+  assert.equal(off.badge().style.display, "none");
+  assert.equal(badgeTitle(off), SAVE_TITLE);
 });
 
 test("events from another editor are ignored", () => {
   const h = createHarness();
   h.fire("zoidium:project-changed", { editor: {}, reason: "open" });
-  assert.equal(h.button().textContent, "Not saved to disk");
+  assert.match(badgeTitle(h), /Not saved to disk/);
   h.fire("zoidium:project-saved", { editor: {} });
-  assert.equal(h.button().textContent, "Not saved to disk");
+  assert.match(badgeTitle(h), /Not saved to disk/);
 });
 
-test("the status refreshes on a 30-second tick and installs late anchors", () => {
+test("the badge refreshes on a 30-second tick and installs late anchors", () => {
   const delays = [];
   const h = createHarness({ anchors: false });
   for (const timer of h.intervals.values()) delays.push(timer.ms);
@@ -466,21 +596,21 @@ test("the status refreshes on a 30-second tick and installs late anchors", () =>
 
   h.setAnchors(true);
   h.advance(250);
-  assert.ok(h.button(), "expected the button to install once the toolbar exists");
+  assert.ok(h.badge(), "expected the badge to install once the toolbar exists");
   assert.ok(h.setting(), "expected the setting to install once the panel exists");
-  assert.equal(h.button().textContent, "Not saved to disk");
+  assert.match(badgeTitle(h), /Not saved to disk/);
 
   h.fire("zoidium:project-changed", { editor: h.editor, reason: "open" });
   h.edit();
-  assert.equal(h.button().textContent, "Unsaved · 0 min");
-  const writes = h.button().writes.text;
+  assert.match(badgeTitle(h), /Unsaved · 0 min/);
+  h.resetWrites();
   h.advance(15000);
-  assert.equal(h.button().writes.text, writes, "expected no repaint between ticks");
+  assert.equal(h.saveButtonOf().writes.title, 0, "expected no repaint between ticks");
   h.advance(15000);
-  assert.equal(h.button().writes.text, writes, "expected no repaint for an unchanged minute");
+  assert.equal(h.saveButtonOf().writes.title, 0, "expected no repaint for an unchanged minute");
   h.advance(60000);
-  assert.equal(h.button().textContent, "Unsaved · 1 min");
-  assert.equal(h.button().writes.text, writes + 1, "expected exactly one repaint for the new minute");
+  assert.match(badgeTitle(h), /Unsaved · 1 min/);
+  assert.equal(h.saveButtonOf().writes.title, 1, "expected exactly one repaint for the new minute");
 });
 
 test("pagehide stops the timers", () => {
