@@ -113,12 +113,14 @@
   function iterableWeakSet() {
     let referencesByItem = new WeakMap();
     const references = new Set();
+    const collected = new FinalizationRegistry(reference => references.delete(reference));
     return {
       add(item) {
         if (!referencesByItem.has(item)) {
           const reference = new WeakRef(item);
           referencesByItem.set(item, reference);
           references.add(reference);
+          collected.register(item, reference, reference);
         }
         return this;
       },
@@ -126,9 +128,11 @@
       delete(item) {
         const reference = referencesByItem.get(item);
         referencesByItem.delete(item);
+        if (reference) collected.unregister(reference);
         return references.delete(reference);
       },
       clear() {
+        for (const reference of references) collected.unregister(reference);
         referencesByItem = new WeakMap();
         references.clear();
       },
@@ -144,14 +148,14 @@
   }
   const trackedNativeEffects = iterableWeakSet();
   const missingNativeEffects = iterableWeakSet();
-  const trackedPluginMaterials = new Set();
-  const missingPluginMaterials = new Set();
-  const trackedPluginObjects = new Set();
-  const missingPluginObjects = new Set();
-  const trackedPluginResources = new Set();
-  const missingPluginResources = new Set();
-  const missingNumericObjects = new Set();
-  const missingNumericLayers = new Set();
+  const trackedPluginMaterials = iterableWeakSet();
+  const missingPluginMaterials = iterableWeakSet();
+  const trackedPluginObjects = iterableWeakSet();
+  const missingPluginObjects = iterableWeakSet();
+  const trackedPluginResources = iterableWeakSet();
+  const missingPluginResources = iterableWeakSet();
+  const missingNumericObjects = iterableWeakSet();
+  const missingNumericLayers = iterableWeakSet();
   const debugUsageCounts = new Map();
   const effectUuidByEntry = new WeakMap();
   let projectHooksInstalled = false;
