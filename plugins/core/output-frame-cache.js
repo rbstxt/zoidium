@@ -44,6 +44,7 @@
   let controllerId = 0;
   let signalEpoch = 0;
   let lastSignal = -Infinity;
+  let gestureActive = false;
   let pluginEpoch = 0;
   let fontEpoch = 0;
   let disposed = false;
@@ -103,7 +104,7 @@
 
   const captures = new global.ZoidiumOutputFrameCapture.CaptureQueue({ store,
     available: contextAvailable, failed: allocationFailed, host: global, THREE,
-    quiet: () => performance.now() - lastSignal >= 100 &&
+    quiet: () => !gestureActive && performance.now() - lastSignal >= 100 &&
       !Array.from(controllers).some(controller => controller.viewport.editor.history?.operation),
   });
 
@@ -847,8 +848,11 @@
   }
 
   const inputEvents = ["pointerdown", "pointermove", "pointerup", "keydown", "keyup", "click",
-    "dblclick", "contextmenu", "wheel", "input", "change", "drop", "paste", "touchstart", "touchmove", "touchend"];
+    "dblclick", "contextmenu", "wheel", "input", "change", "drop", "paste", "touchstart", "touchmove", "touchend",
+    "pointercancel", "touchcancel", "blur"];
   function input(event) {
+    if (event.type === "pointerdown" || event.type === "touchstart") gestureActive = true;
+    if (["pointerup", "pointercancel", "touchend", "touchcancel", "blur"].includes(event.type)) gestureActive = false;
     // Hovering cannot edit; dragging moves with a pressed button.
     if (event.type === "pointermove" && !event.buttons) return;
     signal();

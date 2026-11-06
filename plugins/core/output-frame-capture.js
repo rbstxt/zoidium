@@ -18,9 +18,9 @@
     }
     schedule() {
       if (this.timer !== null || (!this.pending.size && !this.contexts.size)) return;
-      const check = () => {
+      const check = deadline => {
         this.timer = null;
-        if (!this.quiet()) { this.schedule(); return; }
+        if ((deadline && deadline.timeRemaining() < 1) || !this.quiet()) { this.schedule(); return; }
         this.check();
       };
       this.timer = this.host.requestIdleCallback ? this.host.requestIdleCallback(check) : this.host.setTimeout(check, 16);
@@ -82,6 +82,7 @@
     capture(controller, frame, signal) {
       const renderer = controller.viewport.renderer, gl = renderer.context;
       const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight, bytes = width * height * 4;
+      // A frame larger than the pending byte cap may occupy the queue alone.
       const limit = Math.min(this.store.effectiveLimit, Math.max(MAX_PENDING_BYTES, bytes));
       if (!this.available(gl) || !this.store.effectiveLimit) return Promise.resolve(null);
       if (bytes > this.store.effectiveLimit) {
@@ -94,6 +95,7 @@
       }
       const T = this.THREE, format = gl.getContextAttributes().alpha ? T.RGBAFormat : T.RGBFormat;
       const type = T.UnsignedByteType;
+      // Pending textures consume the same session budget as verified entries.
       const reservation = this.store.take(this.bytes + bytes, entry => entry.renderer === renderer &&
         entry.width === width && entry.height === height && entry.format === format && entry.type === type);
       if (!reservation) {
