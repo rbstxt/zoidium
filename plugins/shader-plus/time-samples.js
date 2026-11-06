@@ -9,11 +9,11 @@ function readSamples(effect, frame) {
   return properties.map(property => {
     const value = Number(property.get(frame));
     const offset = property.definition.zoidiumShader.units === "seconds" ? value * rate : value;
-    if (!Number.isFinite(offset)) throw new Error("Shader+ Time sample offsets must be finite numbers");
+    if (!Number.isFinite(offset) || !Number.isFinite(Number(frame || 0) + offset)) throw new Error("Shader+ Time sample offsets must be finite numbers");
     return { property, name: effect.fixPropertyName(property.properties.name.get()), offset };
   });
 }
-function installTimeSamples({ PZ, patch, pipeline, onDispose }) {
+function installTimeSamples({ PZ, patch, pipeline, onDispose, editor = () => null }) {
   const proto = PZ.effect.shader.prototype, live = new Map(), unloaded = new WeakSet();
   const temporal = () => PZ.zoidium?.temporal;
   function fail(effect, error) {
@@ -164,5 +164,6 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose }) {
     }
     live.clear();
   });
+  editor()?.project?.forEachItemOfType?.(PZ.effect.shader, effect => sync(effect));
 }
 module.exports = { installTimeSamples, readSamples, propertiesOf, GUARD };

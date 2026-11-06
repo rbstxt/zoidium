@@ -216,7 +216,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       }
     },
   }));
-  require("./time-samples.js").installTimeSamples({ PZ, patch, pipeline, onDispose });
+  require("./time-samples.js").installTimeSamples({ PZ, patch, pipeline, onDispose, editor });
   const changed = new Map();
   patch(proto, "propertyAdded", original => function addShaderProperty(property) {
     const result = original.apply(this, arguments);

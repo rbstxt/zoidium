@@ -136,3 +136,12 @@ test("Time sample offsets evaluate Expressions+ without render history", needsCa
   for (const [index, frame] of [0, 11, 37, 59].entries()) assert.equal(forward[index], p.get(frame));
   for (const frame of [59, 11, 0, 37, 11]) assert.equal(readSamples(fx, frame)[0].offset, forward[[0, 11, 37, 59].indexOf(frame)]);
 });
+test("Time sample serialization requires Shader+ for cache classification", () => {
+  const vm = require("node:vm"), sandbox = vm.createContext({ window: {}, PZ: {} });
+  for (const file of ["zoidium/plugin-manager-state.js", "zoidium/plugin-manager-scanners.js"]) vm.runInContext(fs.readFileSync(file, "utf8"), sandbox);
+  const scan = sandbox.window.ZoidiumPluginManagerInternals.projectPluginRequirements;
+  const found = JSON.parse(JSON.stringify(scan({ customProperties: [record(-1)] })));
+  assert.equal(found.length, 1); assert.equal(found[0].id, "shader-plus");
+  assert.deepEqual(found[0].features, ["shader-properties"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(scan({ customProperties: [{ type: KINDS.slider.create() }] }))), []);
+});
