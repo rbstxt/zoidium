@@ -59,7 +59,7 @@ function createAssetsWindow(session) {
   let snapshot = null;
   let shown = [];
   let usageMenu = null;
-  let fontFaces = new Map();
+  let fontFaces = new Map(), fontDocument = doc;
   let contextMenu = null;
   const actions = createActions({
     document: doc,
@@ -293,7 +293,8 @@ function createAssetsWindow(session) {
     const face = new FontFace(family, "url(" + JSON.stringify(item.url) + ")");
     fontFaces.set(item.id, { family, face });
     face.load().then(() => {
-      doc.fonts.add(face);
+      if (!parts) return;
+      fontDocument.fonts.add(face);
       if (selectedItem() === item) renderInfo();
     }, () => fontFaces.set(item.id, { family: "", face: null }));
     return "";
@@ -561,7 +562,15 @@ function createAssetsWindow(session) {
     });
   }
 
-  function mount(body) {
+  function mount(body, handle) {
+    fontDocument = body.ownerDocument || doc;
+    handle?.onHostChange?.(host => {
+      const previous = fontDocument;
+      fontDocument = host.document;
+      for (const { face } of fontFaces.values()) if (face && face.status === "loaded") {
+        previous.fonts.delete(face); fontDocument.fonts.add(face);
+      }
+    });
     const root = make(doc, "div", "zam");
     const api = registry();
     if (!api) {
@@ -610,7 +619,7 @@ function createAssetsWindow(session) {
       closeContextMenu();
       table.dispose();
       for (const entry of fontFaces.values()) {
-        if (entry.face) doc.fonts.delete(entry.face);
+        if (entry.face) fontDocument.fonts.delete(entry.face);
       }
       fontFaces = new Map();
       parts = null;
