@@ -256,3 +256,90 @@ test("activate without media prototype or document leaves everything alone", () 
   api.activate({ PZ: { ui: {} }, window: { document: {} }, lifecycle });
   assert.equal(disposed, 0);
 });
+
+function activatedMedia({ importResult = null } = {}) {
+  const api = loadModule();
+  const cleanups = [];
+  const probes = [];
+  const prototype = {
+    loadVideo() { return "native"; },
+    generateThumbnail() { return "thumb"; },
+    async importAV(file) {
+      await this.loadVideo({ file, key: "hash", url: "blob:x", filename: file.name });
+      return importResult;
+    },
+  };
+  const assetList = { async createFromFile(_type, file) { return { file, key: "hash", url: "blob:x", filename: file?.name }; } };
+  const host = {
+    document: {
+      createElement() {
+        const element = { removeAttribute() {}, load() {} };
+        probes.push(element);
+        return element;
+      },
+    },
+    setTimeout: () => 0, clearTimeout: () => {},
+    ZoidiumUI: { notify: () => {} },
+  };
+  const PZ = { ui: { media: { prototype } }, assetList: { prototype: assetList }, asset: { type: { AV: 2, IMAGE: 1 } } };
+  api.activate({ PZ, window: host, lifecycle: { onDispose(fn) { cleanups.push(fn); } } });
+  return { prototype, assetList, probes, dispose: () => cleanups.forEach(fn => fn()) };
+}
+
+test("an import with no readable stream yields an entry named after the file", async () => {
+  const { prototype, probes } = activatedMedia();
+  const file = { name: "Shockwave.mov", type: "video/quicktime" };
+  const pending = prototype.importAV(file);
+  await new Promise(setImmediate);
+  probes[0].onerror();
+  const entry = await pending;
+  assert.equal(entry.properties.name, "Shockwave.mov");
+  assert.equal(entry.baseType, "track");
+  assert.deepEqual(Array.from(entry.data), []);
+  assert.deepEqual(Array.from(entry.assets), ["hash"]);
+});
+
+test("a successful import returns the native entry unchanged", async () => {
+  const native = { properties: { name: "ok.webm" }, data: [{}], baseType: "track", assets: ["hash"] };
+  const { prototype, probes } = activatedMedia({ importResult: native });
+  const pending = prototype.importAV({ name: "ok.webm", type: "video/webm" });
+  await new Promise(setImmediate);
+  probes[0].onerror();
+  assert.equal(await pending, native);
+});
+
+test("a video chosen in a property is probed, so a failure is reported", async () => {
+  const { assetList, probes } = activatedMedia();
+  await assetList.createFromFile(2, { name: "Shockwave.mov", type: "video/quicktime" });
+  assert.equal(probes.length, 1);
+});
+
+test("other asset kinds and audio files are not probed", async () => {
+  const { assetList, probes } = activatedMedia();
+  await assetList.createFromFile(1, { name: "still.png", type: "image/png" });
+  await assetList.createFromFile(2, { name: "sound.wav", type: "audio/wav" });
+  await assetList.createFromFile(2, undefined);
+  assert.equal(probes.length, 0);
+});
+
+test("the import's own asset creation does not probe a second time", async () => {
+  const { prototype, assetList, probes } = activatedMedia({ importResult: { assets: [] } });
+  prototype.importAV = (original => async function (file) {
+    return original.call(this, file);
+  })(prototype.importAV);
+  const file = { name: "ok.webm", type: "video/webm" };
+  const pending = prototype.importAV(file);
+  await assetList.createFromFile(2, file);
+  await new Promise(setImmediate);
+  assert.equal(probes.length, 1, "only importAV's own loadVideo probe ran");
+  probes[0].onerror();
+  await pending;
+});
+
+test("dispose restores importAV and createFromFile", () => {
+  const { prototype, assetList, dispose } = activatedMedia();
+  const patched = [prototype.importAV, assetList.createFromFile];
+  dispose();
+  assert.notEqual(prototype.importAV, patched[0]);
+  assert.notEqual(assetList.createFromFile, patched[1]);
+});
