@@ -551,6 +551,17 @@
     scheduleJournalWrite();
   }
 
+  // Numeric counters sampled after a warning, never project contents or a GPU query.
+  function renderHealth() {
+    try {
+      const editor = global.CM || global.VE, info = editor?.mainViewport?.renderer?.info;
+      const count = (value) => Number.isFinite(value) && value >= 0 ? value : null;
+      return { rendererGeometries: count(info?.memory?.geometries), rendererTextures: count(info?.memory?.textures),
+        rendererPrograms: count(info?.programs?.length), undoEntries: count(editor?.history?.undoStack?.length),
+        redoEntries: count(editor?.history?.redoStack?.length) };
+    } catch (_error) { return null; }
+  }
+
   function installLongTaskObserver() {
     var currentSession = journal.getSession();
     if (typeof global.PerformanceObserver !== "function" || !currentSession?.health) return;
@@ -564,7 +575,7 @@
           longTasks.maxDurationMs = Math.max(longTasks.maxDurationMs, duration);
           longTasks.lastAt = new Date().toISOString();
           if (duration >= LONG_TASK_WARNING_MS) {
-            record("long-task", { durationMs: duration });
+            record("long-task", { durationMs: duration, ...renderHealth() });
           }
         }
         scheduleJournalWrite();

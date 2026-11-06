@@ -126,6 +126,8 @@ function loadDebugLog(localValues, sessionValues, options = {}) {
     },
     open() {},
     performance: options.performance || {},
+    PerformanceObserver: options.PerformanceObserver,
+    CM: options.editor,
     screen: { height: 1080, width: 1920 },
     sessionStorage: storage(sessionValues),
     setInterval() { return 1; },
@@ -341,4 +343,25 @@ test("context loss records evidence and shows one save/reload notification", () 
   assert.equal(notifications.length, 1);
   assert.match(notifications[0].message, /Save.*reload/);
   assert.equal(loaded.api.getSnapshot().events.filter((entry) => entry.type === "webgl-context-lost").length, 2);
+});
+
+
+test("long task warnings include bounded counters without project data or WebGL calls", () => {
+  let deliver;
+  const editor = { project: { secret: "private-project" },
+    mainViewport: { renderer: { info: { memory: { geometries: 7, textures: 8 }, programs: { length: 9 } },
+      getContext() { throw new Error("Diagnostics must not query WebGL"); } } },
+    history: { undoStack: { length: 10 }, redoStack: { length: 2 } } };
+  const loaded = loadDebugLog(new Map(), new Map(), { editor,
+    PerformanceObserver: class { constructor(callback) { deliver = callback; } observe() {} } });
+  deliver({ getEntries: () => [{ duration: 1200 }] });
+  let event = loaded.api.getSnapshot().events.find(entry => entry.type === "long-task");
+  assert.ok(event);
+  assert.equal(JSON.stringify(event).includes("private-project"), false);
+  assert.deepEqual(JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(event).filter(([key]) => /^(renderer|undoEntries|redoEntries)/.test(key))))),
+    { rendererGeometries: 7, rendererTextures: 8, rendererPrograms: 9, undoEntries: 10, redoEntries: 2 });
+  editor.mainViewport = null;
+  deliver({ getEntries: () => [{ duration: 1300 }] });
+  event = loaded.api.getSnapshot().events.filter(entry => entry.type === "long-task").at(-1);
+  assert.equal(event.rendererTextures, null);
 });
