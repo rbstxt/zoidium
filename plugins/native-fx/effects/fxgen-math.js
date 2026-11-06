@@ -293,11 +293,12 @@ function numbersText(opts) {
   }
 }
 
-// Timecode string. source: 0 layer, 1 composition, 2 custom. timeSec/fps are
-// the project clock; custom adds startingFrame at timeUnits fps.
+// Timecode string. source: 0 layer, 1 composition, 2 custom. timeSec is the
+// layer clock, which starts at the clip start, and compositionSec is the
+// sequence clock. Custom adds startingFrame to the layer clock at timeUnits fps.
 function timecodeText(opts) {
   const src = opts.timeSource;
-  let t = opts.timeSec;
+  let t = src === 1 && Number.isFinite(opts.compositionSec) ? opts.compositionSec : opts.timeSec;
   let fps = opts.fps > 0 ? opts.fps : 30;
   if (src === 2) fps = Math.max(1, opts.timeUnits);
   let frame = Math.floor(t * fps + 1e-6);

@@ -124,7 +124,7 @@ Draws the evaluated time as SMPTE timecode, frames, or feet and frames.
 | Property | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Display Format** | Option | **SMPTE HH:MM:SS:FF**, **Frames**, **Feet + Frames (35mm)**, **Feet + Frames (16mm)** | **SMPTE HH:MM:SS:FF** | SMPTE timecode, total frames, or feet and frames. 35mm uses 16 frames per foot. 16mm uses 40. |
-| **Time Source** | Option | **Layer Source**, **Composition**, **Custom** | **Layer Source** | Layer Source and Composition use the same clock. Custom uses Time Units (fps) and Starting Frame. |
+| **Time Source** | Option | **Layer Source**, **Composition**, **Custom** | **Layer Source** | Layer Source counts from the start of the clip. Composition counts from the start of the sequence. Custom uses Time Units (fps) and Starting Frame. |
 | **Time Units (fps)** | Number | 1 to 120 | 30 | Display rate used only by Custom. |
 | **Drop Frame** | Option | **off**, **on** | **off** | Applies drop-frame numbering only to SMPTE output at a rounded nominal rate of 30 or 60. It does not remove image frames. |
 | **Starting Frame** | Number | -1000000 to 1000000 | 0 | Frame-number offset used only by Custom. |

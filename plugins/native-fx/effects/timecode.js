@@ -165,6 +165,7 @@ ZoidiumPluginApis.defineFilter.call(fxgenTimecodeEffect, {
       dropFrame: timecodeNumber(this.properties.dropFrame, frame, 0) === 1,
       startingFrame: timecodeNumber(this.properties.startingFrame, frame, 0),
       timeSec,
+      compositionSec: (Number(frame) + (Number(this.properties.timeSource.frameOffset) || 0)) / fps,
       fps,
     });
     const sizePx = Math.max(0.5, timecodeNumber(this.properties.textSize, frame, 36));
