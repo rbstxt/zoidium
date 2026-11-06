@@ -375,23 +375,30 @@
     });
   }
 
-  function createSnapshot(showResult, automatic) {
+  function createSnapshot(showResult, automatic, options) {
+    var reuse = Boolean(options && options.reuse);
     var isAutomatic = automatic !== false;
     if (state.snapshotPromise) {
       // A manual request must not inherit the metadata and result UI of an
       // automatic snapshot already in flight. Queue one manual point behind
       // it; repeated clicks still join the same queued operation.
-      if (!isAutomatic && state.snapshotAutomatic !== false) {
+      if (!isAutomatic && (reuse || state.snapshotAutomatic !== false)) {
         if (!state.manualSnapshotPromise) {
+          state.manualSnapshotRequest = { showResult: showResult, options: options };
           state.manualSnapshotPromise = state.snapshotPromise
             // A queued manual point must wait out the in-flight failure first.
             .catch(function () {})
             .then(function () {
-              return createSnapshot(true, false);
+              var request = state.manualSnapshotRequest;
+              return createSnapshot(request.showResult, false, request.options);
             })
             .finally(function () {
               state.manualSnapshotPromise = null;
+              state.manualSnapshotRequest = null;
             });
+        } else if (!reuse) {
+          // An explicit Backup now upgrades a queued pre-replace request.
+          state.manualSnapshotRequest = { showResult: showResult, options: options };
         }
         return state.manualSnapshotPromise;
       }
@@ -403,11 +410,11 @@
     // Captured before serialization starts: an edit made while the archive is
     // being built must still count as a change for the next automatic check.
     var startKey = currentBackupKey();
-    state.snapshotAutomatic = isAutomatic;
+    state.snapshotAutomatic = isAutomatic || reuse;
     var buildSnapshot = (async function () {
       // refreshSnapshots normally completes before this runs, but loading here
       // also covers a very fast startup timer or a delayed IndexedDB response.
-      if (!state.snapshots.length) state.snapshots = await listSnapshots();
+      if (reuse || !state.snapshots.length) state.snapshots = await listSnapshots();
       if (isAutomatic && unchangedSinceLastBackup()) {
         try {
           await store.verifySnapshot(state.snapshots[0]);
@@ -425,7 +432,7 @@
       // the TAR when the content differs from the newest restore point.
       archiveResult = await projectFiles.createArchive(editor, {
         shouldSkip: function (fingerprint) {
-          return isAutomatic && matchesSnapshot(state.snapshots[0] || null, fingerprint);
+          return (isAutomatic || reuse) && matchesSnapshot(state.snapshots[0] || null, fingerprint);
         },
       });
       if (archiveResult.skipped) {
@@ -443,14 +450,16 @@
         assetCount: archiveResult.assetCount,
         blob: archiveResult.blob,
         fingerprint: archiveResult.fingerprint,
-        automatic: isAutomatic,
+        // Pre-replace points use retention. Only an explicit Backup now is
+        // permanent; existing records are never reclassified.
+        automatic: isAutomatic || reuse,
         owner: store.sessionId,
       };
-      await saveSnapshot(record);
+      await saveSnapshot(record, undefined, { independent: reuse });
       state.lastBackup = startKey;
       // Manual points are not counted toward the automatic retention limits,
       // but creating one still triggers cleanup of old automatic points.
-      state.snapshots = await pruneAutomaticSnapshots();
+      state.snapshots = await pruneAutomaticSnapshots({ ifAvailable: reuse });
       renderSnapshots();
       if (showResult) {
         showToast({ title: "Saved.", message: "Restore point created." });
@@ -482,7 +491,7 @@
         showProjectError({
           message: error && error.message ? error.message : "Could not create a restore point.",
           retry: function () {
-            return createSnapshot(true, isAutomatic);
+            return createSnapshot(true, isAutomatic, options);
           },
           download: download,
         });
