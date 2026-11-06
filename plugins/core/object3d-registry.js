@@ -223,6 +223,18 @@
     };
   }
 
+  function belongsToCurrentProject(object) {
+    var project = globalThis.CM && globalThis.CM.project;
+    // Standalone hosts have no editor to distinguish active and retired trees.
+    if (!project) return true;
+    var seen = new Set();
+    for (var current = object; current && !seen.has(current); current = current.parent) {
+      if (current === project) return true;
+      seen.add(current);
+    }
+    return false;
+  }
+
   function unregisterClass(type) {
     var entry = classRegistry.get(type);
     if (!entry) {
@@ -230,7 +242,7 @@
     }
     var active = Array.from(trackedObjects).some(function (object) {
       return (
-        !missingObjects.has(object) &&
+        !missingObjects.has(object) && belongsToCurrentProject(object) &&
         object._zoidiumObjectMetadata &&
         object._zoidiumObjectMetadata.objectType === type
       );
@@ -356,7 +368,7 @@
   function isInUse(pluginId) {
     return Array.from(trackedObjects).some(function (object) {
       return (
-        !missingObjects.has(object) &&
+        !missingObjects.has(object) && belongsToCurrentProject(object) &&
         object._zoidiumObjectMetadata &&
         object._zoidiumObjectMetadata.id === pluginId
       );
