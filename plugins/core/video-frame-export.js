@@ -285,12 +285,35 @@
     },
   });
 
+  function exportStopped() {
+    const error = new Error("Export stopped.");
+    error.name = "AbortError";
+    return error;
+  }
+
+  // Native Cancel unloads while a frame or an audio segment can still be in
+  // flight. The native encoder callback then has no worker of its own: PZ.av
+  // already belongs to the next export, and an answer would reach that worker.
+  // Nothing is waiting for this result, so leave the promise unsettled.
+  function abandonAfterUnload(exporter, work, isStopped) {
+    const abandoned = () => new Promise(() => {});
+    return work.then(
+      value => (exporter.__zoidiumExportDisposed ? abandoned() : value),
+      error => {
+        if (exporter.__zoidiumExportDisposed && isStopped(error)) return abandoned();
+        throw error;
+      },
+    );
+  }
+
   const originalUnload = PZ.export.prototype.unload;
   PZ.export.prototype.unload = function unloadExportResources() {
     if (this.__zoidiumExportDisposed) return;
     this.__zoidiumExportDisposed = true;
     const guard = this.__zoidiumExportGuard;
     guard?.canvas?.removeEventListener?.("webglcontextlost", guard.onLoss);
+    // Stop a frame that is still preparing before its compositor is released.
+    guard?.controller.abort(exportStopped());
     if (this.compositor) delete this.compositor.__zoidiumExportPolicy;
     try {
       if (originalUnload) originalUnload.call(this);
@@ -298,6 +321,7 @@
     } finally { releaseRenderer(this); }
   };
   PZ.export.prototype.checkExportContext = function checkExportContext(stage = "before encoder submission") {
+    if (this.__zoidiumExportDisposed) throw exportStopped();
     globalThis.ZoidiumCommunityEffectHost?.assertExport(this.sequence?.parentProject || this.sequence, this);
     let guard = this.__zoidiumExportGuard;
     if (!guard) {
@@ -418,8 +442,16 @@
   };
 
   PZ.export.prototype.getVideoFrame = function getDeterministicVideoFrame(output) {
-    return this.renderVideoFrame(output);
+    // A frame failure also unloads the export, and that error must still surface.
+    return abandonAfterUnload(this, this.renderVideoFrame(output), error => error?.name === "AbortError");
   };
+
+  const nativeAudioSamples = PZ.export.prototype.getAudioSamples;
+  if (nativeAudioSamples) {
+    PZ.export.prototype.getAudioSamples = function getAudioSamplesUntilUnload() {
+      return abandonAfterUnload(this, Promise.resolve(nativeAudioSamples.apply(this, arguments)), () => true);
+    };
+  }
 
   PZ.schedule.prototype.__zoidiumVideoExportPatch = true;
 })();

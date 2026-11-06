@@ -92,3 +92,46 @@ test("listeners of a renderer that was not created by an export stay attached", 
   exporter.unload();
   assert.deepEqual(texture.listeners.dispose, [viewport.listener]);
 });
+
+test("a frame still preparing at unload stops without touching the released compositor", async () => {
+  const { PZ, sequence } = host();
+  let finishPrepare, rendered = 0;
+  const exporter = new PZ.export(sequence);
+  Object.assign(exporter, { frame: 0, frameAdvance: 1, framesRendered: 0, totalFrames: 2, params: { width: 1, height: 1 } });
+  sequence.prepare = () => new Promise(resolve => { finishPrepare = resolve; });
+  exporter.compositor.renderSequence = () => { rendered++; };
+  const schedule = { el: { pause() {}, removeAttribute() { throw new Error("cancellation must keep the decoder"); }, load() {} }, currentItem: {} };
+  sequence.videoSchedules = [schedule];
+  const pending = exporter.renderVideoFrame(new Uint8Array(4));
+  await new Promise(resolve => setImmediate(resolve));
+  exporter.unload();
+  await assert.rejects(pending, error => error.name === "AbortError");
+  finishPrepare();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(rendered, 0);
+  assert.equal(exporter.framesRendered, 0);
+  assert.ok(schedule.currentItem);
+});
+
+test("the native encoder never receives a frame or audio result after unload", async () => {
+  function Native(seq) { this.sequence = seq; }
+  let release;
+  Native.prototype.getAudioSamples = () => new Promise(resolve => { release = resolve; });
+  Native.prototype.unload = function () {};
+  const { PZ, sequence } = host(Native);
+  const exporter = new PZ.export(sequence);
+  let settled = false;
+  exporter.getAudioSamples(4).then(() => { settled = true; }, () => { settled = true; });
+  exporter.unload();
+  release(new Float32Array(4));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(settled, false);
+
+  const live = new PZ.export(sequence);
+  const audio = live.getAudioSamples(4);
+  release("samples");
+  assert.equal(await audio, "samples");
+  // A real frame failure unloads the export too. It must still reach the encoder.
+  live.renderVideoFrame = async function () { this.unload(); throw new Error("fixture frame failure"); };
+  await assert.rejects(live.getVideoFrame(new Uint8Array(4)), /fixture frame failure/);
+});
