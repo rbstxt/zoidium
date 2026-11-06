@@ -299,6 +299,8 @@ test("a user-gesture picker failure falls back to downloading the project", asyn
   assert.equal(editor.project.ui.dirty, false);
   const saved = harness.events.find((event) => event.type === "zoidium:project-saved");
   assert.equal(saved.detail.delivery, "download");
+  assert.equal(saved.detail.project, editor.project);
+  assert.equal(saved.detail.revision, 0);
   assert.equal(
     harness.events.some((event) => event.type === "zoidium:project-error"),
     false,
@@ -351,6 +353,10 @@ test("an edit made while a save is writing stays dirty", async () => {
   await save;
 
   assert.equal(editor.project.ui.dirty, true);
+  const saved = harness.events.find(event => event.type === "zoidium:project-saved");
+  assert.equal(saved.detail.project, editor.project);
+  assert.equal(saved.detail.revision, 0);
+  assert.equal(harness.projectFiles.getProjectRevision(editor), 1);
 });
 
 test("project saves use memory independently of the shared export workspace", async () => {

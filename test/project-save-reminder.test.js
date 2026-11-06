@@ -619,3 +619,27 @@ test("pagehide stops the timers", () => {
   for (const listener of (h.globalListeners.pagehide || []).slice()) listener();
   assert.equal(h.intervals.size, 0);
 });
+
+
+test("saving an older revision keeps the reminder and its elapsed time", () => {
+  const h = createHarness();
+  h.fire("zoidium:project-changed", { editor: h.editor, reason: "open" });
+  h.edit();
+  h.advance(3 * 60000);
+  const saved = { editor: h.editor, project: h.editor.project, revision: h.editor._rev };
+  h.edit();
+  h.fire("zoidium:project-saved", saved);
+  assert.equal(h.badge().style.display, "");
+  assert.match(badgeTitle(h), /Unsaved · 3 min/);
+  h.fire("zoidium:project-saved", { ...saved, revision: h.editor._rev });
+  assert.equal(h.badge().style.display, "none");
+});
+
+test("a completed save of a retired project does not rebaseline its replacement", () => {
+  const h = createHarness();
+  const saved = { editor: h.editor, project: h.editor.project, revision: h.editor._rev };
+  h.editor.project = makeProject();
+  h.fire("zoidium:project-changed", { editor: h.editor, reason: "new" });
+  h.fire("zoidium:project-saved", saved);
+  assert.match(badgeTitle(h), /Not saved to disk/);
+});

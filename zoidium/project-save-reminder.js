@@ -228,12 +228,17 @@
     refresh(state, nowMs);
   }
 
-  function onProjectSaved(state, nowMs) {
+  function onProjectSaved(state, detail, nowMs) {
     var editor = editorOf();
+    if (detail.project && detail.project !== editor.project) return;
     state.everSaved = true;
     state.onDisk = true;
-    state.dirtySince = null;
-    rebaseline(state, editor);
+    if (detail.project && typeof detail.revision === "number") {
+      state.project = detail.project;
+      state.revision = detail.revision;
+    } else {
+      rebaseline(state, editor);
+    }
     refresh(state, nowMs);
   }
 
@@ -456,7 +461,7 @@
     });
     global.addEventListener("zoidium:project-saved", function (event) {
       if (!forCurrentEditor(detailOf(event))) return;
-      onProjectSaved(state, Date.now());
+      onProjectSaved(state, detailOf(event), Date.now());
     });
     global.addEventListener("zoidium:project-error", function (event) {
       if (!forCurrentEditor(detailOf(event))) return;

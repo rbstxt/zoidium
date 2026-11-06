@@ -532,6 +532,8 @@
     markProjectSavedIfUnchanged(editor, savedProject, savedRevision);
     dispatch("zoidium:project-saved", {
       editor: editor,
+      project: savedProject,
+      revision: savedRevision,
       filename: filename,
       size: archiveResult.blob.size,
       assetCount: archiveResult.assetCount,
@@ -659,6 +661,8 @@
       markProjectSavedIfUnchanged(editor, savedProject, savedRevision);
       dispatch("zoidium:project-saved", {
         editor: editor,
+        project: savedProject,
+        revision: savedRevision,
         filename: filename,
         size: archiveResult.blob.size,
         assetCount: archiveResult.assetCount,
