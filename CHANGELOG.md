@@ -102,6 +102,18 @@ each line describes one visible change.
 
 ### Fixed
 
+- Replacing a project now releases the previous project's media files. They
+  used to stay in memory or browser storage until the tab closed, so reopening
+  a project with large media kept adding to that use.
+- Long Shape+ text and very complex Shape+ paths now draw their fill at Full
+  quality. Fills that were skipped at the old limit now appear.
+- Form and Particular particles with Add blending and low opacity now show in
+  the camera view over an empty scene. Soft Add particles over an empty scene
+  can look stronger than before in existing projects.
+- Particular's Screen and Multiply blend modes now take effect. Existing
+  projects that chose them rendered them as Normal and will now look different.
+  Over an empty scene, Multiply draws dark particles.
+- Editing text with a Material+ UV layout freezes for less than half as long.
 - Deleting or copying a group together with its selected child now works.
   Before, Delete raised an error and could not be undone, and Copy repeated the
   child.
