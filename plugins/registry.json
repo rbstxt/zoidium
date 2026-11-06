@@ -296,16 +296,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "46",
+      "version": "47",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=46",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=46",
-      "integrity": "sha256-NGYE/NwjTWxWzbhihFCU9pudoLJzX2YTqAiXhoBRse0="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=47",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=47",
+      "integrity": "sha256-gDG19zYfDuZknxEpFv/WnmyQHAHeeYWhrO9M0RXew9g="
     },
     {
       "id": "optical-flares",
@@ -360,23 +360,23 @@
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "37",
+      "version": "38",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=37",
-      "bundle": "./plugins/native-fx/bundle.json?v=37",
-      "integrity": "sha256-h1o4Zy7cqzqUzVIq9q4wytLT8MXdUwUbD9a873ggiPw="
+      "manifest": "./plugins/native-fx/manifest.json?v=38",
+      "bundle": "./plugins/native-fx/bundle.json?v=38",
+      "integrity": "sha256-xn1sduR65GqGmkwurip/vhukCGn7bUmWCJnbQBHdcsE="
     },
     {
       "id": "afterclip",
       "category": "adjustment",
       "name": "AfterClip",
       "author": "AfterClip",
-      "version": "3",
+      "version": "4",
       "itemCount": 43,
       "effectCount": 32,
       "groupCount": 11,
@@ -385,9 +385,9 @@
       "color": "#d35a76",
       "description": "Adds AfterClip custom shaders and group presets.",
       "warning": "This is a temporary plugin to help AfterClip users migrate to Zoidium. The Zoidium Shader Pack will be developed soon, and this plugin will become outdated.",
-      "manifest": "./plugins/afterclip/manifest.json?v=3",
-      "bundle": "./plugins/afterclip/bundle.json?v=3",
-      "integrity": "sha256-2VLHhz4QOUhlV6aUm8N5m5MPjCXpUH52YkCAW5JaLu0="
+      "manifest": "./plugins/afterclip/manifest.json?v=4",
+      "bundle": "./plugins/afterclip/bundle.json?v=4",
+      "integrity": "sha256-PALhj1a935yGuI8JhpWmzZMbpsjZUHQo9UbDWOsb8CI="
     },
     {
       "id": "alipfx-shader-pack-4",
@@ -411,7 +411,7 @@
       "category": "adjustment",
       "name": "CCFX Shader Pack",
       "author": "CCFX",
-      "version": "2",
+      "version": "3",
       "itemCount": 19,
       "effectCount": 12,
       "groupCount": 7,
@@ -421,9 +421,9 @@
       "color": "#2c8fa3",
       "description": "Adds CCFX shader effects and group presets.",
       "credits": "Credits: CCFX",
-      "manifest": "./plugins/ccfx/manifest.json?v=2",
-      "bundle": "./plugins/ccfx/bundle.json?v=2",
-      "integrity": "sha256-lQTWTtcol1R0dC/k53sAzmWmzm9p43by17S6Mqzxs7Y="
+      "manifest": "./plugins/ccfx/manifest.json?v=3",
+      "bundle": "./plugins/ccfx/bundle.json?v=3",
+      "integrity": "sha256-Zc9hSxGNeHbC9MgYVMjiBg8mb2Gr80NpPRcyShWg5mM="
     },
     {
       "id": "openzoid-legacy",
