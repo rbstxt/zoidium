@@ -103,12 +103,14 @@ function beginPointerDrag(target, e, onMove, onEnd) {
   }
   function finish(ev) {
     if (finished) return;
+    if (ev && pid != null && ev.pointerId !== undefined && ev.pointerId !== pid) return;
     finished = true;
     if (drags) drags.delete(finish);
     try { if (captured) target.releasePointerCapture(pid); } catch (err) { /* Releasing a dead capture needs no cleanup. */ }
     target.removeEventListener("pointermove", move);
     target.removeEventListener("pointerup", finish);
     target.removeEventListener("pointercancel", finish);
+    target.removeEventListener("lostpointercapture", finish);
     for (var i = 0; i < pairs.length; i++) unlisten(pairs[i], move, finish, onBlur);
     if (onEnd) onEnd(ev || null);
   }
@@ -117,6 +119,7 @@ function beginPointerDrag(target, e, onMove, onEnd) {
     target.addEventListener("pointermove", move);
     target.addEventListener("pointerup", finish);
     target.addEventListener("pointercancel", finish);
+    target.addEventListener("lostpointercapture", finish);
   } else {
     for (var j = 0; j < pairs.length; j++) {
       (function (pair) {
