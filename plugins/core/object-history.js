@@ -26,5 +26,30 @@
     }
     return result;
   };
+  const keydown = prototype.keydown;
+  if (typeof keydown === "function") {
+    prototype.keydown = function (event) {
+      const key = event.key.toLowerCase();
+      const removes = ["delete", "del", "backspace"].includes(key);
+      const copies = event.ctrlKey && ["c", "x"].includes(key);
+      if ((removes || copies) && !PZ.ui.toolbar.prototype.shouldIgnoreKeydown(event.target, event.key)) {
+        const rows = Array.from(this.el.querySelectorAll(".selected"));
+        const selected = new Set(rows.map(row => row.pz_object));
+        let changed = false;
+        for (const row of rows) {
+          for (let parent = row.pz_object.parent; parent; parent = parent.parent) {
+            if (!selected.has(parent)) continue;
+            // The parent already owns this subtree. Deleting the child again
+            // resolves a detached address; copying it again duplicates it.
+            row.classList.remove("selected");
+            changed = true;
+            break;
+          }
+        }
+        if (changed) this.selectItems();
+      }
+      return keydown.apply(this, arguments);
+    };
+  }
   prototype.__zoidiumObjectHistoryRepair = true;
 })(typeof window !== "undefined" ? window : globalThis);
