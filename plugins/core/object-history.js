@@ -4,6 +4,17 @@
   const PZ = global.PZ;
   const prototype = PZ?.ui?.edit?.prototype;
   if (!prototype?.deleteObject || prototype.__zoidiumObjectHistoryRepair) return;
+  function restoreAssetsFirst(operation, start) {
+    if (!operation || typeof PZ.asset !== "function") return;
+    const assetRestores = [];
+    for (let index = start; index < operation.length; index++) {
+      if (operation[index].params instanceof PZ.asset) assetRestores.push(operation.splice(index--, 1)[0]);
+    }
+    // Undo runs commands in reverse. Restore removed assets before the JSON
+    // loader acquires them, so native restore() cannot overwrite a new live
+    // asset with the zero-reference instance removed during unload().
+    operation.push(...assetRestores);
+  }
   const original = prototype.deleteObject;
   prototype.deleteObject = function deleteObject(params) {
     const list = this.editor.project.addressLookup(params.oldParentAddress);
@@ -23,9 +34,21 @@
       for (let index = start; index < operation.length; index++) {
         if (operation[index].params?.data === object) operation[index].params.data = data;
       }
+      restoreAssetsFirst(operation, start);
     }
     return result;
   };
+  const tracks = PZ.ui.timeline?.tracks?.prototype;
+  if (typeof tracks?.deleteClip === "function") {
+    const deleteClip = tracks.deleteClip;
+    tracks.deleteClip = function () {
+      const operation = this.timeline.editor.history.operation;
+      const start = operation?.length || 0;
+      const result = deleteClip.apply(this, arguments);
+      restoreAssetsFirst(operation, start);
+      return result;
+    };
+  }
   const keydown = prototype.keydown;
   if (typeof keydown === "function") {
     prototype.keydown = function (event) {
