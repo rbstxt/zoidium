@@ -4,6 +4,26 @@
   const PZ = global.PZ;
   const prototype = PZ?.ui?.edit?.prototype;
   if (!prototype?.deleteObject || prototype.__zoidiumObjectHistoryRepair) return;
+  const assetList = PZ.assetList?.prototype, editor = PZ.ui.editor?.prototype;
+  if (assetList?.removeIfUnused && editor?.assetRemoved) {
+    const owners = new WeakMap(), remove = assetList.removeIfUnused, removed = editor.assetRemoved;
+    assetList.removeIfUnused = function (asset) {
+      const previous = owners.get(asset);
+      owners.set(asset, this);
+      try { return remove.apply(this, arguments); }
+      finally {
+        if (previous) owners.set(asset, previous);
+        else owners.delete(asset);
+      }
+    };
+    editor.assetRemoved = function (asset) {
+      // Native editor listeners can outlive their project. Retired cleanup
+      // must not write asset inverses into the current project's history.
+      const owner = owners.get(asset);
+      if (!this.history?.operation || owner && owner !== this.project?.assets) return;
+      return removed.apply(this, arguments);
+    };
+  }
   function restoreAssetsFirst(operation, start) {
     if (!operation || typeof PZ.asset !== "function") return;
     const assetRestores = [];
