@@ -7,6 +7,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 
 function harness() {
+  const history = [];
   const events = [];
   const listeners = new Map();
   const calls = [];
@@ -31,7 +32,11 @@ function harness() {
     async loadProject() { calls.push("load"); this.duringLoad?.(); return this.nextProject; }
     new() { calls.push("native new"); this.project = this.nextProject; }
   }
-  const PZ = { archive: Archive, ui: { editor: Editor }, zoidium: { define(name, value) { this[name] = value; } } };
+  class History {
+    undo() { history.push("undo"); }
+    redo() { history.push("redo"); }
+  }
+  const PZ = { archive: Archive, ui: { editor: Editor, history: History }, zoidium: { define(name, value) { this[name] = value; } } };
   const window = {
     PZ, Blob, File, ZoidiumDesktopProjects: bridge,
     addEventListener(name, callback) { listeners.set(name, callback); },
@@ -49,7 +54,7 @@ function harness() {
   editor.project = { previous: true };
   editor.nextProject = { children: [] };
   window.CM = editor;
-  return { window, editor, bridge, listeners, calls, events };
+  return { window, editor, bridge, listeners, calls, events, history, History };
 }
 
 const file = () => new File(["project archive"], "Saved.PZ");
@@ -200,4 +205,22 @@ test("replacement works again after the export returns the editor", async () => 
   run.editor.enabled = true;
   await run.editor.open(file());
   assert.equal(run.editor.project, run.editor.nextProject);
+});
+
+test("undo and redo wait until the export returns the editor", () => {
+  const run = harness();
+  const history = new run.window.PZ.ui.history();
+  history.editor = run.editor;
+  run.editor.enabled = false;
+  history.undo();
+  history.redo();
+  assert.deepEqual(run.history, []);
+  const messages = run.events.filter(event => event.type === "zoidium:project-error").map(event => event.detail.message);
+  assert.equal(messages.length, 2);
+  assert.match(messages[0], /^Undo is unavailable while an export/);
+  assert.match(messages[1], /^Redo is unavailable while an export/);
+  run.editor.enabled = true;
+  history.undo();
+  history.redo();
+  assert.deepEqual(run.history, ["undo", "redo"]);
 });
