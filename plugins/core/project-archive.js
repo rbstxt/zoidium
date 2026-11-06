@@ -52,6 +52,17 @@
       Promise.resolve(value).then(result => finish(resolve, result), error => finish(reject, error));
     });
   }
+  async function span(name, task) {
+    const begin = global.performance?.now ? global.performance.now() : Date.now();
+    let status = "complete";
+    try { return await task(); }
+    catch (error) { status = "failed"; throw error; }
+    finally {
+      const now = global.performance?.now ? global.performance.now() : Date.now();
+      try { global.ZOIDIUM_DEBUG_LOG?.record("project-span", { name, durationMs: Math.round((now - begin) * 10) / 10, status }); }
+      catch (_error) { /* Diagnostics must never interrupt project operations. */ }
+    }
+  }
   async function bytes(data, label = "Archive entry", onSlow) {
     const size = Number(data && (data.size ?? data.byteLength));
     if (size > MAX_BYTES) throw new Error(label + " exceeds the " + LIMIT_LABEL + " safety limit.");
@@ -309,7 +320,7 @@
     }
     return dangling;
   }
-  const api = { bounded, budget, bytes, hash, encode, decode, integrity, checkAssets, danglingAssetReferences, MAX_BYTES, LIMIT_LABEL };
+  const api = { span, bounded, budget, bytes, hash, encode, decode, integrity, checkAssets, danglingAssetReferences, MAX_BYTES, LIMIT_LABEL };
   if (global.PZ) global.PZ.zoidiumProjectArchive = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -199,8 +199,85 @@
     }(original);
   }
 
+  // Temporal operators must exist before the first schedule preparation.
+  // CM3 creates nested effects asynchronously but returns a project before
+  // those loads finish, so its first frame can bypass a saved time operator.
+  async function prepareProject(project, wait) {
+    if (!project) return project;
+    // Opening waits as long as CM3 does: a slow but valid load is not a failure.
+    wait = wait || function (promise) { return promise; };
+    if (project._zoidiumPluginActivationPending) {
+      await wait(project._zoidiumPluginActivationPending, "Project plugin activation");
+    }
+    var visited = new WeakSet();
+    async function visit(object) {
+      if (!object || typeof object !== "object" || visited.has(object)) return;
+      visited.add(object);
+      if (object.loading && typeof object.loading.then === "function") {
+        // CM3 opened projects with one failed object (its own rejection is
+        // reported there); only a decision to stop waiting aborts the open.
+        await wait(object.loading.catch(function () {}), (object.defaultName || object.baseTypeString || "Project object") + " loading");
+      }
+      var children = Array.isArray(object) ? object : object.children;
+      if (children) {
+        for (var index = 0; index < children.length; index += 1) {
+          await visit(children[index]);
+        }
+      }
+    }
+    await visit(project);
+    global.ZoidiumPluginApis?.timeline?.restoreTrackFields(project);
+    return project;
+  }
+
+  function settledWithin(promise, milliseconds) {
+    var timer;
+    return Promise.race([
+      Promise.resolve(promise).then(function () { return true; }, function () { return true; }),
+      new Promise(function (resolve) { timer = global.setTimeout(function () { resolve(false); }, milliseconds); }),
+    ]).finally(function () { global.clearTimeout(timer); });
+  }
+
+  // A step of a user-started save or open that outlives its size-scaled
+  // budget asks instead of failing: reading a large video from a slow or
+  // cloud-backed disk is valid. The question closes itself when the step
+  // finishes meanwhile. Without the UI kit the deadline fails as before.
+  function slowStepQuestion(action) {
+    if (!global.ZoidiumUI || typeof global.ZoidiumUI.confirm !== "function") return undefined;
+    return function (label, signal) {
+      return global.ZoidiumUI.confirm({
+        title: "Still working",
+        message: label + " is taking longer than expected. A slow, network or cloud drive can cause this.\nKeep waiting, or stop " + action + "?",
+        confirmLabel: "Keep waiting",
+        cancelLabel: "Stop " + action,
+        signal: signal,
+      });
+    };
+  }
+
+  // Saving waits for loading objects, but a load that failed or never ends
+  // must not make the project unsaveable: the user decides after 10 seconds.
+  // Automatic backups simply skip this round.
+  function saveReadinessWait(interactive) {
+    var saveNow = false;
+    return async function (promise, label) {
+      while (!saveNow && !await settledWithin(promise, 10000)) {
+        if (!interactive || !global.ZoidiumUI || typeof global.ZoidiumUI.confirm !== "function") {
+          throw new Error(label + " did not finish within 10 seconds. No incomplete archive was delivered.");
+        }
+        saveNow = await global.ZoidiumUI.confirm({
+          title: "Still loading",
+          message: label + " has not finished. Saving now may store that object without its loaded data.\nSave now, or keep waiting?",
+          confirmLabel: "Save now",
+          cancelLabel: "Keep waiting",
+        });
+      }
+    };
+  }
+
   PZ.zoidium.projectFilesShared = {
     captureDiskState, recordDiskSave, projectEdited, updateProjectDirty, diskUnsaved,
+    prepareProject, slowStepQuestion, saveReadinessWait,
     DEFAULT_PROJECT_NAME: DEFAULT_PROJECT_NAME,
     normalizeProjectName: normalizeProjectName,
     fileNameForProject: fileNameForProject,
