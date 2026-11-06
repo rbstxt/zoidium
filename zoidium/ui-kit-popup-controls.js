@@ -1,9 +1,10 @@
 (function (global) {
   "use strict";
   var builder = global.ZoidiumUIBuilder = global.ZoidiumUIBuilder || {};
-  var activeDrags = new Map(), pickers = new Set();
+  var activeDrags = new Map(), pickers = new Set(), menus = new Map();
   function foreign(element) { return element && element.ownerDocument && element.ownerDocument !== global.document; }
   function settle(root) {
+    menus.forEach(function (anchor, panel) { if (root.contains(anchor)) { panel.blur(); panel.remove(); menus.delete(panel); } });
     pickers.forEach(function (picker) { if (root.contains(picker.el) && picker.picker) picker.close(); });
     activeDrags.forEach(function (entry, drag) { if (root.contains(entry.element)) entry.finish(); });
   }
@@ -82,5 +83,30 @@
     };
     color.close = function () { pickers.delete(this); return close.apply(this, arguments); };
   }
+  var editor = global.PZ && global.PZ.editor;
+  if (editor) ["Ease", "Font"].forEach(function (name) {
+    var key = "show" + name + "DropDown", original = editor[key];
+    if (typeof original !== "function") return;
+    editor[key] = function (anchor) {
+      var result = original.apply(this, arguments);
+      if (!foreign(anchor)) return result;
+      var panel = editor[name.toLowerCase() + "DropDown"];
+      if (!panel || !panel.isConnected) return result;
+      var blurHandler = panel.onblur;
+      panel.onblur = null;
+      anchor.ownerDocument.body.appendChild(panel);
+      panel.onblur = function (event) {
+        menus.delete(panel); panel.onblur = blurHandler;
+        if (blurHandler) blurHandler.call(panel, event);
+        panel.remove(); global.document.adoptNode(panel); panel.pz_input = null;
+      };
+      var rect = anchor.getBoundingClientRect(), view = anchor.ownerDocument.defaultView;
+      panel.style.position = "fixed";
+      panel.style.left = Math.max(0, Math.min(rect.left, view.innerWidth - panel.offsetWidth)) + "px";
+      panel.style.top = Math.max(0, Math.min(rect.bottom, view.innerHeight - panel.offsetHeight)) + "px";
+      menus.set(panel, anchor); panel.focus();
+      return result;
+    };
+  });
   builder.popupControls = { settle: settle };
 })(window);

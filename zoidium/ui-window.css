@@ -748,3 +748,5 @@ textarea.zoidium-text {
 .zoidium-window-popped-out [aria-label="Restore"] { display: none; }
 .zoidium-window-popped-out.collapsed > .zoidium-window-body,
 .zoidium-window-popped-out.collapsed > .zoidium-window-footer:not([hidden]) { display: flex !important; }
+
+.zoidium-popout-body > .pz-dropdown { z-index: 10000; }

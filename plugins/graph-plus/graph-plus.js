@@ -292,6 +292,7 @@ const GraphPlus = (() => {
           body.addEventListener("keyup", space, true);
           body.addEventListener("keydown", forward);
           const rehost = () => {
+            state.selectionHost?.bindDocument(body.ownerDocument);
             function visit(panel) {
               if (!panel) return;
               if (panel._cancelUpdate) panel._cancelUpdate();

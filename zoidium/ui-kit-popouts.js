@@ -84,6 +84,7 @@
       sources.forEach(function (node) {
         var copy = copies.get(node);
         if (!copy) { copy = doc.createElement(node.tagName.toLowerCase()); copies.set(node, copy); }
+        if (node.id) copy.id = node.id;
         if (node.tagName === "LINK") {
           copy.rel = "stylesheet";
           if (copy.href !== node.href) copy.href = node.href;

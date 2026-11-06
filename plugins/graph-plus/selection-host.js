@@ -266,6 +266,7 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
   cleanups.push(() => { editor.onProjectChanged?.unwatch(reset); editor.onSequenceChanged?.unwatch(reset); });
   return {
     selection,
+    bindDocument,
     dispose() {
       disposed = true; pending = null; lastRow = null; closeMenu();
       for (const release of Array.from(documents.values())) release();

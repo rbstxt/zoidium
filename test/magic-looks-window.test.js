@@ -33,6 +33,7 @@ function fakeCtx() {
 function el(tag) {
   const node = {
     tagName: tag,
+    ownerDocument: global.document,
     className: "",
     textContent: "",
     children: [],
