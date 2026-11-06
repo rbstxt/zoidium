@@ -601,6 +601,8 @@ function loadRestore(options = {}) {
   });
 
   const panel = menubarTabs.length ? menubarTabs[0].panel : null;
+  // These action tests exercise the visible Restore tab.
+  if (panel) panel.style.display = "block";
   const toasts = () => documentObject.body.children.filter(
     (child) => child.tagName === "ASIDE",
   );

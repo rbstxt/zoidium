@@ -73,6 +73,12 @@ class FakeElement {
     return this.children[this.children.length - 1] || null;
   }
 
+  set innerHTML(value) {
+    for (const child of this.children) child.parent = null;
+    this.children = [];
+    if (value) for (const child of parseMarkup(String(value)).children.slice()) this.appendChild(child);
+  }
+
   setAttribute(name, value) {
     this.attributes[name] = String(value);
   }
@@ -351,7 +357,7 @@ test("the project-name field installs once and survives toolbar rebuilds", () =>
   assert.equal(harness.globalListeners["zoidium:project-name-changed"].length, 1);
 
   // One observer watches the document body, so re-parented toolbars are seen.
-  assert.equal(harness.observers.length, 1);
+  assert.equal(harness.observers.length, 2);
   assert.equal(harness.observers[0].target, harness.documentObject.body);
   assert.equal(harness.observers[0].options.childList, true);
   assert.equal(harness.observers[0].options.subtree, true);
@@ -382,7 +388,7 @@ test("the project-name field installs once and survives toolbar rebuilds", () =>
   harness.rebuildToolbar();
   harness.fireObserver();
   assert.ok(harness.fieldInput(), "expected the field after the parent was replaced");
-  assert.equal(harness.observers.length, 1);
+  assert.equal(harness.observers.length, 2);
   assert.equal(harness.globalListeners["zoidium:project-name-changed"].length, 1);
 });
 
@@ -424,4 +430,31 @@ test("the restore panel keeps its header when the static markup is appended", ()
     "expected the header to stay first",
   );
   assert.ok(panel.querySelector(".zoidium-restore-list"), "expected the static markup to be appended");
+});
+
+
+test("Restore builds action rows only while its panel is visible", () => {
+  const harness = loadToolbarHarness();
+  const state = harness.sandbox.__zoidiumRestoreParts.store.state;
+  const panel = harness.menubarTabs[0].panel;
+  const observer = harness.observers.find(value => value.target === panel);
+  assert.equal(observer.options.attributes, true);
+  assert.equal(Array.from(observer.options.attributeFilter).join(), "style");
+  state.snapshots = [{ id: "first", projectName: "Project", createdAt: 1, size: 100, assetCount: 0 }];
+  observer.callback();
+  assert.equal(state.list.children.length, 0);
+  panel.style.display = "block";
+  observer.callback();
+  assert.equal(state.list.querySelectorAll(".zoidium-restore-entry").length, 1);
+  assert.equal(state.list.querySelectorAll("button").length, 3);
+  panel.style.display = "none";
+  observer.callback();
+  assert.equal(state.list.children.length, 0);
+  assert.equal(state.snapshots.length, 1, "hiding the panel preserves restore points");
+  state.snapshots.push({ ...state.snapshots[0], id: "second" });
+  observer.callback();
+  assert.equal(state.list.children.length, 0);
+  panel.style.display = "block";
+  observer.callback();
+  assert.equal(state.list.querySelectorAll(".zoidium-restore-entry").length, 2);
 });

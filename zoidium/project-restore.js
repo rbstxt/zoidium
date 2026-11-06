@@ -212,6 +212,12 @@
 
   function renderSnapshots() {
     if (!state.list) return;
+    // Restore points stay in storage while the hidden panel keeps no rows or
+    // button listeners. Opening the tab rebuilds rows from the current list.
+    if (panelVisibilityObserver && state.panel.style.display === "none") {
+      state.list.innerHTML = "";
+      return;
+    }
     if (state.deleteAllButton) {
       state.deleteAllButton.disabled = state.snapshots.length === 0;
     }
@@ -817,6 +823,10 @@
   }, { once: true });
   var panel = createPanel();
   createTab(panel);
+  var panelVisibilityObserver = global.MutationObserver ? new global.MutationObserver(function () {
+    renderSnapshots();
+  }) : null;
+  panelVisibilityObserver?.observe(panel, { attributes: true, attributeFilter: ["style"] });
   state.backupIntervalMs = readBackupInterval();
   if (state.intervalSelect) state.intervalSelect.value = String(state.backupIntervalMs);
   installProjectLoadGuard();
@@ -827,6 +837,7 @@
     if (state.backupTimer) global.clearInterval(state.backupTimer);
     if (state.startupTimer) global.clearTimeout(state.startupTimer);
     toolbarObserver.disconnect();
+    panelVisibilityObserver?.disconnect();
   });
 })(window);
 
