@@ -658,9 +658,9 @@ function isInUse() {
   if (!project || !TextObject || typeof project.forEachItemOfType !== "function") {
     return false;
   }
-  let used = state.splitTexts.size > 0;
+  let used = false;
   project.forEachItemOfType(TextObject, (textObject) => {
-    if (textUsesExtendedProperties(textObject)) used = true;
+    if (state.splitTexts.has(textObject) || textUsesExtendedProperties(textObject)) used = true;
   });
   return used;
 }

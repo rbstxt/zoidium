@@ -212,3 +212,30 @@ test("ancestor traversal stops safely at a broken or cyclic parent chain", () =>
   cycle.parentObject = cycle;
   assert.deepEqual(_test.collectTextPlusObjects({ parentObject: cycle }), [cycle]);
 });
+
+test("the Text+ disable guard counts only text in the current project", () => {
+  const { state } = require("../plugins/text-plus/text-plus-utils.js");
+  const previous = { PZ: state.PZ, editor: state.editor, splitTexts: state.splitTexts };
+  class Text {}
+  const retired = new Text(), active = new Text();
+  const texts = [];
+  state.PZ = { object3d: { text: Text } };
+  state.editor = { project: { forEachItemOfType(Type, visit) {
+    for (const text of texts) if (text instanceof Type) visit(text);
+  } } };
+  state.splitTexts = new Set([retired]);
+  try {
+    assert.equal(plugin.isInUse(), false, "a retired project's split text does not lock an empty project");
+    texts.push(active);
+    assert.equal(plugin.isInUse(), false, "neutral text does not lock Text+");
+    state.splitTexts.add(active);
+    assert.equal(plugin.isInUse(), true, "split text in the current project still locks Text+");
+    state.splitTexts.delete(active);
+    active.properties = { spacing: { get: () => 2 } };
+    assert.equal(plugin.isInUse(), true, "extended native text properties still lock Text+");
+    texts.length = 0;
+    assert.equal(plugin.isInUse(), false, "switching to an empty project unlocks Text+ again");
+  } finally {
+    Object.assign(state, previous);
+  }
+});
