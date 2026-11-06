@@ -193,7 +193,7 @@ test("retiring r91 scenes clears private light state without disposing the rende
   class Viewport { constructor(editor) { this.editor = editor; this.renderer = renderer; } }
   const context = { THREE: { REVISION: "91", Matrix4: class {} }, PZ: { ui: { viewport: Viewport } } };
   vm.runInNewContext(fs.readFileSync(path.join(projectRoot, "plugins/core/main-viewport.js"), "utf8"), context);
-  new context.PZ.ui.viewport({ onProjectChanged: { watch(fn) { watchers.add(fn); } } });
+  const viewport = new context.PZ.ui.viewport({ onProjectChanged: { watch(fn) { watchers.add(fn); } } });
   renderer.render(retired, camera);
   assert.equal(states.get("11,7")[0].parent, retired);
   for (const fn of watchers) fn();
@@ -202,4 +202,9 @@ test("retiring r91 scenes clears private light state without disposing the rende
   assert.equal(cleared, 1);
   renderer.render(retired, camera);
   assert.equal(states.get("11,7").length, 1, "a subsequent draw rebuilds lighting");
+  viewport.__zoidiumReleaseRenderState();
+  assert.equal(states.get("11,7").length, 0, "clip deletion can retire the same private state");
+  assert.equal(cleared, 2);
+  renderer.render(retired, camera);
+  assert.equal(states.get("11,7")[0].parent, retired, "a restored clip draws with its lights");
 });

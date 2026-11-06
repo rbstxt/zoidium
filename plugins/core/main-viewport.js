@@ -40,7 +40,7 @@
           };
         }
       }
-      this.__zoidiumProjectChanged = () => {
+      this.__zoidiumReleaseRenderState = () => {
         if (pairs.size) {
           for (const [sceneId, cameraId] of pairs.values()) {
             renderer.compile({ id: sceneId, traverse() {} }, {
@@ -51,6 +51,7 @@
         }
         renderer?.renderLists?.dispose?.();
       };
+      this.__zoidiumProjectChanged = this.__zoidiumReleaseRenderState;
       this.editor?.onProjectChanged?.watch?.(this.__zoidiumProjectChanged);
     }
 

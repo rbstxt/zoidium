@@ -7,9 +7,11 @@
     const deleteClip = tracks.deleteClip;
     const wrapped = function deleteClipAndReleaseRenderLists() {
       const result = deleteClip.apply(this, arguments);
-      // r91 keeps an opaque/transparent list for each scene and camera pair.
-      // A deleted scene can otherwise retain its meshes through those lists.
-      this.timeline.editor.mainViewport?.renderer?.renderLists?.dispose?.();
+      // r91 keeps render lists and a separate light/shadow state per scene
+      // and camera pair. Either cache can retain an entire deleted scene.
+      const viewport = this.timeline.editor.mainViewport;
+      if (viewport?.__zoidiumReleaseRenderState) viewport.__zoidiumReleaseRenderState();
+      else viewport?.renderer?.renderLists?.dispose?.();
       return result;
     };
     wrapped.__zoidiumReleasesRenderLists = true;
