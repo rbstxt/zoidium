@@ -62,6 +62,10 @@
     get effectiveLimit() { return store.effectiveLimit; },
     get contextLosses() { return store.contextLosses; },
     get entries() { return store.entries.size; },
+    get pendingFrames() { return captures.pending.size; },
+    get pendingBytes() { return captures.bytes; },
+    get captureChecks() { return captures.checks; },
+    get captureDiscards() { return captures.discarded; },
   };
 
   function skipPrefetch(controller, frame, reason) {
@@ -88,16 +92,20 @@
     return !lostContexts.has(gl) && !store.contextLost;
   }
 
-  function allocationFailed(gl) {
+  function allocationFailed(gl, error) {
     if (!contextAvailable(gl)) return;
-    const error = gl.getError();
     if (error === gl.OUT_OF_MEMORY) {
       const usage = store.memoryPressure();
       memoryNotice("The GPU ran out of memory at " + Math.round(usage / 1048576).toLocaleString("en-US") +
         " MiB; the preview cache will stop there for this session.");
     }
-    return error !== gl.NO_ERROR;
   }
+
+  const captures = new global.ZoidiumOutputFrameCapture.CaptureQueue({ store,
+    available: contextAvailable, failed: allocationFailed, host: global, THREE,
+    quiet: () => performance.now() - lastSignal >= 100 &&
+      !Array.from(controllers).some(controller => controller.viewport.editor.history?.operation),
+  });
 
   function identity(value) {
     if (!value || (typeof value !== "object" && typeof value !== "function")) return value;
@@ -214,6 +222,8 @@
   function reset(controller, reason = "other") {
     debug.resets[reason] = (debug.resets[reason] || 0) + 1;
     if (debug.resetLog) debug.resetLog.push([Math.round(performance.now()), reason, store.entries.size, debug.prefetched]);
+    captures.invalidate(controller);
+    controller.pendingFrames?.clear();
     controller.videoJob?.cancel();
     if (contextAvailable(controller.viewport.renderer.context)) controller.videoLive?.dispose();
     controller.videoLive = null;
@@ -245,7 +255,7 @@
     controller = { id: ++controllerId, viewport, generation: 0, key: null, full: null, cheap: null,
       validated: -1, settled: null, settling: null, ready: null, readying: null, snapshot: null,
       prefetching: false, prefetchCost: 0, prefetchSkipped: new Set(), unsupported: null,
-      disposed: false, projectSignal: null, keyCost: 0 };
+      disposed: false, projectSignal: null, keyCost: 0, pendingFrames: new Map() };
     viewport.__zoidiumOutputFrames = controller;
     controllers.add(controller);
     controller.canvas = viewport.renderer.domElement || viewport.renderer.context.canvas;
@@ -426,49 +436,15 @@
     shown(entry.frame);
   }
 
-  // Copy the finished opaque default framebuffer verbatim: no readback,
-  // resampling, alpha or color conversion and no second compositor pass.
   function capture(controller, frame) {
-    const renderer = controller.viewport.renderer;
-    const gl = renderer.context;
-    const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight;
-    const bytes = width * height * 4;
-    if (!contextAvailable(gl) || !store.effectiveLimit || allocationFailed(gl)) {
-      controller.reason = "GPU memory or context is unavailable";
-      return null;
-    }
-    const format = gl.getContextAttributes().alpha ? THREE.RGBAFormat : THREE.RGBFormat;
-    const type = THREE.UnsignedByteType;
-    const reservation = store.take(bytes, entry => entry.renderer === renderer &&
-      entry.width === width && entry.height === height && entry.format === format && entry.type === type);
-    if (!reservation) {
-      controller.reason = "One frame exceeds the preview cache memory limit";
-      return null;
-    }
-    const generation = store.generation;
-    const target = reservation.recycled?.target || new THREE.WebGLRenderTarget(width, height, {
-      minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
-      format, type, depthBuffer: false, stencilBuffer: false,
-    });
-    target.texture.generateMipmaps = false;
-    try {
-      renderer.setRenderTarget(target);
-      renderer.setRenderTarget(null);
-      renderer.setTexture2D(target.texture, 0);
-      gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
-      if (!contextAvailable(gl) || allocationFailed(gl) || generation !== store.generation) {
-        controller.reason = "GPU capture failed or was invalidated";
-        if (contextAvailable(gl)) target.dispose();
-        return null;
-      }
-    } catch (_error) {
-      controller.reason = "GPU capture failed";
-      allocationFailed(gl);
-      if (contextAvailable(gl)) { renderer.setRenderTarget(null); target.dispose(); }
-      return null;
-    }
-    return { target, frame, bytes, renderer, width, height, format, type,
-      owner: controller.id, complete: true, dispose: () => target.dispose() };
+    return captures.capture(controller, frame, () => signalEpoch);
+  }
+
+  function currentCapture(entry) {
+    if (!entry) return false;
+    if (entry.isCurrent()) return true;
+    if (contextAvailable(entry.renderer.context)) entry.dispose();
+    return false;
   }
 
   function entryKey(controller, frame) { return controller.id + ":" + frame; }
@@ -523,7 +499,13 @@
       if (videoFrames?.eligible(viewport.editor.project.sequence, PZ.zoidium.temporal) &&
           videoFrames.inputs(viewport.editor.project.sequence, frame, global.__zoidiumTemporalParts.sampler).length) {
         controller.videoLive?.dispose();
-        controller.videoLive = capture(controller, frame);
+        controller.videoLive = null;
+        capture(controller, frame).then(entry => {
+          if (currentCapture(entry)) {
+            if (contextAvailable(viewport.renderer.context)) controller.videoLive?.dispose();
+            controller.videoLive = entry;
+          }
+        });
       }
       scheduleIdle();
     }
@@ -543,11 +525,16 @@
   }
 
   function storeFrame(controller, frame) {
-    const entry = capture(controller, frame);
-    if (entry && store.put(entryKey(controller, frame), entry)) {
-      controller.reason = null;
-      debug.stores += 1;
-    }
+    if (controller.pendingFrames.has(frame)) return;
+    const pending = capture(controller, frame);
+    controller.pendingFrames.set(frame, pending);
+    pending.then(entry => {
+      if (controller.pendingFrames.get(frame) === pending) controller.pendingFrames.delete(frame);
+      if (currentCapture(entry) && store.put(entryKey(controller, frame), entry)) {
+        controller.reason = null;
+        debug.stores += 1;
+      }
+    });
   }
 
   // ---- Idle prefetch -------------------------------------------------------
@@ -692,12 +679,14 @@
     const start = performance.now();
     snapshot.compositor.renderSequence(frame);
     controller.prefetchCost = performance.now() - start;
-    const entry = capture(controller, frame);
-    if (entry && store.put(entryKey(controller, frame), entry)) debug.prefetched += 1;
+    const pending = capture(controller, frame);
     // Pressure can evict the retained on-screen entry during capture.
     if (store.entries.get(entryKey(controller, current)) === live) display(controller, live);
     else if (contextAvailable(viewport.renderer.context)) viewport._render();
-    return true;
+    const entry = await pending;
+    if (currentCapture(entry) && valid() && store.put(entryKey(controller, frame), entry)) debug.prefetched += 1;
+    else if (entry && contextAvailable(viewport.renderer.context)) entry.dispose();
+    return !!entry;
   }
 
   async function fillVideoFrame(controller, key, frame, current = frame) {
@@ -732,25 +721,29 @@
       }
       // Preserve the actual live image, even when it is an inexact video draw.
       // This backup never enters the frame store. Restore it in the same task.
-      const live = capture(controller, current);
-      if (!live || live.frame !== current) { skipReason = "Live frame capture failed."; return; }
+      const live = await capture(controller, current);
+      if (!currentCapture(live) || live.frame !== current) { skipReason = "Live frame capture failed."; return; }
+      try { policy.check(); } catch (error) { if (contextAvailable(viewport.renderer.context)) live.dispose(); throw error; }
       const restoreTextures = sampler.bindSampleTextures(prepared.samples);
+      let pending;
       try {
         policy.check();
         snapshot.compositor.renderSequence(frame);
         policy.check();
-        const entry = capture(controller, frame);
-        if (entry && store.put(entryKey(controller, frame), entry)) {
-          stored = true;
-          debug.stores += 1;
-          debug.videoFilled = (debug.videoFilled || 0) + 1;
-          if (frame !== current) debug.prefetched += 1;
-          controller.reason = null;
-        }
+        pending = capture(controller, frame);
       } finally {
         restoreTextures();
         if (contextAvailable(viewport.renderer.context)) display(controller, live);
         if (contextAvailable(viewport.renderer.context)) live.dispose();
+      }
+      const entry = await pending;
+      if (currentCapture(entry) && !valid()) { if (contextAvailable(viewport.renderer.context)) entry.dispose(); }
+      else if (currentCapture(entry) && store.put(entryKey(controller, frame), entry)) {
+        stored = true;
+        debug.stores += 1;
+        debug.videoFilled = (debug.videoFilled || 0) + 1;
+        if (frame !== current) debug.prefetched += 1;
+        controller.reason = null;
       }
     } catch (error) {
       if (!policy.signal.aborted) {
@@ -973,6 +966,7 @@
     clear() { store.clear(); for (const controller of controllers) reset(controller, "clear"); },
     dispose() {
       disposed = true;
+      captures.dispose();
       if (idleTimer !== null) clearTimeout(idleTimer);
       idleTimer = null;
       for (const controller of Array.from(controllers)) release(controller.viewport);
