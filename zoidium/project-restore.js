@@ -384,15 +384,21 @@
       // it; repeated clicks still join the same queued operation.
       if (!isAutomatic && (reuse || state.snapshotAutomatic !== false)) {
         if (!state.manualSnapshotPromise) {
+          state.manualSnapshotRequest = { showResult: showResult, options: options };
           state.manualSnapshotPromise = state.snapshotPromise
             // A queued manual point must wait out the in-flight failure first.
             .catch(function () {})
             .then(function () {
-              return createSnapshot(showResult, false, options);
+              var request = state.manualSnapshotRequest;
+              return createSnapshot(request.showResult, false, request.options);
             })
             .finally(function () {
               state.manualSnapshotPromise = null;
+              state.manualSnapshotRequest = null;
             });
+        } else if (!reuse) {
+          // An explicit Backup now upgrades a queued pre-replace request.
+          state.manualSnapshotRequest = { showResult: showResult, options: options };
         }
         return state.manualSnapshotPromise;
       }
@@ -404,7 +410,7 @@
     // Captured before serialization starts: an edit made while the archive is
     // being built must still count as a change for the next automatic check.
     var startKey = currentBackupKey();
-    state.snapshotAutomatic = isAutomatic;
+    state.snapshotAutomatic = isAutomatic || reuse;
     var buildSnapshot = (async function () {
       // refreshSnapshots normally completes before this runs, but loading here
       // also covers a very fast startup timer or a delayed IndexedDB response.

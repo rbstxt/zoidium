@@ -248,3 +248,24 @@ test("retrying a failed pre-replace backup keeps its retention classification", 
   const point = await toast._zoidiumRetry();
   assert.equal(point.automatic, true);
 });
+
+test("Backup now remains permanent while a pre-replace backup is active or queued", async () => {
+  for (const queued of [false, true]) {
+    const h = await restoreHarness(), original = h.projectFiles.createArchive;
+    let release;
+    h.projectFiles.createArchive = async (...args) => {
+      await new Promise(resolve => { release = resolve; });
+      return original(...args);
+    };
+    const active = h.panelApi.createSnapshot(false, queued, queued ? undefined : { reuse: true });
+    await flush();
+    const replacing = queued ? h.panelApi.createSnapshot(false, false, { reuse: true }) : active;
+    const explicit = h.panelApi.createSnapshot(true, false);
+    h.projectFiles.createArchive = original;
+    release();
+    await Promise.all([active, replacing]);
+    const point = await explicit;
+    assert.equal(point.automatic, false, queued ? "queued replacement" : "active replacement");
+    assert.equal((await h.store.getSnapshot(point.id)).automatic, false);
+  }
+});
