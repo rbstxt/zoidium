@@ -83,6 +83,7 @@
   function contextLost(gl) {
     if (lostContexts.has(gl)) return;
     lostContexts.add(gl);
+    captures.forgetContext(gl);
     store.loseContext();
     for (const controller of controllers) reset(controller, "context-lost");
     memoryNotice("The WebGL context was lost; the preview cache has been reduced for this session.");

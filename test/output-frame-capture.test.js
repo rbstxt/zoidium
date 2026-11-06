@@ -266,3 +266,16 @@ test("a cancelled promise cannot remove a newer pending capture for the same fra
   assert.equal(h.api.debug.hits, hits + 1);
   h.api.dispose();
 });
+
+test("releasing a lost context before its pending check does not count the same loss twice", async () => {
+  const h = await prepared(), gl = h.viewport.renderer.context;
+  h.api.capturePreview(h.viewport, 1);
+  gl.lost = true;
+  h.canvasEvents.get("webglcontextlost")();
+  assert.equal(h.api.debug.contextLosses, 1);
+  h.api.release(h.viewport);
+  await checked(h);
+  assert.equal(h.api.debug.contextLosses, 1);
+  assert.equal(h.api.debug.effectiveLimit, 32);
+  h.api.dispose();
+});

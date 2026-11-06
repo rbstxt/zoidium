@@ -57,6 +57,12 @@
       // before later captures can publish, even when its owner was replaced.
       if (!this.pending.size && !this.contexts.size) this.cancelTimer();
     }
+    forgetContext(gl) {
+      this.contexts.delete(gl);
+      this.blocked.delete(gl);
+      for (const item of Array.from(this.pending)) if (item.gl === gl) this.finish(item, false);
+      if (!this.pending.size && !this.contexts.size) this.cancelTimer();
+    }
     check() {
       this.cancelTimer();
       const contexts = new Set(this.contexts);
