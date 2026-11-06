@@ -191,3 +191,60 @@ test("pre-replace maintenance uses valid native Web Locks options", async () => 
   await h.panelApi.createSnapshot(false, false, { reuse: true });
   assert.equal((await h.store.listSnapshots()).length, 1);
 });
+
+test("edited pre-replace points rotate while explicit and legacy manual points remain", async () => {
+  let version = 0;
+  const h = loadRestore({ projectFiles: { createArchive: async () => ({
+    blob: new Blob(["archive-" + version]), projectName: "project", assetCount: 0,
+    fingerprint: "edit-" + version++,
+  }) } });
+  await flush();
+  const store = h.sandbox.__zoidiumRestoreParts.store;
+  const panel = h.sandbox.__zoidiumRestoreParts.panel;
+  await store.saveSnapshot({ id: "legacy-manual", createdAt: 1, automatic: false,
+    owner: "old-session", projectName: "project", blob: new Blob(["old archive"]) });
+  const manual = await panel.createSnapshot(true, false);
+  let newest;
+  for (let index = 0; index < 20; index++) newest = await panel.createSnapshot(false, false, { reuse: true });
+  const points = await store.listSnapshots();
+  assert.equal(newest.automatic, true);
+  assert.equal(points.filter(point => point.automatic !== false).length, 4);
+  assert.ok(points.some(point => point.id === newest.id), "newest verified point survives rotation");
+  assert.ok(points.some(point => point.id === manual.id), "explicit Backup now stays permanent");
+  assert.ok(points.some(point => point.id === "legacy-manual"), "old manual metadata stays untouched");
+  assert.equal((await store.getSnapshot("legacy-manual")).automatic, false);
+});
+
+test("retention preserves the newest valid pre-replace point for every project group", async () => {
+  let name = "project", version = 0;
+  const h = loadRestore({ projectFiles: { createArchive: async () => ({
+    blob: new Blob([name + version]), projectName: name, assetCount: 0, fingerprint: "edit-" + version++,
+  }) } });
+  await flush();
+  const store = h.sandbox.__zoidiumRestoreParts.store, panel = h.sandbox.__zoidiumRestoreParts.panel;
+  const newest = new Map();
+  for (let index = 0; index < 8; index++) {
+    name = "project-" + index;
+    newest.set(name, await panel.createSnapshot(false, false, { reuse: true }));
+  }
+  const points = await store.listSnapshots();
+  for (const point of newest.values()) assert.ok(points.some(value => value.id === point.id), point.projectName);
+  // A corrupt newer record cannot make its last valid predecessor disposable.
+  const valid = newest.get("project-0");
+  const records = h.idb.databases["zoidium-restore-points"].stores.snapshots.records;
+  records.set("damaged-newer", { ...valid, id: "damaged-newer", createdAt: Date.now() + 1000,
+    blob: new Blob(["damaged"]), integrity: { size: 7, sha256: "0".repeat(64) } });
+  await store.pruneAutomaticSnapshots();
+  assert.ok(await store.getSnapshot(valid.id));
+});
+
+test("retrying a failed pre-replace backup keeps its retention classification", async () => {
+  const h = await restoreHarness(), original = h.projectFiles.createArchive;
+  h.projectFiles.createArchive = async () => { throw new Error("Temporary failure"); };
+  await assert.rejects(h.panelApi.createSnapshot(false, false, { reuse: true }), /Temporary failure/);
+  const toast = h.toasts().find(value => typeof value._zoidiumRetry === "function");
+  assert.ok(toast);
+  h.projectFiles.createArchive = original;
+  const point = await toast._zoidiumRetry();
+  assert.equal(point.automatic, true);
+});

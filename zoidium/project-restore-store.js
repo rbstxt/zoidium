@@ -617,10 +617,12 @@
       if (!removedIds.length) return records;
       var protectedIds = new Set();
       var groups = new Set();
+      var candidates = new Set(removedIds);
+      var candidateGroups = new Set(records.filter(function (record) { return candidates.has(record.id); }).map(snapshotGroup));
       for (var index = 0; index < records.length; index += 1) {
         var record = records[index];
         var group = snapshotGroup(record);
-        if (groups.has(group)) continue;
+        if (!candidateGroups.has(group) || groups.has(group)) continue;
         try { await verifySnapshot(record); protectedIds.add(record.id); groups.add(group); }
         catch (_error) { /* Preserve older valid points when a newer one is damaged. */ }
       }

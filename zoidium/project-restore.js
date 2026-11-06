@@ -444,7 +444,9 @@
         assetCount: archiveResult.assetCount,
         blob: archiveResult.blob,
         fingerprint: archiveResult.fingerprint,
-        automatic: isAutomatic,
+        // Pre-replace points use retention. Only an explicit Backup now is
+        // permanent; existing records are never reclassified.
+        automatic: isAutomatic || reuse,
         owner: store.sessionId,
       };
       await saveSnapshot(record, undefined, { independent: reuse });
@@ -483,7 +485,7 @@
         showProjectError({
           message: error && error.message ? error.message : "Could not create a restore point.",
           retry: function () {
-            return createSnapshot(true, isAutomatic);
+            return createSnapshot(true, isAutomatic, options);
           },
           download: download,
         });
