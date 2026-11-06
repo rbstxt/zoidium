@@ -8,10 +8,10 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 251,
+    assetVersion: 252,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
-    registryUrl: "./plugins/registry.json?v=208",
+    registryUrl: "./plugins/registry.json?v=209",
     // Source Code Pro is imported through fonts.css as its own sheet (listed
     // before runtime-fonts.css) so the font files are not discovered only
     // after an @import chain has finished downloading.
@@ -102,7 +102,9 @@
       "./plugins/core/font-empty-state.js",
       "./plugins/core/font-picker-list.js",
       "./plugins/core/font-picker.js",
-      "./plugins/core/tree-drop-target.js"
+      "./plugins/core/tree-drop-target.js",
+      "./plugins/core/object-history.js",
+      "./plugins/core/light-resources.js"
     ],
     postInitScripts: [
       // ui-panels.js queues its installer for ui-kit.js, so it loads first.

@@ -99,6 +99,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Deleting 3D objects and lights no longer keeps large amounts of memory. Undo
+  history used to hold each deleted object's full geometry, about 13 MB for a
+  dense sphere, and each deleted light kept its shadow map on the GPU. Undo and
+  redo restore the same result.
 - Dragging an object onto the top or bottom edge of a group next to it now puts
   it in the group. Before, that drop left the order unchanged, so nothing
   happened. Drops that really change the order work as before.
