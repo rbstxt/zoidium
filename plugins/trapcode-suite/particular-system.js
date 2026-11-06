@@ -264,6 +264,17 @@ var PZ = PZ || {};
         u.stretch.value = tnum(pp, "stretch", 0) / 100;
         var evel = this.emitterMotionAt(seconds);
         u.emitterVel.value.set(evel[0], evel[1], evel[2]);
+        // The Transform group moves the finished particle cloud as one object.
+        // The defaults give the identity matrix.
+        var transform = p.transform;
+        this.threeObj.position.set(tnum(transform, "offsetX", 0), tnum(transform, "offsetY", 0), tnum(transform, "offsetZ", 0));
+        var transformScale = tnum(transform, "scale", 100) / 100;
+        this.threeObj.scale.set(transformScale, transformScale, transformScale);
+        this.threeObj.rotation.set(
+            tnum(transform, "rotationX", 0) * Math.PI / 180,
+            tnum(transform, "rotationY", 0) * Math.PI / 180,
+            tnum(transform, "rotationZ", 0) * Math.PI / 180
+        );
         // Per-particle lighting from the scene lights (Lighting group).
         // CPU frames reuse the simulated bounds for the shadowlet axis;
         // GPU frames approximate the cloud box from the emitter (a pure
