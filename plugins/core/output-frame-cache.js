@@ -234,6 +234,9 @@
     controller.projectSignal?.unwatch(signal);
     controller.projectSignal = controller.viewport.editor.project?.ui?.onChanged || null;
     controller.projectSignal?.watch(signal);
+    controller.resolution?.unwatch(controller.resized);
+    controller.resolution = controller.viewport.editor.project?.sequence?.properties.resolution.onChanged;
+    controller.resolution?.watch(controller.resized);
   }
 
   function controllerFor(viewport) {
@@ -258,10 +261,8 @@
     controller.projectChanged = () => { signal("project"); reset(controller, "project"); watchProject(controller); };
     viewport.compositor.__zoidiumOutputFrameOwner = viewport;
     viewport.editor.onProjectChanged.watch(controller.projectChanged);
-    watchProject(controller);
-    controller.resolution = viewport.editor.project.sequence.properties.resolution.onChanged;
     controller.resized = () => { signal("resolution"); reset(controller, "resolution"); };
-    controller.resolution.watch(controller.resized);
+    watchProject(controller);
     // Playback needs the decoders and GPU time; drop the prefetch copy.
     // Starting playback is not an edit, so it does not reopen the window in
     // which every draw serializes the project. A running prefetch frame sees
@@ -892,7 +893,7 @@
     if (!controller.prefetching) disposeSnapshot(controller);
     viewport.editor.onProjectChanged.unwatch(controller.projectChanged);
     controller.projectSignal?.unwatch(signal);
-    controller.resolution.unwatch(controller.resized);
+    controller.resolution?.unwatch(controller.resized);
     viewport.editor.playback.onSpeedChanged?.unwatch(controller.speedChanged);
     controller.canvas?.removeEventListener("webglcontextlost", controller.contextLost);
     controller.canvas?.removeEventListener("webglcontextrestored", controller.contextRestored);

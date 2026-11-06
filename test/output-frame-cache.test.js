@@ -828,3 +828,19 @@ test("unresolved video timing prevents both frame storage and native video backu
   assert.equal(h.api.debug.entries, 1, "only a subsequent corrected draw can be stored");
   h.api.dispose();
 });
+
+test("project replacement moves resolution and edit watchers to the current graph", async () => {
+  const h = harness();
+  await h.warm();
+  const oldResolution = h.project.sequence.properties.resolution.onChanged;
+  assert.equal(oldResolution.watchers.size, 1);
+  const next = new h.PZ.project();
+  h.viewport.editor.project = next;
+  h.viewport.editor.onProjectChanged.update();
+  assert.equal(oldResolution.watchers.size, 0);
+  assert.equal(h.project.ui.onChanged.watchers.size, 0);
+  assert.equal(next.ui.onChanged.watchers.size, 1);
+  assert.equal(next.sequence.properties.resolution.onChanged.watchers.size, 1);
+  h.api.dispose();
+  assert.equal(next.sequence.properties.resolution.onChanged.watchers.size, 0);
+});
