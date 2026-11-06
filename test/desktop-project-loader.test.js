@@ -28,7 +28,8 @@ function harness() {
   class Editor {
     confirmIfDirty() { calls.push("confirm"); return this.approved !== false; }
     showFilePicker(callback) { this.pick = callback; }
-    async loadProject() { calls.push("load"); return this.nextProject; }
+    async loadProject() { calls.push("load"); this.duringLoad?.(); return this.nextProject; }
+    new() { calls.push("native new"); this.project = this.nextProject; }
   }
   const PZ = { archive: Archive, ui: { editor: Editor }, zoidium: { define(name, value) { this[name] = value; } } };
   const window = {
@@ -163,4 +164,40 @@ test("a desktop import waits for a toolbar transition instead of discarding the 
   await operation;
   assert.equal(run.editor.project, run.editor.nextProject);
   assert.deepEqual(run.calls.at(-1), ["complete", "queued"]);
+});
+
+const busyErrors = run => run.events.filter(event => event.type === "zoidium:project-error" &&
+  /An export is using this project/.test(event.detail.message));
+
+test("New, Open, and a desktop file are refused while an export owns the editor", async () => {
+  const run = harness();
+  const previous = run.editor.project;
+  run.editor.enabled = false;
+  run.editor.new();
+  await run.editor.open(file());
+  run.editor.open();
+  assert.equal(run.editor.pick, undefined);
+  await run.bridge.receive({ id: "file-1", url: "/project/file-1", name: "Saved.pz" });
+  assert.equal(run.editor.project, previous);
+  // Nothing was read, and the desktop queue is released for the next file.
+  assert.deepEqual(run.calls, [["complete", "file-1"]]);
+  assert.equal(busyErrors(run).length, 4);
+});
+
+test("an export that starts while a project loads keeps the current project", async () => {
+  const run = harness();
+  const previous = run.editor.project;
+  run.editor.duringLoad = () => { run.editor.enabled = false; };
+  await run.editor.open(file());
+  assert.equal(run.editor.project, previous);
+  assert.equal(busyErrors(run).length, 1);
+});
+
+test("replacement works again after the export returns the editor", async () => {
+  const run = harness();
+  run.editor.enabled = false;
+  await run.editor.open(file());
+  run.editor.enabled = true;
+  await run.editor.open(file());
+  assert.equal(run.editor.project, run.editor.nextProject);
 });

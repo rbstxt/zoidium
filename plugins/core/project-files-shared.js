@@ -199,7 +199,30 @@
     }(original);
   }
 
+  // An export renders the editor's project directly, and the export pages hold
+  // editor.enabled false for as long as they own it. Replacing the project would
+  // release GPU resources the export is using and leave its progress page over
+  // an unrelated timeline, so every replacement path stops here instead.
+  var EXPORT_BUSY_MESSAGE = "An export is using this project. Finish or cancel it on the Export page, then try again. The current project was kept.";
+
+  function isExportBusy(editor) {
+    return Boolean(editor) && editor.enabled === false;
+  }
+
+  function refuseDuringExport(editor) {
+    if (!isExportBusy(editor)) return false;
+    try {
+      global.dispatchEvent(new CustomEvent("zoidium:project-error", {
+        detail: { editor: editor, message: EXPORT_BUSY_MESSAGE, retry: null, download: null, recoverable: false },
+      }));
+    } catch (_error) {
+      // A failed notification must not let the replacement continue.
+    }
+    return true;
+  }
+
   PZ.zoidium.projectFilesShared = {
+    EXPORT_BUSY_MESSAGE, isExportBusy, refuseDuringExport,
     captureDiskState, recordDiskSave, projectEdited, updateProjectDirty, diskUnsaved,
     DEFAULT_PROJECT_NAME: DEFAULT_PROJECT_NAME,
     normalizeProjectName: normalizeProjectName,

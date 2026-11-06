@@ -552,6 +552,7 @@
       });
       return;
     }
+    if (projectFiles.refuseDuringExport(editor)) return;
     if (state.restoring || editor._zoidiumTransitionPromise || !editor.confirmIfDirty()) return;
     state.restoring = true;
     var releaseTransition;
