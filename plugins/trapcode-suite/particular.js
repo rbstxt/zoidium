@@ -278,6 +278,12 @@ var PZ = PZ || {};
         "vec3 rgb = tcolor.rgb * vColor.rgb + vColor.rgb * vGlow;",
         "gl_FragColor = vec4(rgb, tcolor.a * vColor.a * opacity * mask);",
         "if (gl_FragColor.a < 0.004) discard;",
+        "#ifdef PARTICLE_BLEND_SCREEN",
+        "gl_FragColor.rgb *= gl_FragColor.a;",
+        "#endif",
+        "#ifdef PARTICLE_BLEND_MULTIPLY",
+        "gl_FragColor.rgb = mix(vec3(1.0), gl_FragColor.rgb, gl_FragColor.a);",
+        "#endif",
         "}",
     ].join("\n");
 

@@ -7,7 +7,8 @@ const { loadSuite } = require("./trapcode-env");
 function setup(type) {
   const { PZ, THREE } = loadSuite(["trapcode-common.js", type + ".js"]);
   Object.assign(THREE, {
-    CustomBlending: 5, AddEquation: 100, OneFactor: 201, SrcAlphaFactor: 204,
+    CustomBlending: 5, AddEquation: 100, ZeroFactor: 200, OneFactor: 201, SrcColorFactor: 202, SrcAlphaFactor: 204,
+    OneMinusSrcAlphaFactor: 205, OneMinusDstColorFactor: 209,
     Material: class { dispose() {} },
   });
   const object = new PZ.object3d[type]();
@@ -42,7 +43,7 @@ for (const type of ["form", "particular"]) {
   test(type + " blend changes and shuffled seeks restore each non-Add mode", () => {
     const { THREE, instance } = setup(type);
     const particle = instance.properties.particle;
-    const modes = type === "form" ? [0] : [0, 2, 3];
+    const modes = [0];
     for (const mode of modes) {
       particle.blending.set(mode);
       instance.update(11);
@@ -61,3 +62,29 @@ for (const type of ["form", "particular"]) {
     }
   });
 }
+
+test("particular Screen and Multiply blend against the destination", () => {
+  const { THREE, instance } = setup("particular");
+  const particle = instance.properties.particle, material = () => instance.material;
+  particle.blending.set(2);
+  instance.update(11);
+  assert.equal(material().blending, THREE.CustomBlending);
+  assert.equal(material().blendSrc, THREE.OneMinusDstColorFactor);
+  assert.equal(material().blendDst, THREE.OneFactor);
+  assert.equal(material().defines.PARTICLE_BLEND_SCREEN, 1);
+  particle.blending.set(3);
+  instance.update(11);
+  assert.equal(material().blendSrc, THREE.ZeroFactor);
+  assert.equal(material().blendDst, THREE.SrcColorFactor);
+  assert.equal(material().defines.PARTICLE_BLEND_MULTIPLY, 1);
+  assert.equal(material().defines.PARTICLE_BLEND_SCREEN, undefined);
+  assert.equal(material().blendSrcAlpha, THREE.OneFactor);
+  assert.equal(material().blendDstAlpha, THREE.OneMinusSrcAlphaFactor);
+  assert.match(material().fragmentShader, /PARTICLE_BLEND_SCREEN[\s\S]*rgb \*= gl_FragColor\.a/);
+  assert.match(material().fragmentShader, /PARTICLE_BLEND_MULTIPLY[\s\S]*mix\(vec3\(1\.0\)/);
+  particle.blending.set(0);
+  instance.update(11);
+  assert.equal(material().blending, THREE.NormalBlending);
+  assert.equal(material().defines.PARTICLE_BLEND_SCREEN, undefined);
+  assert.equal(material().defines.PARTICLE_BLEND_MULTIPLY, undefined);
+});

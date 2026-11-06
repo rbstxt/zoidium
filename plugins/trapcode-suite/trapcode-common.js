@@ -35,6 +35,27 @@ var PZ = PZ || {};
         material.blendSrcAlpha = material.blendDstAlpha = THREE.OneFactor;
     };
 
+    // Screen and Multiply weight the source by its alpha in the shader: one
+    // blend factor cannot hold both the alpha and the destination term.
+    T.setParticleBlendMode = function (material, mode) {
+        delete material.defines.PARTICLE_BLEND_SCREEN;
+        delete material.defines.PARTICLE_BLEND_MULTIPLY;
+        if (mode !== 2 && mode !== 3) return T.setParticleBlending(material, mode === 1);
+        material.blending = THREE.CustomBlending;
+        material.blendEquation = material.blendEquationAlpha = THREE.AddEquation;
+        material.blendSrcAlpha = THREE.OneFactor;
+        material.blendDstAlpha = THREE.OneMinusSrcAlphaFactor;
+        if (mode === 2) {
+            material.defines.PARTICLE_BLEND_SCREEN = 1;
+            material.blendSrc = THREE.OneMinusDstColorFactor;
+            material.blendDst = THREE.OneFactor;
+        } else {
+            material.defines.PARTICLE_BLEND_MULTIPLY = 1;
+            material.blendSrc = THREE.ZeroFactor;
+            material.blendDst = THREE.SrcColorFactor;
+        }
+    };
+
     // getTexture() creates a THREE texture owned by the consumer, independently
     // of the decoded image asset's reference count.
     T.disposeImageUniform = function (material, name) {

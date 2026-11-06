@@ -305,7 +305,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/trapcode-suite/manifest.json?v=46",
       "bundle": "./plugins/trapcode-suite/bundle.json?v=46",
-      "integrity": "sha256-Xwstjt8Pc1GvCnFd8AwN08EuEce+HEl4h/NvKEwwxRA="
+      "integrity": "sha256-NGYE/NwjTWxWzbhihFCU9pudoLJzX2YTqAiXhoBRse0="
     },
     {
       "id": "optical-flares",
