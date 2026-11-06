@@ -86,9 +86,10 @@
         if (!copy) { copy = doc.createElement(node.tagName.toLowerCase()); copies.set(node, copy); }
         if (node.id) copy.id = node.id;
         if (node.tagName === "LINK") {
-          copy.rel = "stylesheet";
+          if (copy.rel !== "stylesheet") copy.rel = "stylesheet";
           if (copy.href !== node.href) copy.href = node.href;
-          copy.media = node.media; copy.disabled = node.disabled;
+          if (copy.media !== node.media) copy.media = node.media;
+          if (copy.disabled !== node.disabled) copy.disabled = node.disabled;
         } else if (copy.textContent !== node.textContent) copy.textContent = node.textContent;
         if (copy !== next) doc.head.insertBefore(copy, next || null);
         next = copy.nextSibling;

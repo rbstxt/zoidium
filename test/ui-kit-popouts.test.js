@@ -104,3 +104,35 @@ test("repeated pop out and return keeps listener counts flat and closes children
   win.popOut(); cleanups.reverse().forEach(fn => fn());
   assert.equal(popups.at(-1).closed, true); assert.equal(count(s.main), 0);
 });
+
+test("style synchronization changes link attributes only when their values change", () => {
+  const s = load(), popup = surface(), source = s.main.document.createElement("link"), writes = {};
+  source.rel = "stylesheet"; source.href = "http://localhost:1234/theme.css";
+  source.media = "screen"; source.disabled = false;
+  s.main.document.head.querySelectorAll = () => [source];
+  let synchronize;
+  s.main.MutationObserver = class { constructor(callback) { synchronize = callback; } observe() {} disconnect() {} };
+  const create = popup.document.createElement;
+  popup.document.createElement = tag => {
+    const node = create(tag);
+    Object.defineProperty(node, "nextSibling", { get() {
+      const siblings = this.parentElement?.children || [];
+      return siblings[siblings.indexOf(this) + 1] || null;
+    } });
+    if (tag === "link") for (const [key, initial] of Object.entries({ rel: "", href: "", media: "", disabled: false })) {
+      let value = initial; writes[key] = 0;
+      Object.defineProperty(node, key, { get: () => value, set(next) { writes[key]++; value = next; } });
+    }
+    return node;
+  };
+  s.main.open = () => popup;
+  const { win, cleanups } = windowFixture(s);
+  win.popOut();
+  const first = { ...writes };
+  for (let i = 0; i < 50; i++) synchronize();
+  assert.deepEqual(writes, first, "theme mutations cannot restart already loaded stylesheets");
+  source.href = "http://localhost:1234/next.css"; synchronize();
+  assert.equal(writes.href, first.href + 1);
+  source.disabled = true; synchronize(); assert.equal(writes.disabled, 1);
+  cleanups.reverse().forEach(fn => fn());
+});
