@@ -368,8 +368,8 @@
     for (let index = first; index < path.length; index += 1) {
       const clip = path[index], layer = clip.object;
       if (!(local >= 0 && local < finiteNumber(clip.length, 0))) return null;
-      const source = stageClip && index === first ? local
-        : getTemporalLayerFrame(layer, local, sequence)?.sourceFrame ?? local;
+      const source = math.holdLastMediaFrame(stageClip && index === first ? local
+        : getTemporalLayerFrame(layer, local, sequence)?.sourceFrame ?? local, clip.length);
       if (index === path.length - 1) return source;
       local = source + finiteNumber(layer.offset, 0) - finiteNumber(path[index + 1].start, 0);
     }

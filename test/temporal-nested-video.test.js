@@ -92,3 +92,65 @@ test("a nested clip outside the mapped comp time is not selected", () => {
   h.innerClip.start = 50;
   assert.equal(h.state.mapScheduleClip(h.proxy, 40), null);
 });
+
+test("a comp clip that clamps at its out point holds the nested video's last frame", () => {
+  const h = compHost([offset(1000)]);
+  // Comp local 59 plus comp offset 10, minus the clip start 2.
+  assert.equal(h.state.mapScheduleClip(h.proxy, 40).sourceFrame, 67);
+});
+
+test("playback pauses a nested video only while a time effect shifts it", () => {
+  const shifted = compHost([offset(7)]);
+  const schedule = shifted.sequence.videoSchedules[0];
+  let paused = 0;
+  Object.assign(schedule, { currentItem: shifted.item, el: { pause() { paused += 1; } }, playing: true });
+  const playback = Object.assign(new shifted.PZ.ui.playback(), { _exactFrame: 40 });
+  playback.updateSchedule(schedule, 1);
+  assert.equal(paused, 1);
+  assert.equal(schedule.playing, false);
+  assert.equal(playback.nativeUpdates, undefined);
+
+  const neutral = compHost();
+  const plain = neutral.sequence.videoSchedules[0];
+  Object.assign(plain, { currentItem: neutral.item, el: { pause() { throw new Error("must keep playing"); } } });
+  const native = Object.assign(new neutral.PZ.ui.playback(), { _exactFrame: 40 });
+  native.updateSchedule(plain, 1);
+  assert.equal(native.nativeUpdates, 1);
+});
+
+test("the viewport prepares a shifted nested video and leaves a neutral one native", () => {
+  const shifted = compHost([offset(7)]);
+  delete shifted.effect._zoidiumFrameSampler;
+  shifted.viewport.editor.playback.currentFrame = 40;
+  const before = shifted.root.frames.length;
+  shifted.viewport._render();
+  assert.equal(shifted.root.frames.length, before, "the first draw waits for its decode");
+  assert.equal(shifted.state.frameSamplerRuntimes.get(shifted.root).previewPending, true);
+
+  const neutral = compHost();
+  delete neutral.effect._zoidiumFrameSampler;
+  neutral.viewport.editor.playback.currentFrame = 40;
+  const start = neutral.root.frames.length;
+  neutral.viewport._render();
+  assert.equal(neutral.root.frames.length, start + 1);
+});
+
+test("a playback tick during a tap's decode cannot change the comp clips it captures", async () => {
+  const h = compHost();
+  h.comp.effects = [h.effect];
+  h.effect.tryGetParentOfType = () => h.comp;
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ count: 1, offsetFrames: -3, startOpacity: 1, decay: 1 });
+  h.comp.setCompTime = time => { h.comp.compTime = time; };
+  const decode = h.PZ.schedule.prototype.decodeFrame;
+  h.PZ.schedule.prototype.decodeFrame = async function (time) {
+    h.comp.setCompTime(999);
+    return decode.call(this, time);
+  };
+  const renderLayer = h.PZ.compositor.prototype.renderLayer, captured = [];
+  h.PZ.compositor.prototype.renderLayer = function (layer) {
+    if (layer === h.comp) captured.push(h.comp.compTime);
+    return renderLayer.apply(this, arguments);
+  };
+  await h.state.prepareFrameSamples(h.effect, 10, {});
+  assert.deepEqual(captured, [17], "comp local 7 plus comp offset 10");
+});
