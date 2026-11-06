@@ -211,3 +211,17 @@ test("future metadata renders native Text and round trips without schema rewriti
   assert.equal(render(layer, 0).filter(entry => entry[0] === "path").length, 3);
   dispose();
 });
+
+
+test("reloading a live 2D text keeps one disposal registration", t => {
+  const NativeWeakRef = globalThis.WeakRef;
+  let registrations = 0;
+  t.mock.method(globalThis, "WeakRef", function (target) {
+    registrations++;
+    return new NativeWeakRef(target);
+  });
+  const h = setup();
+  for (let i = 0; i < 40; i++) h.layer.load({});
+  assert.equal(registrations, 1);
+  h.dispose();
+});

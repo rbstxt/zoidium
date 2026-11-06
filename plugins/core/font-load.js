@@ -17,7 +17,14 @@ module.exports = {
     const records = new WeakMap();
     const textRevisions = new WeakMap();
     const pending = new Set();
-    const ownedData = new Set();
+    const ownedData = new Set(), dataRefs = new WeakMap();
+    const collectedData = new FinalizationRegistry(reference => ownedData.delete(reference));
+    function trackData(data) {
+      if (dataRefs.has(data)) return;
+      const reference = new WeakRef(data);
+      dataRefs.set(data, reference); ownedData.add(reference);
+      collectedData.register(data, reference, reference);
+    }
     const hidden = new Map();
     let disposed = false;
     const io = host.ZoidiumAssetRegistryParts?.fetch;
@@ -158,7 +165,7 @@ module.exports = {
       };
       record.controller = host.AbortController ? new host.AbortController() : null;
       record.cancel = () => { record.controller?.abort(); settle(null); };
-      ownedData.add(new WeakRef(data));
+      trackData(data);
       pending.add(record);
       data.font3dLoading = operation;
       data.zoidiumFont3dState = "loading";
@@ -196,7 +203,7 @@ module.exports = {
       record.controller = host.AbortController ? new host.AbortController() : null;
       record.cancel = () => { record.controller?.abort(); settle(null); };
       pending.add(record);
-      ownedData.add(new WeakRef(record.data));
+      trackData(record.data);
       record.data.font3dLoading = operation;
       record.data.zoidiumFont3dState = "loading";
       const check = Promise.resolve().then(() => readWithRetry(wrapper, record)).then((bytes) => {
@@ -267,6 +274,7 @@ module.exports = {
         delete record.data.zoidiumFont3dError;
       }
       for (const reference of ownedData) {
+        collectedData.unregister(reference);
         const data = reference.deref();
         if (!data) continue;
         if (data.zoidiumFont3dState === "failed") data.font3dLoading = null;

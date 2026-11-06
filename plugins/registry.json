@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=119",
       "bundle": "./plugins/core/bundle.json?v=119",
-      "integrity": "sha256-zcRmQcAZyxaJCaZdRoWB1brTTZo1jOxxIpfb968tGVg="
+      "integrity": "sha256-RVSgR0NFXgVelsf2IDUmkx7VF+RCEITS5dNS6ZfSHh8="
     },
     {
       "id": "easing-plus",
@@ -245,7 +245,7 @@
       "category": "scene",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "32",
+      "version": "33",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "2D and 3D text",
@@ -254,9 +254,9 @@
       "description": "Adds per-character animation and 3D face materials to Text, plus advanced 3D bevel controls.",
       "credits": "Credits: DaviFX",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=32",
-      "bundle": "./plugins/text-plus/bundle.json?v=32",
-      "integrity": "sha256-fqmZIWetBUZZ1h3P8KyzNzs/FcIlx2ZtcH1YKlCrTcQ="
+      "manifest": "./plugins/text-plus/manifest.json?v=33",
+      "bundle": "./plugins/text-plus/bundle.json?v=33",
+      "integrity": "sha256-a1R5ptnmpy27EV21kkixCiuxLzhRn8MM0wi3aGDfmJY="
     },
     {
       "id": "expresstext-plus",
