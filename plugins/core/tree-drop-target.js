@@ -5,7 +5,6 @@
   const prototype = PZ.ui.edit.prototype;
   if (prototype.itemDragUpdate.__zoidiumTreeDropTarget) return;
   const update = prototype.itemDragUpdate;
-  const end = prototype.itemDragEnd;
   const move = prototype.itemDrag;
 
   // CM3 moves only the grabbed row, even with several rows selected, so only
@@ -31,15 +30,15 @@
     return keepsOrder(drag);
   }
 
+  // Alt copies, and a copy beside the row is a real change. The operation is
+  // decided here, so the drop always does what the indicator last showed.
   prototype.itemDrag = function (event) {
     this.zoidiumCopy = event.altKey;
     return move.call(this, event);
   };
   function itemDragUpdate() {
-    this.zoidiumNativeOperation = 0;
     const result = update.apply(this, arguments);
     if (!shouldMoveInside(this)) return result;
-    this.zoidiumNativeOperation = this.operation;
     this.target.parentElement.insertBefore(this.indicatorEl, this.target);
     const height = this.target.offsetHeight;
     this.indicatorEl.style.height = height + "px";
@@ -50,10 +49,4 @@
   }
   itemDragUpdate.__zoidiumTreeDropTarget = true;
   prototype.itemDragUpdate = itemDragUpdate;
-  prototype.itemDragEnd = function (event) {
-    // Alt copies, and a copy beside the row is a real change. Alt can go down
-    // after the last pointer move, so undo the redirect at release too.
-    if (event.altKey && this.zoidiumNativeOperation) this.operation = this.zoidiumNativeOperation;
-    return end.call(this, event);
-  };
 })();

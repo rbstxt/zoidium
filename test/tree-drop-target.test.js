@@ -10,13 +10,11 @@ function setup(names, grabbed, targetName, operation = 1, accepts = true) {
   class List extends Array {}
   class Singleton extends List {}
   const order = List.from(names, name => Object.assign(new Item(), { name }));
-  order.forEach(item => { item.parent = order; });
   const grabbedItem = order.find(item => item.name === grabbed);
   const destination = new List();
   destination.type = accepts ? Item : class Other {};
   const target = { pz_object: order.find(item => item.name === targetName), offsetHeight: 24,
     parentElement: { pz_object: order, insertBefore() {} }, nextElementSibling: { pz_object: destination } };
-  destination.parent = target.pz_object;
   const prototype = {
     itemDrag() {},
     itemDragUpdate() { this.operation = operation; this.indicatorEl.style.height = "3px"; },
@@ -73,11 +71,10 @@ test("a row from another list keeps the native operation", () => {
   assert.equal(drag.operation, 1);
 });
 
-test("Alt held at release restores the native copy position", () => {
+test("Alt pressed at release keeps the inside operation that was shown", () => {
   const { prototype, drag } = setup(["A", "G"], "A", "G", 1);
   prototype.itemDragUpdate.call(drag);
-  assert.equal(drag.operation, 3);
-  assert.equal(prototype.itemDragEnd.call(drag, { altKey: true }), 1);
+  assert.equal(prototype.itemDragEnd.call(drag, { altKey: true }), 3);
 });
 
 test("installation is idempotent", () => {
