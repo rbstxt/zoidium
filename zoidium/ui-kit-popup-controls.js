@@ -92,11 +92,11 @@
       if (!foreign(anchor)) return result;
       var panel = editor[name.toLowerCase() + "DropDown"];
       if (!panel || !panel.isConnected) return result;
-      var blurHandler = panel.onblur;
+      var blurHandler = panel.onblur, position = panel.style.position;
       panel.onblur = null;
       anchor.ownerDocument.body.appendChild(panel);
       panel.onblur = function (event) {
-        menus.delete(panel); panel.onblur = blurHandler;
+        menus.delete(panel); panel.onblur = blurHandler; panel.style.position = position;
         if (blurHandler) blurHandler.call(panel, event);
         panel.remove(); global.document.adoptNode(panel); panel.pz_input = null;
       };
