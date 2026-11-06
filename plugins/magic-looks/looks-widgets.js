@@ -18,8 +18,8 @@ var Looks = Looks || {};
     return el;
   }
 
-  function dpr() {
-    return (typeof window !== "undefined" && window.devicePixelRatio) || 1;
+  function dpr(canvas) {
+    return canvas.ownerDocument?.defaultView?.devicePixelRatio || 1;
   }
 
   // Theme colors for canvas chrome. Canvas cannot use CSS directly, so the
@@ -63,7 +63,7 @@ var Looks = Looks || {};
   // Sizes a canvas for crisp output and returns its 2D context (scaled so
   // drawing uses CSS pixels).
   function fitCanvas(canvas, width, height) {
-    var ratio = dpr();
+    var ratio = dpr(canvas);
     canvas.width = Math.round(width * ratio);
     canvas.height = Math.round(height * ratio);
     canvas.style.width = width + "px";

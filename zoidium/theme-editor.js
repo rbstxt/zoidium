@@ -130,7 +130,7 @@
           function update() {
             var value = currentColor(), custom = Boolean(state.selected()?.[section]?.[key]);
             if (!picker.editing) picker.update(rgb(value));
-            if (global.document.activeElement !== input || input.getAttribute("aria-invalid") !== "true") {
+            if (input.ownerDocument.activeElement !== input || input.getAttribute("aria-invalid") !== "true") {
               input.value = value; input.setAttribute("aria-invalid", "false");
             }
             if (mode) { mode.value = custom ? "custom" : "auto"; reset.disabled = !custom; }

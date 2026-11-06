@@ -48,7 +48,7 @@
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
       "manifest": "./plugins/easing-plus/manifest.json?v=28",
       "bundle": "./plugins/easing-plus/bundle.json?v=28",
-      "integrity": "sha256-nxrz/A1N9oWIEFBvMFfPa2Jhy9Na55CBU4GwUcquYks="
+      "integrity": "sha256-nnlWKGRdaoGEPwiyy1RViW76ysjdM5IGH6kVUT0JNcI="
     },
     {
       "id": "expressions-plus",
@@ -80,7 +80,7 @@
       "description": "Native custom shader controls with optional baked texture inputs.",
       "manifest": "./plugins/shader-plus/manifest.json?v=23",
       "bundle": "./plugins/shader-plus/bundle.json?v=23",
-      "integrity": "sha256-sQESFogmhs6TASvESOeWmcthWCQSuimGQ2G4waFlxKo="
+      "integrity": "sha256-PcQF7EdPaUg0/zIILJaWGgtKLqKiJzAC/enH77MMQZw="
     },
     {
       "id": "player-plus",
@@ -159,7 +159,7 @@
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
       "manifest": "./plugins/graph-plus/manifest.json?v=18",
       "bundle": "./plugins/graph-plus/bundle.json?v=18",
-      "integrity": "sha256-Pflidy5BugtjGd+lP/rFImGCbL2JiEKY96ZmFrtyqqk="
+      "integrity": "sha256-7Okt2CC4P8Q4h2RZSdgIJ9chFFwA53fnWjas8+faKsM="
     },
     {
       "id": "motion-path",
@@ -238,7 +238,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/material-plus/manifest.json?v=34",
       "bundle": "./plugins/material-plus/bundle.json?v=34",
-      "integrity": "sha256-fc8jl3EHd3Rwo+2J9QBVA2rVFsyNt0LPxpXUlbE2vEg="
+      "integrity": "sha256-Jym0IudP2HZfLK+mfin3sF0oL4se3QqaAR6cqzfQaGY="
     },
     {
       "id": "text-plus",
@@ -369,7 +369,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/native-fx/manifest.json?v=37",
       "bundle": "./plugins/native-fx/bundle.json?v=37",
-      "integrity": "sha256-h1o4Zy7cqzqUzVIq9q4wytLT8MXdUwUbD9a873ggiPw="
+      "integrity": "sha256-98T0s2vrDNJwh5H/RESuaauc5F3bCDxRpf+FEEs9ncM="
     },
     {
       "id": "afterclip",
@@ -455,7 +455,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/magic-looks/manifest.json?v=21",
       "bundle": "./plugins/magic-looks/bundle.json?v=21",
-      "integrity": "sha256-mZZiKzQjUQhQb5eFdQriWhnrlCwgLYRG3bzIC/yDV+Q="
+      "integrity": "sha256-/onE/LhRibX3Uw8wX5ON2JPT0Jp+pDURXdKTPNOLnb4="
     },
     {
       "id": "layer-input",

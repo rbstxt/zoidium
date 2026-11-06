@@ -15,7 +15,7 @@ module.exports = function (environment) {
 const { PZ, clamp, escapeHtml, displayName, addrString, currentFrame, totalFrames, g2doc, gpInjectStyle } = environment;
 /* ---------- ops ---------- */
 PZ.ui.graph.prototype.update = function () {
-  this.animFrameReq = requestAnimationFrame(this._updateFn);
+  this._scheduleUpdate();
   try {
     var ownerDoc = this.el && this.el.ownerDocument;
     if (ownerDoc && ownerDoc !== this._styledDoc) {

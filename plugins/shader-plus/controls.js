@@ -61,7 +61,7 @@ function installControls({ PZ, doc, register, editor }) {
     const box = native("generateOptionInput")(facade), select = box.querySelector("select");
     select.classList.add("zsp-option");
     box.pz_property = property;
-    box.pz_update = frame => { if (doc.activeElement !== select) select.selectedIndex = discreteValue(kind, property.get(frameOf(box, frame)), property.definition); };
+    box.pz_update = frame => { if (select.ownerDocument.activeElement !== select) select.selectedIndex = discreteValue(kind, property.get(frameOf(box, frame)), property.definition); };
     return box;
   }
   register("shader-plus/checkbox", PZ.property.type.NUMBER, property => optionRow(property, "checkbox", () => ["off", "on"]));
@@ -219,10 +219,10 @@ function installControls({ PZ, doc, register, editor }) {
       if (index >= 0) fontName.textContent = "";
       else if (asset) fontName.textContent = asset.filename || value.font;
       else fontName.textContent = value.font ? "(missing)" : "Choose a font";
-      if (doc.activeElement !== text) text.value = value.text;
-      if (doc.activeElement !== size) size.value = value.size;
-      if (doc.activeElement !== lineHeight) lineHeight.value = value.lineHeight;
-      if (doc.activeElement !== letterSpacing) letterSpacing.value = value.letterSpacing;
+      if (text.ownerDocument.activeElement !== text) text.value = value.text;
+      if (size.ownerDocument.activeElement !== size) size.value = value.size;
+      if (lineHeight.ownerDocument.activeElement !== lineHeight) lineHeight.value = value.lineHeight;
+      if (letterSpacing.ownerDocument.activeElement !== letterSpacing) letterSpacing.value = value.letterSpacing;
       align.value = value.align; mode.value = value.mode; sdf.value = value.sdf ? "on" : "off";
     };
     return box;

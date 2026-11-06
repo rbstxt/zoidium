@@ -732,3 +732,19 @@ textarea.zoidium-text {
 .zoidium-window-custom-chrome.collapsed > .zoidium-window-titlebar[hidden] {
   display: flex;
 }
+
+/* Pop out occupies no title-bar space until the pointer or keyboard reaches it. */
+.zoidium-window-titleactions { position: relative; }
+.zoidium-window-popout { position: absolute; right: 100%; opacity: 0; background: var(--zui-bg-title); }
+.zoidium-window:hover .zoidium-window-popout,
+.zoidium-window:focus-within .zoidium-window-popout { opacity: 1; }
+.zoidium-popout-body { margin: 0; overflow: hidden; background: var(--zui-bg); font-family: var(--zui-font); }
+.zoidium-window-popped-out { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; box-shadow: none; }
+.zoidium-window-popped-out .zoidium-window-popout { position: static; opacity: 1; }
+.zoidium-window-popped-out .zoidium-window-titlebar { cursor: default; }
+.zoidium-window-popped-out > .zoidium-window-grip,
+.zoidium-window-popped-out [aria-label="Collapse"],
+.zoidium-window-popped-out [aria-label="Maximize"],
+.zoidium-window-popped-out [aria-label="Restore"] { display: none; }
+.zoidium-window-popped-out.collapsed > .zoidium-window-body,
+.zoidium-window-popped-out.collapsed > .zoidium-window-footer:not([hidden]) { display: flex !important; }

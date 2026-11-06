@@ -167,8 +167,8 @@ PZ.ui.graph = function (editor, opts) {
   if (opts) Object.assign(this.options, opts);
   this._updateFn = this.update.bind(this);
   this.onEnabledChanged.watch(function () {
-    if (self.enabled) self.animFrameReq = requestAnimationFrame(self._updateFn);
-    else cancelAnimationFrame(self.animFrameReq);
+    if (self.enabled) self._scheduleUpdate();
+    else self._cancelUpdate();
   });
   this.selectNewKeyframes = false;
   this._didInitView = false;
@@ -182,6 +182,15 @@ PZ.ui.graph.prototype = Object.create(PZ.ui.panel.prototype);
 PZ.ui.graph.prototype.constructor = PZ.ui.graph;
 
 /* ---------- helpers ---------- */
+PZ.ui.graph.prototype._cancelUpdate = function () {
+  if (this._frameWindow) this._frameWindow.cancelAnimationFrame(this.animFrameReq);
+  this.animFrameReq = 0;
+};
+PZ.ui.graph.prototype._scheduleUpdate = function () {
+  this._frameWindow = this._win();
+  this.animFrameReq = this._frameWindow.requestAnimationFrame(this._updateFn);
+};
+
 PZ.ui.graph.prototype._doc = function () {
   return g2doc(this.canvasEl) || g2doc(this.el) || g2doc(this.svg) || null;
 };

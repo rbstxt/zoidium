@@ -45,14 +45,14 @@
         if (e.button !== 0 || readonly || abortDrag) return;
         e.preventDefault(); e.stopPropagation();
         if (!start()) return;
-        el.focus(); abortDrag?.(); const controller = new AbortController();
+        el.focus(); abortDrag?.(); const owner = el.ownerDocument, view = owner.defaultView; const controller = new view.AbortController();
         const end = (event, cancel) => { controller.abort(); abortDrag = null; if (!cancel) done?.(event); finish(cancel); };
         abortDrag = () => end(null, true);
-        doc.addEventListener("pointermove", event => { move(event); input(); }, { signal: controller.signal });
-        doc.addEventListener("pointerup", event => end(event, false), { once: true, signal: controller.signal });
-        doc.addEventListener("pointercancel", event => end(event, true), { once: true, signal: controller.signal });
-        doc.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); end(event, true); } }, { capture: true, signal: controller.signal });
-        global.addEventListener("blur", () => end(null, true), { once: true, signal: controller.signal });
+        owner.addEventListener("pointermove", event => { move(event); input(); }, { signal: controller.signal });
+        owner.addEventListener("pointerup", event => end(event, false), { once: true, signal: controller.signal });
+        owner.addEventListener("pointercancel", event => end(event, true), { once: true, signal: controller.signal });
+        owner.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); end(event, true); } }, { capture: true, signal: controller.signal });
+        view.addEventListener("blur", () => end(null, true), { once: true, signal: controller.signal });
         // Color surfaces update on a click as well as during a drag.
         if (el.classList.contains("zge-sv")) { move(e); input(); }
       });
@@ -204,7 +204,7 @@
       reconcile(markers, barNodes);
       if (advanced && !value.opacityStops) { bar.title = "Click above the bar to add opacity stops"; }
       if (!currentList().includes(selected)) selected = currentList()[0];
-      for (const [el, v] of [[position, selected?.position*100], [opacity, (kind === "opacity" ? selected?.alpha : M.color(selected?.color)[3])*100], [mid, (selected?.midpoint ?? .5)*100]]) { if (doc.activeElement !== el) el.value = Number.isFinite(v) ? Math.round(v*1000)/1000 : 0; el.disabled = readonly || !selected; }
+      for (const [el, v] of [[position, selected?.position*100], [opacity, (kind === "opacity" ? selected?.alpha : M.color(selected?.color)[3])*100], [mid, (selected?.midpoint ?? .5)*100]]) { if (root.ownerDocument.activeElement !== el) el.value = Number.isFinite(v) ? Math.round(v*1000)/1000 : 0; el.disabled = readonly || !selected; }
       del.disabled = readonly || currentList().length <= 1;
       panel.element.hidden = kind !== "color"; if (selected && kind === "color") panel.update(M.color(selected.color));
       options.onPaint?.(value, { node, gesture, run, input, selectStop, selected, stopKey, add, marker, kind });

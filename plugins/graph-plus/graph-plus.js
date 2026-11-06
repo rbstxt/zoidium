@@ -273,7 +273,7 @@ const GraphPlus = (() => {
         placement: "center", width: Math.round((viewport.innerWidth || 1200) * 0.75),
         height: Math.round((viewport.innerHeight || 800) * 0.75),
         minWidth: 480, minHeight: 300, resizable: true, maximizable: true,
-        mount(body) {
+        mount(body, mounted) {
           facade.el = body;
           body.classList.add("editorwindow");
           Object.assign(body.style, { padding: "0", overflow: "hidden", position: "relative" });
@@ -291,6 +291,17 @@ const GraphPlus = (() => {
           body.addEventListener("keydown", space, true);
           body.addEventListener("keyup", space, true);
           body.addEventListener("keydown", forward);
+          const rehost = () => {
+            function visit(panel) {
+              if (!panel) return;
+              if (panel._cancelUpdate) panel._cancelUpdate();
+              if (panel.enabled && panel._scheduleUpdate) panel._scheduleUpdate();
+              if (panel.panels) panel.panels.forEach(visit);
+            }
+            visit(facade.panel);
+            facade.resize();
+          };
+          mounted.onHostChange?.(rehost);
           const owner = body.ownerDocument?.defaultView;
           if (owner?.ResizeObserver) {
             observer = new owner.ResizeObserver(() => facade.resize());

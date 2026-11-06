@@ -795,7 +795,7 @@ function buildBody(body, effect, session, view) {
     // Rebuilding controls must not move the user's scroll or drop a typed
     // field's focus. Remember the control's position within this tool panel.
     const fields = Array.from(root.querySelectorAll("input, select, textarea, button, canvas"));
-    const active = document.activeElement;
+    const active = root.ownerDocument.activeElement;
     const focusIndex = fields.indexOf(active);
     const focusTool = root.dataset.tool;
     const selection = active && typeof active.selectionStart === "number"
@@ -829,8 +829,9 @@ function buildBody(body, effect, session, view) {
   function onDown() { busy = true; }
   function onUp() { busy = false; }
   root.addEventListener("pointerdown", onDown);
-  window.addEventListener("pointerup", onUp);
-  window.addEventListener("pointercancel", onUp);
+  root.addEventListener("pointerup", onUp);
+  root.addEventListener("pointercancel", onUp);
+  root.addEventListener("lostpointercapture", onUp);
 
   // Undo/redo and external edits rebuild the contents. Our own commits update
   // lastSig in session.onCommit, so they do not trigger a rebuild.
@@ -846,8 +847,9 @@ function buildBody(body, effect, session, view) {
     clearInterval(timer);
     destroyWidgets();
     root.removeEventListener("pointerdown", onDown);
-    window.removeEventListener("pointerup", onUp);
-    window.removeEventListener("pointercancel", onUp);
+    root.removeEventListener("pointerup", onUp);
+    root.removeEventListener("pointercancel", onUp);
+    root.removeEventListener("lostpointercapture", onUp);
     session.onCommit = null;
   };
 }

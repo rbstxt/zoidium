@@ -614,9 +614,11 @@ module.exports = function createDialogApi(state, options) {
         session.windowBlur = () => graphPointerUp(session);
         // Capture at the window as well as on the SVG. This covers releasing
         // the mouse outside the window and WebKit's lost-pointer-capture case.
-        window.addEventListener("pointerup", session.pointerRelease, true);
-        window.addEventListener("pointercancel", session.pointerRelease, true);
-        window.addEventListener("blur", session.windowBlur);
+        const releases = [
+          handle.listen?.("window", "pointerup", session.pointerRelease, true),
+          handle.listen?.("window", "pointercancel", session.pointerRelease, true),
+          handle.listen?.("window", "blur", session.windowBlur),
+        ];
         graph.addEventListener("lostpointercapture", session.pointerLost);
 
         curves.PRESETS.forEach((preset, index) => {
@@ -637,9 +639,7 @@ module.exports = function createDialogApi(state, options) {
         return () => {
           session.resizeObserver?.disconnect();
           session.resizeObserver = null;
-          window.removeEventListener("pointerup", session.pointerRelease, true);
-          window.removeEventListener("pointercancel", session.pointerRelease, true);
-          window.removeEventListener("blur", session.windowBlur);
+          releases.forEach(release => release?.());
           graph.removeEventListener("lostpointercapture", session.pointerLost);
         };
       },

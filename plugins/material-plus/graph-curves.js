@@ -411,7 +411,7 @@
         const count = extras.querySelector(".zoidium-curve-count"); if (count) count.textContent = activePoints().length + " pts";
         for (const el of extras.querySelectorAll('button[aria-label="Delete point"]')) el.disabled = readOnly || selectedIndex == null || selectedIndex === 0 || selectedIndex === activePoints().length - 1;
       }
-      coordinates.forEach((el, i) => { el.disabled = readOnly || !point; el.placeholder = point ? "" : "—"; if (!point) el.value = ""; if (point && document.activeElement !== el) el.value = Math.round((i ? range[0] + point[1]*(range[1]-range[0]) : point[0])*10000)/10000; });
+      coordinates.forEach((el, i) => { el.disabled = readOnly || !point; el.placeholder = point ? "" : "—"; if (!point) el.value = ""; if (point && el.ownerDocument.activeElement !== el) el.value = Math.round((i ? range[0] + point[1]*(range[1]-range[0]) : point[0])*10000)/10000; });
       updateStatus();
     }
 

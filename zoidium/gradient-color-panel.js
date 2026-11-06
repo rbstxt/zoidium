@@ -49,10 +49,10 @@
       sv.style.setProperty("--zge-hue", M.rgba([...C.hsvToRgb01(hsv[0], 1, 1), 1]));
       marker.style.left = hsv[1]*100+"%"; marker.style.top = (1-hsv[2])*100+"%";
       sv.setAttribute("aria-valuetext", `Saturation ${Math.round(hsv[1]*100)}%, value ${Math.round(hsv[2]*100)}%`);
-      if (doc.activeElement !== hue) hue.value = hsv[0]; if (doc.activeElement !== alpha) alpha.value = value[3];
+      if (panel.ownerDocument.activeElement !== hue) hue.value = hsv[0]; if (panel.ownerDocument.activeElement !== alpha) alpha.value = value[3];
       alpha.style.setProperty("--zge-color", M.rgba([...value.slice(0, 3), 1]));
-      if (doc.activeElement !== hex) hex.value = "#"+value.slice(0, 3).map(v => Math.round(v*255).toString(16).padStart(2, "0")).join("").toUpperCase();
-      numbers.forEach((input, i) => { if (doc.activeElement !== input) input.value = Math.round(value[i]*255*100)/100; });
+      if (panel.ownerDocument.activeElement !== hex) hex.value = "#"+value.slice(0, 3).map(v => Math.round(v*255).toString(16).padStart(2, "0")).join("").toUpperCase();
+      numbers.forEach((input, i) => { if (panel.ownerDocument.activeElement !== input) input.value = Math.round(value[i]*255*100)/100; });
     }
     return { element: panel, update, setDisabled(flag) { disabled = flag; panel.inert = flag; } };
   }

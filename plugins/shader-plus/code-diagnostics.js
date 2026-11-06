@@ -7,7 +7,7 @@ function installDiagnostics({ input, pane, body, node, global, context, effect, 
   function jump(line) {
     const before = input.value.split("\n").slice(0, line - 1).join("\n"), start = line === 1 ? 0 : before.length + 1;
     input.focus(); input.setSelectionRange(start, input.value.indexOf("\n", start) < 0 ? input.value.length : input.value.indexOf("\n", start));
-    input.scrollTop = Math.max(0, (line - 3) * parseFloat(global.getComputedStyle(input).lineHeight)); sync();
+    input.scrollTop = Math.max(0, (line - 3) * parseFloat(input.ownerDocument.defaultView.getComputedStyle(input).lineHeight)); sync();
   }
   function sync() { overlay.scrollTop = input.scrollTop; overlay.scrollLeft = input.scrollLeft; }
   function paint() {

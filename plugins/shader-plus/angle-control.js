@@ -18,6 +18,7 @@ function registerAngle({ PZ, doc, register, commit }) {
 
   function popover(anchor, property, box) {
     close();
+    const owner = anchor.ownerDocument, view = owner.defaultView;
     const C = PZ.ui.controls;
     const panel = doc.createElement("div");
     panel.className = "zsp-angle-pop"; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "Angle dial");
@@ -86,12 +87,12 @@ function registerAngle({ PZ, doc, register, commit }) {
       commit(anchor, property, (Number(property.get(frame())) || 0) + direction * (event.shiftKey ? 15 : 1) * Math.PI / 180); paint();
     });
 
-    doc.body.append(panel);
+    owner.body.append(panel);
     const place = () => {
       if (!anchor.isConnected) { close(); return; }
       const a = anchor.getBoundingClientRect(), w = panel.offsetWidth, h = panel.offsetHeight;
-      const left = Math.max(4, Math.min(innerWidth - w - 4, a.left + a.width / 2 - w / 2));
-      const below = a.bottom + 8 + h <= innerHeight;
+      const left = Math.max(4, Math.min(view.innerWidth - w - 4, a.left + a.width / 2 - w / 2));
+      const below = a.bottom + 8 + h <= view.innerHeight;
       panel.style.left = left + "px"; panel.style.top = (below ? a.bottom + 8 : a.top - h - 8) + "px";
       panel.classList.toggle("zsp-angle-pop-above", !below);
       panel.style.setProperty("--zsp-caret", (a.left + a.width / 2 - left) + "px");
@@ -99,9 +100,9 @@ function registerAngle({ PZ, doc, register, commit }) {
     place(); paint(); dial.focus();
     const outside = event => { if (!panel.contains(event.target) && event.target !== anchor && !anchor.contains(event.target)) close(); };
     const timer = setInterval(() => { place(); if (!drag) paint(); }, 150);
-    doc.addEventListener("pointerdown", outside, true);
+    owner.addEventListener("pointerdown", outside, true);
     anchor.setAttribute("aria-expanded", "true");
-    open = { anchor, dispose() { anchor.setAttribute("aria-expanded", "false"); clearInterval(timer); doc.removeEventListener("pointerdown", outside, true); panel.remove(); } };
+    open = { anchor, dispose() { anchor.setAttribute("aria-expanded", "false"); clearInterval(timer); owner.removeEventListener("pointerdown", outside, true); panel.remove(); } };
   }
 
   register("shader-plus/angle", PZ.property.type.NUMBER, property => {

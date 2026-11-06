@@ -206,7 +206,7 @@ function mount({ state, body, effect, session, view, custom }) {
   function rebuild() {
     if (disposed) return;
     const scroll = body.scrollTop, chainScroll = root.querySelector(".lk-chain")?.scrollTop || 0;
-    const focused = root.contains(document.activeElement) ? document.activeElement : null;
+    const focused = root.contains(root.ownerDocument.activeElement) ? root.ownerDocument.activeElement : null;
     const row = focused?.closest(".lk-chain-row");
     const action = focused?.dataset.action;
     const oldSelection = root.dataset.selected;

@@ -121,6 +121,8 @@
       "./zoidium/ui-node-editor.js",
       "./zoidium/ui-kit-panels.js",
       "./zoidium/ui-kit-skins.js",
+      "./zoidium/ui-kit-popouts.js",
+      "./zoidium/ui-kit-popup-controls.js",
       "./zoidium/ui-kit-windows.js",
       "./zoidium/ui-kit-controls.js",
       "./zoidium/ui-kit-menus.js",
