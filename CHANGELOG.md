@@ -61,6 +61,9 @@ each line describes one visible change.
 
 ### Changed
 
+- Undoing a change to the number of lights no longer recompiles shaders the
+  scene already used, so going back and forth between light setups does not
+  freeze the editor. The first time a new light setup is drawn still compiles.
 - Smart Motion Blur with Optical Flow skips redundant GPU passes (about
   6–12% less GPU time at 1/8 quality). The output is unchanged.
 - Shape+ boolean, offset, and stroke operations run faster (boolean

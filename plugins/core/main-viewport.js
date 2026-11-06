@@ -41,6 +41,7 @@
           };
         }
       }
+      this.__zoidiumShaderPrograms = globalThis.ZoidiumShaderPrograms?.install(renderer, globalThis.THREE?.REVISION);
       this.__zoidiumReleaseRenderState = () => {
         if (pairs.size) {
           for (const [sceneId, cameraId] of pairs.values()) {
@@ -52,7 +53,12 @@
         }
         renderer?.renderLists?.dispose?.();
       };
-      this.__zoidiumProjectChanged = this.__zoidiumReleaseRenderState;
+      // Preview prefetch and clip deletion also release render state. Program
+      // variants are reusable across those, so only a new project clears them.
+      this.__zoidiumProjectChanged = () => {
+        this.__zoidiumShaderPrograms?.clear();
+        this.__zoidiumReleaseRenderState();
+      };
       this.editor?.onProjectChanged?.watch?.(this.__zoidiumProjectChanged);
     }
 
@@ -95,6 +101,7 @@
     // never kept alive or handed to a plugin window as its preview.
     unload(...args) {
       globalThis.ZoidiumFrameCache?.release(this);
+      this.__zoidiumShaderPrograms?.dispose();
       this.editor?.onProjectChanged?.unwatch?.(this.__zoidiumProjectChanged);
       const index = instances.indexOf(this);
       if (index >= 0) instances.splice(index, 1);

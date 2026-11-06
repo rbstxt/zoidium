@@ -98,6 +98,9 @@ each line describes one visible change.
 
 ### Changed
 
+- Undoing a change to the number of lights no longer recompiles shaders the
+  scene already used, so going back and forth between light setups does not
+  freeze the editor. The first time a new light setup is drawn still compiles.
 - Shape+ Text edits in place, like After Effects: double-click the text to
   place a caret on the rendered letters, type with live updates (IME
   included), select with Shift or by dragging, and press Escape or click
