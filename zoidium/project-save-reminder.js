@@ -81,6 +81,7 @@
       onDisk: false,
       project: null,
       revision: 0,
+      name: "",
       dirtySince: null,
       observedProject: null,
       watched: null,
@@ -101,11 +102,13 @@
 
   function snapshotOf(editor) {
     var project = editor && editor.project ? editor.project : null;
-    return { project: project, revision: project ? safeRevision(editor) : 0 };
+    var files = projectFilesOf();
+    var name = project && files && typeof files.getProjectName === "function" ? files.getProjectName(editor) : "";
+    return { project: project, revision: project ? safeRevision(editor) : 0, name: name };
   }
 
   function isUnsaved(state, snap) {
-    return !state.onDisk || snap.project !== state.project || snap.revision !== state.revision;
+    return !state.onDisk || snap.project !== state.project || snap.revision !== state.revision || snap.name !== state.name;
   }
 
   function minutesBetween(dirtySince, nowMs) {
@@ -204,6 +207,7 @@
     var snap = snapshotOf(editor);
     state.project = snap.project;
     state.revision = snap.revision;
+    state.name = snap.name;
     state.observedProject = snap.project;
     rewatch(state, editor);
   }
@@ -236,6 +240,7 @@
     if (detail.project && typeof detail.revision === "number") {
       state.project = detail.project;
       state.revision = detail.revision;
+      state.name = typeof detail.name === "string" ? detail.name : snapshotOf(editor).name;
     } else {
       rebaseline(state, editor);
     }
@@ -451,6 +456,7 @@
     var snap = snapshotOf(editor);
     state.project = snap.project;
     state.revision = snap.revision;
+    state.name = snap.name;
     state.observedProject = snap.project;
     rewatch(state, editor);
 
@@ -462,6 +468,9 @@
     global.addEventListener("zoidium:project-saved", function (event) {
       if (!forCurrentEditor(detailOf(event))) return;
       onProjectSaved(state, detailOf(event), Date.now());
+    });
+    global.addEventListener("zoidium:project-name-changed", function (event) {
+      if (forCurrentEditor(detailOf(event))) refresh(state, Date.now());
     });
     global.addEventListener("zoidium:project-error", function (event) {
       if (!forCurrentEditor(detailOf(event))) return;

@@ -267,7 +267,8 @@ function createHarness({ stored = null, anchors = true } = {}) {
   }
 
   const sandbox = {
-    PZ: { zoidium: { projectFiles: { getProjectRevision(target) { return target._rev || 0; } } } },
+    PZ: { zoidium: { projectFiles: { getProjectRevision(target) { return target._rev || 0; },
+      getProjectName(target) { return (target._name || "project").trim() || "project"; } } } },
     CM: editor,
     document: documentObject,
     localStorage: {
@@ -642,4 +643,27 @@ test("a completed save of a retired project does not rebaseline its replacement"
   h.fire("zoidium:project-changed", { editor: h.editor, reason: "new" });
   h.fire("zoidium:project-saved", saved);
   assert.match(badgeTitle(h), /Not saved to disk/);
+});
+
+
+test("a normalized name change shows the reminder and returning to the saved name clears it", () => {
+  const h = createHarness();
+  h.fire("zoidium:project-changed", { editor: h.editor, reason: "open" });
+  for (const [name, visible] of [["Renamed", ""], [" project  ", "none"], ["", "none"]]) {
+    h.editor._name = name;
+    h.fire("zoidium:project-name-changed", { editor: h.editor });
+    assert.equal(h.badge().style.display, visible);
+    assert.equal(h.editor._rev, 0);
+  }
+});
+
+test("renaming during delivery stays unsaved against the serialized name", () => {
+  const h = createHarness();
+  h.fire("zoidium:project-changed", { editor: h.editor, reason: "open" });
+  h.editor._name = "Later name";
+  h.fire("zoidium:project-name-changed", { editor: h.editor });
+  h.fire("zoidium:project-saved", { editor: h.editor, project: h.editor.project, revision: 0, name: "project" });
+  assert.equal(h.badge().style.display, "");
+  h.fire("zoidium:project-saved", { editor: h.editor, project: h.editor.project, revision: 0, name: "Later name" });
+  assert.equal(h.badge().style.display, "none");
 });

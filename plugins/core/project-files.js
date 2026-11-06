@@ -534,6 +534,7 @@
       editor: editor,
       project: savedProject,
       revision: savedRevision,
+      name: archiveResult.projectName,
       filename: filename,
       size: archiveResult.blob.size,
       assetCount: archiveResult.assetCount,
@@ -663,6 +664,7 @@
         editor: editor,
         project: savedProject,
         revision: savedRevision,
+        name: archiveResult.projectName,
         filename: filename,
         size: archiveResult.blob.size,
         assetCount: archiveResult.assetCount,
@@ -902,13 +904,13 @@
         editor.project = project;
         editor._zoidiumSaveFileHandle = null;
         editor._zoidiumSaveFileName = null;
-        dispatch("zoidium:project-changed", { editor: editor, reason: "open" });
         setProjectName(
           editor,
           metadata && metadata.name
             ? metadata.name
             : projectNameFromFileName(originalFilename),
         );
+        dispatch("zoidium:project-changed", { editor: editor, reason: "open" });
         dispatch("zoidium:project-opened", {
           editor: editor,
           ...fileDiagnostics(file),
