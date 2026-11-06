@@ -284,7 +284,7 @@ var PZ = PZ || {};
             };
         }
         T.shading.update(this.material, p.lighting, this.threeObj, shadeBox);
-        this.material.blending = p.particle.blending.get(PZ.trapcode.currentTime) === 1 ? THREE.AdditiveBlending : THREE.NormalBlending;
+        T.setParticleBlending(this.material, p.particle.blending.get(PZ.trapcode.currentTime) === 1);
         if (useCPU) this.material.defines.USE_CPU = 1;
         else delete this.material.defines.USE_CPU;
         if (useCPU && T.particularSpin.active(this, e, this.sceneRate())) this.material.defines.USE_PARTICULAR_SPIN = 1;

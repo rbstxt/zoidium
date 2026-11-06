@@ -23,6 +23,18 @@ var PZ = PZ || {};
         T.currentTime = time;
     };
 
+    T.setParticleBlending = function (material, additive) {
+        material.blending = additive ? THREE.CustomBlending : THREE.NormalBlending;
+        if (!additive) return;
+        // r91 AdditiveBlending squares alpha. At low opacity it rounds to zero
+        // in CM3's scene buffer, so the layer composite drops visible RGB.
+        // Keep additive RGB, but accumulate source alpha without squaring it.
+        material.blendEquation = material.blendEquationAlpha = THREE.AddEquation;
+        material.blendSrc = THREE.SrcAlphaFactor;
+        material.blendDst = THREE.OneFactor;
+        material.blendSrcAlpha = material.blendDstAlpha = THREE.OneFactor;
+    };
+
     // getTexture() creates a THREE texture owned by the consumer, independently
     // of the decoded image asset's reference count.
     T.disposeImageUniform = function (material, name) {

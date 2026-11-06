@@ -610,13 +610,13 @@ var PZ = PZ || {};
         T.shading.update(this.material, shadeGroup, this.threeObj,
             shadeOn ? T.shading.boxFromPositions(this.outPositions, count) : null);
         var additive = particle.blending.get(t) === 1;
-        this.material.blending = additive ? THREE.AdditiveBlending : THREE.NormalBlending;
+        T.setParticleBlending(this.material, additive);
         if (this.stringMaterial) {
             // String size raises line opacity (line width is fixed at 1:
             // WebGL ignores wider lines); size 0 keeps the legacy look.
             var stringBoost = 1 + Math.max(this._stringSize || 0, 0) * 0.05;
             this.stringMaterial.opacity = stringsOn ? Math.min(1, particle.opacity.get(t) / 100 * stringBoost) : 0.5;
-            this.stringMaterial.blending = additive ? THREE.AdditiveBlending : THREE.NormalBlending;
+            T.setParticleBlending(this.stringMaterial, additive);
         }
         var transform = this.properties.transform;
         this.threeObj.position.set(transform.offsetX.get(t), transform.offsetY.get(t), transform.offsetZ.get(t));
