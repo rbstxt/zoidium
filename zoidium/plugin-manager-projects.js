@@ -200,7 +200,7 @@
     // and re-emitting that {} makes the next reopen fail, because CM3 passes
     // any truthy non-string thumbnail to URL.createObjectURL. Keep plain JSON
     // values only, and never retain a thumbnail.
-    const RUNTIME_ONLY_FIELDS = new Set(["thumbnail"]);
+    const RUNTIME_ONLY_FIELDS = new Set(["thumbnail", "__zoidiumTemporalUpdateRevision"]);
     const isJsonValue = (value, depth) => {
       if (value === null || typeof value === "string" || typeof value === "boolean") return true;
       if (typeof value === "number") return Number.isFinite(value);
@@ -213,6 +213,9 @@
       return Object.keys(value).every((key) => isJsonValue(value[key], depth + 1));
     };
     const retainableSnapshot = (source) => {
+      // Native Alt-drag passes a live clip/layer. Its serializer carries the
+      // authored extensions without the renderer's enumerable runtime state.
+      if (typeof source.toJSON === "function") source = source.toJSON() || {};
       const snapshot = {};
       for (const key of Object.keys(source)) {
         if (RUNTIME_ONLY_FIELDS.has(key)) continue;

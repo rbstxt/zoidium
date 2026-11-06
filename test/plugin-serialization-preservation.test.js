@@ -101,3 +101,29 @@ test("promise inputs are cloned before the async host mutates their extra fields
   assert.equal(data.comp.id, "host-mutated");
   assert.equal(plain(media.toJSON()).comp.id, "original");
 });
+
+test("live layer duplication preserves authored extensions without copying runtime state", () => {
+  const PZ = harness();
+  const original = new PZ.layer.composite();
+  original.load({ properties: { name: "Authored", pluginValue: { seed: 4 } }, objects: [], custom: { seed: 7 } });
+  original.__zoidiumTemporalUpdateRevision = 12;
+  original.runtimeCache = { revision: 3 };
+  const duplicate = new PZ.layer.composite();
+  duplicate.load(original);
+  assert.deepEqual(plain(duplicate.toJSON()), plain(original.toJSON()));
+  duplicate.__zoidiumTemporalUpdateRevision = 90;
+  const saved = plain(duplicate.toJSON());
+  assert.equal(saved.__zoidiumTemporalUpdateRevision, undefined);
+  assert.equal(saved.runtimeCache, undefined);
+  assert.deepEqual(saved.custom, { seed: 7 });
+  assert.deepEqual(saved.properties.pluginValue, { seed: 4 });
+});
+
+test("old saved render revisions are dropped while unrelated extension fields survive", () => {
+  const PZ = harness();
+  const layer = new PZ.layer();
+  layer.load({ properties: {}, __zoidiumTemporalUpdateRevision: 42, __externalPluginValue: { amount: 3 } });
+  const saved = plain(layer.toJSON());
+  assert.equal(saved.__zoidiumTemporalUpdateRevision, undefined);
+  assert.deepEqual(saved.__externalPluginValue, { amount: 3 });
+});
