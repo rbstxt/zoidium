@@ -25,11 +25,32 @@
     constructor(...args) {
       super(...args);
       instances.push(this);
-      // THREE r91 retains render lists for every scene/camera pair. Flare
-      // callbacks in those lists retain their old project and timeline DOM.
-      // Reset only the CPU lists on project replacement; live GPU resources
-      // and the viewport renderer remain available for the next draw.
-      this.__zoidiumProjectChanged = () => this.renderer?.renderLists?.dispose?.();
+      // r91's private render-state cache holds lights and their parent scenes.
+      // compile() initializes a pair's state before visiting its scene. Empty
+      // descriptors clear those references without touching live GPU resources.
+      // Store numeric IDs only so this tracker cannot retain a project itself.
+      const pairs = new Map();
+      const renderer = this.renderer;
+      if (renderer && String(THREE.REVISION) === "91") {
+        for (const method of ["render", "compile"]) {
+          const original = renderer[method];
+          renderer[method] = function (scene, camera, ...rest) {
+            if (scene && camera) pairs.set(scene.id + "," + camera.id, [scene.id, camera.id]);
+            return original.call(this, scene, camera, ...rest);
+          };
+        }
+      }
+      this.__zoidiumProjectChanged = () => {
+        if (pairs.size) {
+          for (const [sceneId, cameraId] of pairs.values()) {
+            renderer.compile({ id: sceneId, traverse() {} }, {
+              id: cameraId, matrixWorldInverse: new THREE.Matrix4(),
+            });
+          }
+          pairs.clear();
+        }
+        renderer?.renderLists?.dispose?.();
+      };
       this.editor?.onProjectChanged?.watch?.(this.__zoidiumProjectChanged);
     }
 
