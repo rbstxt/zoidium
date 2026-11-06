@@ -27,22 +27,40 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose, editor = () => nul
     // owner for effect deletion, where the host's parent getters can throw.
     temporal()?.releaseFrameSamplerTargets?.(entry.layer, entry.sequence);
   }
+  function restoreUnload(effect, entry) {
+    if (effect.unload !== entry.unload) return;
+    if (entry.ownUnload) Object.defineProperty(effect, "unload", entry.ownUnload);
+    else delete effect.unload;
+  }
+  function detach(effect) {
+    const entry = live.get(effect);
+    if (!entry) return;
+    release(effect);
+    if (entry.pass?.render === entry.render) entry.pass.render = entry.original;
+    restoreUnload(effect, entry);
+    delete effect._zoidiumFrameSampler;
+    live.delete(effect);
+  }
   function sync(effect) {
     const properties = propertiesOf(effect);
     if (!properties.length) {
-      if (live.has(effect)) {
-        release(effect);
-        const entry = live.get(effect);
-        if (entry.pass?.render === entry.render) entry.pass.render = entry.original;
-        delete effect._zoidiumFrameSampler;
-        live.delete(effect);
-      }
+      detach(effect);
       return;
     }
     if (!live.has(effect)) {
       let layer, sequence;
       try { layer = effect.parentLayer; sequence = effect.parentProject?.sequence; } catch (_error) { /* Detached authoring facade. */ }
-      live.set(effect, { layer, sequence });
+      const entry = { layer, sequence, ownUnload: Object.getOwnPropertyDescriptor(effect, "unload") };
+      const originalUnload = effect.unload;
+      entry.unload = function unloadTimeSampleOwner() {
+        unloaded.add(this); detach(this);
+        return originalUnload.apply(this, arguments);
+      };
+      live.set(effect, entry);
+      effect.fragmentShaderNeedsUpdate = true;
+      // Core keeps an instance unload wrapper after its first layer update.
+      // A new activation must own cleanup even when that wrapper predates it.
+      effect.unload = entry.unload;
       effect._zoidiumFrameSampler = {
         getRequest(owner, frame) {
           let samples;
@@ -123,19 +141,10 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose, editor = () => nul
     }
     return original.apply(this, arguments);
   });
-  patch(proto, "unload", original => function unloadTimeSamples() {
-    unloaded.add(this);
-    const entry = live.get(this);
-    if (entry) {
-      release(this);
-      if (entry.pass?.render === entry.render) entry.pass.render = entry.original;
-      live.delete(this); delete this._zoidiumFrameSampler;
-    }
-    return original.apply(this, arguments);
-  });
   onDispose(pipeline.register({
     id: "shader-plus-time-samples",
     beforeUpdate(frame) {
+      if (unloaded.has(this)) { if (this.pass) this.pass.enabled = false; return false; }
       sync(this);
       if (!this._zoidiumFrameSampler) return;
       this._zoidiumFrameSamplerFrame = frame;
@@ -159,6 +168,7 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose, editor = () => nul
     for (const [effect, entry] of live) {
       release(effect);
       if (entry.pass?.render === entry.render) entry.pass.render = entry.original;
+      restoreUnload(effect, entry);
       delete effect._zoidiumFrameSampler;
       effect.fragmentShaderNeedsUpdate = true;
     }

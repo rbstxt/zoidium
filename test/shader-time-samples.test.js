@@ -145,3 +145,14 @@ test("Time sample serialization requires Shader+ for cache classification", () =
   assert.deepEqual(found[0].features, ["shader-properties"]);
   assert.deepEqual(JSON.parse(JSON.stringify(scan({ customProperties: [{ type: KINDS.slider.create() }] }))), []);
 });
+test("effect unload releases time samples and stale preparation cannot recreate them", needsCache, async () => {
+  const h = setup();
+  try {
+    const fx = await h.effect(); await fx.prepare(10);
+    const prepares = h.prepares;
+    fx.unload(); assert.equal(fx._zoidiumFrameSampler, undefined);
+    assert.ok(h.releases > 0);
+    await fx.prepare(10); fx.update(10);
+    assert.equal(h.prepares, prepares); assert.equal(fx._zoidiumFrameSampler, undefined);
+  } finally { h.dispose(); }
+});
