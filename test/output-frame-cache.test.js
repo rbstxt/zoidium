@@ -693,6 +693,8 @@ async function videoHarness() {
 
 test("idle video fill restores the retained live image and reuses its snapshot", async () => {
   const h = await videoHarness();
+  let retired = 0;
+  h.viewport.__zoidiumReleaseRenderState = () => retired++;
   await h.start();
   assert.match(h.api.usage().reason, /Preparing video frames/);
   h.finish();
@@ -713,6 +715,7 @@ test("idle video fill restores the retained live image and reuses its snapshot",
   assert.equal(h.viewport.__zoidiumOutputFrames.snapshot, null);
   assert.equal(h.counts.unloadedCompositors, 1);
   assert.equal(h.counts.unloadedSchedules, 1);
+  assert.equal(retired, 1, "private scenes release the renderer's light state after unload");
   const live = h.counts.live;
   h.viewport._render();
   assert.equal(h.counts.live, live, "the next draw replays the retained exact frame");

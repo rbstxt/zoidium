@@ -621,7 +621,8 @@
         schedule.unload();
       });
     }
-    controller.viewport.renderer.renderLists?.dispose?.();
+    if (controller.viewport.__zoidiumReleaseRenderState) controller.viewport.__zoidiumReleaseRenderState();
+    else controller.viewport.renderer.renderLists?.dispose?.();
   }
 
   function endVideoQueue(controller) {

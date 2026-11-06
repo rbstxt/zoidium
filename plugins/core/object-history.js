@@ -2,6 +2,21 @@
   "use strict";
 
   const PZ = global.PZ;
+  const tracks = PZ?.ui?.timeline?.tracks?.prototype;
+  if (tracks?.deleteClip && !tracks.deleteClip.__zoidiumReleasesRenderLists) {
+    const deleteClip = tracks.deleteClip;
+    const wrapped = function deleteClipAndReleaseRenderLists() {
+      const result = deleteClip.apply(this, arguments);
+      // r91 keeps render lists and a separate light/shadow state per scene
+      // and camera pair. Either cache can retain an entire deleted scene.
+      const viewport = this.timeline?.editor?.mainViewport;
+      if (viewport?.__zoidiumReleaseRenderState) viewport.__zoidiumReleaseRenderState();
+      else viewport?.renderer?.renderLists?.dispose?.();
+      return result;
+    };
+    wrapped.__zoidiumReleasesRenderLists = true;
+    tracks.deleteClip = wrapped;
+  }
   const prototype = PZ?.ui?.edit?.prototype;
   if (!prototype?.deleteObject || prototype.__zoidiumObjectHistoryRepair) return;
   const original = prototype.deleteObject;

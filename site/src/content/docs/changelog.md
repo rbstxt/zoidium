@@ -168,6 +168,12 @@ each line describes one visible change.
 
 ### Fixed
 
+- Preview caching no longer keeps old copies of a 3D scene in memory while you
+  edit. A scene with eight lights and 64 spheres used to add about 35 MB each
+  time its background preview was replaced.
+- Deleting a clip that holds a 3D scene no longer keeps that scene in memory.
+- Preview cache checks are about ten times faster on large 3D scenes, because
+  they read saved project data only. Cached frames are unchanged.
 - The Save dot stays on when you edit while the file is being written, and it
   appears when you rename a saved project. Undoing back to the saved state or
   restoring the saved name clears it.

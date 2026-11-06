@@ -63,6 +63,23 @@ function scene() {
   return { sequence, viewport, project, plugins, asset, key };
 }
 
+test("revision validation follows nested project JSON without visiting runtime geometry", () => {
+  const s = scene();
+  const object = s.sequence.videoTracks[0].clips[0].object;
+  const plain = { type: 0, properties: object.properties, effects: object.effects };
+  let serialized = 0;
+  object.toJSON = () => { serialized++; return plain; };
+  Object.defineProperty(object, "geometry", {
+    enumerable: true,
+    get() { throw new Error("Runtime geometry is outside project JSON"); },
+  });
+  const key = s.key();
+  assert.equal(serialized, 1);
+  assert.deepEqual(JSON.parse(key)[0].sequence.videoTracks[0].clips[0].object, plain);
+  plain.effects.push({ type: "community-example" });
+  assert.equal(s.key(), null, "serialized community effects still block caching");
+});
+
 // Every editing surface writes the serialized content. No notification or
 // history label is used, so uncommitted scrubs and third-party edits count too.
 const edits = {
