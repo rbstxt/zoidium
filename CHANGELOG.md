@@ -99,6 +99,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Opening projects one after another in the same session no longer keeps the
+  previous projects in memory, which used to add about 13 MB per open. Some GPU
+  memory from the previous project is still kept until the page reloads.
 - Deleting 3D objects and lights no longer keeps large amounts of memory. Undo
   history used to hold each deleted object's full geometry, about 13 MB for a
   dense sphere, and each deleted light kept its shadow map on the GPU. Undo and
