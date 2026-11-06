@@ -384,6 +384,11 @@
       "id": "light-resources",
       "source": "./plugins/core/light-resources.js",
       "phase": "pre-init"
+    },
+    {
+      "id": "media-lifecycle",
+      "source": "./plugins/core/media-lifecycle.js",
+      "phase": "pre-init"
     }
   ],
   "modules": [
