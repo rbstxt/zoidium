@@ -229,23 +229,23 @@
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "34",
+      "version": "35",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=34",
-      "bundle": "./plugins/material-plus/bundle.json?v=34",
-      "integrity": "sha256-fc8jl3EHd3Rwo+2J9QBVA2rVFsyNt0LPxpXUlbE2vEg="
+      "manifest": "./plugins/material-plus/manifest.json?v=35",
+      "bundle": "./plugins/material-plus/bundle.json?v=35",
+      "integrity": "sha256-jZVxyKlq4khCArKOquiKzRHj7wRBIGJD62IMo9G74Wo="
     },
     {
       "id": "text-plus",
       "category": "scene",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "32",
+      "version": "33",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "2D and 3D text",
@@ -254,9 +254,9 @@
       "description": "Adds per-character animation and 3D face materials to Text, plus advanced 3D bevel controls.",
       "credits": "Credits: DaviFX",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=32",
-      "bundle": "./plugins/text-plus/bundle.json?v=32",
-      "integrity": "sha256-fqmZIWetBUZZ1h3P8KyzNzs/FcIlx2ZtcH1YKlCrTcQ="
+      "manifest": "./plugins/text-plus/manifest.json?v=33",
+      "bundle": "./plugins/text-plus/bundle.json?v=33",
+      "integrity": "sha256-/mGuy+HRrZShhAUX2re2kMJWl5Uqebd8ykDv2H/6wvo="
     },
     {
       "id": "expresstext-plus",

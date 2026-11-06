@@ -12,13 +12,13 @@ const beforeSource = read("test/fixtures/plugin-scanners-before.txt");
 const afterSource = read("zoidium/plugin-manager-scanners.js");
 const plain = value => JSON.parse(JSON.stringify(value));
 
-function load(source, expressionAPI) {
+function load(source, expressionAPI, communityAPI) {
   let visits = 0, maps = 0;
   class CountingMap extends WeakMap {
     constructor() { super(); maps++; }
     set(key, value) { visits++; return super.set(key, value); }
   }
-  const sandbox = vm.createContext({ window: { ZoidiumExpressions: expressionAPI }, PZ: {}, WeakMap: CountingMap });
+  const sandbox = vm.createContext({ window: { ZoidiumExpressions: expressionAPI, ZoidiumCommunityProjects: communityAPI }, PZ: {}, WeakMap: CountingMap });
   vm.runInContext(read("zoidium/plugin-manager-state.js"), sandbox);
   vm.runInContext(source, sandbox);
   const manager = sandbox.window.ZoidiumPluginManagerInternals;
@@ -210,4 +210,31 @@ test("shared scanning tracks records once for ordinary serialized projects", () 
   const after = scanner.counts();
   assert.equal(after.maps - before.maps, 1);
   assert.equal(after.visits - before.visits, 3003, "3002 records plus the root numeric path bit");
+});
+
+
+test("ordinary dependency records do not read the community preview preference", () => {
+  let reads = 0;
+  const community = {
+    isCommunity: type => typeof type === "string" && type.startsWith("community-"),
+    enabled() { reads++; return false; },
+  };
+  const scanner = load(afterSource, undefined, community);
+  scanner.scan({ objects: Array.from({ length: 1000 }, () => ({
+    type: 0, properties: { position: [0, 1, 2] },
+  })) });
+  assert.equal(reads, 1, "only the top-level community requirements check needs the preference");
+});
+
+test("community preview still controls whether opaque records are scanned", () => {
+  const data = { objects: [{ type: "community-example", material: { type: "pbrplus" } }] };
+  for (const enabled of [false, true]) {
+    const community = {
+      isCommunity: type => typeof type === "string" && type.startsWith("community-"),
+      enabled: () => enabled,
+      requirements() {},
+    };
+    const result = load(afterSource, undefined, community).scan(data);
+    assert.equal(result.some(plugin => plugin.id === "material-plus"), !enabled);
+  }
 });

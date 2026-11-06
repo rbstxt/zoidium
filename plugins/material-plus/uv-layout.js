@@ -240,7 +240,7 @@ function uvOrderedCandidates(outline, x, y, scale) {
 // its non-transitive tolerance can depend on an earlier, farther segment.
 function uvOutlineCandidates(outline, x, y, scale) {
   let minimum = Infinity;
-  const nearby = [];
+  const measured = [];
   function boxDistance(node) {
     const dx = Math.max(node.minX - x, 0, x - node.maxX);
     const dy = Math.max(node.minY - y, 0, y - node.maxY);
@@ -264,27 +264,27 @@ function uvOutlineCandidates(outline, x, y, scale) {
     return { index, contour, point, t, lengthSquared,
       distanceSquared: (x - px) * (x - px) + (y - py) * (y - py) };
   }
-  function visit(node, collect) {
+  function visit(node) {
     const lowerBound = boxDistance(node);
     const slack = UV_DISTANCE_EPSILON * 4 + Number.EPSILON * 8 * Math.max(1, lowerBound);
     if (lowerBound > minimum + slack) return;
     if (node.left) {
-      // First pass uses spatial order; the collected matches are sorted back
-      // into contour order before applying the original tie rules.
-      const rightFirst = !collect && boxDistance(node.right) < boxDistance(node.left);
-      visit(rightFirst ? node.right : node.left, collect);
-      visit(rightFirst ? node.left : node.right, collect);
+      // Spatial order finds the minimum early. Restore contour order below
+      // before applying the original tie rules.
+      const rightFirst = boxDistance(node.right) < boxDistance(node.left);
+      visit(rightFirst ? node.right : node.left);
+      visit(rightFirst ? node.left : node.right);
     } else {
       for (const index of node.indices) {
         const match = distance(index);
-        if (collect) {
-          if (match.distanceSquared <= minimum + UV_DISTANCE_EPSILON * 4) nearby.push(match);
-        } else if (match.distanceSquared < minimum) minimum = match.distanceSquared;
+        measured.push(match);
+        if (match.distanceSquared < minimum) minimum = match.distanceSquared;
       }
     }
   }
-  visit(outline.spatialRoot, false);
-  visit(outline.spatialRoot, true);
+  visit(outline.spatialRoot);
+  // The minimum only decreases, so every final neighbor was visited already.
+  const nearby = measured.filter(match => match.distanceSquared <= minimum + UV_DISTANCE_EPSILON * 4);
   if (nearby.some(match => match.distanceSquared > minimum + UV_DISTANCE_EPSILON / 2)) {
     return uvOrderedCandidates(outline, x, y, scale);
   }

@@ -70,6 +70,21 @@ test("nearest-segment work stays below a full contour scan for every wall", () =
   assert.ok(reads < 4_000_000, `Expected bounded neighborhood searches, got ${reads} coordinate reads`);
 });
 
+test("nearest queries reuse segment distances when collecting matches", () => {
+  let reads = 0;
+  const points = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([x, y]) => ({
+    get x() { reads += 1; return x; },
+    get y() { reads += 1; return y; },
+  }));
+  const index = layout.buildOutlineIndex(layout.prepareContours([points]));
+  reads = 0;
+  const candidates = layout.outlineCandidates(index, .5, 0, 1);
+  assert.equal(JSON.stringify(candidates), JSON.stringify([
+    { arc: .5, total: 4, u: .5, distanceSquared: 0 },
+  ]));
+  assert.ok(reads <= 40, `Expected one set of segment measurements, got ${reads} coordinate reads`);
+});
+
 test("spatial searches prune contours whose serialized order overlaps their bounds", () => {
   let reads = 0;
   const contours = Array.from({ length: 1024 }, (_, index) => {

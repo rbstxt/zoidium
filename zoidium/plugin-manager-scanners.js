@@ -483,7 +483,7 @@
       const task = stack.pop(), value = task.value;
       if (!value || typeof value !== "object") continue;
       const community = typeof window === "undefined" ? null : window.ZoidiumCommunityProjects;
-      if (community?.enabled() && community.isCommunity(value.type)) continue;
+      if (community?.isCommunity(value.type) && community.enabled()) continue;
       const previous = seen.get(value) || 0;
       // Tracks and layers shared one visited set in the legacy detector.
       let mode = task.mode & ~previous;
