@@ -893,7 +893,7 @@
     if (!controller.prefetching) disposeSnapshot(controller);
     viewport.editor.onProjectChanged.unwatch(controller.projectChanged);
     controller.projectSignal?.unwatch(signal);
-    controller.resolution.unwatch(controller.resized);
+    controller.resolution?.unwatch(controller.resized);
     viewport.editor.playback.onSpeedChanged?.unwatch(controller.speedChanged);
     controller.canvas?.removeEventListener("webglcontextlost", controller.contextLost);
     controller.canvas?.removeEventListener("webglcontextrestored", controller.contextRestored);
