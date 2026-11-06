@@ -105,6 +105,7 @@
       "./plugins/core/font-picker.js",
       "./plugins/core/tree-drop-target.js",
       "./plugins/core/object-history.js",
+      "./plugins/core/camera-resources.js",
       "./plugins/core/light-resources.js"
     ],
     postInitScripts: [

@@ -371,6 +371,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "camera-resources",
+      "source": "./plugins/core/camera-resources.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "light-resources",
       "source": "./plugins/core/light-resources.js",
       "phase": "pre-init"
