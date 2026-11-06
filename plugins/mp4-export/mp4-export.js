@@ -95,6 +95,7 @@ function install(context) {
     this.editor.enabled = false;
     this.editor.playback.enabled = false;
     activeJobs++;
+    const startedGeneration = PZ.zoidium?.exportGeneration?.();
     // Begin after returning the page to CM3, including failures constructing
     // the renderer or loading the bundled writer.
     Promise.resolve().then(async () => {
@@ -136,8 +137,13 @@ function install(context) {
         clearInterval(timer);
         exporter?.unload();
         activeJobs--;
-        owner.editor.enabled = true;
-        owner.editor.playback.enabled = true;
+        // A cancelled job can finish after the user started another render.
+        // That render owns the editor now and returns it when it ends.
+        const generation = PZ.zoidium?.exportGeneration?.();
+        if (!activeJobs && (generation === undefined || generation === startedGeneration + (exporter ? 1 : 0))) {
+          owner.editor.enabled = true;
+          owner.editor.playback.enabled = true;
+        }
         settled = true;
       }
     });

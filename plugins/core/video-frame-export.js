@@ -256,11 +256,16 @@
       };
     }
   }
+  // Counts constructed exports. A job compares it to learn whether a later
+  // render, in any format, took over the editor.
+  let exportGeneration = 0;
+  if (PZ.zoidium) PZ.zoidium.exportGeneration = () => exportGeneration;
   function constructTracked(exporter, sequence, construct) {
     const changed = sequence?.properties?.resolution?.onChanged;
     const before = changed?.watchers?.length ?? 0;
     const result = construct();
     const target = result && typeof result === "object" ? result : exporter;
+    exportGeneration += 1;
     if (changed?.watchers) target.__zoidiumResolutionWatchers = changed.watchers.slice(before);
     trackRendererListeners(target);
     return result;
