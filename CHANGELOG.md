@@ -99,6 +99,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Dragging an object onto the top or bottom edge of a group next to it now puts
+  it in the group. Before, that drop left the order unchanged, so nothing
+  happened. Drops that really change the order work as before.
 - 3D and native Text in an opened project appear on the first frame, also when
   they sit on tracks outside the visible timeline or start later. Before, they
   could stay missing until the next redraw.
