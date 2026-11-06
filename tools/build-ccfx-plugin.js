@@ -39,6 +39,12 @@ function slugify(value) {
     .toLowerCase();
 }
 
+const UNUSED_ROWS = {
+  "part-1-distort-puddle": ["edgeBehaviour"],
+  "part-1-distort-skew-v2": ["(0=tile;1=reflect)"],
+  "part-2-plexus-v1": ["uResolution"],
+};
+
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
@@ -212,6 +218,9 @@ for (const filePath of sourceFiles) {
     const preset = clone(sourceObject);
     preset.properties.name = name;
     delete preset.properties.fragShader;
+    // These source rows bind to no uniform that the shader code reads.
+    const unusedRows = UNUSED_ROWS[id] || [];
+    preset.customProperties = (preset.customProperties || []).filter((row) => !unusedRows.includes(row.properties?.name));
     const shaderFile = `shaders/${id}.glsl`;
     const presetFile = `effects/${id}.json`;
     writeJson(path.join(outputRoot, presetFile), preset);
