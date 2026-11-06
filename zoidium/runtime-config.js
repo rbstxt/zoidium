@@ -102,7 +102,8 @@
       "./plugins/core/font-empty-state.js",
       "./plugins/core/font-picker-list.js",
       "./plugins/core/font-picker.js",
-      "./plugins/core/object-history.js"
+      "./plugins/core/object-history.js",
+      "./plugins/core/light-resources.js"
     ],
     postInitScripts: [
       // ui-panels.js queues its installer for ui-kit.js, so it loads first.

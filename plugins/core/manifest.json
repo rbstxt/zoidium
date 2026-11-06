@@ -359,6 +359,11 @@
       "id": "object-history",
       "source": "./plugins/core/object-history.js",
       "phase": "pre-init"
+    },
+    {
+      "id": "light-resources",
+      "source": "./plugins/core/light-resources.js",
+      "phase": "pre-init"
     }
   ],
   "modules": [
