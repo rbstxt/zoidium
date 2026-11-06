@@ -218,6 +218,73 @@
     return pending;
   };
 
+  // Every export owns a private renderer, and three.js only releases its WebGL
+  // context through forceContextLoss(). Two references also outlive unload():
+  // the compositor watches the shared resolution property, and the renderer
+  // adds a dispose listener to each shared texture, material, and geometry.
+  // Left alone, each export keeps a context. The browser allows 16, then evicts
+  // the oldest one, which is the editor's own viewport once it has gone idle.
+  let listenerOwner = null;
+  function attributeDisposeListeners(THREE) {
+    const types = [THREE?.EventDispatcher, THREE?.Texture, THREE?.Material, THREE?.Geometry, THREE?.BufferGeometry, THREE?.WebGLRenderTarget];
+    for (const type of types) {
+      const prototype = type?.prototype;
+      if (!prototype || !Object.prototype.hasOwnProperty.call(prototype, "addEventListener")) continue;
+      const add = prototype.addEventListener;
+      prototype.addEventListener = function addAttributedListener(name, listener) {
+        if (listenerOwner && name === "dispose") listenerOwner.push([this, listener]);
+        return add.call(this, name, listener);
+      };
+    }
+  }
+  attributeDisposeListeners(typeof THREE === "undefined" ? null : THREE);
+
+  // JavaScript is single threaded and three.js adds these listeners inside a
+  // renderer call, so the renderer on the stack owns each listener it adds.
+  function trackRendererListeners(exporter) {
+    const renderer = exporter.renderer;
+    if (!renderer) return;
+    const owned = exporter.__zoidiumRendererListeners = [];
+    for (const key of Object.keys(renderer)) {
+      const method = renderer[key];
+      if (typeof method !== "function") continue;
+      renderer[key] = function trackedRendererCall() {
+        const previous = listenerOwner;
+        listenerOwner = owned;
+        try { return method.apply(this, arguments); }
+        finally { listenerOwner = previous; }
+      };
+    }
+  }
+  function constructTracked(exporter, sequence, construct) {
+    const changed = sequence?.properties?.resolution?.onChanged;
+    const before = changed?.watchers?.length ?? 0;
+    const result = construct();
+    const target = result && typeof result === "object" ? result : exporter;
+    if (changed?.watchers) target.__zoidiumResolutionWatchers = changed.watchers.slice(before);
+    trackRendererListeners(target);
+    return result;
+  }
+  function releaseRenderer(exporter) {
+    const changed = exporter.sequence?.properties?.resolution?.onChanged;
+    for (const watcher of exporter.__zoidiumResolutionWatchers || []) changed?.unwatch?.(watcher);
+    exporter.__zoidiumResolutionWatchers = null;
+    for (const [target, listener] of exporter.__zoidiumRendererListeners || []) target.removeEventListener("dispose", listener);
+    exporter.__zoidiumRendererListeners = null;
+    exporter.renderer?.forceContextLoss?.();
+  }
+  // render-aspect-ratio.js calls this constructor as a function, so handle both.
+  PZ.export = new Proxy(PZ.export, {
+    construct(target, args, newTarget) {
+      let created = null;
+      constructTracked(null, args[0], () => (created = Reflect.construct(target, args, newTarget)));
+      return created;
+    },
+    apply(target, self, args) {
+      return constructTracked(self, args[0], () => Reflect.apply(target, self, args));
+    },
+  });
+
   const originalUnload = PZ.export.prototype.unload;
   PZ.export.prototype.unload = function unloadExportResources() {
     if (this.__zoidiumExportDisposed) return;
@@ -225,8 +292,10 @@
     const guard = this.__zoidiumExportGuard;
     guard?.canvas?.removeEventListener?.("webglcontextlost", guard.onLoss);
     if (this.compositor) delete this.compositor.__zoidiumExportPolicy;
-    if (originalUnload) originalUnload.call(this);
-    else { this.compositor?.unload?.(); this.renderer?.dispose?.(); }
+    try {
+      if (originalUnload) originalUnload.call(this);
+      else { this.compositor?.unload?.(); this.renderer?.dispose?.(); }
+    } finally { releaseRenderer(this); }
   };
   PZ.export.prototype.checkExportContext = function checkExportContext(stage = "before encoder submission") {
     globalThis.ZoidiumCommunityEffectHost?.assertExport(this.sequence?.parentProject || this.sequence, this);
