@@ -38,3 +38,17 @@ test("a replacement source cannot inherit the previous stream start", async () =
   await schedule.decodeFrame(0);
   assert.equal(video.currentTime, 0);
 });
+test("a repeated seek to the last frame accepts a stream that ended at its duration", async () => {
+  const { video, schedule } = setup(time => time >= 6.9 ? 7 : time);
+  for (let pass = 0; pass < 3; pass++) {
+    await schedule.decodeFrame(1);
+    await schedule.decodeFrame(6.95);
+    await schedule.decodeFrame(6.95);
+    assert.equal(video.currentTime, 7);
+  }
+  assert.equal(video.seeks.filter(time => time === 0).length, 0, "no origin probe for a stream end");
+});
+test("a far seek that lands on the stream end still fails", async () => {
+  const { schedule } = setup(time => time === 0 ? 0 : 7);
+  await assert.rejects(schedule.decodeFrame(1), /different requested time/);
+});

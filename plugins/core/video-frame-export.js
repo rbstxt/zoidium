@@ -149,7 +149,11 @@
           await waitForEvent(video, "seeked", timeoutMs, policy, () => { video.currentTime = mediaTime; });
           stage = "after seek";
           mediaError(video); policy?.check?.();
-          if (Math.abs(video.currentTime - seekTime) > SEEK_TIME_EPSILON && video.currentTime > seekTime && !video.seeking) {
+          // A seek inside the last frame can end the paused stream. The element
+          // reports its duration, and the requested frame stays presented.
+          const ended = !video.seeking && video.currentTime > seekTime && video.duration - seekTime <= 1 &&
+            video.currentTime >= video.duration - SAME_TIME_EPSILON;
+          if (!ended && Math.abs(video.currentTime - seekTime) > SEEK_TIME_EPSILON && video.currentTime > seekTime && !video.seeking) {
             // An offset stream can clamp requests before its first timestamp.
             // Confirm that lower bound with an explicit zero seek. Keep the
             // native timeline, including its frozen first frame before start.
@@ -161,7 +165,7 @@
               seekTime = Math.max(seekTime, observed);
             }
           }
-          if (Math.abs(video.currentTime - seekTime) > SEEK_TIME_EPSILON || video.seeking) {
+          if (!ended && (Math.abs(video.currentTime - seekTime) > SEEK_TIME_EPSILON || video.seeking)) {
             throw new Error("Video seek completed at a different requested time.");
           }
           metadata ||= await presentation.promise;
