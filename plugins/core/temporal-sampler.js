@@ -402,7 +402,7 @@
     return registry.capture.captureFrameSamplerInput(...args);
   }
 
-  function frameSamplerMediaInputs(sequence, stage, projectFrame, allTracks = false) {
+  function frameSamplerMediaInputs(sequence, stage, projectFrame, allTracks = false, scoped = callback => callback()) {
     const activeClips = new Set();
     const tracks = sequence?.videoTracks || [];
     const start = allTracks || isAdjustmentLayer(stage.layer) ? 0 : stage.trackIndex;
@@ -417,6 +417,10 @@
     for (const schedule of sequence.videoSchedules || []) {
       const item = findScheduleItemAtFrame(schedule, projectFrame)?.item;
       if (item?.clip && activeClips.has(item.clip) && item.media) inputs.push({ schedule, item });
+      else if (stage) {
+        const nested = layers.findNestedMediaInput(sequence, schedule, stage, projectFrame, allTracks, activeClips, scoped);
+        if (nested) inputs.push(nested);
+      }
     }
     return inputs;
   }
@@ -425,7 +429,9 @@
     const samples = [];
     registry.capture.checkPolicy(context);
     context?.resourcePolicy?.assertStage(sequence, stage, projectFrame, allTracks);
-    for (const { schedule, item } of frameSamplerMediaInputs(sequence, stage, projectFrame, allTracks)) {
+    const inputScope = callback => state && (allTracks || isAdjustmentLayer(stage.layer))
+      ? withFrameSamplerInputContext(state, stage, projectFrame, context, callback) : callback();
+    for (const { schedule, item, source } of frameSamplerMediaInputs(sequence, stage, projectFrame, allTracks, inputScope)) {
       // Never seek the playback/export schedule to obtain another frame.
       // Its shared texture must remain the current input until capture finishes.
       context?.resourcePolicy?.assertMedia(item.media);
@@ -443,7 +449,8 @@
       isolated.sourceUrl = item.media.url;
       isolated.items = [clone];
       const mapSource = () => getScheduleSourceFrame(schedule, projectFrame);
-      const sourceFrame = !allTracks && !isAdjustmentLayer(stage.layer)
+      const nested = source !== undefined;
+      const sourceFrame = nested ? item.start : !allTracks && !isAdjustmentLayer(stage.layer)
         ? projectFrame : state
           ? withFrameSamplerInputContext(state, stage, projectFrame, context, mapSource) : mapSource();
       registry.capture.checkPolicy(context);
@@ -451,7 +458,8 @@
       isolated.update(sourceFrame, getProjectRate(stage.layer, sequence));
       if (isolated.currentItem) {
         context?.resourcePolicy?.assertMedia(item.media);
-        const time = item.clip.properties.time.get(math.holdLastMediaFrame(sourceFrame - item.start, item.length));
+        const time = nested ? item.clip.path.at(-1).properties.time.get(source)
+          : item.clip.properties.time.get(math.holdLastMediaFrame(sourceFrame - item.start, item.length));
         if (typeof ISNODE !== "undefined" && ISNODE) {
           await isolated.ffDecodeFrame(Math.round(time * getProjectRate(stage.layer, sequence)),
             getProjectRate(stage.layer, sequence));

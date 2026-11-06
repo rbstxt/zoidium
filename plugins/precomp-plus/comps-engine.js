@@ -559,12 +559,14 @@ Object.assign(CompLayer, {
   },
 });
 
-function makeProxy(clip, origin, start, length) {
+function makeProxy(clip, origin, start, length, path) {
   const shift = start - origin;
   return {
     start: start,
     length: length,
     origin: origin,
+    // Clips from the Main composition clip to this clip, for the time effects.
+    path: path,
     media: clip.media,
     object: clip.object,
     properties: {
@@ -583,7 +585,7 @@ function makeProxy(clip, origin, start, length) {
   };
 }
 
-function collectNested(layerClip, origin, winStart, winEnd, out, path) {
+function collectNested(layerClip, origin, winStart, winEnd, out, path, clips) {
   const layer = layerClip.object;
   if (!layer || typeof layer.nestedTracks !== "function") return;
   if (path.has(layer.compId) || path.size >= MAX_DEPTH) return;
@@ -594,9 +596,10 @@ function collectNested(layerClip, origin, winStart, winEnd, out, path) {
       const start = Math.max(winStart, clipOrigin);
       const end = Math.min(winEnd, clipOrigin + clip.length);
       if (end <= start) return;
-      if (clip.media) out.push(makeProxy(clip, clipOrigin, start, end - start));
+      const chain = clips.concat(clip);
+      if (clip.media) out.push(makeProxy(clip, clipOrigin, start, end - start, chain));
       if (clip.object && typeof clip.object.nestedTracks === "function") {
-        collectNested(clip, clipOrigin, start, end, out, path);
+        collectNested(clip, clipOrigin, start, end, out, path, chain);
       }
     });
   });
@@ -672,7 +675,7 @@ function analyzeVideo(seq) {
   const extra = [];
   clips.forEach(function (clip) {
     if (clip.object && typeof clip.object.nestedTracks === "function") {
-      collectNested(clip, clip.start, clip.start, clip.start + clip.length, extra, new Set());
+      collectNested(clip, clip.start, clip.start, clip.start + clip.length, extra, new Set(), [clip]);
     }
   });
   const all = extra.length ? clips.concat(extra).sort(function (a, b) { return a.start - b.start; }) : clips;

@@ -119,6 +119,13 @@
         if (!clip || !Number.isFinite(projectFrame)) return null;
         return this.mapLayerFrame(layer, projectFrame - clip.start);
       },
+      // A schedule item's clip can be a Precomp+ proxy in Main time.
+      mapScheduleClip(clip, projectFrame) {
+        if (!clip?.path) return this.mapProjectFrame(clip?.object, projectFrame);
+        if (!Number.isFinite(projectFrame)) return null;
+        const source = layers.getNestedSourceFrame(clip.path, projectFrame, getSequenceForLayer(clip.object));
+        return source === null ? null : { sourceFrame: source, localFrame: projectFrame - clip.origin };
+      },
       // Canonical frame helpers for other effects (A10). Other owners'
       // effects should use these instead of re-deriving quantize/plan math.
       quantizeFrame,
@@ -322,6 +329,19 @@
       this.__zoidiumExportContext = args[0];
       try {
         const found = findScheduleItemAtFrame(this, projectFrame);
+        const nested = layers.findNestedScheduleItem(this, projectFrame);
+        if (nested && (nested.item !== found?.item ||
+            Math.abs(nested.item.clip.origin + nested.source - projectFrame) > EPSILON)) {
+          // The mapped clock can leave this item's Main-time window. Select the
+          // item by its window, then decode the time of the mapped source frame.
+          const { item, source } = nested;
+          this.update(item.start, args[0]?.sequence?.properties?.rate?.get?.());
+          if (this.currentItem === item && this.el) {
+            await this.decodeFrame(item.clip.path.at(-1).properties.time.get(source), args[0]);
+          }
+          return await item.clip.prepare(item.clip.origin + source, args[0]);
+        }
+        if (found?.item?.clip?.path) return await state.originalSchedulePrepare.call(this, projectFrame, ...args);
         if (found?.item?.clip) {
           const clip = found.item.clip;
           const layer = clip?.object;
@@ -393,8 +413,8 @@
       // Route from the same integer output frame used by the viewport. An
       // expression can be zero there but nonzero at the fractional wall clock.
       const outputFrame = Math.round(finiteNumber(this._exactFrame, NaN));
-      const layer = schedule.currentItem.clip?.object;
-      const mapped = state.mapProjectFrame(layer, outputFrame);
+      const scheduleClip = schedule.currentItem.clip;
+      const mapped = state.mapScheduleClip(scheduleClip, outputFrame);
       if (!mapped || Math.abs(mapped.sourceFrame - mapped.localFrame) <= EPSILON) {
         if (schedule.__zoidiumTemporalPlayback) {
           // Rejoin at output time before native play() can select this element
@@ -414,7 +434,7 @@
         // A one-frame neutral interval still uses native video, but cannot
         // briefly anchor the output clock between discontinuous source times.
         const changing = [outputFrame - 1, outputFrame + 1].some(frame => {
-          const next = state.mapProjectFrame(layer, frame);
+          const next = state.mapScheduleClip(scheduleClip, frame);
           return next && Math.abs(next.sourceFrame - next.localFrame) > EPSILON;
         });
         if (changing && this.syncSchedule === schedule) this.syncSchedule = null;
@@ -488,8 +508,11 @@
         // Clock operators on video also require an exact paused decoder. The
         // native playback element can still be seeking when the viewport draws.
         const temporalVideo = (sequence?.videoSchedules || []).some(schedule => {
+          const nested = layers.findNestedScheduleItem(schedule, frame);
+          if (nested) return Math.abs(nested.item.clip.origin + nested.source - frame) > EPSILON;
           const item = findScheduleItemAtFrame(schedule, frame)?.item;
           const clip = item?.clip;
+          if (clip?.path) return false;
           const mapped = item?.media && clip?.object &&
             getTemporalLayerFrame(clip.object, frame - clip.start, sequence);
           return mapped && Math.abs(mapped.sourceFrame - mapped.localFrame) > EPSILON;
