@@ -40,6 +40,10 @@ function activate(context) {
   const owned = new Map();
   const materials = new WeakMap(), materialRefs = new Set();
   const collectedMaterials = new FinalizationRegistry(ref => materialRefs.delete(ref));
+  const collectedWorkers = new FinalizationRegistry(({ worker, url }) => {
+    worker.terminate();
+    context.window.URL.revokeObjectURL(url);
+  });
   function* liveMaterials() {
     for (const ref of materialRefs) {
       const material = ref.deref();
@@ -168,6 +172,7 @@ function activate(context) {
       if (!worker && context.window.Worker && context.window.Blob && context.window.URL?.createObjectURL) {
         workerUrl = context.window.URL.createObjectURL(new context.window.Blob([graphWorkerSource], { type: "text/javascript" }));
         worker = new context.window.Worker(workerUrl);
+        collectedWorkers.register(material, { worker, url: workerUrl }, material);
       }
     }
     function apply(outputs, size) {
@@ -214,14 +219,16 @@ function activate(context) {
           return;
         }
         cancelBake = () => { cancelBake = null; resolve({}); };
+        const finish = () => { worker.onmessage = worker.onerror = null; cancelBake = null; };
         worker.onmessage = ({ data }) => {
           if (data.id !== id) return;
-          cancelBake = null;
+          finish();
           trace("finished", job, { duration: data.duration });
           if (data.error) reject(new Error(data.error)); else resolve(data.outputs);
         };
-        worker.onerror = (event) => { cancelBake = null; reject(new Error(event.message || "Material+ graph worker failed.")); };
-        worker.postMessage({ ...job, id });
+        worker.onerror = (event) => { finish(); reject(new Error(event.message || "Material+ graph worker failed.")); };
+        try { worker.postMessage({ ...job, id }); }
+        catch (error) { finish(); reject(error); }
       });
     }
     async function drain() {
@@ -364,6 +371,7 @@ function activate(context) {
       if (refinement !== null) clearTimeout(refinement);
       pending = null;
       cancelBake?.();
+      collectedWorkers.unregister(this);
       worker?.terminate();
       if (workerUrl) context.window.URL.revokeObjectURL(workerUrl);
       nodes.releaseImages(this);

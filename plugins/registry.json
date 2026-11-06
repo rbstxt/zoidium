@@ -238,7 +238,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/material-plus/manifest.json?v=35",
       "bundle": "./plugins/material-plus/bundle.json?v=35",
-      "integrity": "sha256-Jd5NUmodqP6Xp0mGx2kH6zzzhxgsKTS0qiqCBvvgDEI="
+      "integrity": "sha256-A1Eur2tauJ72gZeKPhAF6kCz3TC5ARJZJSgitfkocsg="
     },
     {
       "id": "text-plus",
