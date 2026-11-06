@@ -581,3 +581,35 @@ test("project-change notification releases the previous revision graph before an
   assert.equal(editor._zoidiumRevisionProject, null);
   assert.equal(editor._zoidiumRevisionWatcher, null);
 });
+
+test("the saved content baseline includes initialization completed before serialization", async () => {
+  const h = createHarness(), editor = h.makeEditor(), loading = deferred();
+  editor.project.children = [{ loading: loading.promise }];
+  editor._zoidiumSaveFileHandle = { name: "loaded.pz", async createWritable() {
+    return { async write() {}, async close() {} };
+  } };
+  const saving = editor.save();
+  await flush();
+  editor.project.data.title = "initialized content";
+  loading.resolve();
+  const result = await saving;
+  assert.equal(JSON.parse(result.diskState.content).data.title, "initialized content");
+  assert.equal(editor.project.ui.dirty, false);
+});
+
+test("a name serialized after project data becomes the actual disk baseline", async () => {
+  const h = createHarness(), editor = h.makeEditor(), serializing = deferred(), release = deferred();
+  h.PZ.project.save = async function (archive) {
+    addProjectEntries(archive); serializing.resolve(); await release.promise;
+  };
+  editor._zoidiumSaveFileHandle = { name: "named.pz", async createWritable() {
+    return { async write() {}, async close() {} };
+  } };
+  const saving = editor.save(); await serializing.promise;
+  h.projectFiles.setRawProjectName(editor, "Name in archive metadata");
+  release.resolve();
+  const result = await saving;
+  assert.equal(result.diskState.name, result.projectName);
+  assert.equal(result.diskState.name, "Name in archive metadata");
+  assert.equal(editor.project.ui.dirty, false);
+});

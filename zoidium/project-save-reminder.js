@@ -9,8 +9,8 @@
 // automatic backups never count as a disk save.
 // Loads after project-restore.js (see zoidium/runtime-config.js), which owns
 // the toolbar and the Restore panel this badge and its setting attach to.
-// The refresh tick and the edit watcher only read the project revision
-// and update the badge; they never touch project data, and no code here runs
+// The refresh tick and the edit watcher read save state and update the
+// badge; they never touch project data, and no code here runs
 // on export or rendering paths.
 (function installProjectSaveReminder(global) {
   "use strict";
@@ -126,7 +126,8 @@
       rewatch(state, editor);
       state.observedProject = project;
     }
-    var unsaved = state.everSaved && isUnsaved(state, snapshotOf(editor));
+    var tracked = projectFilesOf()?.isProjectUnsaved?.(editor);
+    var unsaved = state.everSaved && (tracked == null ? isUnsaved(state, snapshotOf(editor)) : tracked);
     if (!unsaved) state.dirtySince = null;
     else if (state.dirtySince === null || state.dirtySince === undefined) state.dirtySince = nowMs;
     render(state, describe(state, nowMs));
@@ -468,6 +469,9 @@
     global.addEventListener("zoidium:project-saved", function (event) {
       if (!forCurrentEditor(detailOf(event))) return;
       onProjectSaved(state, detailOf(event), Date.now());
+    });
+    global.addEventListener("zoidium:project-dirty-changed", function (event) {
+      if (forCurrentEditor(detailOf(event))) refresh(state, Date.now());
     });
     global.addEventListener("zoidium:project-name-changed", function (event) {
       if (forCurrentEditor(detailOf(event))) refresh(state, Date.now());
