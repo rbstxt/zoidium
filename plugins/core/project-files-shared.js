@@ -1,7 +1,6 @@
-// Project file naming, error, and open-readiness helpers shared by the
-// project-files core scripts. No archive or UI access, so every consumer
-// (runtime scripts and node test harnesses) can load this file first and
-// read the helpers off PZ.zoidium.projectFilesShared.
+// Project naming, disk-state tracking, and open-readiness helpers shared by
+// the project-files core scripts. Consumers load this file first and read
+// the helpers off PZ.zoidium.projectFilesShared.
 (function installProjectFilesShared(global) {
   "use strict";
 
@@ -141,7 +140,67 @@
     return Promise.all(pending);
   }
 
+  // Keep a single serialized baseline for dirty-state checks after undo.
+  // Ordinary edits only set a flag; they never serialize the document.
+  var diskStates = new WeakMap();
+  function diskContent(project) {
+    try { return JSON.stringify(project); } catch (_error) { return null; }
+  }
+  function captureDiskState(editor) {
+    var files = PZ.zoidium.projectFiles;
+    return { project: editor.project, revision: files.getProjectRevision(editor),
+      name: files.getProjectName(editor), content: diskContent(editor.project) };
+  }
+  function notifyDirty(editor) {
+    if (typeof global.dispatchEvent !== "function" || typeof global.CustomEvent !== "function") return;
+    global.dispatchEvent(new global.CustomEvent("zoidium:project-dirty-changed", { detail: { editor: editor } }));
+  }
+  function updateProjectDirty(editor, compareContent) {
+    var state = diskStates.get(editor), project = editor.project;
+    if (!state || state.project !== project || !project?.ui) return;
+    if (compareContent) state.contentDirty = state.content === null || diskContent(project) !== state.content;
+    project.ui.dirty = state.contentDirty || PZ.zoidium.projectFiles.getProjectName(editor) !== state.name;
+    notifyDirty(editor);
+  }
+  function projectEdited(editor) {
+    var state = diskStates.get(editor);
+    if (state && state.project === editor.project) {
+      state.contentDirty = true;
+      updateProjectDirty(editor, false);
+    }
+  }
+  function recordDiskSave(editor, snapshot) {
+    if (editor.project !== snapshot.project) return;
+    diskStates.set(editor, { ...snapshot, contentDirty: false });
+    updateProjectDirty(editor, PZ.zoidium.projectFiles.getProjectRevision(editor) !== snapshot.revision);
+  }
+  function diskUnsaved(editor) {
+    var state = diskStates.get(editor);
+    return state && state.project === editor.project ? !!editor.project.ui?.dirty : null;
+  }
+  if (typeof global.addEventListener === "function") global.addEventListener("zoidium:project-changed", function (event) {
+    var editor = event.detail?.editor;
+    if (!editor) return;
+    diskStates.delete(editor);
+    if (event.detail.reason === "open") recordDiskSave(editor, captureDiskState(editor));
+    else if (event.detail.reason === "restore" && editor.project?.ui) editor.project.ui.dirty = true;
+  });
+  // Native history increments the revision on undo too. Compare the saved
+  // document after undo or redo has finished.
+  for (const method of ["undo", "redo"]) {
+    var original = PZ.ui?.history?.prototype[method];
+    if (!original) continue;
+    PZ.ui.history.prototype[method] = function (fn) {
+      return function () {
+        var result = fn.apply(this, arguments);
+        updateProjectDirty(this.editor, true);
+        return result;
+      };
+    }(original);
+  }
+
   PZ.zoidium.projectFilesShared = {
+    captureDiskState, recordDiskSave, projectEdited, updateProjectDirty, diskUnsaved,
     DEFAULT_PROJECT_NAME: DEFAULT_PROJECT_NAME,
     normalizeProjectName: normalizeProjectName,
     fileNameForProject: fileNameForProject,

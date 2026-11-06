@@ -299,6 +299,8 @@ test("a user-gesture picker failure falls back to downloading the project", asyn
   assert.equal(editor.project.ui.dirty, false);
   const saved = harness.events.find((event) => event.type === "zoidium:project-saved");
   assert.equal(saved.detail.delivery, "download");
+  assert.equal(saved.detail.project, editor.project);
+  assert.equal(saved.detail.revision, 0);
   assert.equal(
     harness.events.some((event) => event.type === "zoidium:project-error"),
     false,
@@ -351,6 +353,10 @@ test("an edit made while a save is writing stays dirty", async () => {
   await save;
 
   assert.equal(editor.project.ui.dirty, true);
+  const saved = harness.events.find(event => event.type === "zoidium:project-saved");
+  assert.equal(saved.detail.project, editor.project);
+  assert.equal(saved.detail.revision, 0);
+  assert.equal(harness.projectFiles.getProjectRevision(editor), 1);
 });
 
 test("project saves use memory independently of the shared export workspace", async () => {
@@ -574,4 +580,36 @@ test("project-change notification releases the previous revision graph before an
   editor.onProjectChanged.update();
   assert.equal(editor._zoidiumRevisionProject, null);
   assert.equal(editor._zoidiumRevisionWatcher, null);
+});
+
+test("the saved content baseline includes initialization completed before serialization", async () => {
+  const h = createHarness(), editor = h.makeEditor(), loading = deferred();
+  editor.project.children = [{ loading: loading.promise }];
+  editor._zoidiumSaveFileHandle = { name: "loaded.pz", async createWritable() {
+    return { async write() {}, async close() {} };
+  } };
+  const saving = editor.save();
+  await flush();
+  editor.project.data.title = "initialized content";
+  loading.resolve();
+  const result = await saving;
+  assert.equal(JSON.parse(result.diskState.content).data.title, "initialized content");
+  assert.equal(editor.project.ui.dirty, false);
+});
+
+test("a name serialized after project data becomes the actual disk baseline", async () => {
+  const h = createHarness(), editor = h.makeEditor(), serializing = deferred(), release = deferred();
+  h.PZ.project.save = async function (archive) {
+    addProjectEntries(archive); serializing.resolve(); await release.promise;
+  };
+  editor._zoidiumSaveFileHandle = { name: "named.pz", async createWritable() {
+    return { async write() {}, async close() {} };
+  } };
+  const saving = editor.save(); await serializing.promise;
+  h.projectFiles.setRawProjectName(editor, "Name in archive metadata");
+  release.resolve();
+  const result = await saving;
+  assert.equal(result.diskState.name, result.projectName);
+  assert.equal(result.diskState.name, "Name in archive metadata");
+  assert.equal(editor.project.ui.dirty, false);
 });

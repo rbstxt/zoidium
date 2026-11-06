@@ -9,8 +9,8 @@
 // automatic backups never count as a disk save.
 // Loads after project-restore.js (see zoidium/runtime-config.js), which owns
 // the toolbar and the Restore panel this badge and its setting attach to.
-// The refresh tick and the edit watcher only read the project revision
-// and update the badge; they never touch project data, and no code here runs
+// The refresh tick and the edit watcher read save state and update the
+// badge; they never touch project data, and no code here runs
 // on export or rendering paths.
 (function installProjectSaveReminder(global) {
   "use strict";
@@ -81,6 +81,7 @@
       onDisk: false,
       project: null,
       revision: 0,
+      name: "",
       dirtySince: null,
       observedProject: null,
       watched: null,
@@ -101,11 +102,13 @@
 
   function snapshotOf(editor) {
     var project = editor && editor.project ? editor.project : null;
-    return { project: project, revision: project ? safeRevision(editor) : 0 };
+    var files = projectFilesOf();
+    var name = project && files && typeof files.getProjectName === "function" ? files.getProjectName(editor) : "";
+    return { project: project, revision: project ? safeRevision(editor) : 0, name: name };
   }
 
   function isUnsaved(state, snap) {
-    return !state.onDisk || snap.project !== state.project || snap.revision !== state.revision;
+    return !state.onDisk || snap.project !== state.project || snap.revision !== state.revision || snap.name !== state.name;
   }
 
   function minutesBetween(dirtySince, nowMs) {
@@ -123,7 +126,8 @@
       rewatch(state, editor);
       state.observedProject = project;
     }
-    var unsaved = state.everSaved && isUnsaved(state, snapshotOf(editor));
+    var tracked = projectFilesOf()?.isProjectUnsaved?.(editor);
+    var unsaved = state.everSaved && (tracked == null ? isUnsaved(state, snapshotOf(editor)) : tracked);
     if (!unsaved) state.dirtySince = null;
     else if (state.dirtySince === null || state.dirtySince === undefined) state.dirtySince = nowMs;
     render(state, describe(state, nowMs));
@@ -204,6 +208,7 @@
     var snap = snapshotOf(editor);
     state.project = snap.project;
     state.revision = snap.revision;
+    state.name = snap.name;
     state.observedProject = snap.project;
     rewatch(state, editor);
   }
@@ -228,12 +233,18 @@
     refresh(state, nowMs);
   }
 
-  function onProjectSaved(state, nowMs) {
+  function onProjectSaved(state, detail, nowMs) {
     var editor = editorOf();
+    if (detail.project && detail.project !== editor.project) return;
     state.everSaved = true;
     state.onDisk = true;
-    state.dirtySince = null;
-    rebaseline(state, editor);
+    if (detail.project && typeof detail.revision === "number") {
+      state.project = detail.project;
+      state.revision = detail.revision;
+      state.name = typeof detail.name === "string" ? detail.name : snapshotOf(editor).name;
+    } else {
+      rebaseline(state, editor);
+    }
     refresh(state, nowMs);
   }
 
@@ -446,6 +457,7 @@
     var snap = snapshotOf(editor);
     state.project = snap.project;
     state.revision = snap.revision;
+    state.name = snap.name;
     state.observedProject = snap.project;
     rewatch(state, editor);
 
@@ -456,7 +468,13 @@
     });
     global.addEventListener("zoidium:project-saved", function (event) {
       if (!forCurrentEditor(detailOf(event))) return;
-      onProjectSaved(state, Date.now());
+      onProjectSaved(state, detailOf(event), Date.now());
+    });
+    global.addEventListener("zoidium:project-dirty-changed", function (event) {
+      if (forCurrentEditor(detailOf(event))) refresh(state, Date.now());
+    });
+    global.addEventListener("zoidium:project-name-changed", function (event) {
+      if (forCurrentEditor(detailOf(event))) refresh(state, Date.now());
     });
     global.addEventListener("zoidium:project-error", function (event) {
       if (!forCurrentEditor(detailOf(event))) return;

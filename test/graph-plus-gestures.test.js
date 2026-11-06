@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { host, fixture, editorFor } = require("./helpers/editor-identity-host.cjs");
-function setup() {
+function setup(pointerDrag) {
   const { PZ } = host();
   const { project, layer } = fixture({ PZ });
   const editor = editorFor(PZ, project);
@@ -14,7 +14,7 @@ function setup() {
   elements[0].nextElementSibling=elements[1];elements[1].previousElementSibling=elements[0];
   let move, up;
   PZ.ui.graph = function () {};
-  require("../plugins/graph-plus/interaction.js")({PZ,focusNoScroll(){},beginPointerDrag(_el,_e,m,u){move=m;up=u;}});
+  require("../plugins/graph-plus/interaction.js")({PZ,focusNoScroll(){},beginPointerDrag: pointerDrag || function(_el,_e,m,u){move=m;up=u;}});
   require("../plugins/graph-plus/operations.js")({PZ});
   const graph=Object.assign(new PZ.ui.graph(),{editor,propertyOps:new PZ.ui.properties(editor),
     svg:{getBoundingClientRect:()=>({left:0,top:0})},screenToGraph:(x,y)=>({x,y}),
@@ -22,7 +22,7 @@ function setup() {
   const listeners={};const el={addEventListener:(type,fn)=>{listeners[type]=fn;}};
   graph.attachHandleHandlers(el,1,elements[0]);
   const event=extra=>({button:0,clientX:10,clientY:0,stopPropagation(){},preventDefault(){},...extra});
-  return {graph,editor,project,property,elements,listeners,event,sequence(events, start={}){
+  return {PZ,graph,editor,project,property,elements,listeners,event,sequence(events, start={}){
     listeners.pointerdown(event(start));for(const change of events)move(event({clientX:20,clientY:-4,...change}));up(event(events.at(-1)));
   },drag(extra={}){
     listeners.pointerdown(event(extra));move(event({clientX:20,clientY:-4,...extra}));up(event(extra));
@@ -68,7 +68,7 @@ test("key value drags change only selected axes and share a delta across normali
   });
   const selected=grouped?keys:[keys[1]];let move,up;
   const PZ={ui:{graph:function(){},properties:{prototype:{setValue:graph.propertyOps.setValue}}}};
-  require("../plugins/graph-plus/interaction.js")({PZ,focusNoScroll(){},beginPointerDrag(_el,_e,m,u){move=m;up=u;}});
+  require("../plugins/graph-plus/interaction.js")({PZ,focusNoScroll(){},beginPointerDrag: function(_el,_e,m,u){move=m;up=u;}});
   // Exercise the drag closure with the native property operations and history.
   graph.selectedKeys=()=>selected;graph.timeKeys=x=>x;graph.updateKeyframe=()=>{};
   graph.snapFrame=x=>Math.round(x);graph.updateLegend=()=>{};
@@ -85,4 +85,50 @@ test("Pan tool bypasses key and handle edits",()=>{
  const s=setup();s.graph.tool="pan";const before=JSON.stringify(s.project);
  s.listeners.pointerdown(s.event());assert.equal(s.editor.history.undoStack.length,0);
  assert.equal(JSON.stringify(s.project),before);
+});
+
+
+for (const ending of ["blur", "dispose", "lostpointercapture"]) test(`native handle drag ends once through ${ending} and history stays usable`, () => {
+  const { beginPointerDrag, gpPointerDrags } = require("../plugins/graph-plus/pointer.js");
+  const s = setup(beginPointerDrag), root = {}, owner = new EventTarget();
+  const target = new EventTarget();
+  Object.assign(target, { ownerDocument: { defaultView: owner }, closest: () => root,
+    setPointerCapture() {}, releasePointerCapture() {} });
+  s.graph.attachHandleHandlers(target, 1, s.elements[0]);
+  const event = (type, props = {}) => Object.assign(new Event(type), { pointerId: 7, clientX: 10, clientY: 0, button: 0, ...props });
+  const before = JSON.stringify(s.project);
+  target.dispatchEvent(event("pointerdown"));
+  target.dispatchEvent(event("pointermove", { clientX: 30, clientY: -10 }));
+  // A pointerup for a second finger cannot finish the first pointer's edit.
+  target.dispatchEvent(event("pointerup", { pointerId: 8 }));
+  assert.notEqual(s.editor.history.operation, null);
+  let finishes = 0;
+  const finish = s.editor.history.finishOperation;
+  s.editor.history.finishOperation = function (...args) { finishes++; return finish.apply(this, args); };
+  if (ending === "dispose") for (const end of Array.from(gpPointerDrags.get(root))) end(null);
+  else if (ending === "blur") owner.dispatchEvent(new Event("blur"));
+  else target.dispatchEvent(event(ending));
+  owner.dispatchEvent(new Event("blur"));
+  target.dispatchEvent(event("pointerup"));
+  assert.equal(finishes, 1);
+  assert.equal(gpPointerDrags.get(root).size, 0);
+  assert.equal(s.editor.history.operation, null);
+  const after = JSON.stringify(s.project);
+  assert.notEqual(after, before);
+  s.editor.history.undo(); assert.equal(JSON.stringify(s.project), before);
+  s.editor.history.redo(); assert.equal(JSON.stringify(s.project), after);
+});
+
+test("a drag retired by a history reset cannot finish another operation", () => {
+  const { beginPointerDrag, gpPointerDrags } = require("../plugins/graph-plus/pointer.js");
+  const s = setup(beginPointerDrag), root = {}, owner = new EventTarget(), target = new EventTarget();
+  Object.assign(target, { ownerDocument: { defaultView: owner }, closest: () => root });
+  s.graph.attachHandleHandlers(target, 1, s.elements[0]);
+  target._g2down(s.event());
+  s.editor.history.finishOperation();
+  owner.dispatchEvent(new Event("blur"));
+  assert.equal(gpPointerDrags.get(root).size, 0);
+  s.editor.history.startOperation();
+  s.editor.history.finishOperation();
+  assert.equal(s.editor.history.operation, null);
 });

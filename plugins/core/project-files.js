@@ -75,6 +75,7 @@
     if (!editor) return DEFAULT_PROJECT_NAME;
     var name = normalizeProjectName(value);
     editor._zoidiumProjectName = name;
+    shared.updateProjectDirty(editor, false);
     dispatch("zoidium:project-name-changed", { editor: editor, name: name });
     return name;
   }
@@ -82,6 +83,7 @@
   function setRawProjectName(editor, value) {
     if (!editor) return;
     editor._zoidiumProjectName = String(value == null ? "" : value);
+    shared.updateProjectDirty(editor, false);
     dispatch("zoidium:project-name-changed", {
       editor: editor,
       name: getProjectName(editor),
@@ -117,6 +119,7 @@
     editor._zoidiumRevisionWatcher = function () {
       if (editor._zoidiumRevisionProject === project) {
         editor._zoidiumProjectRevision += 1;
+        shared.projectEdited(editor);
       }
     };
     if (
@@ -376,12 +379,14 @@
     // Await serialized object/plugin initialization, not preview decoders.
     // Otherwise a still-loading object can serialize its default properties.
     await prepareProject(sourceProject, saveReadinessWait(Boolean(options && options.interactive)));
+    var diskState = options && options.diskBaseline ? shared.captureDiskState(editor) : null;
     await serializeProject(archive, editor.project);
     // Runtime-only media thumbnails must never reach a saved file.
     await sanitizeProjectArchive(archive);
     // Refuse to continue with a missing, empty, or "undefined" project entry.
     // Nothing has been written to disk or to a restore point at this point.
     var projectName = getProjectName(editor);
+    if (diskState) diskState.name = projectName;
     var assets = listAssets(editor.project);
     var assetLabels = Object.create(null);
     var fileNames = new Set(archive.files.map(function (entry) { return entry.name; }));
@@ -426,6 +431,7 @@
       assetCount: assets.length,
       packagedAssetCount: packagedAssetCount,
       fingerprint: fingerprint,
+      diskState: diskState,
     };
     if (options && typeof options.shouldSkip === "function" && await options.shouldSkip(fingerprint)) {
       result.skipped = true;
@@ -510,28 +516,21 @@
     );
   }
 
-  function markProjectSavedIfUnchanged(editor, savedProject, savedRevision) {
-    if (
-      editor.project === savedProject &&
-      getProjectRevision(editor) === savedRevision &&
-      editor.project &&
-      editor.project.ui
-    ) {
-      editor.project.ui.dirty = false;
-    }
-  }
-
   async function saveAsDownloadFallback(
     editor,
     archiveResult,
     filename,
     savedProject,
     savedRevision,
+    savedState,
   ) {
     await triggerDownload(archiveResult.blob, filename);
-    markProjectSavedIfUnchanged(editor, savedProject, savedRevision);
+    shared.recordDiskSave(editor, savedState);
     dispatch("zoidium:project-saved", {
       editor: editor,
+      project: savedProject,
+      revision: savedRevision,
+      name: archiveResult.projectName,
       filename: filename,
       size: archiveResult.blob.size,
       assetCount: archiveResult.assetCount,
@@ -577,7 +576,7 @@
       filename = pickedHandle.name.trim();
     }
 
-    var savedProject = editor.project;
+    var savedState = null, savedProject = editor.project;
     var savedRevision = getProjectRevision(editor);
     var archiveResult = null;
     // The picker already truncated a newly chosen file, and a re-save will
@@ -590,7 +589,8 @@
       });
     }
     try {
-      archiveResult = await createArchive(editor, { interactive: true });
+      archiveResult = await createArchive(editor, { interactive: true, diskBaseline: true });
+      savedState = archiveResult.diskState;
     } catch (error) {
       emitError(editor, pickedHandle ? withEmptyTargetNote(error, null) : error, null, function () {
         return saveProject(editor);
@@ -609,6 +609,7 @@
           filename,
           savedProject,
           savedRevision,
+          savedState,
         );
       } catch (error) {
         emitError(editor, error, archiveResult, function () {
@@ -656,9 +657,12 @@
         editor._zoidiumSaveFileHandle = targetHandle;
         editor._zoidiumSaveFileName = filename;
       }
-      markProjectSavedIfUnchanged(editor, savedProject, savedRevision);
+      shared.recordDiskSave(editor, savedState);
       dispatch("zoidium:project-saved", {
         editor: editor,
+        project: savedProject,
+        revision: savedRevision,
+        name: archiveResult.projectName,
         filename: filename,
         size: archiveResult.blob.size,
         assetCount: archiveResult.assetCount,
@@ -898,13 +902,13 @@
         editor.project = project;
         editor._zoidiumSaveFileHandle = null;
         editor._zoidiumSaveFileName = null;
-        dispatch("zoidium:project-changed", { editor: editor, reason: "open" });
         setProjectName(
           editor,
           metadata && metadata.name
             ? metadata.name
             : projectNameFromFileName(originalFilename),
         );
+        dispatch("zoidium:project-changed", { editor: editor, reason: "open" });
         dispatch("zoidium:project-opened", {
           editor: editor,
           ...fileDiagnostics(file),
@@ -979,6 +983,7 @@
     assertProjectUnchanged: assertProjectUnchanged,
     fingerprintArchive: fingerprintArchive,
     getProjectRevision: getProjectRevision,
+    isProjectUnsaved: shared.diskUnsaved,
     validateProjectArchive: validateProjectArchive,
     sanitizeProjectArchive: sanitizeProjectArchive,
     openValidatedArchive: openValidatedArchive,

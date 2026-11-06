@@ -99,6 +99,16 @@ each line describes one visible change.
 
 ### Fixed
 
+- The Save dot stays on when you edit while the file is being written, and it
+  appears when you rename a saved project. Undoing back to the saved state or
+  restoring the saved name clears it.
+- Graph Editor 2 no longer throws an error when a drag ends because the window
+  lost focus or the panel closed. The drag stays one undo step.
+- Shape+ now shows a notice when a fill exceeds its geometry limit and cannot be
+  drawn, for example long text at Full quality. Before, the fill was missing
+  without explanation.
+- Exact decoding works for video whose stream starts later than 0, such as a 5
+  second start time. Before, it failed with a seek error.
 - Opening projects one after another in the same session no longer keeps the
   previous projects in memory, which used to add about 13 MB of heap and 4 MB of
   textures per open. Hidden Restore rows no longer build up either.

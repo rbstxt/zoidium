@@ -73,8 +73,11 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
     var primaryScale = el.parentElement.parentElement.pz_valueScale || 1;
     var curG = startG;
     var moved = false;
+    if (self._editDrag) self._editDrag.finish();
     self.editor.history.startOperation();
+    var history = self.editor.history, operation = history.operation, project = self.editor.project;
     var mv = function (ev) {
+      if (history.operation !== operation || self.editor.project !== project) return;
       var r2 = self.svg.getBoundingClientRect();
       curG = self.screenToGraph(ev.clientX - r2.left, ev.clientY - r2.top);
       if (!moved && Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) < 4) return;
@@ -108,6 +111,9 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
       self.updateStatus("Key · frame " + el.pz_object.frame + " · value " + el.pz_object.value);
     };
     var up = function (ev) {
+      self._editDrag = null;
+      self._dragging = null;
+      if (history.operation !== operation || self.editor.project !== project) return;
       if (ev && ev.shiftKey && !moved && wasSelected) self.deselectKeyframe(el);
       if (moved) {
         for (var q = 0; q < snap.length; q++) {
@@ -131,7 +137,7 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
       self.editor.history.finishOperation();
       self.updateStatus();
     };
-    beginPointerDrag(el, e, mv, up);
+    self._editDrag = beginPointerDrag(el, e, mv, up);
   };
   el.addEventListener("pointerdown", el._g2down);
 };
@@ -200,8 +206,11 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
     snaps.forEach(function (sn) { sn.el.pz_oldControlPoints = JSON.parse(JSON.stringify(sn.oldCP)); });
     var lastAlt = !!e.altKey;
     var moved = false;
+    if (self._editDrag) self._editDrag.finish();
     self.editor.history.startOperation();
+    var history = self.editor.history, operation = history.operation, project = self.editor.project;
     var mv = function (ev) {
+      if (history.operation !== operation || self.editor.project !== project) return;
       var r2 = self.svg.getBoundingClientRect();
       var curG = self.screenToGraph(ev.clientX - r2.left, ev.clientY - r2.top);
       if (!moved && Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) < 4) return;
@@ -248,6 +257,9 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
       self.updateStatus("Handle · frame " + kf.frame + " · " + kf.controlPoints[cpIdx].map(v => Math.round(v * 100) / 100).join(", "));
     };
     var up = function () {
+      self._editDrag = null;
+      self._dragging = null;
+      if (history.operation !== operation || self.editor.project !== project) return;
       if (moved) {
         self.finishMovingHandles(false);
         for (var sn of snaps) {
@@ -263,7 +275,7 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
       self.updateStatus();
       self.editor.history.finishOperation();
     };
-    beginPointerDrag(el, e, mv, up);
+    self._editDrag = beginPointerDrag(el, e, mv, up);
   };
   el.addEventListener("pointerdown", el._g2down);
   el._g2double = function (e) {
