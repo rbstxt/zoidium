@@ -100,3 +100,15 @@ test("the deleted active camera can resolve its project after native detachment"
   assert.equal(replacement.size, 3);
   assert.equal(Object.hasOwn(old, "parentProject"), false);
 });
+
+test("deleting the active camera survives a project lookup that throws", () => {
+  const { Camera, signal } = fixture();
+  const camera = new Camera(signal);
+  camera.threeObj = {};
+  camera.parentLayer.pass = { camera: camera.threeObj };
+  Object.defineProperty(Camera.prototype, "parentProject", { configurable: true, get() { throw Error("No parent"); } });
+  camera.changeObjectType();
+  assert.equal(camera.unload(), 23);
+  assert.equal(signal.watchers.length, 1);
+  assert.equal(Object.hasOwn(camera, "parentProject"), false);
+});

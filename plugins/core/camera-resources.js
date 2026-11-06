@@ -42,8 +42,13 @@
         // Native deletion clears parent, but resolutionChanged reads the
         // project through it. Keep that lookup valid until replacement.
         if (entry && !Object.hasOwn(this, "parentProject")) {
-          Object.defineProperty(this, "parentProject", { configurable: true, value: this.parentProject });
-          entry.cachedProject = true;
+          // A deletion path that left no lookup must not fail from this finally.
+          let project = null;
+          try { project = this.parentProject; } catch { project = null; }
+          if (project) {
+            Object.defineProperty(this, "parentProject", { configurable: true, value: project });
+            entry.cachedProject = true;
+          }
         }
         const previous = retiredActive.get(layer);
         if (previous && previous !== this) release(previous);
