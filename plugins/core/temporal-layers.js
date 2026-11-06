@@ -140,6 +140,7 @@
         // Effect scripts install descriptors before addAll() publishes their
         // property definitions. The effect may already be in its owner list.
         observeStructure(effect?.properties?.onListChanged);
+        observeStructure(effect?.customProperties?.onListChanged);
         result.temporal ||= Boolean(effect?._zoidiumTemporal);
         result.sampler ||= Boolean(effect?._zoidiumFrameSampler);
       }

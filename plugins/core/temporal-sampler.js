@@ -187,7 +187,8 @@
   // to the clip bounds; only the caps differ (16 vs 64 taps).
   function planRequestSamples(request, controlFrame, maximum) {
     if (request && Array.isArray(request.frames) && request.frames.length > 0) {
-      return planExplicitFrameSamples(controlFrame, request.frames, 0, maximum);
+      return planExplicitFrameSamples(controlFrame, request.frames,
+        request.extrapolate === true ? -Infinity : 0, request.extrapolate === true ? Infinity : maximum);
     }
     return buildFrameSamplePlan(
       controlFrame,
