@@ -175,3 +175,31 @@ test("project replacement clears retired render lists and viewport unload remove
   viewport.unload();
   assert.equal(watchers.size, 0);
 });
+
+test("retiring r91 scenes clears private light state without disposing the renderer", () => {
+  const watchers = new Set(), states = new Map();
+  const camera = { id: 7, matrixWorldInverse: {} };
+  const retired = { id: 11, traverse(fn) { fn({ isLight: true, parent: this }); } };
+  let disposed = 0, cleared = 0;
+  const renderer = {
+    compile(scene, camera) {
+      const lights = [];
+      scene.traverse(object => { if (object.isLight) lights.push(object); });
+      states.set(scene.id + "," + camera.id, lights);
+    },
+    render(scene, camera) { this.compile(scene, camera); },
+    dispose() { disposed++; }, renderLists: { dispose() { cleared++; } },
+  };
+  class Viewport { constructor(editor) { this.editor = editor; this.renderer = renderer; } }
+  const context = { THREE: { REVISION: "91", Matrix4: class {} }, PZ: { ui: { viewport: Viewport } } };
+  vm.runInNewContext(fs.readFileSync(path.join(projectRoot, "plugins/core/main-viewport.js"), "utf8"), context);
+  new context.PZ.ui.viewport({ onProjectChanged: { watch(fn) { watchers.add(fn); } } });
+  renderer.render(retired, camera);
+  assert.equal(states.get("11,7")[0].parent, retired);
+  for (const fn of watchers) fn();
+  assert.equal(states.get("11,7").length, 0);
+  assert.equal(disposed, 0);
+  assert.equal(cleared, 1);
+  renderer.render(retired, camera);
+  assert.equal(states.get("11,7").length, 1, "a subsequent draw rebuilds lighting");
+});

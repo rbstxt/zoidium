@@ -560,3 +560,18 @@ test("a clip whose content fails or never finishes preparing does not stop the o
   for (const timer of timers.filter(timer => timer.ms === 10000)) timer.fn();
   assert.equal(await opening, editor.loadedProject);
 });
+
+test("project-change notification releases the previous revision graph before another save", () => {
+  const h = createHarness(), editor = h.makeEditor(), old = editor.project;
+  editor.onProjectChanged = new Observable();
+  h.projectFiles.getProjectRevision(editor);
+  assert.equal(old.ui.onChanged.watchers.length, 1);
+  editor.project = { ui: { onChanged: new Observable() } };
+  editor.onProjectChanged.update();
+  assert.equal(old.ui.onChanged.watchers.length, 0);
+  assert.equal(editor._zoidiumRevisionProject, editor.project);
+  editor.project = null;
+  editor.onProjectChanged.update();
+  assert.equal(editor._zoidiumRevisionProject, null);
+  assert.equal(editor._zoidiumRevisionWatcher, null);
+});

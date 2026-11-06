@@ -90,7 +90,11 @@
 
   function getProjectRevision(editor) {
     var project = editor && editor.project;
-    if (!project) return 0;
+    if (!editor) return 0;
+    if (!editor._zoidiumRevisionAttached && editor.onProjectChanged?.watch) {
+      editor._zoidiumRevisionAttached = true;
+      editor.onProjectChanged.watch(function () { getProjectRevision(editor); });
+    }
     if (editor._zoidiumRevisionProject === project) {
       return editor._zoidiumProjectRevision || 0;
     }
@@ -109,6 +113,7 @@
 
     editor._zoidiumRevisionProject = project;
     editor._zoidiumProjectRevision = 0;
+    if (!project) { editor._zoidiumRevisionWatcher = null; return 0; }
     editor._zoidiumRevisionWatcher = function () {
       if (editor._zoidiumRevisionProject === project) {
         editor._zoidiumProjectRevision += 1;

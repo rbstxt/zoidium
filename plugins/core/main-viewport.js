@@ -31,7 +31,7 @@
       // Store numeric IDs only so this tracker cannot retain a project itself.
       const pairs = new Map();
       const renderer = this.renderer;
-      if (renderer && String(THREE.REVISION) === "91") {
+      if (renderer && typeof THREE !== "undefined" && String(THREE.REVISION) === "91") {
         for (const method of ["render", "compile"]) {
           const original = renderer[method];
           renderer[method] = function (scene, camera, ...rest) {
