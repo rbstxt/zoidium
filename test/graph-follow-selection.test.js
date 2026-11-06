@@ -3,6 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { Selection, curvesFor, animatedCurves, controllers, FOLLOW_KEY } = require("../plugins/graph-plus/selection.js");
 const install = require("../plugins/graph-plus/selection-host.js");
+const { queryObjects } = require("node:v8");
 const { FakeElement } = require("./fake-dom.js");
 class Channel {
   constructor(name, animated = false) { this.definition = { name }; this.animated = animated; this.keyframes = [{ value: 1 }]; }
@@ -74,6 +75,23 @@ function fixture() {
   }
   return { host, graph, editor, edit, row, event, listeners, doc, rows, get focused() { return focused; }, get opens() { return opens; } };
 }
+
+test("graph row decoration does not retain detached native property panels", async () => {
+  class Row extends FakeElement {}
+  const original = Edit.prototype.generateListItem = function () {
+    const row = new Row("li");
+    row.pz_object = new Channel("Opacity");
+    return row;
+  };
+  const f = fixture();
+  for (let i = 0; i < 40; i++) f.edit.generateListItem();
+  // Do not trigger selection paint or project replacement to prune the rows.
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(queryObjects(Row), 0);
+  f.host.dispose();
+  assert.equal(Edit.prototype.generateListItem, original);
+  delete Edit.prototype.generateListItem;
+});
 
 test("property identities map scalar, vector, color, nested material and plugin rows", () => {
   const scalar = new Channel("Opacity"), position = new Group("Position", ["X", "Y", "Z"]), color = new Group("Color", ["R", "G", "B"]);
