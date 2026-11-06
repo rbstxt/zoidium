@@ -396,6 +396,10 @@
       "source": "./plugins/core/font-load.js?v=120"
     },
     {
+      "id": "keyframe-row-reveal",
+      "source": "./plugins/core/keyframe-row-reveal.js?v=120"
+    },
+    {
       "id": "video-decode-hint",
       "source": "./plugins/core/video-decode-hint.js?v=120"
     },
