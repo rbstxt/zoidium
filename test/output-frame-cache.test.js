@@ -847,3 +847,17 @@ test("project replacement moves resolution and edit watchers to the current grap
   h.api.dispose();
   assert.equal(next.sequence.properties.resolution.onChanged.watchers.size, 0);
 });
+
+test("frame cache disposal releases its controller after the project becomes null", async () => {
+  const h = harness();
+  await h.warm();
+  const resolution = h.project.sequence.properties.resolution.onChanged;
+  h.viewport.editor.project = null;
+  h.viewport.editor.onProjectChanged.update();
+  assert.equal(resolution.watchers.size, 0);
+  assert.equal(h.project.ui.onChanged.watchers.size, 0);
+  assert.doesNotThrow(() => h.api.dispose());
+  assert.equal(h.viewport.editor.onProjectChanged.watchers.size, 0);
+  assert.equal(h.canvasEvents.size, 0);
+  assert.equal(h.viewport.__zoidiumOutputFrames, undefined);
+});
