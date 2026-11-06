@@ -106,9 +106,9 @@ function harness({ prefetch = false, stale = false, manualChecks = false } = {})
   window.__zoidiumTemporalParts = { sampler: { frameSamplerMediaInputs: require("../../plugins/core/temporal-sampler.js").frameSamplerMediaInputs,
     getFrameSamplerRuntime: () => ({ schedules: new Map() }) } };
   const checks = new Map();
-  window.requestIdleCallback = fn => { const id = ++nextTimer; checks.set(id, fn);
+  window.setTimeout = fn => { const id = ++nextTimer; checks.set(id, fn);
     if (!manualChecks) setImmediate(() => { if (checks.delete(id)) { clock.now += 101; fn(); } }); return id; };
-  window.cancelIdleCallback = id => checks.delete(id);
+  window.clearTimeout = id => checks.delete(id);
   const sandbox = {
     window, PZ, THREE, performance: window.performance, console,
     setTimeout: fn => { timers.set(++nextTimer, fn); return nextTimer; }, clearTimeout: id => timers.delete(id),

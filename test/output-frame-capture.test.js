@@ -171,7 +171,7 @@ test("unchecked bytes are bounded and share the cache memory budget", async () =
   q.dispose(); h.api.dispose();
 });
 
-test("idle verification waits during gestures and native history operations", async () => {
+test("deferred verification waits during gestures and native history operations", async () => {
   const h = await prepared();
   h.api.capturePreview(h.viewport, 1);
   const checks = h.counts.checks;
@@ -225,7 +225,7 @@ test("replacement after a clean check but before its promise callback still reje
   h.api.dispose();
 });
 
-test("the task fallback verifies later and cancels its scheduled check on disposal", async () => {
+test("the task timer verifies later and cancels its scheduled check on disposal", async () => {
   const h = await prepared();
   const { CaptureQueue } = require("../plugins/core/output-frame-capture.js");
   const { FrameStore } = require("../plugins/core/output-frame-store.js");
@@ -241,5 +241,28 @@ test("the task fallback verifies later and cancels its scheduled check on dispos
   q.dispose();
   assert.equal(await promise, null);
   assert.equal(tasks.size, 0);
+  h.api.dispose();
+});
+
+test("a cancelled promise cannot remove a newer pending capture for the same frame", async () => {
+  const h = await prepared();
+  h.api.capturePreview(h.viewport, 1);
+  h.api.clear();
+  const controller = h.viewport.__zoidiumOutputFrames;
+  // Complete the new revision synchronously to exercise both promise callbacks
+  // in one turn, before the cancelled request can remove the newer token.
+  controller.key = controller.full;
+  controller.settled = controller.key;
+  h.api.capturePreview(h.viewport, 1);
+  await flush();
+  assert.equal(controller.pendingFrames.size, 1);
+  assert.equal(h.api.debug.pendingFrames, 1);
+  await checked(h);
+  assert.equal(controller.pendingFrames.size, 0);
+  assert.equal(h.api.debug.entries, 1);
+  h.viewport.editor.playback.currentFrame = 1;
+  const hits = h.api.debug.hits;
+  h.viewport._render();
+  assert.equal(h.api.debug.hits, hits + 1);
   h.api.dispose();
 });

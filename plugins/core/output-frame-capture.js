@@ -18,17 +18,18 @@
     }
     schedule() {
       if (this.timer !== null || (!this.pending.size && !this.contexts.size)) return;
-      const check = deadline => {
+      const check = () => {
         this.timer = null;
-        if ((deadline && deadline.timeRemaining() < 1) || !this.quiet()) { this.schedule(); return; }
+        if (!this.quiet()) { this.schedule(); return; }
         this.check();
       };
-      this.timer = this.host.requestIdleCallback ? this.host.requestIdleCallback(check) : this.host.setTimeout(check, 16);
+      // Yield a frame before checking. Unlike an idle callback, this task
+      // also runs during playback; input and history still postpone it.
+      this.timer = this.host.setTimeout(check, 16);
     }
     cancelTimer() {
       if (this.timer === null) return;
-      if (this.host.requestIdleCallback) this.host.cancelIdleCallback(this.timer);
-      else this.host.clearTimeout(this.timer);
+      this.host.clearTimeout(this.timer);
       this.timer = null;
     }
     valid(item) {
