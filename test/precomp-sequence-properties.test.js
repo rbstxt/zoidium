@@ -31,3 +31,23 @@ test("composition switches replace scalar and grouped sequence keyframes", () =>
     assert.deepEqual(serialize(), initial);
   }
 });
+
+test("composition switches unload outgoing clips before removing their tracks", () => {
+  const released = [];
+  const sandbox = { module: { exports: {} }, PZ: { ui: {} }, console,
+    require: () => ({ clone: value => JSON.parse(JSON.stringify(value)), applyTrackSwitches() {} }) };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,
+    "../plugins/precomp-plus/comps-timeline.js"), "utf8"), sandbox);
+  const sequence = { properties: [], videoTracks: [], audioTracks: [], load() {} };
+  for (const type of ["videoTracks", "audioTracks"]) {
+    sequence[type].push({ clips: [{ unload() {
+      assert.equal(sequence[type].length, 1, "project ancestry is still available during unload");
+      released.push(type);
+    } }] });
+  }
+  const editor = { project: { sequence, ui: { onChanged: { update() {} } } } };
+  sandbox.module.exports.applySequence(editor, { videoTracks: [], audioTracks: [] });
+  assert.deepEqual(released, ["videoTracks", "audioTracks"]);
+  assert.equal(sequence.videoTracks.length, 0);
+  assert.equal(sequence.audioTracks.length, 0);
+});

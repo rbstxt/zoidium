@@ -83,6 +83,11 @@ function applySequence(editor, json) {
     }
   }
   clearKeys(seq.properties);
+  // These tracks are replaced by freshly loaded clips. Release the old
+  // layers and media while their project parent chain is still attached.
+  for (const track of [...seq.videoTracks, ...seq.audioTracks]) {
+    for (const clip of track.clips) clip.unload();
+  }
   seq.videoTracks.splice(0, seq.videoTracks.length);
   seq.audioTracks.splice(0, seq.audioTracks.length);
   seq.load(clone(json));
