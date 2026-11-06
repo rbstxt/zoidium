@@ -623,3 +623,26 @@ test("project font previews accept the host's opentype Path, not only Path2D", (
   // The host's opentype getPath() returns an opentype Path; filling it directly throws and leaves the row blank.
   assert.match(source, /toPathData\(/);
 });
+
+test("removed project fonts release their cached preview canvas and file", async () => {
+  const env = loadPicker({ withEmptyState: true });
+  async function preview() {
+    const asset = fontAsset("temporary", "Temporary.ttf");
+    env.assets.list.temporary = asset;
+    env.font2dByKey.temporary = fakeFont2d("Temporary", "Regular");
+    const control = env.controls.generateFontInput(staticProperty("temporary", env.assets));
+    control[0].pz_update();
+    await tick(); await tick();
+    const canvas = partsOf(control).span.querySelector("canvas");
+    assert.ok(canvas);
+    const references = { canvas: new WeakRef(canvas), file: new WeakRef(asset.file) };
+    delete env.assets.list.temporary;
+    return references;
+  }
+  const references = await preview();
+  await tick();
+  // queryObjects requests a full collection without depending on --expose-gc.
+  require("node:v8").queryObjects(FakeElement, { format: "count" });
+  assert.equal(references.canvas.deref(), undefined);
+  assert.equal(references.file.deref(), undefined);
+});
