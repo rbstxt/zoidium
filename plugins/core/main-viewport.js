@@ -25,6 +25,7 @@
     constructor(...args) {
       super(...args);
       instances.push(this);
+      PZ.zoidium?.projectResources?.observeEditor(this.editor);
       // r91's private render-state cache holds lights and their parent scenes.
       // compile() initializes a pair's state before visiting its scene. Empty
       // descriptors clear those references without touching live GPU resources.

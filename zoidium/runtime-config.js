@@ -79,6 +79,7 @@
       "./plugins/core/output-frame-store.js",
       "./plugins/core/output-frame-video.js",
       "./plugins/core/output-frame-cache.js",
+      "./plugins/core/project-resources.js",
       // Keeps the editor's main preview reachable as editor.mainViewport. It
       // must be installed before initTool() builds the viewport.
       "./plugins/core/main-viewport.js",

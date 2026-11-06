@@ -117,7 +117,9 @@
   function warmClip(object, sequence) {
     var timer;
     var warmed = Promise.resolve().then(function () {
-      return object.prepare(0, { sequence: sequence });
+      return PZ.zoidium.projectResources
+        ? PZ.zoidium.projectResources.prepare(sequence.parentProject, function () { return object.prepare(0, { sequence: sequence }); })
+        : object.prepare(0, { sequence: sequence });
     }).then(function () { return true; }, function (error) {
       if (global.console) global.console.warn("[Zoidium] Clip content could not be prepared; it opens with what is available.", error);
       return true;
