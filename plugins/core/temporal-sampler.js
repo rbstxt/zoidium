@@ -411,12 +411,12 @@
     for (let index = start; index < end; index += 1) {
       const track = tracks[index];
       if (!track || track.enabled === false) continue;
-      const clip = track.getCurrentClip?.(projectFrame);
+      const clip = registry.capture.inputClip(stage, track, index, projectFrame);
       if (clip) activeClips.add(clip);
     }
     const inputs = [];
     for (const schedule of sequence.videoSchedules || []) {
-      const item = findScheduleItemAtFrame(schedule, projectFrame)?.item;
+      const item = findScheduleItemAtFrame(schedule, stage.selectionFrame ?? projectFrame)?.item;
       if (item?.clip && activeClips.has(item.clip) && item.media) inputs.push({ schedule, item });
     }
     return inputs;
@@ -449,7 +449,7 @@
           ? withFrameSamplerInputContext(state, stage, projectFrame, context, mapSource) : mapSource();
       registry.capture.checkPolicy(context);
       context?.resourcePolicy?.assertMedia(item.media);
-      isolated.update(sourceFrame, getProjectRate(stage.layer, sequence));
+      isolated.update(stage.selectionFrame ?? sourceFrame, getProjectRate(stage.layer, sequence));
       if (isolated.currentItem) {
         context?.resourcePolicy?.assertMedia(item.media);
         const time = item.clip.properties.time.get(sourceFrame - item.start);
@@ -476,7 +476,7 @@
     for (let index = start; index <= stage.trackIndex; index += 1) {
       registry.capture.checkPolicy(context);
       if (tracks[index]?.enabled === false) continue;
-      const clip = index === stage.trackIndex ? stage.clip : tracks[index]?.getCurrentClip?.(frame);
+      const clip = index === stage.trackIndex ? stage.clip : registry.capture.inputClip(stage, tracks[index], index, frame);
       const layer = clip?.object;
       if (!layer) continue;
       context?.resourcePolicy?.assertLayer(layer);
@@ -523,7 +523,7 @@
     if (!layer || !clip || !sequence) return;
 
     const projectFrame = finiteNumber(clip.start, 0) + finiteNumber(localFrame, 0);
-    const stage = findFrameSamplerStage(sequence, effect, projectFrame);
+    let stage = findFrameSamplerStage(sequence, effect, projectFrame);
     const roots = state.compositorsBySequence.get(sequence);
     if (!stage || !roots?.size) return;
 
@@ -559,6 +559,7 @@
       return;
     }
     if (!request || request.enabled === false) return;
+    stage = registry.capture.anchorInputClips(stage, sequence, request, projectFrame);
 
     const maximum = Math.max(0, finiteNumber(clip.length, 0) - EPSILON);
     const plan = planRequestSamples(request, controlFrame, maximum);
@@ -759,7 +760,7 @@
 
     const depth = finiteNumber(context?.frameSamplerDepth, 0) + 1;
     if (depth > MAX_FRAME_SAMPLER_DEPTH || state.samplingEffects.has(effect)) return [];
-    const stage = findFrameSamplerStage(sequence, effect, outputFrame);
+    let stage = findFrameSamplerStage(sequence, effect, outputFrame);
     if (!stage) return [];
 
     const lastLayerFrame = finiteNumber(
@@ -783,6 +784,7 @@
       return [];
     }
     if (!request || request.enabled === false) return [];
+    stage = registry.capture.anchorInputClips(stage, sequence, request, outputFrame);
 
     const maximum = Math.max(0, finiteNumber(stage.clip.length, 0) - EPSILON);
     const plan = planRequestSamples(request, controlFrame, maximum);

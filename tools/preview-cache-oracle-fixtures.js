@@ -128,7 +128,7 @@ function fixtures() {
     project([{ type, objects: [box()], properties: { angle: scalar(0.2, 1.1), amount: scalar(2, 8) }, repeaterProperties: {} }]));
   for (const fixture of result) {
     fixture.requiredPlugin = fixture.plugin === "effector-plus" ? "repeater" : fixture.plugin;
-    if (fixture.plugin === "ccfx-shader-pack") fixture.requiredPlugin = null;
+    if (fixture.plugin === "ccfx-shader-pack" || fixture.name === "legacy-slider") fixture.requiredPlugin = null;
     fixture.prefetch = !fixture.liveOnly && (fixture.name === result.find(item => item.plugin === fixture.plugin)?.name ||
       /echo|smartmotionblur|timedisplacement|ccwidetime|timedifference|Shake|Delay|Particular|Form|Plexus/.test(fixture.name));
   }

@@ -568,6 +568,7 @@
       [compositor.renderer?.shadowMap?.type, compositor.renderer?.shadowMap?.enabled], pluginStateEpoch,
       frameSamplerReuseDisabled(), math.temporalMode(stage?.effect), math.temporalMode(scope?.effect),
       preserveInputRGB === true];
+    if (stage?.inputClips) settings.push(stage.inputClips.map(clip => clip ? frameSamplerIdentity(clip) : 0));
     if (scoped) {
       const serialized = JSON.stringify(["layer-prefix", compositor.readBuffer.width, compositor.readBuffer.height,
         scoped, sequence.videoTracks[stage.trackIndex].enabled, assets, settings]);

@@ -170,3 +170,15 @@ test("native clip links coordinate edits without reading linked-track pixels", (
     assert.notEqual(h.key(), original);
   } finally { if (previous === undefined) delete global.PZ; else global.PZ = previous; }
 });
+
+test("output-active adjustment clip selection is part of input identity", () => {
+  const h = fixture();
+  const ordinary = h.key();
+  h.stage.inputClips = [h.clip, null];
+  const first = h.key();
+  assert.notEqual(first, ordinary);
+  h.stage.inputClips = [h.clip, {}];
+  assert.notEqual(h.key(), first);
+  delete h.stage.inputClips;
+  assert.equal(h.key(), ordinary);
+});

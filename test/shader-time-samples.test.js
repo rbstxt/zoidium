@@ -162,3 +162,15 @@ test("effect unload releases time samples and stale preparation cannot recreate 
     assert.equal(h.prepares, prepares); assert.equal(fx._zoidiumFrameSampler, undefined);
   } finally { h.dispose(); }
 });
+
+test("adjustment time samples retain output-active lower clips beyond their edges", async () => {
+  const { host } = require("./helpers/temporal-sampler-host.cjs");
+  const h = host(true); h.sequence.videoSchedules = [];
+  const sourceClip = h.sequence.videoTracks[0].getCurrentClip();
+  h.sequence.videoTracks[0].getCurrentClip = frame => frame >= 10 && frame < 110 ? sourceClip : null;
+  h.effect._zoidiumFrameSampler.getRequest = () => ({ frames: [-10], extrapolate: true, outputClips: true });
+  await h.effect.prepare(10, { sequence: h.sequence });
+  const runtime = h.state.frameSamplerRuntimes.get(h.root);
+  assert.equal(runtime.prepared.get(h.effect).samples[0].frame, 5);
+  assert.equal(runtime.prepared.get(h.effect).samples[0].target.value, 199);
+});
