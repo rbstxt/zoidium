@@ -71,6 +71,18 @@ function refreshTimeline(editor) {
 
 function applySequence(editor, json) {
   const seq = editor.project.sequence;
+  // CM3 loads keyframes by appending. A composition switch reuses the
+  // sequence property list, so remove its previous keys before loading it.
+  function clearKeys(node) {
+    if (node.keyframes) {
+      node.keyframes.splice(0, node.keyframes.length);
+    } else if (node.objects) {
+      for (const property of node.objects) clearKeys(property);
+    } else if (typeof node[Symbol.iterator] === "function") {
+      for (const property of node) clearKeys(property);
+    }
+  }
+  clearKeys(seq.properties);
   seq.videoTracks.splice(0, seq.videoTracks.length);
   seq.audioTracks.splice(0, seq.audioTracks.length);
   seq.load(clone(json));
