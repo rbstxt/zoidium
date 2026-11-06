@@ -658,9 +658,9 @@ function isInUse() {
   if (!project || !TextObject || typeof project.forEachItemOfType !== "function") {
     return false;
   }
-  let used = state.splitTexts.size > 0;
+  let used = false;
   project.forEachItemOfType(TextObject, (textObject) => {
-    if (textUsesExtendedProperties(textObject)) used = true;
+    if (state.splitTexts.has(textObject) || textUsesExtendedProperties(textObject)) used = true;
   });
   return used;
 }
@@ -725,8 +725,14 @@ function deactivate() {
   parts.geometry.clearCharacterSplitRequests();
   restoreTextPatches();
   resetTextFontDiagnostics();
+  // Split text can belong to a project that is no longer open, so one failed
+  // restore must not stop the rest of the shutdown.
   for (const textObject of Array.from(state.splitTexts)) {
-    restoreTextRendering(textObject);
+    try {
+      restoreTextRendering(textObject);
+    } catch (error) {
+      console.error("Text+ could not restore a retired text object", error);
+    }
   }
   for (const unregister of state.unregisterObjectClasses) {
     try {

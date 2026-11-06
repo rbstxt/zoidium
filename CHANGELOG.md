@@ -99,6 +99,16 @@ each line describes one visible change.
 
 ### Fixed
 
+- Deleting or copying a group together with its selected child now works.
+  Before, Delete raised an error and could not be undone, and Copy repeated the
+  child.
+- Undoing a deleted Particular or Form keeps its texture in the project, so a
+  later save does not lose it.
+- Disabling a plugin after opening another project now works and no longer
+  blocks enabling it again. The Text+ switch is no longer locked by text from a
+  project that is closed.
+- Copies made with an Alt-drag no longer store an internal render counter in the
+  project.
 - Preview caching no longer keeps old copies of a 3D scene in memory while you
   edit. A scene with eight lights and 64 spheres used to add about 35 MB each
   time its background preview was replaced.
