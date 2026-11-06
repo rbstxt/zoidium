@@ -11,7 +11,7 @@
   function stateFor(project) {
     let state = states.get(project);
     if (!state) {
-      state = { pending: 0, owners: new Set(), observed: new WeakSet(), retired: false, queued: false };
+      state = { pending: 0, owners: new Set(), observed: new WeakSet(), retired: false, queued: false, revoked: new Set() };
       states.set(project, state);
     }
     return state;
@@ -46,6 +46,30 @@
     return resources;
   }
 
+  function objectUrlAssets(project) {
+    return Object.values(project?.assets?.list || {}).filter(asset =>
+      asset?.file && typeof asset.url === "string" && asset.url.startsWith("blob:"));
+  }
+
+  // Native replacement never unloads a project, so its assets keep their
+  // object URLs, and each URL keeps its file alive in the browser's blob store
+  // for the rest of the session. That memory is outside the JS heap.
+  function revokeObjectUrls(project, state, liveUrls) {
+    if (typeof global.URL?.revokeObjectURL !== "function") return;
+    for (const asset of objectUrlAssets(project)) {
+      if (liveUrls.has(asset.url)) continue;
+      global.URL.revokeObjectURL(asset.url);
+      state.revoked.add(asset);
+    }
+  }
+
+  function restoreObjectUrls(state) {
+    for (const asset of state.revoked) {
+      if (asset.file) asset.url = global.URL.createObjectURL(asset.file);
+    }
+    state.revoked.clear();
+  }
+
   function queueRelease(project, state) {
     if (!state.retired || state.pending || state.owners.size || state.queued) return;
     state.queued = true;
@@ -54,17 +78,25 @@
       if (!state.retired || state.pending || state.owners.size) return;
       observeGraph(project);
       if (state.pending) return;
-      const live = new Set();
+      const live = new Set(), liveUrls = new Set();
+      // An export renders its project's sequence directly and can still load
+      // media from these URLs after the editor moved on.
+      let exporting = false;
       for (const ref of editorRefs) {
         const editor = ref.deref();
         if (!editor) { editorRefs.delete(ref); continue; }
-        if (editor.project) for (const resource of gpuResources(editor.project)) live.add(resource);
+        if (editor.enabled === false) exporting = true;
+        if (editor.project) {
+          for (const resource of gpuResources(editor.project)) live.add(resource);
+          for (const asset of objectUrlAssets(editor.project)) liveUrls.add(asset.url);
+        }
       }
       for (const resource of gpuResources(project)) {
         if (live.has(resource)) continue;
         try { resource.dispose(); }
         catch (error) { global.console.warn("[Zoidium] Could not release a retired project's GPU resource.", error); }
       }
+      if (!exporting) revokeObjectUrls(project, state, liveUrls);
     });
   }
 
@@ -147,6 +179,7 @@
         const state = stateFor(current);
         state.owners.add(editor);
         state.retired = false;
+        restoreObjectUrls(state);
         observeGraph(current);
       }
       if (old) { stateFor(old).owners.delete(editor); retire(old); }

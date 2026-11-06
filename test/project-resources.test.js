@@ -22,7 +22,12 @@ function setup() {
   class Schedule {
     prepare(_frame, context) { return context.work; }
   }
-  const context = { PZ: { project: Project, schedule: Schedule, observable: Signal }, console, WeakRef, ArrayBuffer, Promise };
+  const urls = { revoked: [], created: 0 };
+  const URL = {
+    revokeObjectURL(url) { urls.revoked.push(url); },
+    createObjectURL() { urls.created += 1; return "blob:new-" + urls.created; },
+  };
+  const context = { PZ: { project: Project, schedule: Schedule, observable: Signal }, console, WeakRef, ArrayBuffer, Promise, URL };
   context.window = context;
   vm.runInNewContext(source, context);
   const api = context.PZ.zoidium.projectResources;
@@ -31,7 +36,7 @@ function setup() {
   function open(project) { editor.project = project; editor.onProjectChanged.update(); }
   function project(...children) { const p = new Project(); p.load(children); return p; }
   const tick = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
-  return { context, api, editor, open, project, tick, Schedule };
+  return { context, api, editor, open, project, tick, Schedule, urls };
 }
 function geometry() {
   return { isBufferGeometry: true, disposed: 0, dispose() { this.disposed++; } };
@@ -128,4 +133,58 @@ test("retirement skips DOM and getters, and releases render targets once", async
   h.open(h.project());
   await h.tick();
   assert.equal(target.disposed, 1);
+});
+
+function withAsset(project, url, file = {}) {
+  project.assets = { list: { key: { url, file } } };
+  return project.assets.list.key;
+}
+
+test("a retired project gives up its media object URLs once its work settles", async () => {
+  const h = setup(), work = deferred(), old = h.project();
+  const asset = withAsset(old, "blob:old");
+  h.open(old);
+  const pending = h.api.prepare(old, () => work.promise);
+  h.open(h.project());
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, []);
+  work.resolve();
+  await pending;
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, ["blob:old"]);
+  assert.equal(asset.url, "blob:old");
+});
+
+test("object URLs without a file, and ones the live project shares, stay valid", async () => {
+  const h = setup(), old = h.project(), next = h.project();
+  old.assets = { list: { preset: { url: "/fonts/a.json", file: null }, remote: { url: "blob:no-file", file: null }, shared: { url: "blob:shared", file: {} } } };
+  next.assets = { list: { shared: { url: "blob:shared", file: {} } } };
+  h.open(old);
+  h.open(next);
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, []);
+});
+
+test("a project that returns to the editor gets new object URLs", async () => {
+  const h = setup(), old = h.project(), other = h.project();
+  const asset = withAsset(old, "blob:old");
+  h.open(old);
+  h.open(other);
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, ["blob:old"]);
+  h.open(old);
+  assert.equal(asset.url, "blob:new-1");
+  h.open(other);
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, ["blob:old", "blob:new-1"]);
+});
+
+test("an export in progress keeps the replaced project's object URLs", async () => {
+  const h = setup(), old = h.project();
+  withAsset(old, "blob:old");
+  h.open(old);
+  h.editor.enabled = false;
+  h.open(h.project());
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, []);
 });
