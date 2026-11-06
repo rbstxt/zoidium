@@ -75,7 +75,22 @@
     if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
     throw new Error(label + " cannot be read.");
   }
+  // Blobs are immutable. Reuse their digests within an archive build while
+  // mutable typed arrays and independent IndexedDB read-backs are hashed again.
+  const blobHashes = new WeakMap();
   async function hash(data) {
+    if (data instanceof Blob) {
+      let pending = blobHashes.get(data);
+      if (!pending) {
+        pending = hashBytes(data);
+        blobHashes.set(data, pending);
+        pending.catch(() => blobHashes.delete(data));
+      }
+      return pending;
+    }
+    return hashBytes(data);
+  }
+  async function hashBytes(data) {
     if (!global.crypto?.subtle) throw new Error("Secure hashing is unavailable. Nothing was replaced.");
     const input = await bytes(data);
     const digest = await bounded(global.crypto.subtle.digest("SHA-256", input), "Asset hash", budget(input.byteLength));
@@ -113,36 +128,38 @@
     header.set(new TextEncoder().encode(text), offset);
   }
   async function encode(archive, onSlow) {
-    if (typeof global.CompressionStream !== "function") throw new Error("In-memory project compression is unavailable.");
-    const chunks = [];
-    const names = new Set();
-    let total = 1024;
-    for (const entry of archive.files) {
-      const name = safeName(entry.name);
-      if (names.has(name)) throw new Error("Duplicate archive entry: " + name);
-      names.add(name);
-      const nameBytes = new TextEncoder().encode(name);
-      if (nameBytes.length > 100) throw new Error("Archive entry name is too long: " + name);
-      const data = entry.data instanceof Blob ? entry.data : new Blob([await bytes(entry.data, name)]);
-      total += 512 + Math.ceil(data.size / 512) * 512;
-      if (data.size > MAX_BYTES || total > MAX_BYTES) throw new Error("The project exceeds the " + LIMIT_LABEL + " safety limit. Nothing was replaced.");
-      const header = new Uint8Array(512);
-      header.set(nameBytes);
-      octal(header, 100, 8, 0o644);
-      octal(header, 108, 8, 0);
-      octal(header, 116, 8, 0);
-      octal(header, 124, 12, data.size);
-      octal(header, 136, 12, 0);
-      header.fill(32, 148, 156);
-      header[156] = 48;
-      header.set(new TextEncoder().encode("ustar\0"), 257);
-      header.set(new TextEncoder().encode("00"), 263);
-      octal(header, 148, 7, header.reduce((sum, value) => sum + value, 0));
-      header[155] = 32;
-      chunks.push(header, data, new Uint8Array((512 - data.size % 512) % 512));
-    }
-    chunks.push(new Uint8Array(1024));
-    return collect(new Blob(chunks).stream().pipeThrough(new global.CompressionStream("gzip")), MAX_BYTES, "Project compression", onSlow);
+    return span("archive encode", async () => {
+      if (typeof global.CompressionStream !== "function") throw new Error("In-memory project compression is unavailable.");
+      const chunks = [];
+      const names = new Set();
+      let total = 1024;
+      for (const entry of archive.files) {
+        const name = safeName(entry.name);
+        if (names.has(name)) throw new Error("Duplicate archive entry: " + name);
+        names.add(name);
+        const nameBytes = new TextEncoder().encode(name);
+        if (nameBytes.length > 100) throw new Error("Archive entry name is too long: " + name);
+        const data = entry.data instanceof Blob ? entry.data : new Blob([await bytes(entry.data, name)]);
+        total += 512 + Math.ceil(data.size / 512) * 512;
+        if (data.size > MAX_BYTES || total > MAX_BYTES) throw new Error("The project exceeds the " + LIMIT_LABEL + " safety limit. Nothing was replaced.");
+        const header = new Uint8Array(512);
+        header.set(nameBytes);
+        octal(header, 100, 8, 0o644);
+        octal(header, 108, 8, 0);
+        octal(header, 116, 8, 0);
+        octal(header, 124, 12, data.size);
+        octal(header, 136, 12, 0);
+        header.fill(32, 148, 156);
+        header[156] = 48;
+        header.set(new TextEncoder().encode("ustar\0"), 257);
+        header.set(new TextEncoder().encode("00"), 263);
+        octal(header, 148, 7, header.reduce((sum, value) => sum + value, 0));
+        header[155] = 32;
+        chunks.push(header, data, new Uint8Array((512 - data.size % 512) % 512));
+      }
+      chunks.push(new Uint8Array(1024));
+      return span("gzip", () => collect(new Blob(chunks).stream().pipeThrough(new global.CompressionStream("gzip")), MAX_BYTES, "Project compression", onSlow));
+    });
   }
   function field(header, offset, length) {
     return new TextDecoder().decode(header.subarray(offset, offset + length)).split("\0")[0];
@@ -153,72 +170,74 @@
     return parseInt(value, 8);
   }
   async function decode(source, Archive, onSlow) {
-    if (!(source?.size > 0)) throw new Error("The archive is empty.");
-    if (source.size > MAX_BYTES) throw new Error("The archive exceeds the " + LIMIT_LABEL + " safety limit.");
-    if (typeof global.DecompressionStream !== "function") throw new Error("In-memory project decompression is unavailable.");
-    const unpacked = await collect(source.stream().pipeThrough(new global.DecompressionStream("gzip")), MAX_BYTES, "Project decompression", onSlow);
-    const archive = new Archive();
-    const names = new Set();
-    let offset = 0;
-    // Names from GNU long-name ("L") or PAX ("x") records apply to the next
-    // entry. CM3's libarchive worker read those; other headers carry nothing
-    // a project needs.
-    let longName = null;
-    while (offset + 512 <= unpacked.size) {
-      const header = await bytes(unpacked.slice(offset, offset + 512));
-      offset += 512;
-      if (header.every(value => value === 0)) {
-        // Writers pad the end marker differently; only zeros may follow it.
-        const trailer = await bytes(unpacked.slice(offset));
-        if (trailer.some(value => value !== 0)) throw new Error("The TAR end marker is followed by data.");
-        offset = unpacked.size;
-        break;
-      }
-      const prefix = field(header, 345, 155);
-      const type = header[156];
-      // Archives packed from a folder name entries "./meta"; libarchive
-      // extracted those to the same paths.
-      // CM2-era projects keep every entry in a "pz/" folder. CM3 extracted
-      // with bsdtar -s /pz//, which removed that folder from the names.
-      const rawName = (longName ?? ((prefix ? prefix + "/" : "") + field(header, 0, 100))).replace(/^(?:\.\/)+/, "").replace(/^pz\//, "");
-      longName = null;
-      const checksum = numberField(header, 148, 8, rawName);
-      const expected = header.reduce((sum, value, index) => sum + (index >= 148 && index < 156 ? 32 : value), 0);
-      if (checksum !== expected) throw new Error("Invalid TAR header checksum in entry: " + rawName);
-      const size = numberField(header, 124, 12, rawName);
-      if (size > MAX_BYTES || offset + size > unpacked.size) throw new Error("Incomplete or oversized archive entry: " + rawName);
-      if ([0, 48].includes(type)) {
-        const name = safeName(rawName);
-        if (names.has(name)) throw new Error("Duplicate archive entry: " + name);
-        names.add(name);
-        if (names.size > MAX_ENTRIES) throw new Error("The archive has too many entries.");
-        if (["project", "meta", "zoidium.json"].includes(name) && size > MAX_JSON_BYTES) throw new Error("JSON entry is too large: " + name);
-        // CM3's getFileString expects typed bytes, not a Blob.
-        archive.addFile(name, await bytes(unpacked.slice(offset, offset + size), name));
-      } else if (type === 76 || type === 120) {
-        if (size > 65536) throw new Error("Oversized TAR name record");
-        const text = new TextDecoder().decode(await bytes(unpacked.slice(offset, offset + size), "TAR name record"));
-        if (type === 76) longName = text.split("\0")[0];
-        else for (const record of text.split("\n")) {
-          const match = /^\d+ path=(.*)$/.exec(record);
-          if (match) longName = match[1];
+    return span("decode", async () => {
+      if (!(source?.size > 0)) throw new Error("The archive is empty.");
+      if (source.size > MAX_BYTES) throw new Error("The archive exceeds the " + LIMIT_LABEL + " safety limit.");
+      if (typeof global.DecompressionStream !== "function") throw new Error("In-memory project decompression is unavailable.");
+      const unpacked = await span("decompression", () => collect(source.stream().pipeThrough(new global.DecompressionStream("gzip")), MAX_BYTES, "Project decompression", onSlow));
+      const archive = new Archive();
+      const names = new Set();
+      let offset = 0;
+      // Names from GNU long-name ("L") or PAX ("x") records apply to the next
+      // entry. CM3's libarchive worker read those; other headers carry nothing
+      // a project needs.
+      let longName = null;
+      while (offset + 512 <= unpacked.size) {
+        const header = await bytes(unpacked.slice(offset, offset + 512));
+        offset += 512;
+        if (header.every(value => value === 0)) {
+          // Writers pad the end marker differently; only zeros may follow it.
+          const trailer = await bytes(unpacked.slice(offset));
+          if (trailer.some(value => value !== 0)) throw new Error("The TAR end marker is followed by data.");
+          offset = unpacked.size;
+          break;
         }
-      } else if (![53, 103, 75].includes(type)) {
-        throw new Error("Unsupported TAR entry type: " + rawName);
+        const prefix = field(header, 345, 155);
+        const type = header[156];
+        // Archives packed from a folder name entries "./meta"; libarchive
+        // extracted those to the same paths.
+        // CM2-era projects keep every entry in a "pz/" folder. CM3 extracted
+        // with bsdtar -s /pz//, which removed that folder from the names.
+        const rawName = (longName ?? ((prefix ? prefix + "/" : "") + field(header, 0, 100))).replace(/^(?:\.\/)+/, "").replace(/^pz\//, "");
+        longName = null;
+        const checksum = numberField(header, 148, 8, rawName);
+        const expected = header.reduce((sum, value, index) => sum + (index >= 148 && index < 156 ? 32 : value), 0);
+        if (checksum !== expected) throw new Error("Invalid TAR header checksum in entry: " + rawName);
+        const size = numberField(header, 124, 12, rawName);
+        if (size > MAX_BYTES || offset + size > unpacked.size) throw new Error("Incomplete or oversized archive entry: " + rawName);
+        if ([0, 48].includes(type)) {
+          const name = safeName(rawName);
+          if (names.has(name)) throw new Error("Duplicate archive entry: " + name);
+          names.add(name);
+          if (names.size > MAX_ENTRIES) throw new Error("The archive has too many entries.");
+          if (["project", "meta", "zoidium.json"].includes(name) && size > MAX_JSON_BYTES) throw new Error("JSON entry is too large: " + name);
+          // CM3's getFileString expects typed bytes, not a Blob.
+          archive.addFile(name, await bytes(unpacked.slice(offset, offset + size), name));
+        } else if (type === 76 || type === 120) {
+          if (size > 65536) throw new Error("Oversized TAR name record");
+          const text = new TextDecoder().decode(await bytes(unpacked.slice(offset, offset + size), "TAR name record"));
+          if (type === 76) longName = text.split("\0")[0];
+          else for (const record of text.split("\n")) {
+            const match = /^\d+ path=(.*)$/.exec(record);
+            if (match) longName = match[1];
+          }
+        } else if (![53, 103, 75].includes(type)) {
+          throw new Error("Unsupported TAR entry type: " + rawName);
+        }
+        offset += Math.ceil(size / 512) * 512;
       }
-      offset += Math.ceil(size / 512) * 512;
-    }
-    // A writer may omit the end marker; the gzip layer already detects a cut.
-    const rest = offset < unpacked.size ? await bytes(unpacked.slice(offset)) : new Uint8Array(0);
-    if (rest.some(value => value !== 0) || longName !== null) throw new Error("The TAR archive is truncated.");
-    return archive;
+      // A writer may omit the end marker; the gzip layer already detects a cut.
+      const rest = offset < unpacked.size ? await bytes(unpacked.slice(offset)) : new Uint8Array(0);
+      if (rest.some(value => value !== 0) || longName !== null) throw new Error("The TAR archive is truncated.");
+      return archive;
+    });
   }
   async function integrity(archive) {
     const entries = Object.create(null);
     for (const entry of archive.files.slice().sort((left, right) => left.name.localeCompare(right.name))) {
       if (entry.name === "zoidium.json") continue;
-      const data = await bytes(entry.data, entry.name);
-      entries[entry.name] = { size: data.byteLength, sha256: await hash(data) };
+      const size = entry.data.size ?? entry.data.byteLength;
+      entries[entry.name] = { size, sha256: await hash(entry.data) };
     }
     return entries;
   }
@@ -241,7 +260,7 @@
         else {
           const data = await bytes(entry.data, name);
           if (data.byteLength !== ref.size) failures.push("Entry \"" + name + "\" has the wrong size");
-          else if (await hash(data) !== ref.sha256) failures.push("Entry \"" + name + "\" has the wrong SHA-256 hash");
+          else if (await hash(entry.data) !== ref.sha256) failures.push("Entry \"" + name + "\" has the wrong SHA-256 hash");
         }
         if (failures.length > before) {
           badEntries.add(name);
@@ -275,7 +294,7 @@
         const full = await hash(data.subarray(0, 268435456));
         const native = full.match(/.{8}/g).map(word => word.match(/../g).reverse().join("")).join("").slice(0, 32);
         if (name !== native) failures.push(label + " has the wrong content hash");
-      } else if (/^[a-f0-9]{64}$/.test(name) && await hash(data) !== name) failures.push(label + " has the wrong content hash");
+      } else if (/^[a-f0-9]{64}$/.test(name) && await hash(entry.data) !== name) failures.push(label + " has the wrong content hash");
       if (failures.length > before) badEntries.add(name);
     }
     if (failures.length) {

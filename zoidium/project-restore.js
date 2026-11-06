@@ -375,19 +375,20 @@
     });
   }
 
-  function createSnapshot(showResult, automatic) {
+  function createSnapshot(showResult, automatic, options) {
+    var reuse = Boolean(options && options.reuse);
     var isAutomatic = automatic !== false;
     if (state.snapshotPromise) {
       // A manual request must not inherit the metadata and result UI of an
       // automatic snapshot already in flight. Queue one manual point behind
       // it; repeated clicks still join the same queued operation.
-      if (!isAutomatic && state.snapshotAutomatic !== false) {
+      if (!isAutomatic && (reuse || state.snapshotAutomatic !== false)) {
         if (!state.manualSnapshotPromise) {
           state.manualSnapshotPromise = state.snapshotPromise
             // A queued manual point must wait out the in-flight failure first.
             .catch(function () {})
             .then(function () {
-              return createSnapshot(true, false);
+              return createSnapshot(showResult, false, options);
             })
             .finally(function () {
               state.manualSnapshotPromise = null;
@@ -407,7 +408,7 @@
     var buildSnapshot = (async function () {
       // refreshSnapshots normally completes before this runs, but loading here
       // also covers a very fast startup timer or a delayed IndexedDB response.
-      if (!state.snapshots.length) state.snapshots = await listSnapshots();
+      if (reuse || !state.snapshots.length) state.snapshots = await listSnapshots();
       if (isAutomatic && unchangedSinceLastBackup()) {
         try {
           await store.verifySnapshot(state.snapshots[0]);
@@ -425,7 +426,7 @@
       // the TAR when the content differs from the newest restore point.
       archiveResult = await projectFiles.createArchive(editor, {
         shouldSkip: function (fingerprint) {
-          return isAutomatic && matchesSnapshot(state.snapshots[0] || null, fingerprint);
+          return (isAutomatic || reuse) && matchesSnapshot(state.snapshots[0] || null, fingerprint);
         },
       });
       if (archiveResult.skipped) {
@@ -446,11 +447,11 @@
         automatic: isAutomatic,
         owner: store.sessionId,
       };
-      await saveSnapshot(record);
+      await saveSnapshot(record, undefined, { independent: reuse });
       state.lastBackup = startKey;
       // Manual points are not counted toward the automatic retention limits,
       // but creating one still triggers cleanup of old automatic points.
-      state.snapshots = await pruneAutomaticSnapshots();
+      state.snapshots = await pruneAutomaticSnapshots({ ifAvailable: reuse });
       renderSnapshots();
       if (showResult) {
         showToast({ title: "Saved.", message: "Restore point created." });

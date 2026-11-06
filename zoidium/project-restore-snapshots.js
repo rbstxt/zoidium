@@ -78,9 +78,12 @@
   async function matchesSnapshot(snapshot, fingerprint) {
     if (!snapshot) return false;
     if (snapshot.fingerprint) {
-      try { await store.verifySnapshot(await getSnapshot(snapshot.id)); }
+      if (snapshot.fingerprint !== fingerprint) return false;
+      var stored = await getSnapshot(snapshot.id);
+      if (!stored || stored.fingerprint !== fingerprint) return false;
+      try { await store.verifySnapshot(stored); }
       catch (_error) { return false; }
-      return snapshot.fingerprint === fingerprint;
+      return true;
     }
     // Split (v2) records always carry a fingerprint; legacy records without
     // one are loaded in full below. Anything else cannot be compared, so it

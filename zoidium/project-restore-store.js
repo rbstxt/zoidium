@@ -56,6 +56,11 @@
     backupQueued: false,
   };
 
+  function timed(name, task) {
+    var io = global.PZ && global.PZ.zoidiumProjectArchive;
+    return io && io.span ? io.span(name, task) : task();
+  }
+
   function bounded(value, label, cancel, size) {
     var io = global.PZ && global.PZ.zoidiumProjectArchive;
     return io ? io.bounded(value, label, io.budget ? io.budget(size) : 10000, cancel) : value;
@@ -97,28 +102,35 @@
     return acquired;
   }
 
-  async function withWriterLease(task) {
+  async function withWriterLease(task, ifAvailable) {
     var locks = global.navigator && global.navigator.locks;
     if (locks && typeof locks.request === "function") {
       var controller = new global.AbortController();
       var acquired;
       var ready = new Promise(function (resolve) { acquired = resolve; });
-      var operation = locks.request("zoidium-restore-writer", { signal: controller.signal }, function () {
+      var lockOptions = ifAvailable ? { ifAvailable: true } : { signal: controller.signal };
+      var operation = locks.request("zoidium-restore-writer", lockOptions, function (lock) {
         acquired();
+        if (ifAvailable && !lock) return null;
         return task();
       });
       operation.catch(function () {});
       // Abort only a pending acquisition. A running task retains the lock
       // until its actual completion, even if its caller reaches a deadline.
-      await bounded(Promise.race([ready, operation]), "Waiting for the restore-point writer", function () { controller.abort(); });
+      await timed("lease wait", function () { return bounded(Promise.race([ready, operation]), "Waiting for the restore-point writer", function () { controller.abort(); }); });
       return operation;
     }
     var token = sessionId + "-" + Math.random().toString(36).slice(2);
     var deadline = Date.now() + 10000;
-    while (!await updateWriterLease(token, "acquire")) {
-      if (Date.now() >= deadline) throw new Error("Another tab is updating restore points. The current project was kept. Retry shortly.");
-      await new Promise(function (resolve) { global.setTimeout(resolve, 100); });
-    }
+    var acquiredLease = await timed("lease wait", async function () {
+      while (!await updateWriterLease(token, "acquire")) {
+        if (ifAvailable) return false;
+        if (Date.now() >= deadline) throw new Error("Another tab is updating restore points. The current project was kept. Retry shortly.");
+        await new Promise(function (resolve) { global.setTimeout(resolve, 100); });
+      }
+      return true;
+    });
+    if (!acquiredLease) return null;
     activeLeaseToken = token;
     var timer = global.setInterval(function () {
       updateWriterLease(token, "renew").catch(function () {});
@@ -131,13 +143,13 @@
     }
   }
 
-  function mutateWithLease(store, transaction, mutation) {
+  function mutateWithLease(store, transaction, mutation, independent) {
     var outcome = { error: null };
     function apply() {
       try { mutation(); }
       catch (error) { outcome.error = error; transaction.abort(); }
     }
-    if (!activeLeaseToken) { apply(); return outcome; }
+    if (!activeLeaseToken || independent) { apply(); return outcome; }
     var token = activeLeaseToken;
     var request = store.get(LEASE_ID);
     request.onsuccess = function () {
@@ -163,29 +175,31 @@
   }
 
   async function verifySnapshot(record, entries) {
-    if (!record) throw new Error("The restore point is missing.");
-    var blob = record.blob || record.projectBlob;
-    if (!blob || !(blob.size > 0)) throw new Error("The restore point archive is empty.");
-    if (record.integrity && (blob.size !== record.integrity.size || await blobHash(blob) !== record.integrity.sha256)) {
-      throw new Error("Restore point archive has the wrong size or SHA-256 hash: " + record.id);
-    }
-    var files = global.PZ && global.PZ.zoidium && global.PZ.zoidium.projectFiles;
-    if (record.blob && files) await files.openValidatedArchive(record.blob, "restore");
-    if (record.projectBlob) {
-      var assets = entries ? record.assetRefs.map(function (ref) {
-        var entry = entries.find(function (value) { return value.id === ref.id; });
-        if (!entry) throw new Error("Restore point asset is missing: " + ref.name);
-        return { id: entry.id, blob: entry.file };
-      }) : await loadAssets(record.assetRefs);
-      for (var index = 0; index < assets.length; index += 1) {
-        var ref = record.assetRefs[index];
-        if (ref.size !== undefined && assets[index].blob.size !== ref.size) throw new Error("Restore point asset has the wrong size: " + ref.name);
-        if (ref.sha256 && await blobHash(assets[index].blob) !== ref.sha256) throw new Error("Restore point asset has the wrong hash: " + ref.name);
+    return timed("verify restore point", async () => {
+      if (!record) throw new Error("The restore point is missing.");
+      var blob = record.blob || record.projectBlob;
+      if (!blob || !(blob.size > 0)) throw new Error("The restore point archive is empty.");
+      if (record.integrity && (blob.size !== record.integrity.size || await blobHash(blob) !== record.integrity.sha256)) {
+        throw new Error("Restore point archive has the wrong size or SHA-256 hash: " + record.id);
       }
-      var snapshots = global.__zoidiumRestoreParts && global.__zoidiumRestoreParts.snapshots;
-      if (snapshots) await snapshots.restorePointToArchive(record, assets);
-    }
-    return record;
+      var files = global.PZ && global.PZ.zoidium && global.PZ.zoidium.projectFiles;
+      if (record.blob && files) await files.openValidatedArchive(record.blob, "restore");
+      if (record.projectBlob) {
+        var assets = entries ? record.assetRefs.map(function (ref) {
+          var entry = entries.find(function (value) { return value.id === ref.id; });
+          if (!entry) throw new Error("Restore point asset is missing: " + ref.name);
+          return { id: entry.id, blob: entry.file };
+        }) : await loadAssets(record.assetRefs);
+        for (var index = 0; index < assets.length; index += 1) {
+          var ref = record.assetRefs[index];
+          if (ref.size !== undefined && assets[index].blob.size !== ref.size) throw new Error("Restore point asset has the wrong size: " + ref.name);
+          if (ref.sha256 && await blobHash(assets[index].blob) !== ref.sha256) throw new Error("Restore point asset has the wrong hash: " + ref.name);
+        }
+        var snapshots = global.__zoidiumRestoreParts && global.__zoidiumRestoreParts.snapshots;
+        if (snapshots) await snapshots.restorePointToArchive(record, assets);
+      }
+      return record;
+    });
   }
 
   function requestPromise(request) {
@@ -432,20 +446,25 @@
     return records.filter(function (record) { return record.id !== LEASE_ID; }).sort(compareSnapshots);
   }
 
-  async function commitSnapshot(record, entries) {
-    var database = await openDatabase();
-    var names = record.projectBlob ? [STORE_NAME, ASSET_STORE_NAME] : STORE_NAME;
-    var transaction = database.transaction(names, "readwrite");
-    var done = transactionDone(transaction, "Storing restore point",
-      (Number((record.blob || record.projectBlob || {}).size) || 0) + blobBytes((entries || []).map(function (entry) { return entry.file; })));
-    // add() refuses a colliding ID rather than replacing another tab's point.
-    var mutation = mutateWithLease(transaction.objectStore(STORE_NAME), transaction, function () {
-      transaction.objectStore(STORE_NAME).add(record);
-      (entries || []).forEach(function (entry) {
-        transaction.objectStore(ASSET_STORE_NAME).put({ id: entry.id, blob: entry.file, size: entry.file.size });
-      });
+  async function commitSnapshot(record, entries, independent) {
+    return timed("IDB write", async () => {
+      var database = await openDatabase();
+      var names = record.projectBlob ? [STORE_NAME, ASSET_STORE_NAME] : STORE_NAME;
+      var transaction = database.transaction(names, "readwrite");
+      var done = transactionDone(transaction, "Storing restore point",
+        (Number((record.blob || record.projectBlob || {}).size) || 0) + blobBytes((entries || []).map(function (entry) { return entry.file; })));
+      // add() refuses a colliding ID rather than replacing another tab's point.
+      var append = function () {
+        transaction.objectStore(STORE_NAME).add(record);
+        (entries || []).forEach(function (entry) {
+          transaction.objectStore(ASSET_STORE_NAME).put({ id: entry.id, blob: entry.file, size: entry.file.size });
+        });
+      };
+      // A pre-replace backup only appends a new ID in an atomic transaction.
+      // It cannot overwrite a point or delete another writer's work.
+      var mutation = mutateWithLease(transaction.objectStore(STORE_NAME), transaction, append, independent);
+      await done.catch(function (error) { throw mutation.error || error; });
     });
-    await done.catch(function (error) { throw mutation.error || error; });
   }
 
   function snapshotGroup(record) {
@@ -474,17 +493,19 @@
     return true;
   }
 
-  async function saveSnapshot(record, entries) {
+  async function saveSnapshot(record, entries, independent) {
     var blob = record.blob || record.projectBlob;
     record.integrity = { size: blob && blob.size, sha256: await blobHash(blob) };
     // Verify the bytes before committing, then read the actual stored record
     // back and hash it before any rotation is allowed.
     await verifySnapshot(record, entries);
     for (;;) {
-      try { await commitSnapshot(record, entries); break; }
+      try { await commitSnapshot(record, entries, independent); break; }
       catch (error) {
         if (error.name !== "QuotaExceededError") throw error;
-        if (!await dropOldestExtra()) {
+        var dropped = independent
+          ? await withWriterLease(dropOldestExtra, true) : await dropOldestExtra();
+        if (!dropped) {
           var full = new Error("Restore-point storage is full. The last verified backup for each project was kept. Download the project and free storage before retrying.");
           full.name = "QuotaExceededError";
           full.cause = error;
@@ -561,50 +582,54 @@
   }
 
   async function pruneAutomaticSnapshots() {
-    var records = await listSnapshots();
-    var protectedIds = new Set();
-    var groups = new Set();
-    for (var index = 0; index < records.length; index += 1) {
-      var record = records[index];
-      var group = snapshotGroup(record);
-      if (groups.has(group)) continue;
-      try { await verifySnapshot(record); protectedIds.add(record.id); groups.add(group); }
-      catch (_error) { /* Preserve older valid points when a newer one is damaged. */ }
-    }
-    var automatic = records.filter(isAutomaticSnapshot).sort(compareSnapshots);
-    var titleCounts = Object.create(null);
-    var bucketCounts = Object.create(null);
-    var retainedCount = 0;
-    var removedIds = [];
-    var now = Date.now();
+    return timed("prune", async () => {
+      var records = await listSnapshots();
+      var automatic = records.filter(isAutomaticSnapshot).sort(compareSnapshots);
+      var titleCounts = Object.create(null);
+      var bucketCounts = Object.create(null);
+      var retainedCount = 0;
+      var removedIds = [];
+      var now = Date.now();
 
-    automatic.forEach(function (snapshot) {
-      var title = String(snapshot.projectName || "project");
-      var bucket = automaticTimeBucket(snapshot, now);
-      var bucketLimit = bucket < TIME_BUCKET_LIMITS.length
-        ? TIME_BUCKET_LIMITS[bucket]
-        : 1;
-      var titleCount = titleCounts[title] || 0;
-      var bucketCount = bucketCounts[bucket] || 0;
+      automatic.forEach(function (snapshot) {
+        var title = String(snapshot.projectName || "project");
+        var bucket = automaticTimeBucket(snapshot, now);
+        var bucketLimit = bucket < TIME_BUCKET_LIMITS.length
+          ? TIME_BUCKET_LIMITS[bucket]
+          : 1;
+        var titleCount = titleCounts[title] || 0;
+        var bucketCount = bucketCounts[bucket] || 0;
 
-      if (
-        retainedCount >= MAX_AUTOMATIC_TOTAL ||
-        titleCount >= MAX_AUTOMATIC_PER_TITLE ||
-        bucketCount >= bucketLimit
-      ) {
-        if (!protectedIds.has(snapshot.id)) removedIds.push(snapshot.id);
-        return;
+        if (
+          retainedCount >= MAX_AUTOMATIC_TOTAL ||
+          titleCount >= MAX_AUTOMATIC_PER_TITLE ||
+          bucketCount >= bucketLimit
+        ) {
+          removedIds.push(snapshot.id);
+          return;
+        }
+
+        titleCounts[title] = titleCount + 1;
+        bucketCounts[bucket] = bucketCount + 1;
+        retainedCount += 1;
+      });
+
+      if (!removedIds.length) return records;
+      var protectedIds = new Set();
+      var groups = new Set();
+      for (var index = 0; index < records.length; index += 1) {
+        var record = records[index];
+        var group = snapshotGroup(record);
+        if (groups.has(group)) continue;
+        try { await verifySnapshot(record); protectedIds.add(record.id); groups.add(group); }
+        catch (_error) { /* Preserve older valid points when a newer one is damaged. */ }
       }
-
-      titleCounts[title] = titleCount + 1;
-      bucketCounts[bucket] = bucketCount + 1;
-      retainedCount += 1;
+      removedIds = removedIds.filter(function (id) { return !protectedIds.has(id); });
+      if (!removedIds.length) return records;
+      await bounded(deleteSnapshots(removedIds), "Rotating restore points");
+      await deleteOrphanAssets();
+      return listSnapshots();
     });
-
-    if (!removedIds.length) return records;
-    await bounded(deleteSnapshots(removedIds), "Rotating restore points");
-    await deleteOrphanAssets();
-    return listSnapshots();
   }
 
   parts.store = {
@@ -619,13 +644,17 @@
     loadAssets: function (refs) { return bounded(loadAssets(refs), "Reading restore-point assets", null, blobBytes(refs)); },
     deleteOrphanAssets: deleteOrphanAssets,
     listSnapshots: listSnapshots,
-    saveSnapshot: function (record, entries) {
+    saveSnapshot: function (record, entries, options) {
       if (record.id === LEASE_ID) return Promise.reject(new Error("Reserved restore-point ID."));
+      if (options && options.independent) return saveSnapshot(record, entries, true);
       return withWriterLease(function () { return saveSnapshot(record, entries); });
     },
     deleteSnapshot: function (id) { return bounded(deleteSnapshot(id), "Deleting restore point"); },
     deleteAllSnapshots: deleteAllSnapshots,
-    pruneAutomaticSnapshots: function () { return withWriterLease(pruneAutomaticSnapshots); },
+    pruneAutomaticSnapshots: async function (options) {
+      var records = await withWriterLease(pruneAutomaticSnapshots, options && options.ifAvailable);
+      return records || listSnapshots();
+    },
   };
   if (typeof module === "object" && module.exports) module.exports = parts.store;
 })(window);

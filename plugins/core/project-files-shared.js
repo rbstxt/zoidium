@@ -178,9 +178,29 @@
     var state = diskStates.get(editor);
     return state && state.project === editor.project ? !!editor.project.ui?.dirty : null;
   }
+  function trackFirstFrame(editor) {
+    var viewport = editor.mainViewport;
+    if (!viewport || typeof viewport._render !== "function") return;
+    viewport._zoidiumFirstFrameStart = Date.now();
+    if (viewport._zoidiumFirstFrameTracked) return;
+    viewport._zoidiumFirstFrameTracked = true;
+    var render = viewport._render;
+    viewport._render = function () {
+      var previous = this.lastFrame;
+      var result = render.apply(this, arguments);
+      if (this._zoidiumFirstFrameStart != null && Number.isFinite(this.lastFrame) && !Object.is(previous, this.lastFrame)) {
+        var duration = Date.now() - this._zoidiumFirstFrameStart;
+        this._zoidiumFirstFrameStart = null;
+        try { global.ZOIDIUM_DEBUG_LOG?.record("project-span", { name: "first frame", durationMs: duration, status: "complete" }); }
+        catch (_error) { /* Diagnostics must never interrupt rendering. */ }
+      }
+      return result;
+    };
+  }
   if (typeof global.addEventListener === "function") global.addEventListener("zoidium:project-changed", function (event) {
     var editor = event.detail?.editor;
     if (!editor) return;
+    trackFirstFrame(editor);
     diskStates.delete(editor);
     if (event.detail.reason === "open") recordDiskSave(editor, captureDiskState(editor));
     else if (event.detail.reason === "restore" && editor.project?.ui) editor.project.ui.dirty = true;
@@ -207,7 +227,7 @@
     // Opening waits as long as CM3 does: a slow but valid load is not a failure.
     wait = wait || function (promise) { return promise; };
     if (project._zoidiumPluginActivationPending) {
-      await wait(project._zoidiumPluginActivationPending, "Project plugin activation");
+      await PZ.zoidiumProjectArchive.span("plugin activation", function () { return wait(project._zoidiumPluginActivationPending, "Project plugin activation"); });
     }
     var visited = new WeakSet();
     async function visit(object) {
@@ -275,9 +295,43 @@
     };
   }
 
+  function transitionBusy(editor) {
+    if (!editor._zoidiumTransitionPromise) return false;
+    if (editor._zoidiumTransitionProgress) editor._zoidiumTransitionProgress.show(true);
+    return true;
+  }
+
+  function transitionProgress(editor, title) {
+    var token = {};
+    var message = "Saving a restore point before replacing the current project.";
+    var visible = false;
+    var begin = Date.now();
+    var timer = global.setTimeout(function () { progress.show(false); }, 300);
+    var progress = {
+      show: function (repeated) {
+        visible = true;
+        global.__zoidiumRestoreParts?.toasts?.showToast({
+          title: repeated ? "Already working" : title,
+          message: message,
+          progressToken: token,
+        });
+      },
+      update: function (value) { message = value; if (visible) progress.show(false); },
+      finish: function () {
+        global.clearTimeout(timer);
+        global.__zoidiumRestoreParts?.toasts?.hideProgress(token);
+        editor._zoidiumTransitionProgress = null;
+        try { global.ZOIDIUM_DEBUG_LOG?.record("project-span", { name: title, durationMs: Date.now() - begin, status: "settled" }); }
+        catch (_error) { /* Diagnostics must never interrupt a transition. */ }
+      },
+    };
+    editor._zoidiumTransitionProgress = progress;
+    return progress;
+  }
+
   PZ.zoidium.projectFilesShared = {
     captureDiskState, recordDiskSave, projectEdited, updateProjectDirty, diskUnsaved,
-    prepareProject, slowStepQuestion, saveReadinessWait,
+    prepareProject, slowStepQuestion, saveReadinessWait, transitionBusy, transitionProgress,
     DEFAULT_PROJECT_NAME: DEFAULT_PROJECT_NAME,
     normalizeProjectName: normalizeProjectName,
     fileNameForProject: fileNameForProject,

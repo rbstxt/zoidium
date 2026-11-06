@@ -155,6 +155,7 @@
 
   function showToast(detail) {
     var toast = state.toast || createToast();
+    toast._zoidiumProgressToken = detail.progressToken || null;
     var isError = detail && detail.type === "error";
     toast.classList.toggle("is-error", isError);
     toast.setAttribute("role", isError ? "alert" : "status");
@@ -225,7 +226,7 @@
     if (toastHideTimer) global.clearTimeout(toastHideTimer);
     // Reload prompts stay visible until dismissed so the action cannot be
     // missed while the user reads the message.
-    if (!isError && !hasReload) {
+    if (!isError && !hasReload && !detail.progressToken) {
       // A notice with an action stays long enough to reach its button.
       toastHideTimer = global.setTimeout(hideToast, customs.length ? 8000 : 3000);
     }
@@ -248,6 +249,9 @@
 
   parts.toasts = {
     showToast: showToast,
+    hideProgress: function (token) {
+      if (state.toast && state.toast._zoidiumProgressToken === token) hideToast();
+    },
     showProjectError: showProjectError,
   };
   if (typeof module === "object" && module.exports) module.exports = parts.toasts;
