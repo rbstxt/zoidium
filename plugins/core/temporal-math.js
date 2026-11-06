@@ -45,6 +45,15 @@
     return clampFrame(frame, clipLength, extrapolate);
   }
 
+  // The media clamp stops EPSILON before the out point so that schedule lookups
+  // stay inside the clip. Media time at that clock rounds up to the first frame
+  // after the clip, which a trimmed source can show. Hold the clip's last frame.
+  function holdLastMediaFrame(frame, clipLength) {
+    const length = finiteNumber(clipLength, 0);
+    return length > 0 && frame > 0 && Math.abs(length - frame) <= 2 * EPSILON
+      ? Math.max(0, Math.ceil(length) - 1) : frame;
+  }
+
   function quantizeFrame(localFrame, projectRate, targetRate, extrapolate) {
     const rate = finiteNumber(projectRate, 30);
     const fps = finiteNumber(targetRate, 0);
@@ -227,6 +236,7 @@
     finiteNumber: finiteNumber,
     clampFrame: clampFrame,
     clampLocalFrame: clampLocalFrame,
+    holdLastMediaFrame: holdLastMediaFrame,
     quantizeFrame: quantizeFrame,
     quantizeLocalFrame: quantizeLocalFrame,
     offsetFrame: offsetFrame,

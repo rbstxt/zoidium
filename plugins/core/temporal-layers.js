@@ -336,7 +336,7 @@
     if (operators.length === 0 && scopeOperators.length === 0) return null;
 
     const extrapolate = isExtrapolatableLayer(layer);
-    const sourceFrame = mapTemporalFrameWithScopes(
+    const mappedFrame = mapTemporalFrameWithScopes(
       rawLocalFrame,
       projectRate,
       operators,
@@ -345,6 +345,8 @@
       finiteNumber(clip.start, 0),
       extrapolate,
     );
+    const sourceFrame = clip.media && !extrapolate
+      ? math.holdLastMediaFrame(mappedFrame, clip.length) : mappedFrame;
     return {
       clip,
       localFrame: outputLocalFrame,

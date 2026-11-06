@@ -451,7 +451,7 @@
       isolated.update(sourceFrame, getProjectRate(stage.layer, sequence));
       if (isolated.currentItem) {
         context?.resourcePolicy?.assertMedia(item.media);
-        const time = item.clip.properties.time.get(sourceFrame - item.start);
+        const time = item.clip.properties.time.get(math.holdLastMediaFrame(sourceFrame - item.start, item.length));
         if (typeof ISNODE !== "undefined" && ISNODE) {
           await isolated.ffDecodeFrame(Math.round(time * getProjectRate(stage.layer, sequence)),
             getProjectRate(stage.layer, sequence));
