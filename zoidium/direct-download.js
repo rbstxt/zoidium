@@ -2,7 +2,6 @@
   "use strict";
 
   var PATCH_MARKER = "__zoidiumDirectDownloadPatch";
-  var ARTIFACT_KEY = "__zoidiumDownloadArtifact";
 
   function isDownloadPage(value, baseUrl) {
     if (typeof value !== "string") return false;
@@ -239,10 +238,9 @@
         pz.downloadFilename;
       var artifact = manager.capture(pz.downloadBlob, filename);
       var page = original.apply(this, arguments);
-      if (artifact) {
-        this[ARTIFACT_KEY] = artifact;
-        manager.bind(findDownloadButton(page), artifact);
-      }
+      // Only the page's button holds the artifact, so the output file is
+      // released with the page. The export device outlives every render.
+      if (artifact) manager.bind(findDownloadButton(page), artifact);
       return page;
     };
     wrapped[PATCH_MARKER] = true;
