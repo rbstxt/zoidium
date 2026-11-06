@@ -127,13 +127,19 @@ test("procedural extrapolation is opt-in and existing explicit requests keep the
 });
 test("Time sample offsets evaluate Expressions+ without render history", needsCache, () => {
   const h = expressionHost();
+  const clip = Object.create(h.PZ.clip.prototype);
+  Object.assign(clip, { start: 0, properties: { time: { get: frame => frame / 30 } } });
+  h.owner.parent.parent = clip;
   const definition = KINDS.timeSample.create(), p = h.PZ.property.create(definition);
   p.load(record(-1));
   p.parent = h.owner.properties;
   p.expression = new h.PZ.expression("Math.floor(Math.sin(time * 12) * 3)");
   const fx = { customProperties: [p], parentProject: { sequence: { properties: { rate: { get: () => 30 } } } }, fixPropertyName: n => n };
   const forward = [0, 11, 37, 59].map(frame => readSamples(fx, frame)[0].offset);
-  for (const [index, frame] of [0, 11, 37, 59].entries()) assert.equal(forward[index], p.get(frame));
+  for (const [index, frame] of [0, 11, 37, 59].entries()) {
+    assert.equal(forward[index], Math.floor(Math.sin(frame / 30 * 12) * 3));
+    assert.equal(h.engine.error(p), null);
+  }
   for (const frame of [59, 11, 0, 37, 11]) assert.equal(readSamples(fx, frame)[0].offset, forward[[0, 11, 37, 59].indexOf(frame)]);
 });
 test("Time sample serialization requires Shader+ for cache classification", () => {

@@ -145,6 +145,8 @@ function installEditor({ context, patch, presetFont }) {
         } else if (kind.value === "timeSample") {
           if (current !== "timeSample" && effect.customProperties.filter(q => kindOf(q) === "timeSample").length >= MAX_TIME_SAMPLES) throw new Error("Shader+ supports at most four Time sample properties per effect");
           next.units = fields.units.value;
+          if (current !== "timeSample") { delete definition.min; delete definition.max; }
+          definition.step = next.units === "seconds" ? 0.01 : 1;
         } else if (kind.value === "angle") {
           const def = number("default"); if (def !== undefined) { next.default = def * Math.PI / 180; definition.value = next.default; }
         } else if (kind.value === "checkbox") {
