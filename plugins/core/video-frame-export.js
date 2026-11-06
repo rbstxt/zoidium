@@ -131,10 +131,11 @@
         await globalThis.ZoidiumVideoSeekPolicy?.ensure(video, schedule.currentItem?.media);
         await waitForMetadata(video, timeoutMs, policy);
         const mediaTime = clampMediaTime(video, requestedTime);
-        const seekTime = globalThis.ZoidiumVideoSeekPolicy?.seekTime(video, mediaTime) ?? mediaTime;
+        let seekTime = globalThis.ZoidiumVideoSeekPolicy?.seekTime(video, mediaTime) ?? mediaTime;
         const sourceId = getSourceId(video);
         const state = schedule.__zoidiumVideoExportState || {};
         schedule.__zoidiumVideoExportState = state;
+        if (state.startSourceId === sourceId) seekTime = Math.max(seekTime, state.mediaStart);
         stage = "before seek";
         mediaError(video); policy?.check?.();
         const sameRequest = state.sourceId === sourceId && state.requestedTime === mediaTime &&
@@ -148,10 +149,22 @@
           await waitForEvent(video, "seeked", timeoutMs, policy, () => { video.currentTime = mediaTime; });
           stage = "after seek";
           mediaError(video); policy?.check?.();
+          if (Math.abs(video.currentTime - seekTime) > SEEK_TIME_EPSILON && video.currentTime > seekTime && !video.seeking) {
+            // An offset stream can clamp requests before its first timestamp.
+            // Confirm that lower bound with an explicit zero seek. Keep the
+            // native timeline, including its frozen first frame before start.
+            const observed = video.currentTime;
+            metadata = await presentation.promise;
+            await waitForEvent(video, "seeked", timeoutMs, policy, () => { video.currentTime = 0; });
+            if (Math.abs(video.currentTime - observed) <= SAME_TIME_EPSILON) {
+              state.mediaStart = observed; state.startSourceId = sourceId;
+              seekTime = Math.max(seekTime, observed);
+            }
+          }
           if (Math.abs(video.currentTime - seekTime) > SEEK_TIME_EPSILON || video.seeking) {
             throw new Error("Video seek completed at a different requested time.");
           }
-          metadata = await presentation.promise;
+          metadata ||= await presentation.promise;
         }
         stage = "texture validation";
         mediaError(video); policy?.check?.();
