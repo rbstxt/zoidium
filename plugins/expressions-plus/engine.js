@@ -42,6 +42,14 @@ function installEngine(options) {
       };
     } catch (error) { report(this, null, error); compiled.set(this, { failed: true }); return this.noop; }
   });
+  // A number property reads this result as its value, or as no change at all.
+  // Report the cause without changing the value the property receives.
+  function unusableResult(expression, property, value) {
+    if (property?.definition?.type !== PZ.property.type.NUMBER || Number.isFinite(Number(value))) return null;
+    return new Error(/\brandom\s*\(\s*\)/.test(expression.source) && !/\bseedRandom\s*\(/.test(expression.source)
+      ? "random() needs a seed. Use random(frame), or call seedRandom(1) first."
+      : "The result is not a finite number.");
+  }
   // Obtain the native value through the original getter, with the expression
   // slot temporarily clear. This keeps native interpolation and plugin fixes.
   const baseGetters = new Map();
@@ -88,7 +96,7 @@ function installEngine(options) {
       previousOverrides = guard.swapOverrides(context.overrides);
       const custom = expression.getCustomProperties(frame, owner);
       const value = result.fn(frame, time, context.methods, custom, pure.Math, helpers);
-      report(expression, property, null);
+      report(expression, property, unusableResult(expression, property, value));
       return value;
     } catch (error) { report(expression, property, error); return base; }
     finally { if (previousOverrides) guard.swapOverrides(previousOverrides); active.delete(property); }

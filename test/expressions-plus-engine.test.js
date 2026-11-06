@@ -8,6 +8,17 @@ test('native getters fall back to their own keyframes and clear recovered errors
  a.expression=new PZ.expression('sin.constructor("return 29")()');assert.equal(a.get(0),7);assert.match(engine.error(a),/cannot call/);
  a.expression=new PZ.expression('21');assert.equal(a.get(0),21);assert.equal(engine.error(a),null);
 });
+test('an unusable number result reports its cause and keeps the value it returned',{skip:!fs.existsSync(core)},()=>{
+ const {PZ,engine,a}=host();
+ for(const source of ['random()*10','0/0','1/0','[1,2]','undefined']){
+  a.expression=new PZ.expression(source);const value=a.get(0);
+  assert.match(engine.error(a),source==='random()*10'?/needs a seed/:/not a finite number/,source);
+  assert.notEqual(value,7,'the base value is not substituted for '+source);
+ }
+ for(const source of ['random(frame)*10','"5"','seedRandom(1); random()*10']){
+  a.expression=new PZ.expression(source);a.get(0);assert.equal(engine.error(a),null,source);
+ }
+});
 test('cycles report an error and both properties use their own base values',{skip:!fs.existsSync(core)},()=>{
  const {PZ,engine,a,b}=host();a.expression=new PZ.expression('thisObject.property("B").value + 1');b.expression=new PZ.expression('thisObject.property("A").value + 1');
  assert.equal(a.get(0),7);assert.match(engine.error(a),/cycle/);assert.equal(b.get(0),11);assert.match(engine.error(b),/cycle/);
