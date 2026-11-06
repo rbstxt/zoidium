@@ -161,7 +161,10 @@
   function revisionOf(viewport, plugins, assetId, fontEpoch = 0, approvedPlugins = null, onReject = () => {}) {
     const project = viewport.editor.project;
     const sequence = project.sequence;
-    const content = typeof project.toJSON === "function" ? project.toJSON() : project;
+    // Native toJSON() methods return nested live objects. Finish the JSON
+    // conversion before scanning, so geometry, parent links and renderer
+    // caches cannot enter the dependency walk.
+    const content = JSON.parse(JSON.stringify(project));
     const required = new Set((content.plugins || []).map(plugin => plugin.id));
     // A failed bundle fetch cannot have patched rendering. Once registration
     // started, an unrelated error still blocks: rollback is not proof that
