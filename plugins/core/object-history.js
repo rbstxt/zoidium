@@ -2,6 +2,19 @@
   "use strict";
 
   const PZ = global.PZ;
+  const tracks = PZ?.ui?.timeline?.tracks?.prototype;
+  if (tracks?.deleteClip && !tracks.deleteClip.__zoidiumReleasesRenderLists) {
+    const deleteClip = tracks.deleteClip;
+    const wrapped = function deleteClipAndReleaseRenderLists() {
+      const result = deleteClip.apply(this, arguments);
+      // r91 keeps an opaque/transparent list for each scene and camera pair.
+      // A deleted scene can otherwise retain its meshes through those lists.
+      this.timeline.editor.mainViewport?.renderer?.renderLists?.dispose?.();
+      return result;
+    };
+    wrapped.__zoidiumReleasesRenderLists = true;
+    tracks.deleteClip = wrapped;
+  }
   const prototype = PZ?.ui?.edit?.prototype;
   if (!prototype?.deleteObject || prototype.__zoidiumObjectHistoryRepair) return;
   const original = prototype.deleteObject;

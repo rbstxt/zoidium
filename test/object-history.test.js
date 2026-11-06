@@ -58,3 +58,22 @@ test("a 3D type without project JSON keeps native undo data and still deletes", 
   assert.equal(edit.deleteObject({ oldIdx: 0 }), 42);
   assert.equal(operation[0].params.data, object);
 });
+
+test("clip deletion clears r91 render lists after the native command", () => {
+  const calls = [];
+  const prototype = {
+    deleteClip(params) { calls.push(params); return 42; },
+  };
+  const PZ = { ui: { timeline: { tracks: { prototype } } } };
+  vm.runInNewContext(source, { PZ });
+  const tracks = { timeline: { editor: { mainViewport: {
+    renderer: { renderLists: { dispose() { calls.push("dispose"); } } },
+  } } } };
+  const params = { type: 0, oldTrackIdx: 0, oldIdx: 0 };
+  assert.equal(prototype.deleteClip.call(tracks, params), 42);
+  assert.deepEqual(calls, [params, "dispose"]);
+  const installed = prototype.deleteClip;
+  vm.runInNewContext(source, { PZ });
+  assert.equal(prototype.deleteClip, installed);
+  assert.equal(prototype.deleteClip.call({ timeline: { editor: {} } }, params), 42);
+});
