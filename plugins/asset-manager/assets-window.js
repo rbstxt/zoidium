@@ -10,6 +10,7 @@ const model = require("./assets-model.js");
 const { createActions } = require("./assets-actions.js");
 const { createResolveFonts } = require("./assets-fonts.js");
 const { createTable } = require("./assets-table.js");
+const { createFontPreviews } = require("./assets-font-previews.js");
 
 const VIEW_KEY = "zoidium.assets.view";
 const WINDOW_ID = "assets";
@@ -59,7 +60,7 @@ function createAssetsWindow(session) {
   let snapshot = null;
   let shown = [];
   let usageMenu = null;
-  let fontFaces = new Map();
+  let fontPreviews = null;
   let contextMenu = null;
   const actions = createActions({
     document: doc,
@@ -284,21 +285,6 @@ function createAssetsWindow(session) {
 
   // ---- Info area ---------------------------------------------------------
 
-  function fontPreviewFamily(item) {
-    // Only real font files can be shown by the browser; built-in fonts are
-    // typeface JSON and fall back to the UI font.
-    if (!item.url || !/\.(ttf|otf|woff2?)$/i.test(item.name || "") || typeof FontFace !== "function") return "";
-    if (fontFaces.has(item.id)) return fontFaces.get(item.id).family;
-    const family = "zam-preview-" + fontFaces.size;
-    const face = new FontFace(family, "url(" + JSON.stringify(item.url) + ")");
-    fontFaces.set(item.id, { family, face });
-    face.load().then(() => {
-      doc.fonts.add(face);
-      if (selectedItem() === item) renderInfo();
-    }, () => fontFaces.set(item.id, { family: "", face: null }));
-    return "";
-  }
-
   function thumbFor(item) {
     const box = make(doc, "div", "zam-thumb");
     if (item.status === "missing") {
@@ -324,8 +310,7 @@ function createAssetsWindow(session) {
     }
     if (item.kind === "font") {
       const sample = make(doc, "span", "zam-font-sample", "Aa");
-      const loaded = fontFaces.get(item.id);
-      const family = loaded ? loaded.family : fontPreviewFamily(item);
+      const family = fontPreviews.family(item);
       if (family) sample.style.fontFamily = JSON.stringify(family) + ", var(--zui-font)";
       box.appendChild(sample);
       return box;
@@ -518,6 +503,7 @@ function createAssetsWindow(session) {
   function update(next) {
     if (!parts) return;
     snapshot = next || null;
+    fontPreviews.prune(snapshot?.items || []);
     renderMenus();
     renderTable();
     parts.importButton.disabled = !actions.importCommand().enabled;
@@ -571,6 +557,9 @@ function createAssetsWindow(session) {
       body.appendChild(root);
       return null;
     }
+    fontPreviews = createFontPreviews(doc, session.window.FontFace, item => {
+      if (parts && selectedItem() === item) renderInfo();
+    });
     const info = make(doc, "div", "zam-info");
     const toolbar = buildToolbar();
     const table = createTable(doc, icon, view, {
@@ -609,10 +598,8 @@ function createAssetsWindow(session) {
       closeUsageMenu();
       closeContextMenu();
       table.dispose();
-      for (const entry of fontFaces.values()) {
-        if (entry.face) doc.fonts.delete(entry.face);
-      }
-      fontFaces = new Map();
+      fontPreviews.dispose();
+      fontPreviews = null;
       parts = null;
     };
   }
