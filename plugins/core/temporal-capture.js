@@ -18,7 +18,7 @@
       .map(track => track.getCurrentClip?.(frame) || null) };
   }
   function inputClip(stage, track, index, frame) {
-    return stage.inputClips ? stage.inputClips[index] : track?.getCurrentClip?.(frame);
+    return stage?.inputClips ? stage.inputClips[index] : track?.getCurrentClip?.(frame);
   }
   function sampleError(stage, frame, error) {
     const effect = objectName(stage.effect, "frame sampler");

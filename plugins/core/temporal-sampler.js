@@ -183,8 +183,8 @@
 
   // A sampler request uses either the legacy evenly spaced Echo plan
   // (count/offsetFrames/startOpacity/decay) or, when `request.frames` is a
-  // non-empty array of frame offsets, an explicit per-tap plan. Both clamp
-  // to the clip bounds; only the caps differ (16 vs 64 taps).
+  // non-empty array of frame offsets, an explicit per-tap plan. Plans clamp
+  // to the clip bounds unless an explicit request opts into extrapolation.
   function planRequestSamples(request, controlFrame, maximum) {
     if (request && Array.isArray(request.frames) && request.frames.length > 0) {
       return planExplicitFrameSamples(controlFrame, request.frames,
@@ -416,7 +416,7 @@
     }
     const inputs = [];
     for (const schedule of sequence.videoSchedules || []) {
-      const item = findScheduleItemAtFrame(schedule, stage.selectionFrame ?? projectFrame)?.item;
+      const item = findScheduleItemAtFrame(schedule, stage?.selectionFrame ?? projectFrame)?.item;
       if (item?.clip && activeClips.has(item.clip) && item.media) inputs.push({ schedule, item });
     }
     return inputs;
@@ -449,7 +449,7 @@
           ? withFrameSamplerInputContext(state, stage, projectFrame, context, mapSource) : mapSource();
       registry.capture.checkPolicy(context);
       context?.resourcePolicy?.assertMedia(item.media);
-      isolated.update(stage.selectionFrame ?? sourceFrame, getProjectRate(stage.layer, sequence));
+      isolated.update(stage?.selectionFrame ?? sourceFrame, getProjectRate(stage.layer, sequence));
       if (isolated.currentItem) {
         context?.resourcePolicy?.assertMedia(item.media);
         const time = item.clip.properties.time.get(sourceFrame - item.start);
