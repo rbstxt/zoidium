@@ -200,6 +200,7 @@
     }
 
     var doc = global.document;
+    var project = global.CM && global.CM.project;
     var layer = getWindowLayer();
     var viewportWidth = global.innerWidth || 1280;
     var viewportHeight = global.innerHeight || 720;
@@ -274,7 +275,9 @@
       body: body,
       footer: footer,
       titlebar: titlebar,
-      _isValid: typeof config.isValid === "function" ? config.isValid : null,
+      _isValid: typeof config.isValid === "function" ? function () {
+        return (!project || !global.CM || global.CM.project === project) && config.isValid() !== false;
+      } : null,
       setTitle: function (title) {
         titleText.textContent = title || "";
         root.setAttribute("aria-label", title || "Window");
@@ -360,6 +363,9 @@
       close: function () {
         if (closed) return;
         closed = true;
+        var active = (win.document || doc).activeElement;
+        if (active && root.contains(active) && typeof active.blur === "function") active.blur();
+        if (builder.popupControls) builder.popupControls.settle(root);
         openWindows.delete(id);
         delete warnedValidityFailures[id];
         cleanups.splice(0).reverse().forEach(function (cleanup) {
@@ -541,7 +547,12 @@
       if (!(event.ctrlKey || event.metaKey) || event.altKey || !/^[zys]$/i.test(event.key || "")) return;
       if (event.target.closest?.("input,textarea,[contenteditable]:not([contenteditable='false'])")) return;
       if (global.CM && typeof global.CM.keydown === "function") {
-        global.CM.keydown(event);
+        if (event.metaKey && !event.ctrlKey) {
+          // CM3 uses Control internally on every platform.
+          var command = new global.KeyboardEvent("keydown", { key: event.key, code: event.code, ctrlKey: true, shiftKey: event.shiftKey, cancelable: true });
+          global.CM.keydown(command);
+          if (command.defaultPrevented) event.preventDefault();
+        } else global.CM.keydown(event);
         event.stopPropagation();
       }
     });

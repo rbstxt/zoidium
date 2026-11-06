@@ -80,6 +80,7 @@
     function sync() {
       var sources = Array.from(source.head.querySelectorAll('link[rel="stylesheet"],style'));
       copies.forEach(function (copy, node) { if (!sources.includes(node)) { copy.remove(); copies.delete(node); } });
+      var next = base.nextSibling;
       sources.forEach(function (node) {
         var copy = copies.get(node);
         if (!copy) { copy = doc.createElement(node.tagName.toLowerCase()); copies.set(node, copy); }
@@ -88,8 +89,8 @@
           if (copy.href !== node.href) copy.href = node.href;
           copy.media = node.media; copy.disabled = node.disabled;
         } else if (copy.textContent !== node.textContent) copy.textContent = node.textContent;
-        // Moving existing nodes preserves their sheet and the exact cascade.
-        doc.head.appendChild(copy);
+        if (copy !== next) doc.head.insertBefore(copy, next || null);
+        next = copy.nextSibling;
       });
       ["style", "class", "data-zoidium-theme", "data-zoidium-font", "dir", "lang"].forEach(function (name) {
         var value = source.documentElement.getAttribute(name);

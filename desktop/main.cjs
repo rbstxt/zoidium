@@ -734,11 +734,11 @@ function createRendererConsoleLogger() {
 // bridge or Node access. All child navigations use the same local URL policy.
 function installPopupPolicy(contents) {
   contents.setWindowOpenHandler(({ url, frameName }) => {
-    if (url === "about:blank" && frameName.startsWith("zoidium-popout-")) return {
+    if (url === "about:blank" && String(frameName || "").startsWith("zoidium-popout-")) return {
       action: "allow",
       overrideBrowserWindowOptions: { webPreferences: {
         contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true,
-        preload: undefined,
+        preload: "",
       } },
     };
     if (isLocalUrl(url)) return { action: "allow" };
