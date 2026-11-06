@@ -274,6 +274,20 @@ test("live flares are tracked for isInUse and released on unload", () => {
   assert.equal(flare.threeObj.children.length, 0, "disposed quad detached");
 });
 
+test("the live flare registry does not retain an abandoned project", async () => {
+  const { PZ } = buildEnv();
+  const counts = [];
+  let previous = 0;
+  for (const n of [5, 10, 20]) {
+    for (let i = previous; i < n; i++) createFlare(PZ);
+    previous = n;
+    await new Promise(resolve => setImmediate(resolve));
+    counts.push(require("node:v8").queryObjects(PZ.object3d.optflares));
+  }
+  assert.deepEqual(counts, [0, 0, 0]);
+  assert.equal(PZ.opticalflares.liveCount(), 0);
+});
+
 test("custom image textures are disposed on replacement and unload", () => {
   const { PZ, THREE } = buildEnv();
   const flare = createFlare(PZ, { objectType: 0 });

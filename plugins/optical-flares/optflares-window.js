@@ -39,6 +39,7 @@ module.exports = function installWindow(PZ) {
     var thumbs = parts.thumbs;
 
     PZ.opticalflares.openWindow = function (ui, editor, root) {
+        var project = editor.project;
         var ctl = ui.controls;
         var types = PZ.opticalflares.ELEMENT_TYPES;
         var Element = PZ.object3d.optflares.element;
@@ -896,7 +897,7 @@ module.exports = function installWindow(PZ) {
             // Wide enough for the longest 16px element name ("5. Multi Iris").
             width: 380,
             height: 620,
-            isValid: function () { return root.isLive(); },
+            isValid: function () { return root.isLive() && editor.project === project; },
             mount: function (body, handle) {
                 body.classList.add("of-window");
                 var style = document.createElement("style");

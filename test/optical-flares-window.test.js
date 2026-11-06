@@ -491,6 +491,18 @@ test("the window opens once, namespaced, persisted, uses standard chrome and is 
   }
 });
 
+test("the flare window becomes invalid when its project is replaced", () => {
+  const env = setup();
+  try {
+    env.root.parentProject = env.editor.project;
+    const { options, cleanup } = openAndMount(env);
+    assert.equal(options.isValid(), true);
+    env.editor.project = {};
+    assert.equal(options.isValid(), false);
+    cleanup();
+  } finally { env.restore(); }
+});
+
 test("add, duplicate, move, and remove each commit as one undo step", () => {
   const env = setup();
   try {
