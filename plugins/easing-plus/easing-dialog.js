@@ -629,12 +629,18 @@ module.exports = function createDialogApi(state, options) {
 
         renderGraph(session);
         // The plot's aspect follows the window size, so re-plot on resize.
-        if (typeof ResizeObserver === "function") {
-          session.resizeObserver = new ResizeObserver(() => {
+        function observeResize() {
+          session.resizeObserver?.disconnect(); session.resizeObserver = null;
+          const view = graph.ownerDocument?.defaultView || window;
+          if (typeof view.ResizeObserver !== "function") return;
+          session.resizeObserver = new view.ResizeObserver(() => {
             if (state.dialog === session) renderGraph(session);
           });
           session.resizeObserver.observe(graph);
+          renderGraph(session);
         }
+        observeResize();
+        handle.onHostChange?.(observeResize);
 
         return () => {
           session.resizeObserver?.disconnect();

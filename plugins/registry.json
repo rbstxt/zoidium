@@ -48,7 +48,7 @@
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
       "manifest": "./plugins/easing-plus/manifest.json?v=29",
       "bundle": "./plugins/easing-plus/bundle.json?v=29",
-      "integrity": "sha256-N9FBynG9TVqubuwcNTFoHEDPih29IRaCdYyY7YEgZ5c="
+      "integrity": "sha256-VF2h+TZyRfwv3BhN8M2NOFiBikv2XeJ9gsbIcbUXUmc="
     },
     {
       "id": "expressions-plus",
@@ -159,7 +159,7 @@
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
       "manifest": "./plugins/graph-plus/manifest.json?v=19",
       "bundle": "./plugins/graph-plus/bundle.json?v=19",
-      "integrity": "sha256-zANZoS0YDO/jzxHU86h4Tti4UgNS05D9XrxCMZ5hc8E="
+      "integrity": "sha256-OiNjZgM3MT+X3bbGseRkmEkQk5j4CUPWF5UcmMNBa48="
     },
     {
       "id": "motion-path",
@@ -360,16 +360,16 @@
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "37",
+      "version": "38",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=37",
-      "bundle": "./plugins/native-fx/bundle.json?v=37",
-      "integrity": "sha256-98T0s2vrDNJwh5H/RESuaauc5F3bCDxRpf+FEEs9ncM="
+      "manifest": "./plugins/native-fx/manifest.json?v=38",
+      "bundle": "./plugins/native-fx/bundle.json?v=38",
+      "integrity": "sha256-1duNP3EPAIrfZj0IkmSU/doMPcUALsBk68iJST8NYGo="
     },
     {
       "id": "afterclip",

@@ -42,3 +42,24 @@ test("reveal keeps a maximized window maximized", () => {
   assert.equal(win.element.style.width, "984px");
   win.close();
 });
+
+test("popup commands preserve the target and translate Command and Shift+Z without forwarding text undo", () => {
+  const { context, api } = loadKit(1000, 600), commands = [];
+  context.CM = { keydown(event) { assert.ok(event.target); commands.push(event); event.preventDefault(); } };
+  const win = api.openWindow({ id: "commands", title: "Commands" });
+  win.isPoppedOut = () => true;
+  function key(options) {
+    const event = { key: "z", metaKey: true, ctrlKey: false, shiftKey: false,
+      target: win.element, ...options };
+    win.element.dispatch("keydown", event);
+  }
+  key({});
+  assert.equal(commands.length, 1); assert.equal(commands[0].ctrlKey, true);
+  assert.equal(commands[0].key, "z"); assert.equal(commands[0].target, win.element);
+  key({ shiftKey: true }); assert.equal(commands.at(-1).key, "y");
+  const text = new FakeElement("textarea");
+  text.closest = () => text;
+  key({ target: text }); assert.equal(commands.length, 2);
+  key({ defaultPrevented: true }); assert.equal(commands.length, 2);
+  win.close();
+});

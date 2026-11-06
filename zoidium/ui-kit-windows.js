@@ -547,12 +547,14 @@
       if (!(event.ctrlKey || event.metaKey) || event.altKey || !/^[zys]$/i.test(event.key || "")) return;
       if (event.target.closest?.("input,textarea,[contenteditable]:not([contenteditable='false'])")) return;
       if (global.CM && typeof global.CM.keydown === "function") {
-        if (event.metaKey && !event.ctrlKey) {
-          // CM3 uses Control internally on every platform.
-          var command = new global.KeyboardEvent("keydown", { key: event.key, code: event.code, ctrlKey: true, shiftKey: event.shiftKey, cancelable: true });
-          global.CM.keydown(command);
-          if (command.defaultPrevented) event.preventDefault();
-        } else global.CM.keydown(event);
+        // Keep the original target: CM3 checks whether it is an input.
+        global.CM.keydown({
+          target: event.target,
+          key: event.shiftKey && event.key.toLowerCase() === "z" ? "y" : event.key,
+          code: event.code, ctrlKey: true, shiftKey: event.shiftKey, altKey: false,
+          preventDefault: function () { event.preventDefault(); },
+          stopPropagation: function () { event.stopPropagation(); },
+        });
         event.stopPropagation();
       }
     });

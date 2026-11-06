@@ -731,13 +731,17 @@
       host.listen("document", "pointerdown", onDocumentPointerDown, true);
       host.onHostChange(function () {
         cancelGesture(); cx.closeMenu(false);
-        if (resizeObserver) { resizeObserver.disconnect(); resizeObserver.observe(cx.root); }
+        observeResize();
         cx.measure(); cx.redrawLinks();
       });
     } else listen(doc, "pointerdown", onDocumentPointerDown, true);
 
-    if (typeof global.ResizeObserver === "function") {
-      resizeObserver = new global.ResizeObserver(function () {
+    function observeResize() {
+      if (resizeObserver) resizeObserver.disconnect();
+      resizeObserver = null;
+      var view = cx.root.ownerDocument?.defaultView || global;
+      if (typeof view.ResizeObserver !== "function") return;
+      resizeObserver = new view.ResizeObserver(function () {
         if (cx.destroyed) return;
         cx.measure();
         if (cx.pendingFrame) cx.frameNodes(null);
@@ -745,6 +749,7 @@
       });
       resizeObserver.observe(cx.root);
     }
+    observeResize();
 
     // ---- public surface ------------------------------------------------
 

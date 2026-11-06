@@ -281,6 +281,7 @@ const GraphPlus = (() => {
           // body so host shortcuts cannot run a second time. Graph handlers
           // consume their own keys before they reach this listener.
           const forward = (event) => {
+            if (mounted.isPoppedOut?.() && (event.ctrlKey || event.metaKey) && /^[zys]$/i.test(event.key || "")) return;
             if (typeof editor.keydown === "function") editor.keydown(event);
             event.stopPropagation();
           };
@@ -300,14 +301,18 @@ const GraphPlus = (() => {
               if (panel.panels) panel.panels.forEach(visit);
             }
             visit(facade.panel);
-            facade.resize();
+            observeResize(); facade.resize();
           };
           mounted.onHostChange?.(rehost);
-          const owner = body.ownerDocument?.defaultView;
-          if (owner?.ResizeObserver) {
-            observer = new owner.ResizeObserver(() => facade.resize());
-            observer.observe(body);
+          function observeResize() {
+            observer?.disconnect(); observer = null;
+            const owner = body.ownerDocument?.defaultView;
+            if (owner?.ResizeObserver) {
+              observer = new owner.ResizeObserver(() => facade.resize());
+              observer.observe(body);
+            }
           }
+          observeResize();
           return () => {
             if (observer) observer.disconnect();
             body.removeEventListener("keydown", space, true);
@@ -335,7 +340,7 @@ const GraphPlus = (() => {
       host.element.addEventListener("keydown", graphShortcut, true);
       host.addCleanup(() => host.element.removeEventListener("keydown", graphShortcut, true));
       const chromeKeydown = (event) => {
-        if (!event.ctrlKey || !/^[nmoszy]$/i.test(event.key || "")) return;
+        if (event.defaultPrevented || !event.ctrlKey || !/^[nmoszy]$/i.test(event.key || "")) return;
         if (typeof editor.keydown === "function") editor.keydown(event);
         event.stopPropagation();
       };
