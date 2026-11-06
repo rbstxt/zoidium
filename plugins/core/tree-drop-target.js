@@ -8,34 +8,27 @@
   const end = prototype.itemDragEnd;
   const move = prototype.itemDrag;
 
-  // Compare the whole sibling order after removing and reinserting the
-  // selected block. Adjacency of the grabbed row alone is insufficient.
-  function unchangedOrder(order, items, target, operation) {
-    if (!items.length || items.includes(target) || items.some(item => !order.includes(item))) return false;
-    const remaining = order.filter(item => !items.includes(item));
-    const index = remaining.indexOf(target);
-    if (index < 0) return false;
-    remaining.splice(index + (operation === 2 ? 1 : 0), 0, ...items);
-    return order.length === remaining.length && order.every((item, index) => item === remaining[index]);
+  // CM3 moves only the grabbed row, even with several rows selected, so only
+  // that row decides whether a before or after drop would change the order.
+  function keepsOrder(drag) {
+    const { target, item, operation } = drag;
+    const siblings = Array.from(target.parentElement.pz_object);
+    const itemIndex = siblings.indexOf(item.pz_object);
+    const targetIndex = siblings.indexOf(target.pz_object);
+    if (itemIndex < 0 || targetIndex < 0) return false;
+    return itemIndex === targetIndex + (operation === 1 ? -1 : 1);
   }
 
-  function insideItems(drag) {
-    const { target, item, operation, ctx } = drag;
-    if ((operation !== 1 && operation !== 2) || !target || target === item || drag.zoidiumCopy) return null;
-    const sibling = target.nextElementSibling;
-    const destination = (sibling === drag.indicatorEl ? sibling.nextElementSibling : sibling)?.pz_object;
-    if (!(destination instanceof PZ.objectList)) return null;
-    const rows = Array.from(ctx.list.querySelectorAll("li.selected"));
-    const items = rows.length ? rows.map(row => row.pz_object) : [item.pz_object];
-    const parent = target.parentElement.pz_object;
-    if (!(parent instanceof PZ.objectList) || !items.includes(item.pz_object)) return null;
-    if (destination instanceof PZ.objectSingleton && (destination.length || items.length !== 1)) return null;
-    if (items.some(object => !(object instanceof destination.type) || object.parent !== parent)) return null;
-    // Follow ownership rather than DOM nesting, which differs for collapsed rows.
-    for (let owner = destination; owner; owner = owner.parent) {
-      if (items.includes(owner)) return null;
-    }
-    return unchangedOrder(Array.from(parent), items, target.pz_object, operation) ? items : null;
+  function shouldMoveInside(drag) {
+    const { target, item, operation, indicatorEl } = drag;
+    if ((operation !== 1 && operation !== 2) || drag.zoidiumCopy) return false;
+    // The native after indicator sits between the row and its child list.
+    const next = target.nextElementSibling;
+    const destination = (next === indicatorEl ? next.nextElementSibling : next)?.pz_object;
+    if (!(destination instanceof PZ.objectList)) return false;
+    if (!(item.pz_object instanceof destination.type)) return false;
+    if (destination instanceof PZ.objectSingleton && destination.length) return false;
+    return keepsOrder(drag);
   }
 
   prototype.itemDrag = function (event) {
@@ -43,11 +36,10 @@
     return move.call(this, event);
   };
   function itemDragUpdate() {
-    this.zoidiumInsideItems = null;
+    this.zoidiumNativeOperation = 0;
     const result = update.apply(this, arguments);
-    const items = insideItems(this);
-    if (!items) return result;
-    this.zoidiumInsideItems = items;
+    if (!shouldMoveInside(this)) return result;
+    this.zoidiumNativeOperation = this.operation;
     this.target.parentElement.insertBefore(this.indicatorEl, this.target);
     const height = this.target.offsetHeight;
     this.indicatorEl.style.height = height + "px";
@@ -59,28 +51,9 @@
   itemDragUpdate.__zoidiumTreeDropTarget = true;
   prototype.itemDragUpdate = itemDragUpdate;
   prototype.itemDragEnd = function (event) {
-    const items = this.zoidiumInsideItems;
-    if (!items || items.length < 2 || event.altKey) return end.call(this, event);
-    // Let CM3 own selection, cleanup and the single history operation. Only
-    // expand its move command for the block whose no-op became an inside drop.
-    const panel = this.ctx;
-    const original = panel.moveObject;
-    const descriptor = Object.getOwnPropertyDescriptor(panel, "moveObject");
-    const destination = this.target.nextElementSibling.pz_object;
-    panel.moveObject = function () {
-      for (const object of items) {
-        const address = object.getAddress();
-        const index = address.pop();
-        original.call(this, {
-          oldParentAddress: address, oldIdx: index,
-          newParentAddress: destination.getAddress(),
-        });
-      }
-    };
-    try { return end.call(this, event); }
-    finally {
-      if (descriptor) Object.defineProperty(panel, "moveObject", descriptor);
-      else delete panel.moveObject;
-    }
+    // Alt copies, and a copy beside the row is a real change. Alt can go down
+    // after the last pointer move, so undo the redirect at release too.
+    if (event.altKey && this.zoidiumNativeOperation) this.operation = this.zoidiumNativeOperation;
+    return end.call(this, event);
   };
 })();
