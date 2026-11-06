@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "4a15e58024d9de2dd5c2a54ca25efc8b8a62b64fefb8caaf4b3c0bf637e3725e",
+  "fingerprint": "76e4bee2f8c768da3f745d1051e4fe41871d14d0c8580c9d0f3f1d389f8e0eb0",
   "plugins": {
     "native-fx": {
       "version": "37",
@@ -56,7 +56,7 @@
       ]
     },
     "text-plus": {
-      "version": "31",
+      "version": "32",
       "cases": [
         "Character Transform",
         "Gradient Transform",
