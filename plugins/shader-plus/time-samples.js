@@ -14,7 +14,7 @@ function readSamples(effect, frame) {
   });
 }
 function installTimeSamples({ PZ, patch, pipeline, onDispose }) {
-  const proto = PZ.effect.shader.prototype, live = new Map();
+  const proto = PZ.effect.shader.prototype, live = new Map(), unloaded = new WeakSet();
   const temporal = () => PZ.zoidium?.temporal;
   function fail(effect, error) {
     effect.onShaderError?.update(error.message);
@@ -45,7 +45,9 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose }) {
       live.set(effect, { layer, sequence });
       effect._zoidiumFrameSampler = {
         getRequest(owner, frame) {
-          const samples = readSamples(owner, frame);
+          let samples;
+          try { samples = readSamples(owner, frame); }
+          catch (error) { fail(owner, error); return { enabled: false, frames: [] }; }
           let layer;
           try { layer = owner.parentLayer; } catch (_error) { /* Detached shader. */ }
           const procedural = Boolean((PZ.layer?.scene && layer instanceof PZ.layer.scene) ||
@@ -57,6 +59,11 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose }) {
       };
     }
     const entry = live.get(effect), pass = effect.pass;
+    try {
+      const layer = effect.parentLayer, sequence = effect.parentProject?.sequence;
+      if (entry.layer && entry.layer !== layer) release(effect);
+      entry.layer = layer; entry.sequence = sequence;
+    } catch (_error) { /* A detached effect has no sampler resources. */ }
     if (!pass?.render || entry.pass === pass) return;
     entry.pass = pass; entry.original = pass.render;
     entry.render = function renderTimeSamples(renderer, output, input) {
@@ -87,6 +94,7 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose }) {
     return result;
   });
   patch(proto, "load", original => async function loadTimeSamples(data) {
+    unloaded.delete(this);
     const source = data?.properties?.fragShader;
     if (typeof source === "string" && source.startsWith(GUARD)) {
       data = { ...data, properties: { ...data.properties, fragShader: source.slice(GUARD.length) } };
@@ -106,6 +114,7 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose }) {
     return { ...data, properties };
   });
   patch(proto, "prepare", original => async function prepareTimeSamples(frame, context) {
+    if (unloaded.has(this)) return;
     sync(this);
     if (this._zoidiumFrameSampler) {
       readSamples(this, frame);
@@ -115,6 +124,7 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose }) {
     return original.apply(this, arguments);
   });
   patch(proto, "unload", original => function unloadTimeSamples() {
+    unloaded.add(this);
     const entry = live.get(this);
     if (entry) {
       release(this);

@@ -1,5 +1,7 @@
 # Shader properties
 
+See [Read a layer at another time](shader-time-samples.md) for Time sample properties.
+
 Shader+ adds editors to native Custom Shader properties. Add an effect, open
 Shader properties, click +, then choose a kind under ZOIDIUM. Right-click a
 property to rename, duplicate or delete it, or choose "Property settings…" to
