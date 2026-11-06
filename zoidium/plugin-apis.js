@@ -458,6 +458,7 @@
       // onUnload; the wrapped dispose above makes this call idempotent.
       var material = effect.pass && effect.pass.material;
       if (material && typeof material.dispose === "function") material.dispose();
+      effect.pass?.quad?.geometry?.dispose?.();
     };
 
     effect.update = function update(frame) {

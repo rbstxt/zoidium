@@ -51,6 +51,10 @@
   }
   wrapUnload(PZ.object3d && PZ.object3d.shape, threeObj, disposeGeometry);
   wrapUnload(PZ.object3d && PZ.object3d.text, threeObj, disposeGeometry);
+  // Shader effects own their full-screen pass, including its quad geometry.
+  wrapUnload(PZ.effect && PZ.effect.shader, function (effect) {
+    return effect.pass && effect.pass.quad;
+  });
 
   // CM3's Displacement Map unload() disposes its input texture uniform
   // whenever a map image is set, but that uniform stays null until the

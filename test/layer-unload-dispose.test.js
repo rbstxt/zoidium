@@ -49,11 +49,20 @@ function install() {
       events.push("shape-unload");
     }
   }
-  const effect = { fnList: {} };
+  class Shader {
+    constructor() {
+      this.pass = { quad: {
+        geometry: { dispose: () => events.push("pass-geometry") },
+        material: { dispose: () => events.push("pass-material") },
+      } };
+    }
+    unload() { events.push("shader-unload"); }
+  }
+  const effect = { fnList: {}, shader: Shader };
   const context = { PZ: { layer: Layer, object3d: { particles: Particles, shape: Shape }, effect }, console };
   context.window = context;
   vm.runInNewContext(source, context);
-  return { Layer, Particles, Shape, events, context, effect };
+  return { Layer, Particles, Shape, Shader, events, context, effect };
 }
 
 test("layer unload releases the composite quad after the original unload", () => {
@@ -86,6 +95,12 @@ test("shapes release only their generated geometry", () => {
   const { Shape, events } = install();
   new Shape().unload();
   assert.deepEqual(events, ["shape-unload", "shape-geometry"]);
+});
+
+test("native shader effects release their full-screen pass on unload", () => {
+  const { Shader, events } = install();
+  for (let i = 0; i < 20; i++) new Shader().unload();
+  assert.equal(events.filter(event => event === "pass-geometry").length, 20);
 });
 
 // Mirrors CM3's effect/displacementmap.js unload().

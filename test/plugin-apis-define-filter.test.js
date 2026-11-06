@@ -10,6 +10,7 @@ const vm = require("node:vm");
 
 function host() {
   let disposeCalls = 0;
+  let geometryDisposals = 0;
   const unloadedAssets = [];
   class ShaderMaterial {
     constructor(parameters) {
@@ -25,6 +26,7 @@ function host() {
     constructor(material) {
       this.material = material;
       this.uniforms = material.uniforms;
+      this.quad = { geometry: { dispose() { geometryDisposals++; } } };
     }
   }
   const assets = {
@@ -50,6 +52,7 @@ function host() {
     assets,
     unloadedAssets,
     disposeCount: () => disposeCalls,
+    geometryCount: () => geometryDisposals,
   };
 }
 
@@ -98,4 +101,15 @@ test("unload tolerates a missing pass", async () => {
   effect.pass = null;
   assert.doesNotThrow(() => effect.unload());
   assert.equal(harness.disposeCount(), 0);
+});
+
+test("repeated filter lifetimes release every pass geometry", async () => {
+  const harness = host();
+  for (let i = 0; i < 20; i++) {
+    const effect = fakeEffect({ assets: harness.assets });
+    harness.apis.defineFilter.call(effect, { properties: {}, fragShader: "void main() {}" });
+    await effect.load({});
+    effect.unload();
+  }
+  assert.equal(harness.geometryCount(), 20);
 });
