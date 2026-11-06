@@ -64,12 +64,12 @@ function fixtures() {
     ] }], adjustment);
     add("shader-plus", adjustment ? "time-sample-adjustment" : "time-sample", data);
   }
-  for (const kind of ["slider", "gradient", "curve", "palette", "timeSample"]) {
+  for (const kind of ["slider", "gradient", "curve", "palette", "text", "timeSample"]) {
     const definition = require("../plugins/shader-plus/kinds.js").KINDS[kind].create();
-    const texture = ["gradient", "curve", "timeSample"].includes(kind);
+    const texture = ["gradient", "curve", "text", "timeSample"].includes(kind);
     const source = "precision highp float;\nuniform sampler2D tDiffuse;\nuniform " + (texture ? "sampler2D" : kind === "palette" ? "vec4" : "float") +
       " Input" + (kind === "palette" ? "[16]" : "") + ";\nvarying vec2 vUvScaled;\nvoid main(){gl_FragColor=" +
-      (texture ? "texture2D(Input,vUvScaled)" : kind === "palette" ? "texture2D(tDiffuse,vUvScaled)*Input[0]" : "texture2D(tDiffuse,vUvScaled)*Input") + ";}";
+      (texture ? kind === "text" ? "texture2D(tDiffuse,vUvScaled)*texture2D(Input,vUvScaled).a" : "texture2D(Input,vUvScaled)" : kind === "palette" ? "texture2D(tDiffuse,vUvScaled)*Input[0]" : "texture2D(tDiffuse,vUvScaled)*Input") + ";}";
     add("shader-plus", kind === "timeSample" ? "zero-offset" : "legacy-" + kind,
       project([box()], [{ type: 1, properties: { fragShader: source }, customProperties: [
         { type: copy(definition), properties: { name: "Input" }, ...(definition.dynamic ? scalar(definition.value) : { value: definition.value }) },
