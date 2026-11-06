@@ -11,7 +11,11 @@
     // Native history retains the unloaded object, including CPU geometry and
     // plugin caches. Store the same data used to reopen a saved 3D object.
     // Capture before unload, since plugins can release their serializable state.
-    const data = object instanceof PZ.object3d ? JSON.parse(JSON.stringify(object)) : null;
+    let data = null;
+    if (object instanceof PZ.object3d) {
+      // A type with no project JSON keeps native undo data, so Delete still works.
+      try { data = JSON.parse(JSON.stringify(object)); } catch { data = null; }
+    }
     const operation = this.editor.history.operation;
     const start = operation?.length || 0;
     const result = original.apply(this, arguments);

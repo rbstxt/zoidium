@@ -51,3 +51,10 @@ test("non-3D deletion keeps native undo data", () => {
   edit.deleteObject({ oldIdx: 0 });
   assert.equal(operation[0].params.data.token, object);
 });
+
+test("a 3D type without project JSON keeps native undo data and still deletes", () => {
+  const { edit, object, operation } = fixture();
+  object.toJSON = () => undefined;
+  assert.equal(edit.deleteObject({ oldIdx: 0 }), 42);
+  assert.equal(operation[0].params.data, object);
+});
