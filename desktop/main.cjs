@@ -781,11 +781,6 @@ async function createWindow() {
     installPopupPolicy(popup.webContents);
   });
   window.on("closed", () => { for (const popup of popupWindows) popup.destroy(); });
-  window.webContents.on("will-navigate", (event, url) => {
-    if (isLocalUrl(url)) return;
-    event.preventDefault();
-    openExternal(url);
-  });
   window.webContents.on("console-message", createRendererConsoleLogger());
   installPermissionHandlers(window.webContents.session);
   window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
