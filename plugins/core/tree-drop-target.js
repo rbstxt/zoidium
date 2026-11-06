@@ -22,7 +22,8 @@
   function insideItems(drag) {
     const { target, item, operation, ctx } = drag;
     if ((operation !== 1 && operation !== 2) || !target || target === item || drag.zoidiumCopy) return null;
-    const destination = target.nextElementSibling?.pz_object;
+    const sibling = target.nextElementSibling;
+    const destination = (sibling === drag.indicatorEl ? sibling.nextElementSibling : sibling)?.pz_object;
     if (!(destination instanceof PZ.objectList)) return null;
     const rows = Array.from(ctx.list.querySelectorAll("li.selected"));
     const items = rows.length ? rows.map(row => row.pz_object) : [item.pz_object];

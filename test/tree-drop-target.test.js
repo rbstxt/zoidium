@@ -64,3 +64,11 @@ test("installation is idempotent", () => {
   vm.runInNewContext(source, { PZ });
   assert.equal(prototype.itemDragUpdate, wrapped);
 });
+
+test("the native after indicator between the row and child list does not hide the destination", () => {
+  const { prototype, drag } = setup(["G", "A"], ["A"], "G", 2);
+  drag.indicatorEl.nextElementSibling = drag.target.nextElementSibling;
+  drag.target.nextElementSibling = drag.indicatorEl;
+  prototype.itemDragUpdate.call(drag);
+  assert.equal(drag.operation, 3);
+});
