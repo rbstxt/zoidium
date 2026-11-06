@@ -46,3 +46,10 @@ test("Particular Transform follows keyframed values without render history", () 
   system.update(5);
   assert.equal(pose(system).position[0], 10);
 });
+
+test("Particle Random seed keeps a saved value after it leaves the panel", () => {
+  const seed = setup().properties.particle.randomSeed;
+  assert.equal(seed.definition.visible, false);
+  seed.set(1234);
+  assert.equal(seed.get(0), 1234);
+});

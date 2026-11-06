@@ -54,7 +54,7 @@ test("unsupported controls stay hidden and retain their saved values", () => {
   const { PZ, system, p } = setup();
   const C = PZ.object3d.particular.system;
   const fields = {
-    particle: ["particleType", "setColor"],
+    particle: ["particleType", "setColor", "randomSeed"],
     physics: ["flockingEnabled", "flockAttract", "flockSeparate", "flockAlign", "flockRangeValue", "flockFieldOfView"],
   };
   for (const [group, keys] of Object.entries(fields)) {

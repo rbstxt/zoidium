@@ -68,7 +68,6 @@ Trapcode Particular is a suite object with properties in its designer and proper
 | **Color random** | Number | 0 to 100 | `0` | Mixes the tinted gradient color with a seeded random RGB color. Alpha remains unchanged. |
 | **Blend mode** | Choice | **normal**, **add**, **screen**, **multiply** | **normal** | Particle blend operation. **screen** lightens and **multiply** darkens what is behind the particle. Over an empty scene, **multiply** draws dark particles. |
 | **Glow** | Number | ≥ 0 | `0` | Particle brightness multiplier contribution. |
-| **Random seed** | Number | — | `0` | Seed for repeatable random values. |
 
 
 ## Physics

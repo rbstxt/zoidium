@@ -68,7 +68,6 @@ Trapcode Particular は、デザイナーとプロパティパネルにプロパ
 | **Color random** | 数値 | 0 ～ 100 | `0` | グラデーションと Color の積に、シードに基づく RGB カラーを混ぜます。アルファ値は保ちます。 |
 | **Blend mode** | 選択肢 | **normal**, **add**, **screen**, **multiply** | **normal** | パーティクルの合成方法です。**screen** は背後を明るくし、**multiply** は背後を暗くします。何もないシーンでは、**multiply** のパーティクルは暗く描かれます。 |
 | **Glow** | 数値 | ≥ 0 | `0` | パーティクルの明るさの倍率への寄与量です。 |
-| **Random seed** | 数値 | — | `0` | 再現可能な乱数のシードです。 |
 
 
 ## Physics

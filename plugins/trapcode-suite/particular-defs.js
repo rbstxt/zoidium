@@ -264,6 +264,7 @@ var PZ = PZ || {};
     var System = PZ.object3d.particular.system;
     System.particleDefinitions.particleType.visible = false;
     System.particleDefinitions.setColor.visible = false;
+    System.particleDefinitions.randomSeed.visible = false;
     ["flockingEnabled", "flockAttract", "flockSeparate", "flockAlign", "flockRangeValue", "flockFieldOfView"].forEach(function (key) {
         System.physicsDefinitions[key].visible = false;
     });
