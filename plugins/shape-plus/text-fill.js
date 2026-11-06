@@ -13,7 +13,7 @@ function area(points) {
 // Within a slab edge order is fixed, so winding transitions bound disjoint
 // trapezoids. This resolves holes, overlaps and self-intersections explicitly.
 // No triangle overlaps another interior: alpha is applied once per paint.
-function triangulate(contours, rule = "nonzero", groups) {
+function sweep(contours, rule = "nonzero", groups, overflow) {
   const edges = [], levels = [];
   for (const [contourIndex, points] of contours.entries()) {
     if (points.length < 3) continue;
@@ -21,23 +21,24 @@ function triangulate(contours, rule = "nonzero", groups) {
       const a = points[i], b = points[(i + 1) % points.length];
       if (!a.concat(b).every(Number.isFinite)) throw Error("Shape+ nonfinite polygon");
       levels.push(a[1]);
-      if (levels.length > 16384 || edges.length > 4096) throw Error("Shape+ polygon edge budget exceeded");
+      if (levels.length > (overflow ? 131072 : 16384) || edges.length > (overflow ? 65536 : 4096)) throw Error("Shape+ polygon edge budget exceeded");
       if (a[1] !== b[1]) edges.push({ a, b, min: Math.min(a[1], b[1]), max: Math.max(a[1], b[1]), sign: b[1] > a[1] ? 1 : -1, index: edges.length, group: groups?.[contourIndex] });
     }
   }
-  if (edges.length > 4096) throw Error("Shape+ polygon edge budget exceeded");
+  if (edges.length > (overflow ? 65536 : 4096)) throw Error("Shape+ polygon edge budget exceeded");
   // Preserve the original logical work charge while rejecting pairs with
   // disjoint X ranges before their intersection arithmetic.
-  for(let i=0;i<edges.length;i++)for(let n=0;n<Math.floor((edges.length-1)/256)-Math.floor(i/256);n++)check();
+  if (!overflow) for(let i=0;i<edges.length;i++)for(let n=0;n<Math.floor((edges.length-1)/256)-Math.floor(i/256);n++)check();
   const ordered=edges.map(edge=>({...edge,minX:Math.min(edge.a[0],edge.b[0]),maxX:Math.max(edge.a[0],edge.b[0])})).sort((a,b)=>a.minX-b.minX||a.index-b.index);
   for(let i=0;i<ordered.length;i++)for(let j=i+1;j<ordered.length&&ordered[j].minX<=ordered[i].maxX;j++) {
+    if (overflow) overflow.pair();
     const first=ordered[i],second=ordered[j],e=first.index<second.index?first:second,f=first.index<second.index?second:first;
     if (Math.max(e.min,f.min)>=Math.min(e.max,f.max))continue;
     const r=[e.b[0]-e.a[0],e.b[1]-e.a[1]],v=[f.b[0]-f.a[0],f.b[1]-f.a[1]],den=cross(r,v);
     if(Math.abs(den)<1e-12)continue;
     const d=[f.a[0]-e.a[0],f.a[1]-e.a[1]],t=cross(d,v)/den,u=cross(d,r)/den;
     if(t>0&&t<1&&u>0&&u<1)levels.push(e.a[1]+r[1]*t);
-    if(levels.length>65536)throw Error("Shape+ crossing budget exceeded");
+    if(levels.length>(overflow ? 262144 : 65536))throw Error("Shape+ crossing budget exceeded");
   }
   const ys = [...new Set(levels)].sort((a, b) => a - b), positions = [];
   const xAt = (edge, y) => edge.a[0] + (y - edge.a[1]) * (edge.b[0] - edge.a[0]) / (edge.b[1] - edge.a[1]);
@@ -50,6 +51,7 @@ function triangulate(contours, rule = "nonzero", groups) {
   for(let i=0;i<ys.length-1;i++) {
     check(); if(ys[i+1]-ys[i]<1e-10)continue;
     work+=edges.length;if(work>16000000)throw Error("Shape+ arrangement work budget exceeded");
+    if (overflow) overflow.slab(edges.length);
   }
   const grouped = new Map();
   for(const edge of edges) {const key=groups?edge.group:0;if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(edge);}
@@ -76,5 +78,14 @@ function triangulate(contours, rule = "nonzero", groups) {
   }
   }
   return positions;
+}
+function triangulate(contours, rule = "nonzero", groups) {
+  try { return sweep(contours, rule, groups); }
+  catch (error) {
+    if (error.message !== "Shape+ polygon edge budget exceeded") throw error;
+    // Retry only fills the original guard rejected. Existing arrangements keep
+    // their slab levels, triangle order, arithmetic and work-budget charges.
+    return require("./fill-overflow.js").triangulate(contours, rule, sweep);
+  }
 }
 module.exports = { triangulate };

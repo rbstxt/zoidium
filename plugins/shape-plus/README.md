@@ -301,8 +301,14 @@ and across graphics drivers. Full-resolution captures were inspected alongside
 Validation bounds a layer to 512 items, 16 nested groups and 256 vertices per
 path. Flattening rejects work above depth 24 or 4096 points per path. The
 compiler allows 16384 collected points and 200000 output triangles across all
-paints. Each polygon arrangement permits 4096 nonhorizontal edges, 65536
-crossing levels and 16 million edge/slab visits. Stroke outlines are bounded
+paints. Fills above 4096 nonhorizontal edges or 16384 input vertices use a
+bounded overflow arrangement. It separates contours only when their bounds
+prove that they cannot overlap. Overlapping contours and nested holes stay
+together for both fill rules. The overflow path preserves flattening tolerance
+and permits 65536 nonhorizontal edges, 131072 input vertices, 262144 crossing
+levels per component, four million intersection candidates, and 16 million
+edge/slab visits across all components. Fills below the original limits retain
+their existing triangles. Stroke outlines are bounded
 to 16384 vertices. Exhaustion rejects the operation instead of silently
 violating tolerance or drawing unresolved geometry.
 
