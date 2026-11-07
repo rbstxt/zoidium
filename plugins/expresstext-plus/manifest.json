@@ -129,6 +129,11 @@
       "id": "expresstext-delay-cache",
       "type": "text",
       "source": "./plugins/expresstext-plus/expresstext-delay-cache.js?v=5"
+    },
+    {
+      "id": "expresstext-field-guides",
+      "type": "text",
+      "source": "./plugins/expresstext-plus/expresstext-field-guides.js?v=5"
     }
   ]
 }
