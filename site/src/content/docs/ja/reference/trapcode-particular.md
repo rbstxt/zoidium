@@ -58,7 +58,7 @@ Trapcode Particular は、デザイナーとプロパティパネルにプロパ
 | **Degrees/sec Z** | 数値 | — | `0` | 1秒あたりの Z 軸周りの回転角です。 |
 | **Random speed rotate** | 数値 | 0 ～ 100 | `0` | 回転速度の変動量です。 |
 | **Random speed distribution** | 数値 | 0 ～ 1 | `0.5` | 回転速度の変動の分布です。 |
-| **Stretch along motion** | 数値 | 0 ～ 100 | `0` | 移動方向に引き伸ばす量です。 |
+| **Stretch along motion** | 数値 | 0 ～ 100 | `0` | 移動方向に引き伸ばす量です。**Orient to motion** が `0` の間は効果がありません。 |
 | **Opacity** | 数値 | 0 ～ 100 | `100` | パーティクルの不透明度です。割合で指定します。 |
 | **Opacity random** | 数値 | 0 ～ 100 | `0` | シードに基づいて各パーティクルの不透明度を下げます。100では倍率が0から1の範囲になります。 |
 | **Opacity over life** | 選択肢 | **off**, **on** | **off** | 正規化した寿命に対して Opacity curve を有効にします。 |

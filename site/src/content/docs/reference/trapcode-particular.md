@@ -58,7 +58,7 @@ Trapcode Particular is a suite object with properties in its designer and proper
 | **Degrees/sec Z** | Number | — | `0` | Z spin speed in degrees per second. |
 | **Random speed rotate** | Number | 0 to 100 | `0` | Variation of spin speed. |
 | **Random speed distribution** | Number | 0 to 1 | `0.5` | Distribution of spin-speed variation. |
-| **Stretch along motion** | Number | 0 to 100 | `0` | Amount of stretching along motion. |
+| **Stretch along motion** | Number | 0 to 100 | `0` | Amount of stretching along motion. It has no effect while **Orient to motion** is `0`. |
 | **Opacity** | Number | 0 to 100 | `100` | Particle opacity in percent. |
 | **Opacity random** | Number | 0 to 100 | `0` | Seeded per-particle opacity reduction. At 100, the multiplier ranges from 0 to 1. |
 | **Opacity over life** | Choice | **off**, **on** | **off** | Enables the Opacity curve over normalized particle age. |
