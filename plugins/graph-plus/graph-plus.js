@@ -339,11 +339,7 @@ const GraphPlus = (() => {
       };
       host.element.addEventListener("keydown", graphShortcut, true);
       host.addCleanup(() => host.element.removeEventListener("keydown", graphShortcut, true));
-      const chromeKeydown = (event) => {
-        if (event.defaultPrevented || !event.ctrlKey || !/^[nmoszy]$/i.test(event.key || "")) return;
-        if (typeof editor.keydown === "function") editor.keydown(event);
-        event.stopPropagation();
-      };
+      const chromeKeydown = (event) => forwardChromeCommand(editor, host, event);
       host.element.addEventListener("keydown", chromeKeydown);
       host.addCleanup(() => host.element.removeEventListener("keydown", chromeKeydown));
       state.floating = facade;
@@ -355,6 +351,14 @@ const GraphPlus = (() => {
     state.windowPatch = { editor, descriptor, replacement, projectChanged };
     editor.onProjectChanged?.watch(projectChanged);
     editor.createWindow = replacement;
+  }
+
+  function forwardChromeCommand(editor, host, event) {
+    // The shared popup host forwards these commands before this listener.
+    if (host.isPoppedOut?.() && (event.ctrlKey || event.metaKey) && /^[zys]$/i.test(event.key || "")) return;
+    if (event.defaultPrevented || !event.ctrlKey || !/^[nmoszy]$/i.test(event.key || "")) return;
+    if (typeof editor.keydown === "function") editor.keydown(event);
+    event.stopPropagation();
   }
 
   function uninstall() {
@@ -466,6 +470,7 @@ const GraphPlus = (() => {
       beginPointerDrag: (...args) => beginPointerDrag(...args),
       disposePanel,
       restoreFloatingWindow,
+      forwardChromeCommand,
       sharedEmptyNote: (...args) => sharedEmptyNote(...args),
     },
   };

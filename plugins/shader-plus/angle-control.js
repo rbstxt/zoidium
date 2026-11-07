@@ -7,7 +7,7 @@ const SIZE = 168, R = 66, TAU = Math.PI * 2;
 function registerAngle({ PZ, doc, register, commit }) {
   const SVG = "http://www.w3.org/2000/svg";
   function svg(tag, attrs, parent) {
-    const el = doc.createElementNS(SVG, tag);
+    const el = (parent?.ownerDocument || doc).createElementNS(SVG, tag);
     for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
     if (parent) parent.append(el);
     return el;
@@ -20,7 +20,7 @@ function registerAngle({ PZ, doc, register, commit }) {
     close();
     const owner = anchor.ownerDocument, view = owner.defaultView;
     const C = PZ.ui.controls;
-    const panel = doc.createElement("div");
+    const panel = owner.createElement("div");
     panel.className = "zsp-angle-pop"; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "Angle dial");
     const dial = svg("svg", { viewBox: `0 0 ${SIZE} ${SIZE}`, width: SIZE, height: SIZE, class: "zsp-dial", tabindex: "0", role: "slider", "aria-label": "Angle", "aria-valuemin": "0", "aria-valuemax": "360" }, panel);
     svg("circle", { cx: SIZE / 2, cy: SIZE / 2, r: R + 10, class: "zsp-dial-face" }, dial);
@@ -35,7 +35,7 @@ function registerAngle({ PZ, doc, register, commit }) {
     const knob = svg("g", { class: "zsp-dial-knob" }, dial);
     svg("circle", { r: 11, class: "zsp-dial-knob-disc" }, knob);
     svg("path", { d: "M-5 0H4M1-4L5 0L1 4", class: "zsp-dial-knob-arrow" }, knob);
-    const readout = doc.createElement("div"); readout.className = "zsp-dial-readout"; panel.append(readout);
+    const readout = owner.createElement("div"); readout.className = "zsp-dial-readout"; panel.append(readout);
 
     const frame = () => box.pz_frame ?? 0;
     function paint() {

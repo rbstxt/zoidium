@@ -31,7 +31,7 @@ function activate(context) {
  function open(effect) {
   if(!ids.has(effect))ids.set(effect,++nextId);
   let editor;
-  return context.ui.openWindow({id:"graph:"+ids.get(effect),title:"Node Editor",width:1000,height:620,placement:"center",persistKey:"node-editor",isValid:()=>{try{return !!effect.parent && effect.parentProject===CM.project;}catch{return false;}},mount(body){
+  return context.ui.openWindow({id:"graph:"+ids.get(effect),title:"Node Editor",width:1000,height:620,placement:"center",persistKey:"node-editor",isValid:()=>{try{return !!effect.parent && effect.parentProject===CM.project;}catch{return false;}},mount(body,handle){
    body.style.cssText="display:flex;flex-direction:column;min-height:0";
    const status=context.ui.controls.note("Connect a color and alpha to Output. The viewport previews the effect.").element;
    status.setAttribute("role","status");
@@ -59,8 +59,8 @@ function activate(context) {
    };
    const error=message=>{status.textContent="Node Effect shader error: "+String(message);status.style.color="var(--zui-danger)";};
    effect.properties.fragShader.onChanged.watch(sync);effect.onShaderError.watch(error);
-   let frame=win.requestAnimationFrame(()=>{frame=win.requestAnimationFrame(()=>editor.frameAll());});
-   return ()=>{win.cancelAnimationFrame(frame);effect.properties.fragShader.onChanged.unwatch(sync);effect.onShaderError.unwatch(error);editor.destroy();};
+   let frame=handle.requestAnimationFrame(()=>{frame=handle.requestAnimationFrame(()=>editor.frameAll());});
+   return ()=>{handle.cancelAnimationFrame(frame);effect.properties.fragShader.onChanged.unwatch(sync);effect.onShaderError.unwatch(error);editor.destroy();};
   }});
  }
  context.ui.registerEditor({title:"Node Editor",match:effect=>{

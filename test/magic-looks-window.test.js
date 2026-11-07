@@ -47,8 +47,10 @@ function el(tag) {
     insertBefore(child) { this.children.unshift(child); child.parentElement = this; return child; },
     removeChild(child) { this.children = this.children.filter((c) => c !== child); return child; },
     remove() {},
-    addEventListener() {},
-    removeEventListener() {},
+    listeners: {},
+    addEventListener(type, fn) { (this.listeners[type] ||= new Set()).add(fn); },
+    removeEventListener(type, fn) { this.listeners[type]?.delete(fn); },
+    dispatch(type) { for (const fn of this.listeners[type] || []) fn({ type }); },
     querySelector() { return null; },
     querySelectorAll() { return []; },
     closest() { return null; },
@@ -139,11 +141,11 @@ function installGlobals(state) {
       },
     },
   };
-  global.window = {
-    devicePixelRatio: 1,
-    addEventListener() {},
-    removeEventListener() {},
-  };
+  global.window = el("window");
+  global.window.devicePixelRatio = 1;
+  global.window.document = global.document;
+  global.document.defaultView = global.window;
+  new Function("window", fs.readFileSync(path.join(projectRoot, "zoidium/ui-kit-popouts.js"), "utf8"))(global.window);
 }
 
 const harnesses = [];
@@ -190,12 +192,15 @@ function setup() {
     },
     openWindow(options) {
       const body = el("div");
-      const cleanup = options.mount(body, null);
+      const host = window.ZoidiumUIBuilder.popouts.environment(body);
+      const cleanup = options.mount(body, host);
       const win = {
         id: options.id,
+        body, host,
         focus() {},
         close() {
           if (typeof cleanup === "function") cleanup();
+          host.dispose();
           if (typeof options.onClose === "function") options.onClose();
           windows.splice(windows.indexOf(win), 1);
         },
@@ -323,4 +328,26 @@ test("disabling the plugin closes the window, drops its state, and restores the 
   h.module.deactivate();
   assert.equal(h.windows.length, 0, "window closed on disable");
   assert.equal(h.state.styles.size, 0, "stylesheet removed");
+});
+
+test("outside release clears busy in floating and popup hosts and cleanup removes listeners", t => {
+  let tick;
+  t.mock.method(global, "setInterval", fn => { tick = fn; return 1; });
+  t.mock.method(global, "clearInterval", () => {});
+  const h = setup(); openFromEditor(h);
+  const win = h.windows[0], root = win.body.children[0], main = window;
+  function checkRelease(owner, type) {
+    root.dispatch("pointerdown");
+    h.CM.history.undoStack.length++;
+    const count = h.log.length; tick(); assert.equal(h.log.length, count, "busy defers rebuild");
+    owner.dispatch(type); tick(); assert.ok(h.log.length > count, type + " outside the root resumes rebuild");
+  }
+  checkRelease(main, "pointerup");
+  checkRelease(main, "pointercancel");
+  const popup = el("window"), popupDoc = { defaultView: popup };
+  win.body.ownerDocument = popupDoc; root.ownerDocument = popupDoc; win.host.refresh();
+  assert.equal(main.listeners.pointerup.size, 0);
+  checkRelease(popup, "pointerup"); checkRelease(popup, "blur");
+  win.close();
+  for (const type of ["pointerup", "pointercancel", "blur"]) assert.equal(popup.listeners[type].size, 0);
 });

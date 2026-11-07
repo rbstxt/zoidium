@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const vm = require("node:vm");
+const fs = require("node:fs");
 
 const { kitScripts, readScript } = require("./uikit-files");
 const { makeDocument, FakeElement } = require("./fake-dom");
@@ -61,5 +62,21 @@ test("popup commands preserve the target and translate Command and Shift+Z witho
   text.closest = () => text;
   key({ target: text }); assert.equal(commands.length, 2);
   key({ defaultPrevented: true }); assert.equal(commands.length, 2);
+  win.close();
+});
+
+test("popup host and Graph chrome listeners together forward each command exactly once", () => {
+  const { context, api } = loadKit(1000, 600), commands = [];
+  const editor = context.CM = { keydown(event) { commands.push(event.key); } };
+  const win = api.openWindow({ id: "graph-commands", title: "Graph" });
+  win.isPoppedOut = () => true;
+  const graph = { module: { exports: {} }, console };
+  vm.runInNewContext(fs.readFileSync("plugins/graph-plus/graph-plus.js", "utf8"), graph);
+  const forward = graph.module.exports.__test.forwardChromeCommand;
+  win.element.addEventListener("keydown", event => forward(editor, win, event));
+  for (const [key, metaKey, shiftKey] of [["z", false, false], ["y", false, false], ["s", false, false], ["z", true, true]]) {
+    win.element.dispatch("keydown", { key, ctrlKey: !metaKey, metaKey, shiftKey, target: win.element });
+  }
+  assert.deepEqual(commands, ["z", "y", "s", "y"], "CM3 need not preventDefault to avoid a second chrome forward");
   win.close();
 });

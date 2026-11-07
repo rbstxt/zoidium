@@ -501,6 +501,7 @@ function disarmPlacement(build) {
   build.placement = null;
   clearTimeout(placement.timer);
   for (const type of PLACEMENT_EVENTS) window.removeEventListener(type, placement.handler, true);
+  placement.releasePopup?.();
   placement.canvas.style.cursor = placement.cursor;
   if (build.win && typeof build.win.setSubtitle === "function") build.win.setSubtitle("");
 }
@@ -557,6 +558,11 @@ function armPlacement(build, index) {
   canvas.style.cursor = "crosshair";
   if (build.win) build.win.setSubtitle("Click the preview to place P" + index + " (Esc cancels)");
   for (const type of PLACEMENT_EVENTS) window.addEventListener(type, placement.handler, true);
+  // Preview presses stay in the main window. Escape also follows the setup
+  // window so cancellation works while keyboard focus is in its popup.
+  placement.releasePopup = build.win?.listen?.("window", "keydown", event => {
+    if (build.win.window !== window) placement.handler(event);
+  }, true);
 }
 
 function buildPresetRow(build) {
