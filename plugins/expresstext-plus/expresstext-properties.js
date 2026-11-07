@@ -248,7 +248,15 @@ function customPropertyClass(PZ) {
   if (!PZ || !PZ.property || typeof PZ.property.dynamic !== "function") {
     return null;
   }
-  class ExpressCustomProperty extends PZ.property.dynamic {}
+  class ExpressCustomProperty extends PZ.property.dynamic {
+    // CM3 creates dynamic.group instances for these entries. Its native drag
+    // handler checks the scoped list class before accepting a drop.
+    static [Symbol.hasInstance](property) {
+      return property instanceof PZ.property.dynamic && !!property.objects &&
+        Array.from(property.objects).some(row => row.definition?.effectorKey &&
+          EFFECTOR_ORDER.some(kind => row.definition.effectorKey === `${kind}Enable`));
+    }
+  }
   state.customPropertyClass = ExpressCustomProperty;
   return ExpressCustomProperty;
 }
@@ -332,6 +340,13 @@ function createShakePropertyDefinitions(PZ) {
       letters: lettersDefinition(PZ),
       strength: strengthDefinition(PZ),
       ...xyzDefinitions(PZ, "", [0, 0, 0], [0, 0, 0], [1, 1, 1]),
+      mode: {
+        dynamic: true,
+        name: "Mode",
+        type: PZ.property.type.OPTION,
+        items: "Sine;Noise",
+        value: 0,
+      },
       frequency: dynamicNumberDefinition(PZ, "Frequency", 1, {
         min: 0,
         step: 0.1,
