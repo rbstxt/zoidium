@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "126",
+  "version": "127",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -394,32 +394,37 @@
       "id": "media-lifecycle",
       "source": "./plugins/core/media-lifecycle.js",
       "phase": "pre-init"
+    },
+    {
+      "id": "clipboard-assets",
+      "source": "./plugins/core/clipboard-assets.js",
+      "phase": "pre-init"
     }
   ],
   "modules": [
     {
       "id": "single-graph-window",
-      "source": "./plugins/core/single-graph-window.js?v=126"
+      "source": "./plugins/core/single-graph-window.js?v=127"
     },
     {
       "id": "font-load",
-      "source": "./plugins/core/font-load.js?v=126"
+      "source": "./plugins/core/font-load.js?v=127"
     },
     {
       "id": "keyframe-row-reveal",
-      "source": "./plugins/core/keyframe-row-reveal.js?v=126"
+      "source": "./plugins/core/keyframe-row-reveal.js?v=127"
     },
     {
       "id": "video-texture-alpha",
-      "source": "./plugins/core/video-texture-alpha.js?v=126"
+      "source": "./plugins/core/video-texture-alpha.js?v=127"
     },
     {
       "id": "video-decode-hint",
-      "source": "./plugins/core/video-decode-hint.js?v=126"
+      "source": "./plugins/core/video-decode-hint.js?v=127"
     },
     {
       "id": "output-frame-cache",
-      "source": "./plugins/core/output-frame-cache.js?v=126"
+      "source": "./plugins/core/output-frame-cache.js?v=127"
     }
   ]
 }

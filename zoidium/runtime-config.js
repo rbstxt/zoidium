@@ -109,7 +109,8 @@
       "./plugins/core/object-history.js",
       "./plugins/core/camera-resources.js",
       "./plugins/core/light-resources.js",
-      "./plugins/core/media-lifecycle.js"
+      "./plugins/core/media-lifecycle.js",
+      "./plugins/core/clipboard-assets.js"
     ],
     postInitScripts: [
       // ui-panels.js queues its installer for ui-kit.js, so it loads first.
