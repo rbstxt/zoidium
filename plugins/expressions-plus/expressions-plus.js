@@ -21,7 +21,7 @@ function activate(context) {
   const store = require("./controls.js").createControlsStore({ PZ, patch, notify: () => { if (context.editor?.project?.ui) context.editor.project.ui.dirty = true; } });
   disposers.push(() => store.detach(context.editor?.sequence));
   const world = require("./world.js").createWorldProvider({ PZ, THREE: win.THREE, patch, createConstraintEvaluator: sharedRequire("./constraints/track-to-evaluate.js").createEvaluator });
-  const engine = require("./engine.js").installEngine({ PZ, document: doc, patch, project: context.editor?.project, wiggleMethods: PZ.trapcode.expressionMethods, controls: sequence => sequence ? store.list(sequence) : [], world });
+  const engine = require("./engine.js").installEngine({ PZ, document: doc, patch, project: context.editor?.project, sequence: () => context.editor?.sequence, wiggleMethods: PZ.trapcode.expressionMethods, controls: sequence => sequence ? store.list(sequence) : [], world });
   disposers.push(() => engine.restore(context.editor?.project));
   const shaders = require("./shaders.js").installShaders({ PZ, THREE: win.THREE, store, engine, patch, pipeline: context.apis.shaderPipeline, onDispose: fn => disposers.push(fn) });
   const controlsUI = require("./controls-ui.js").installControlsUI({ context, store, patch });
@@ -58,7 +58,7 @@ module.exports = {
     if (runtime?.context.editor?.sequence && runtime.store.list(runtime.context.editor.sequence).length) return true;
     runtime?.context.editor?.project?.forEachItemOfType(runtime.context.PZ.property.dynamic, p => { if (p.expression && runtime.engine.isExtended(p.expression)) used = true; });
     runtime?.context.editor?.project?.forEachItemOfType(runtime.context.PZ.effect.shader, effect => {
-      if (/\bz(?:Time|Frame)\b|\bctl_\w+|\/\/\s*#include\s*<zoidium\/(?:hash|noise|color|sdf)>/.test(effect.properties.fragShader.get())) used = true;
+      if (/\bz(?:Time|Frame|Fps)\b|\bctl_\w+|\/\/\s*#include\s*<zoidium\/(?:hash|noise|color|sdf)>/.test(effect.properties.fragShader.get())) used = true;
     });
     return used;
   },

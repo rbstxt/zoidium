@@ -594,6 +594,25 @@ var PZ = PZ || {};
 
         var particle = this.properties.particle;
         var u = this.material.uniforms;
+        // Match Particular's billboard rotation and seeded speed distribution.
+        // The disabled path retains the original sprite sampling exactly.
+        var readRotation = function (key, fallback) {
+            return ZoidiumPluginApis.props.readNumber(particle[key], t, fallback);
+        };
+        var d2r = Math.PI / 180;
+        u.rotBase.value.set(readRotation("rotateX", 0) * d2r, readRotation("rotateY", 0) * d2r, readRotation("rotateZ", 0) * d2r);
+        u.spinRate.value.set(readRotation("degreesPerSecX", 0) * d2r, readRotation("degreesPerSecY", 0) * d2r, readRotation("degreesPerSecZ", 0) * d2r);
+        u.spinRnd.value = readRotation("randomRotation", 0) / 100;
+        u.spinRateRnd.value = readRotation("randomSpeedRotate", 0) / 100;
+        u.spinDist.value = readRotation("randomSpeedDistribution", 0.5);
+        u.rotationTime.value = e / this.sceneRate();
+        var rotationOn = u.rotBase.value.x !== 0 || u.rotBase.value.y !== 0 || u.rotBase.value.z !== 0 ||
+            u.spinRate.value.x !== 0 || u.spinRate.value.y !== 0 || u.spinRate.value.z !== 0 || u.spinRnd.value !== 0;
+        if (rotationOn !== Object.prototype.hasOwnProperty.call(this.material.defines, "USE_PARTICLE_ROTATION")) {
+            if (rotationOn) this.material.defines.USE_PARTICLE_ROTATION = "";
+            else delete this.material.defines.USE_PARTICLE_ROTATION;
+            this.material.needsUpdate = true;
+        }
         u.size.value = particle.size.get(t) * reactorSize;
         u.sizeRandom.value = particle.sizeRandom.get(t) / 100;
         u.opacity.value = Math.min(1, particle.opacity.get(t) / 100 * reactorOpacity);

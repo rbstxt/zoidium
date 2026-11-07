@@ -157,6 +157,7 @@ function createAPI(options) {
     return controls;
   }
   const api = record({
+    fps: rate,
     value: copy(base),
     layer: name => objectHandle(find(layers(), name)),
     effect: name => objectHandle(owner)?.effect(name), object: name => objectHandle(owner)?.object(name),

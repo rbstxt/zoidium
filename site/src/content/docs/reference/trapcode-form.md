@@ -42,9 +42,20 @@ Trapcode Form is a suite object with properties in its designer and property pan
 | **Opacity Over** | Choice | **off**, **on** | **off** | Enables Opacity Curve. |
 | **Opacity Curve** | Curve | Editable stops | White | Opacity multiplier across the form. |
 | **Color** | RGB color | 0 to 1 | `[1, 1, 1]` | Base RGB color. |
+| **Rotate X** | Number | No limit | `0` | Sprite rotation in degrees. |
+| **Rotate Y** | Number | No limit | `0` | Sprite rotation in degrees. |
+| **Rotate Z** | Number | No limit | `0` | Sprite rotation in degrees. |
+| **Random rotation** | Number | 0 to 100 | `0` | Seeded variation of Z rotation in percent. |
+| **Degrees/sec X** | Number | No limit | `0` | Rotation speed in degrees per second. |
+| **Degrees/sec Y** | Number | No limit | `0` | Rotation speed in degrees per second. |
+| **Degrees/sec Z** | Number | No limit | `0` | Rotation speed in degrees per second. |
+| **Random speed rotate** | Number | 0 to 100 | `0` | Seeded variation of rotation speed in percent. |
+| **Random speed distribution** | Number | 0 to 1 | `0.5` | Spread of random rotation speed. |
 | **Color Over** | Gradient | Editable stops | White | Color gradient across the form. |
 | **Blend Mode** | Choice | **normal**, **add** | **normal** | Particle blend operation. |
 
+
+Rotation controls appear in the Particle panel and Form Designer. Z rotates the texture in its plane. X and Y use Particular's billboard tilt, with each axis compressed to a minimum of 20%. Every Texture uses this path, including cloudlets. Form has no sphere or box mesh particle types. Strings and lattice positions stay unchanged. Speed uses sequence seconds and particle IDs, so frame order does not affect rotation. Default values retain the original shader path and image.
 
 ## Shading
 

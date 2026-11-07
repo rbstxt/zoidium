@@ -22,3 +22,7 @@ Declare, and templates.
 
 [Property controls](/docs/development/shader-properties/) describes each setting. [Shader+ compatibility](/docs/development/project-compatibility/#shader-property-kinds)
 describes plugin requirements for texture and array properties.
+
+For a native number without kind metadata, Property settings shows Slider with Minimum and Maximum. Apply without edits preserves the property. Other native types show Native until a kind is selected.
+
+With Expressions+ enabled, declare `uniform float zFps;` for the sequence frame rate. Export frame rate overrides do not change this value.

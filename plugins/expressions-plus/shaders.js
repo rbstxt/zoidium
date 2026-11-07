@@ -11,7 +11,7 @@ function analyze(source) {
   for (const match of text.matchAll(pattern)) {
     const [, type, names] = match;
     for (const name of names.split(",").map(n => n.trim())) {
-      if (/^[A-Za-z_]\w*$/.test(name) && (name === "zTime" || name === "zFrame" || name.startsWith("ctl_"))) uniforms.push({ name, type, size: type.startsWith("vec") ? Number(type[3]) : 1 });
+      if (/^[A-Za-z_]\w*$/.test(name) && (name === "zTime" || name === "zFrame" || name === "zFps" || name.startsWith("ctl_"))) uniforms.push({ name, type, size: type.startsWith("vec") ? Number(type[3]) : 1 });
     }
   }
   return { source: expanded, uniforms, used: expanded !== source || uniforms.length > 0 };
@@ -55,6 +55,9 @@ function installShaders({ PZ, THREE, store, engine, patch, pipeline = pipelineCo
         if (uniform.name === "zTime") {
           if (uniform.size !== 1) throw new Error("zTime must be a scalar shader uniform");
           value = clip ? engine.read(clip.properties.time, frame) : absolute / (sequence?.properties.rate.get() || 30);
+        } else if (uniform.name === "zFps") {
+          if (uniform.size !== 1) throw new Error("zFps must be a scalar shader uniform");
+          value = sequence?.properties.rate.get() || 30;
         } else if (uniform.name === "zFrame") {
           if (uniform.size !== 1) throw new Error("zFrame must be a scalar shader uniform");value = frame;
         } else {
