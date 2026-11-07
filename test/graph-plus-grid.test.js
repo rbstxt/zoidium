@@ -55,3 +55,16 @@ test("grid growth counts lines separately from surplus labels", () => {
   assert.equal(children.filter(tag=>tag==="line").length,25);
   assert.equal(children.filter(tag=>tag==="text").length,12);
 });
+
+
+test("status reports both minimum zoom values without rounding them to zero", () => {
+  const { PZ } = host();
+  require("../plugins/graph-plus/editor.js")(PZ);
+  const { makeDocument, FakeElement } = require("./fake-dom.js");
+  const document = makeDocument(), statusEl = new FakeElement("div");
+  PZ.ui.graph.prototype.updateStatus.call({
+    editor: {playback:{currentFrame:0}}, options:{}, statusEl, _doc:()=>document,
+    zoomX:ZOOM.x.min,zoomY:ZOOM.y.min,selectedKeys:()=>[],propGroups:()=>[],
+  });
+  assert.equal(statusEl.children[3].innerHTML,"zoom <b>0.0001 / 0.000001</b>");
+});
