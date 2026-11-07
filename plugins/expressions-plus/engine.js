@@ -87,7 +87,9 @@ function installEngine(options) {
     active.add(property);
     try {
       const clip = ancestor(owner, n => n instanceof PZ.clip);
-      const time = clip ? read(clip.properties.time, frame) : 0;
+      // Time expressions use their native value as context, without reading
+      // themselves again. Other properties read the evaluated clip time.
+      const time = clip ? property === clip.properties.time ? base : read(clip.properties.time, frame) : 0;
       const context = createAPI({ PZ, owner, property, frame, time, base, read, baseAt,
         methods: PZ.expression.methods, wiggleMethods: options.wiggleMethods,
         controls: options.controls, world: options.world, extended: result.extended, needs: result.needs });
