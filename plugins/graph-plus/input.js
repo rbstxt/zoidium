@@ -1,4 +1,5 @@
 "use strict";
+const { clampZoom } = require("./view.js");
 const limit = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const finite = n => Number.isFinite(n) ? n : 0;
 // Retain the initial device classification through small inertial tails.
@@ -31,11 +32,11 @@ function wheelView(view, event, gesture, pointer, ruler) {
     const factor = Math.exp(limit(dy * gain, -2, 2));
     const yOnly = event.altKey && !ruler;
     if (!yOnly) {
-      result.zoomX = limit(view.zoomX * factor, .02, 500);
+      result.zoomX = clampZoom(view.zoomX * factor, "x");
       result.centerX += (pointer.x - view.width / 2) * (view.zoomX - result.zoomX);
     }
     if (!ruler && (yOnly || event.ctrlKey)) {
-      result.zoomY = limit(view.zoomY * factor, .001, 10000);
+      result.zoomY = clampZoom(view.zoomY * factor, "y");
       result.centerY += (pointer.y - view.height / 2) * (view.zoomY - result.zoomY);
     }
   }
