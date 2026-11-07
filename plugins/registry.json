@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "126",
+      "version": "127",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=126",
-      "bundle": "./plugins/core/bundle.json?v=126",
-      "integrity": "sha256-MBFFQO0vbVQQcgBcCNDeDZ//C6qYHr7KWbjf842t/Uo="
+      "manifest": "./plugins/core/manifest.json?v=127",
+      "bundle": "./plugins/core/bundle.json?v=127",
+      "integrity": "sha256-7H3vex5xZUuQQfg/w5Z8KPFvzunpsdg8025W6LmtCZ0="
     },
     {
       "id": "easing-plus",
@@ -87,16 +87,16 @@
       "category": "utilities",
       "name": "Player+",
       "author": "Zoidium",
-      "version": "14",
+      "version": "15",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "playback controls",
       "tagline": "Playback Quality Controls",
       "color": "#4f7dbf",
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
-      "manifest": "./plugins/player-plus/manifest.json?v=14",
-      "bundle": "./plugins/player-plus/bundle.json?v=14",
-      "integrity": "sha256-BTJm2oVp3EqgUsd+FOtjORV8Yn+ZWPGPaQOcwc5a3zc="
+      "manifest": "./plugins/player-plus/manifest.json?v=15",
+      "bundle": "./plugins/player-plus/bundle.json?v=15",
+      "integrity": "sha256-jRX7M66OwqL+TySv9fJAMJ4CLmIl1m5CKPaWhl4yASo="
     },
     {
       "id": "asset-manager",
@@ -151,15 +151,15 @@
       "category": "utilities",
       "name": "Graph Editor 2",
       "author": "DaviFX",
-      "version": "20",
+      "version": "21",
       "itemCount": 1,
       "format": "graph editor",
       "tagline": "Rebuilt keyframe graph editor",
       "color": "#4f7dbf",
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
-      "manifest": "./plugins/graph-plus/manifest.json?v=20",
-      "bundle": "./plugins/graph-plus/bundle.json?v=20",
-      "integrity": "sha256-ZQSgSP0j5zWH7aEg7D4w+BSef2BnDS9xpYWf8A3FMPQ="
+      "manifest": "./plugins/graph-plus/manifest.json?v=21",
+      "bundle": "./plugins/graph-plus/bundle.json?v=21",
+      "integrity": "sha256-sKdAyd8l7CeDVm+bKiLJd1pnB2UmwTBlEe4233Bf1hc="
     },
     {
       "id": "motion-path",
