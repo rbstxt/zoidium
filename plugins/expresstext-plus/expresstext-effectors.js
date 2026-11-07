@@ -22,19 +22,17 @@ function evaluateShake(props, frame, index, list, base, out, plainLists, aux) {
   // read naturally; keyframed rows clamp inside the host reader), so no
   // Math.max(0, ...) here — that would freeze every shifted state at 0.
   const localFrame = frame - ctx.delay;
-  const sine = shakeValue(
-    localFrame,
-    readProp(props, "shakeFrequency", frame, 1),
-    readProp(props, "shakeOffset", frame, 0),
-    0,
-    evaluationRate(aux)
-  );
+  const frequency = readProp(props, "shakeFrequency", frame, 1);
+  const offset = readProp(props, "shakeOffset", frame, 0);
   const mode = Math.round(numberValue(readProp(props, "shakeMode", frame, 0), 0));
-  const time = localFrame * numberValue(readProp(props, "shakeFrequency", frame, 1), 1) / evaluationRate(aux) +
-    numberValue(readProp(props, "shakeOffset", frame, 0), 0);
-  const value = mode === 1
-    ? fractalNoise3(time, 0, 0, Math.round(numberValue(readProp(props, "shakeSeed", frame, 1), 1) * 1000), 3, false) * 2 - 1
-    : sine;
+  let value;
+  if (mode === 1) {
+    const time = localFrame * numberValue(frequency, 1) / evaluationRate(aux) + numberValue(offset, 0);
+    const seed = Math.round(numberValue(readProp(props, "shakeSeed", frame, 1), 1) * 1000);
+    value = fractalNoise3(time, 0, 0, seed, 3, false) * 2 - 1;
+  } else {
+    value = shakeValue(localFrame, frequency, offset, 0, evaluationRate(aux));
+  }
   const amount = value * weight;
   addScaled(out.position, readVector(props, "shakePosition", frame, [0, 0, 0]), amount);
   addScaled(out.rotation, readVector(props, "shakeRotation", frame, [0, 0, 0]), amount);
