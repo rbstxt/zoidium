@@ -145,6 +145,10 @@ function loadSystemModule() {
     constructor(geometry, material) {
       this.geometry = geometry;
       this.material = material;
+      const pose = () => ({ set(x, y, z) { Object.assign(this, { x, y, z }); } });
+      this.position = pose();
+      this.scale = pose();
+      this.rotation = pose();
     }
   }
   class Material {

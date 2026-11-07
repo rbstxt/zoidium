@@ -32,7 +32,7 @@ Trapcode Particular is a suite object with properties in its designer and proper
 | **Rotation random** | Number | ≥ 0 | `0` | Variation of initial sprite angle. |
 | **Rotation speed** | Number | — | `0` | Initial sprite spin speed. |
 | **Rotation speed random** | Number | ≥ 0 | `0` | Variation of sprite spin speed. |
-| **Random seed** | Number | — | `100000` | Seed for repeatable random values. |
+| **Random seed** | Number | — | `100000` | Seed for repeatable random values. While no CPU-only feature, such as Physics, is on, it changes only **Velocity distribution**, **Color random**, and **Opacity random**. |
 
 
 ## Particle
@@ -58,7 +58,7 @@ Trapcode Particular is a suite object with properties in its designer and proper
 | **Degrees/sec Z** | Number | — | `0` | Z spin speed in degrees per second. |
 | **Random speed rotate** | Number | 0 to 100 | `0` | Variation of spin speed. |
 | **Random speed distribution** | Number | 0 to 1 | `0.5` | Distribution of spin-speed variation. |
-| **Stretch along motion** | Number | 0 to 100 | `0` | Amount of stretching along motion. |
+| **Stretch along motion** | Number | 0 to 100 | `0` | Amount of stretching along motion. It has no effect while **Orient to motion** is `0`. |
 | **Opacity** | Number | 0 to 100 | `100` | Particle opacity in percent. |
 | **Opacity random** | Number | 0 to 100 | `0` | Seeded per-particle opacity reduction. At 100, the multiplier ranges from 0 to 1. |
 | **Opacity over life** | Choice | **off**, **on** | **off** | Enables the Opacity curve over normalized particle age. |
@@ -68,7 +68,6 @@ Trapcode Particular is a suite object with properties in its designer and proper
 | **Color random** | Number | 0 to 100 | `0` | Mixes the tinted gradient color with a seeded random RGB color. Alpha remains unchanged. |
 | **Blend mode** | Choice | **normal**, **add**, **screen**, **multiply** | **normal** | Particle blend operation. **screen** lightens and **multiply** darkens what is behind the particle. Over an empty scene, **multiply** draws dark particles. |
 | **Glow** | Number | ≥ 0 | `0` | Particle brightness multiplier contribution. |
-| **Random seed** | Number | — | `0` | Seed for repeatable random values. |
 
 
 ## Physics

@@ -124,7 +124,7 @@ sidebar:
 | プロパティ | 型 | 範囲または選択肢 | 既定値 | 出力への影響 |
 | --- | --- | --- | --- | --- |
 | **Display Format** | 選択肢 | **SMPTE HH:MM:SS:FF**、**Frames**、**Feet + Frames (35mm)**、**Feet + Frames (16mm)** | **SMPTE HH:MM:SS:FF** | SMPTE タイムコード、総フレーム数、またはフィートとフレーム数を選択します。35mm は 1 フィートあたり 16 フレーム、16mm は 40 フレームです。 |
-| **Time Source** | 選択肢 | **Layer Source**、**Composition**、**Custom** | **Layer Source** | Layer Source と Composition は同じ時計を使用します。Custom は Time Units (fps) と Starting Frame を使用します。 |
+| **Time Source** | 選択肢 | **Layer Source**、**Composition**、**Custom** | **Layer Source** | Layer Source はクリップの先頭から数えます。Composition はシーケンスの先頭から数えます。Custom は Time Units (fps) と Starting Frame を使用します。 |
 | **Time Units (fps)** | 数値 | 1～120 | 30 | Custom の場合にのみ使用する表示レートです。 |
 | **Drop Frame** | 選択肢 | **off**、**on** | **off** | 丸めた公称レートが 30 または 60 の SMPTE 出力に、ドロップフレームの番号付けを適用します。画像フレームは削除しません。 |
 | **Starting Frame** | 数値 | -1000000～1000000 | 0 | Custom の場合にのみ使用するフレーム番号のオフセットです。 |

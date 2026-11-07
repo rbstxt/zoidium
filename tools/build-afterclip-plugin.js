@@ -750,6 +750,8 @@ fs.mkdirSync(path.join(outputRoot, "effects"), { recursive: true });
 fs.mkdirSync(path.join(outputRoot, "groups"), { recursive: true });
 fs.mkdirSync(path.join(outputRoot, "shaders", "groups"), { recursive: true });
 
+const UNUSED_UNIFORM_ROWS = { "Fractal Warp": ["StartColor", "EndColor"] };
+
 const usedShaderFiles = new Map();
 function writeShader(hint, source) {
   const existing = [...usedShaderFiles.entries()].find(([, value]) => value.source === source);
@@ -789,7 +791,9 @@ for (const filePath of walk(shaderRoot).filter((file) => file.endsWith(".txt")).
   const preset = clone(data);
   preset.properties.name = displayName;
   delete preset.properties.fragShader;
-  preset.customProperties = normalized.properties;
+  // The source declares these uniforms but its code never reads them.
+  const unusedRows = UNUSED_UNIFORM_ROWS[displayName] || [];
+  preset.customProperties = normalized.properties.filter((row) => !unusedRows.includes(row.properties?.name));
   const presetPath = `effects/${id}.json`;
   writeJson(path.join(outputRoot, presetPath), preset);
   effects.push({

@@ -548,17 +548,6 @@
           ]
         }
       ]
-    },
-    {
-      "type": {
-        "custom": true,
-        "type": 0,
-        "value": 0
-      },
-      "properties": {
-        "name": "edgeBehaviour"
-      },
-      "value": 2
     }
   ]
 }

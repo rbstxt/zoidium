@@ -32,7 +32,7 @@ Trapcode Particular は、デザイナーとプロパティパネルにプロパ
 | **Rotation random** | 数値 | ≥ 0 | `0` | スプライトの初期の角度の変動量です。 |
 | **Rotation speed** | 数値 | — | `0` | スプライトの初期の回転速度です。 |
 | **Rotation speed random** | 数値 | ≥ 0 | `0` | スプライトの回転速度の変動量です。 |
-| **Random seed** | 数値 | — | `100000` | 再現可能な乱数のシードです。 |
+| **Random seed** | 数値 | — | `100000` | 再現可能な乱数のシードです。Physics などの CPU 専用の機能がオフの間は、**Velocity distribution**、**Color random**、**Opacity random** にのみ影響します。 |
 
 
 ## Particle
@@ -58,7 +58,7 @@ Trapcode Particular は、デザイナーとプロパティパネルにプロパ
 | **Degrees/sec Z** | 数値 | — | `0` | 1秒あたりの Z 軸周りの回転角です。 |
 | **Random speed rotate** | 数値 | 0 ～ 100 | `0` | 回転速度の変動量です。 |
 | **Random speed distribution** | 数値 | 0 ～ 1 | `0.5` | 回転速度の変動の分布です。 |
-| **Stretch along motion** | 数値 | 0 ～ 100 | `0` | 移動方向に引き伸ばす量です。 |
+| **Stretch along motion** | 数値 | 0 ～ 100 | `0` | 移動方向に引き伸ばす量です。**Orient to motion** が `0` の間は効果がありません。 |
 | **Opacity** | 数値 | 0 ～ 100 | `100` | パーティクルの不透明度です。割合で指定します。 |
 | **Opacity random** | 数値 | 0 ～ 100 | `0` | シードに基づいて各パーティクルの不透明度を下げます。100では倍率が0から1の範囲になります。 |
 | **Opacity over life** | 選択肢 | **off**, **on** | **off** | 正規化した寿命に対して Opacity curve を有効にします。 |
@@ -68,7 +68,6 @@ Trapcode Particular は、デザイナーとプロパティパネルにプロパ
 | **Color random** | 数値 | 0 ～ 100 | `0` | グラデーションと Color の積に、シードに基づく RGB カラーを混ぜます。アルファ値は保ちます。 |
 | **Blend mode** | 選択肢 | **normal**, **add**, **screen**, **multiply** | **normal** | パーティクルの合成方法です。**screen** は背後を明るくし、**multiply** は背後を暗くします。何もないシーンでは、**multiply** のパーティクルは暗く描かれます。 |
 | **Glow** | 数値 | ≥ 0 | `0` | パーティクルの明るさの倍率への寄与量です。 |
-| **Random seed** | 数値 | — | `0` | 再現可能な乱数のシードです。 |
 
 
 ## Physics

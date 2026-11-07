@@ -36,7 +36,7 @@ Field of view depends on focal length, sensor, zoom, and sequence aspect ratio. 
 | --- | --- | --- | --- | --- |
 | **Depth of Field** | Choice | **off**, **on** | **off** | Enables depth-based scene blur. |
 | **Focus Distance** | Number | 0 to 5000 | `80` | Distance to the plane in focus, in scene units. |
-| **Aperture** | Number | 0 to 40 | `3` | Blur amount outside the focus region. Zero removes this blur. |
+| **Aperture** | Number | 0 to 40 | `3` | Blur amount outside the focus region. Zero removes this blur. Blur reaches its maximum at 2.5, so higher values look the same. |
 | **Focus Width** | Number | 0 to 4000 | `0` | Width of the region kept in focus, in scene units. |
 | **Near Blur Level** | Number | 0 to 400 | `100` | Near-side blur multiplier in percent. |
 | **Far Blur Level** | Number | 0 to 400 | `100` | Far-side blur multiplier in percent. |

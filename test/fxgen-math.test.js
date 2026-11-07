@@ -226,6 +226,14 @@ function tcText(extra) {
   });
 }
 
+test("timecode Layer Source counts from the clip and Composition counts from the sequence", () => {
+  const clock = { displayFormat: 1, timeSec: 2, compositionSec: 12 };
+  assert.equal(tcText({ ...clock, timeSource: 0 }), "60");
+  assert.equal(tcText({ ...clock, timeSource: 1 }), "360");
+  assert.equal(tcText({ ...clock, timeSource: 2 }), "60");
+  assert.equal(tcText({ displayFormat: 1, timeSource: 1, timeSec: 2 }), "60", "older callers keep the layer clock");
+});
+
 test("timecode formats SMPTE, frames and feet at several fps", () => {
   assert.equal(tcText({ timeSec: 3661.5 }), "01:01:01:15");
   assert.equal(tcText({ timeSec: 3661.5, fps: 25 }), "01:01:01:12");

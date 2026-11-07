@@ -190,6 +190,11 @@ var PZ = PZ || {};
             sphereCenter: sphereC,
             sphereRadius: Math.max(num(S.radius, 100), 0.0001),
             sphereFeather: num(S.feather, 50) / 100,
+            sphereScale: [
+                Math.max(num(S.scaleX, 100) / 100, 0.001),
+                Math.max(num(S.scaleY, 100) / 100, 0.001),
+                Math.max(num(S.scaleZ, 100) / 100, 0.001),
+            ],
             // Fluid motion. Gravity, wind and air resistance above keep
             // applying while fluid mode is on; fluid adds its own forces.
             fluidTime: fluidOn ? num(Y.fluidTimeScale, 100) / 100 : 1,
@@ -548,9 +553,12 @@ var PZ = PZ || {};
         if (row.sphere !== 0) {
             var dx = x - c[0], dy = y - c[1], dz = z - c[2];
             var dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+            // Scale stretches the field's reach. The default 100 gives the plain distance.
+            var sx = dx / row.sphereScale[0], sy = dy / row.sphereScale[1], sz = dz / row.sphereScale[2];
+            var fieldDist = Math.sqrt(sx * sx + sy * sy + sz * sz) || 1;
             var influence = 1;
-            if (dist > row.sphereRadius) {
-                influence = Math.max(0, 1 - (dist - row.sphereRadius) / (row.sphereRadius * (1 - row.sphereFeather + 0.0001)));
+            if (fieldDist > row.sphereRadius) {
+                influence = Math.max(0, 1 - (fieldDist - row.sphereRadius) / (row.sphereRadius * (1 - row.sphereFeather + 0.0001)));
             }
             var force = (row.sphere * influence * 100) / (dist * dist + 1);
             vx -= dx * force * dt;

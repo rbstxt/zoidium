@@ -48,6 +48,8 @@ New flares start with overall Brightness 70 and Scale 75. Saved values remain un
 | **Shape**: **Texture**, **Illumination**, **Falloff** | Optional texture and its shape controls. |
 | **Shape**: **Matte shape**, **Matte start**, **Matte fade** | Matte shape and transition controls. |
 
+**Animate** affects only **Sparkle** and **Hoop** elements. **Falloff** affects only the **Ring** texture. **Illumination** has no effect on **None** and **Orbs**.
+
 Texture choices are **None**, **Soft**, **Hex**, **Ring**, **Streak**, **Spikes**, **Orbs**, **Custom 1**, **Custom 2**, and **Custom 3**. Custom choices read the assets in **Custom Layers**: **Custom Layer 1**, **Custom Layer 2**, and **Custom Layer 3**.
 
 ## Element catalogue

@@ -28,7 +28,7 @@ Material+ は **Matcap**、**PBR+**、**UV Custom**、**Node Material**、**Imag
 | **Reflection intensity** | 数値 | ≥ 0 | `1` | 環境の反射の倍率です。 |
 | **Transparency** | 選択肢 | **off**, **on** | **off** | アルファの透過を有効にします。 |
 | **Opacity** | 数値 | 0 ～ 1 | `1` | 不透明度の倍率です。 |
-| **Blending** | 選択肢 | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | 描画先の画像に対する合成方法です。 |
+| **Blending** | 選択肢 | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | 描画先の画像に対する合成方法です。**Transparency** がオフの間は、通常は見た目に影響しません。 |
 | **Render side** | 選択肢 | **front**, **back**, **both** | **front** | 描画する面です。 |
 | **Wrap** | 選択肢 | **none**, **tile**, **reflect** | **tile** | 画像の座標を固定、反復、または鏡面反復します。 |
 | **Repeat** | 2D ベクトル | — | `[1, 1]` | U と V のテクスチャの反復倍率です。 |
@@ -105,7 +105,7 @@ Node Material は以下の表の表面の初期値を使いますが、**Bump St
 | **Brightness** | 数値 | ≥ 0 | `1` | Matcap 画像の明るさの倍率です。 |
 | **Transparency** | 選択肢 | **off**, **on** | **off** | アルファの透過を有効にします。 |
 | **Opacity** | 数値 | 0 ～ 1 | `1` | 不透明度の倍率です。 |
-| **Blending** | 選択肢 | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | 描画先の画像に対する合成方法です。 |
+| **Blending** | 選択肢 | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | 描画先の画像に対する合成方法です。**Transparency** がオフの間は、通常は見た目に影響しません。 |
 | **Render side** | 選択肢 | **front**, **back**, **both** | **front** | 描画する面です。 |
 
 
@@ -120,7 +120,7 @@ Node Material は以下の表の表面の初期値を使いますが、**Bump St
 | **Texture** | アセット | image/* | なし | Color を掛けるベースカラー画像です。 |
 | **Transparency** | 選択肢 | **off**, **on** | **off** | アルファの透過を有効にします。 |
 | **Opacity** | 数値 | 0 ～ 1 | `1` | 不透明度の倍率です。 |
-| **Blending** | 選択肢 | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | 描画先の画像に対する合成方法です。 |
+| **Blending** | 選択肢 | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | 描画先の画像に対する合成方法です。**Transparency** がオフの間は、通常は見た目に影響しません。 |
 | **Render side** | 選択肢 | **front**, **back**, **both** | **front** | 描画する面です。 |
 | **Normal map** | アセット | image/* | なし | 接空間の法線画像です。 |
 | **Normal scale** | 数値 | ≥ 0 | `1` | 読み込んだ法線画像の強さです。 |
