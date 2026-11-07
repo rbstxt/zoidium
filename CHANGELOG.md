@@ -111,6 +111,15 @@ each line describes one visible change.
 
 ### Fixed
 
+- Replacing a project now releases more of the old project. Text+ projects, Material+
+  graphs and workers, Optical Flares objects, shader passes, and composition clips
+  no longer stay in memory for the session.
+- Rebuilding the property panel, deleting a Particular designer, and deleting media
+  no longer keep their old panels, rows, and thumbnails alive. Rebuilding the panel
+  used to add 495 listeners each time.
+- Deleting audio clips no longer leaves active decoders behind.
+- Switching between compositions no longer multiplies keyframes on sequence
+  properties, which could grow a saved project to several megabytes.
 - ExpressText+ section header rows no longer have fields. Clicking those blank
   fields used to write NaN and off into the section's first rows. Damaged values
   are repaired when a project loads. Turn the section back on if needed.

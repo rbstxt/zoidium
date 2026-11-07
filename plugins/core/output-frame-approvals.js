@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "e0c7482ec55d7c5bd4a667de5d402b4eda21dd898965c851d956a0709335dcfa",
+  "fingerprint": "a868e70c98293d254366f0b78dc8a57e3b1a7fd09cfb8a0de4150193425cfe01",
   "plugins": {
     "native-fx": {
       "version": "39",
@@ -56,7 +56,7 @@
       ]
     },
     "text-plus": {
-      "version": "33",
+      "version": "34",
       "cases": [
         "Character Transform",
         "Gradient Transform",
@@ -113,7 +113,7 @@
       ]
     },
     "optical-flares": {
-      "version": "19",
+      "version": "20",
       "cases": [
         "Optical Flares",
         "Anamorphic Blue",
