@@ -62,4 +62,12 @@ sidebar:
 
 この階層により、Delay は上流の Plain の動きをサンプリングできます。
 
+## Delay の弾みを増やす
+
+1. **Mode** を **Spring** にします。
+2. **Strength** を 100 にします。
+3. 目標をさらに行き過ぎるようにするには、**Spring damping** を下げます。
+4. 弾みを長くするには、**History frames** を上げます。
+5. 同じ時間で弾む回数を増やすには、**Spring cycles** を上げます。
+
 コントロールのリファレンス: [effector](/docs/ja/reference/effector/).

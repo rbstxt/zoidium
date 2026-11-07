@@ -62,4 +62,12 @@ For text selection, enable **Text+** first. In **Characters**, enter one-based r
 
 This hierarchy lets Delay sample the upstream Plain motion.
 
+## Add more bounce to Delay
+
+1. Set **Mode** to **Spring**.
+2. Set **Strength** to 100.
+3. To make the source pass its target further, lower **Spring damping**.
+4. To make the bounce longer, raise **History frames**.
+5. To add more bounces in the same time, raise **Spring cycles**.
+
 Control reference: [effector](/docs/reference/effector/).

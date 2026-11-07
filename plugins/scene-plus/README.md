@@ -154,9 +154,14 @@ and Spring uses a damped oscillating kernel. Rotation uses normalized
 quaternions so rotating pieces retain their dimensions. Position and scale
 filter separately. Twist, Warp, planar pieces, and existing shear use the
 vertex filter. Strength blends the filtered
-result with the current result. History frames selects 1 to 24 earlier samples
-at a fixed one-frame step. Evaluation never reads the previous rendered frame.
-Nested Delay histories have a total budget of 96 samples per mesh. Samples
+result with the current result. History frames selects 1 to 120 earlier samples
+at a fixed one-frame step. Spring damping and Spring cycles shape the Spring
+kernel. Lower damping overshoots further, and the defaults of 3 and 1 give about
+29%. Evaluation never reads the previous rendered frame. A cache on the main
+thread keeps history samples between frames, with its own estimated budget of
+64 MB beside the existing stage budgets. Its keys hold every input exactly, so a
+hit equals a rebuild. Nested Delay histories share a budget per mesh. The budget is 96
+samples, or 4 times the largest History frames value when that is larger. Samples
 with different fracture topology are skipped rather than mixing vertex IDs.
 Source geometry uses its current-time value. Delay samples upstream effector
 properties, fields, and native object transforms at earlier times. Generated

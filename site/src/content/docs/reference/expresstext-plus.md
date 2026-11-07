@@ -191,7 +191,7 @@ Turns each letter about the chosen axis in proportion to its position. The middl
 
 ## Voronoi
 
-Shatters each selected letter into seeded cells, then explodes the pieces outward and spins them. The base letter hides while its chunks displace at full strength.
+Shatters each selected letter into seeded cells, then explodes the pieces outward and spins them. The base letter hides while its chunks displace at full strength. Set the section's on and off control to off to show whole letters at any **Strength**.
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |

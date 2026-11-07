@@ -286,6 +286,8 @@ let sharedStages = null;
 function stageCache(maxBytes) {
   const result = evaluator.createStageCache(maxBytes);
   const readStage = result.get;
+  // A sample hit would skip the stage reads that share stages with the main thread.
+  result.sample = undefined;
   result.get = (key, build) => {
     const stage = readStage(key, build);
     if (sharedStages) sharedStages.get(key, () => stage);

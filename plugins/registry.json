@@ -212,7 +212,7 @@
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "41",
+      "version": "42",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -220,9 +220,9 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=41",
-      "bundle": "./plugins/scene-plus/bundle.json?v=41",
-      "integrity": "sha256-7rXeOCNmJRiXoTt751y+etfB1QOUZxXQFqAxdJIitkQ="
+      "manifest": "./plugins/scene-plus/manifest.json?v=42",
+      "bundle": "./plugins/scene-plus/bundle.json?v=42",
+      "integrity": "sha256-JZrE8lj6y0Bt4uC+IxGliJTIwPynFes46zk4b88AIWc="
     },
     {
       "id": "material-plus",
@@ -263,7 +263,7 @@
       "category": "scene",
       "name": "ExpressText+",
       "author": "DaviFX",
-      "version": "3",
+      "version": "4",
       "defaultEnabled": true,
       "itemCount": 11,
       "format": "3D text containers",
@@ -271,9 +271,9 @@
       "color": "#b2704f",
       "description": "Tracks separate 3D text letters and drives them with Shake, Plain, Random, Formula, Delay, Spline, Orbit, Repeater, Twist, Wrap and Voronoi effectors.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/expresstext-plus/manifest.json?v=3",
-      "bundle": "./plugins/expresstext-plus/bundle.json?v=3",
-      "integrity": "sha256-gKqzzTUTYrxKm4Qwgp8bh+/w2FCX7f9APd/b9Ge7E/A="
+      "manifest": "./plugins/expresstext-plus/manifest.json?v=4",
+      "bundle": "./plugins/expresstext-plus/bundle.json?v=4",
+      "integrity": "sha256-tgWtV0gaRta6r8gyHj36RvDESdTJKfDAQF1aq9ebWUo="
     },
     {
       "id": "particles-plus",

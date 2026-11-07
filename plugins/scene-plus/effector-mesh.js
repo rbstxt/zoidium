@@ -320,7 +320,7 @@ function createMeshDeformer(THREE, jobs) {
     // ready stages use its immutable results locally without a motion queue.
     // Pending jobs keep the mesh untouched until the exact frame is available.
     if (chain.every(entry => typeof entry.effector.workerCommand === "function")) {
-      let historyBudget = 96;
+      let historyBudget = core.delaySampleBudget(chain.reduce((largest, entry) => Math.max(largest, entry.effector.historyFrames?.(frame) || 0), 0));
       const sampledWorlds = new Map();
       const world = (node, time) => {
         if (time === frame) return node?.matrixWorld?.elements;

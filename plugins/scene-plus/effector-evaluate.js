@@ -16,9 +16,16 @@ function byteSize(value, seen = new Set()) {
   return Object.values(value).reduce((sum, item) => sum + byteSize(item, seen), 0);
 }
 
-function createStageCache(maxBytes = 64 * 1024 * 1024, maxEntries = 64) {
+function createStageCache(maxBytes = 64 * 1024 * 1024, maxEntries = 64, maxSampleBytes = 64 * 1024 * 1024) {
   const entries = new Map();
   let bytes = 0;
+  // Delay history samples. A sample is a pure function of its key: the source
+  // id and every input of the upstream commands. No entry depends on the order
+  // frames arrive in, so a hit returns what a rebuild would return. This budget
+  // covers samples only, by estimate, and always retains the newest sample.
+  // Stages have their own budget above.
+  const samples = new Map();
+  let sampleBytes = 0;
   function get(key, build, privateEntry = false, estimate = 0) {
     let entry = entries.get(key);
     if (!entry) {
@@ -37,11 +44,31 @@ function createStageCache(maxBytes = 64 * 1024 * 1024, maxEntries = 64) {
   return {
     get,
     getPrivate(key, build, estimate) { return get(key, build, true, estimate); },
-    clear() { entries.clear(); bytes = 0; },
+    sample(key, build) {
+      let entry = samples.get(key);
+      if (entry) samples.delete(key);
+      else {
+        entry = build();
+        // Twice the positions covers the lazily fitted piece transforms.
+        entry.bytes = entry.positions.byteLength * 2 + key.length * 2;
+        sampleBytes += entry.bytes;
+      }
+      samples.set(key, entry);
+      while (sampleBytes > maxSampleBytes && samples.size > 1) {
+        const first = samples.keys().next().value;
+        sampleBytes -= samples.get(first).bytes;
+        samples.delete(first);
+      }
+      return entry;
+    },
+    clear() { entries.clear(); bytes = 0; samples.clear(); sampleBytes = 0; },
     snapshot() { return Array.from(entries).filter(([, entry]) => !entry.privateEntry).map(([key, entry]) => [key, entry.value]); },
     forget(sourceId) {
       for (const [key, entry] of entries) if (key.startsWith(sourceId + ":")) {
         bytes -= entry.bytes; entries.delete(key);
+      }
+      for (const [key, entry] of samples) if (key.startsWith(sourceId + ":")) {
+        sampleBytes -= entry.bytes; samples.delete(key);
       }
     },
   };
@@ -107,11 +134,39 @@ const CACHE_MISS = {};
 // the presenting thread. Eviction, edits, and uncached history go to the worker.
 function evaluateCachedMesh(input, cache) {
   try {
-    return evaluateMesh({ ...input, borrowAttributes: true }, { get(key) { return cache.get(key, () => { throw CACHE_MISS; }); } });
+    return evaluateMesh({ ...input, borrowAttributes: true }, {
+      get(key) { return cache.get(key, () => { throw CACHE_MISS; }); },
+      sample: cache.sample,
+    });
   } catch (error) {
     if (error === CACHE_MISS) return null;
     throw error;
   }
+}
+
+// JSON turns NaN and Infinity into null and -0 into 0. Tags keep each number
+// exact, so two commands share a key only when every value is identical.
+function sampleKeyOf(value) {
+  if (typeof value === "number") return Object.is(value, -0) ? "-0" : String(value);
+  if (typeof value === "string") return JSON.stringify(value);
+  if (value === null || value === undefined || typeof value !== "object") return String(value);
+  if (Array.isArray(value) || ArrayBuffer.isView(value)) {
+    let text = ArrayBuffer.isView(value) ? value.constructor.name + "[" : "[";
+    for (let i = 0; i < value.length; i++) text += sampleKeyOf(value[i]) + ",";
+    return text + "]";
+  }
+  let text = "{";
+  for (const key of Object.keys(value)) text += key + ":" + sampleKeyOf(value[key]) + ",";
+  return text + "}";
+}
+
+// Upstream positions of one Delay history frame. Consecutive frames share all
+// but one sample. Callers only read the result.
+function historySample(input, commands, cache) {
+  const { base, polygonCount, legacySubdivision = false, sourceId, materialCount = 1 } = input;
+  const build = () => evaluateMesh({ base, commands, polygonCount, legacySubdivision, sourceId, materialCount, geometryOnly: true }, cache);
+  if (!cache.sample) return build();
+  return cache.sample(sourceId + ":sample:" + polygonCount + ":" + legacySubdivision + ":" + materialCount + ":" + sampleKeyOf(commands), build);
 }
 
 function evaluateMesh(input, cache = createStageCache()) {
@@ -144,16 +199,19 @@ function evaluateMesh(input, cache = createStageCache()) {
       const basis = curved ? null : core.pieceTransformBasis(stage);
       const current = basis ? core.fitPieceTransforms(stage, work, basis) : null;
       const filtered = current?.map(t => t ? { center: [0,0,0], scale: [0,0,0], rotation: [0,0,0,0] } : null);
-      let total = 0;
+      const damping = command.damping ?? core.SPRING_DAMPING, cycles = command.cycles ?? core.SPRING_CYCLES;
+      let total = 0, peak = 0;
       for (let i = 0; i < command.history.length; i++) {
-        const sample = evaluateMesh({ base, commands: command.history[i], polygonCount, legacySubdivision, sourceId, materialCount, geometryOnly: true }, cache);
+        const sample = historySample(input, command.history[i], cache);
         // Only matching topology can be interpolated by vertex index.
         if (sample.topologyKey !== topologyKey || sample.positions.length !== work.length) continue;
         const age = (i + 1) / command.history.length;
-        const weight = command.mode === 1 ? 1 : command.mode === 2 ? Math.exp(-3 * age) * Math.sin(age * Math.PI * 2) : Math.exp(-4 * age);
+        const weight = command.mode === 1 ? 1 : command.mode === 2 ? Math.exp(-damping * age) * Math.sin(age * Math.PI * 2 * cycles) : Math.exp(-4 * age);
         total += weight;
+        peak = Math.max(peak, Math.abs(weight));
         if (basis) {
-          const transforms = core.fitPieceTransforms(stage, sample.positions, basis);
+          // The topology check above makes this stage the sample's stage.
+          const transforms = sample.transforms || (sample.transforms = core.fitPieceTransforms(stage, sample.positions, basis));
           transforms.forEach((t,id) => {
             if (!t || !filtered[id]) { filtered[id] = null; return; }
             const sign = t.rotation.reduce((sum,v,a) => sum+v*current[id].rotation[a],0) < 0 ? -1 : 1;
@@ -163,7 +221,10 @@ function evaluateMesh(input, cache = createStageCache()) {
         }
         for (let v = 0; v < work.length; v++) sum[v] += sample.positions[v] * weight;
       }
-      if (Math.abs(total) > 1e-6) {
+      // Spring weights change sign. Custom settings can sample them so that they
+      // almost cancel, which would multiply the motion without limit.
+      const tuned = command.mode === 2 && (damping !== core.SPRING_DAMPING || cycles !== core.SPRING_CYCLES);
+      if (Math.abs(total) > (tuned ? Math.max(1e-6, peak * core.SPRING_MIN_TOTAL) : 1e-6)) {
         const strength = core.clampUnit(command.strength);
         for (let v = 0; v < work.length; v++) work[v] += (sum[v] / total - work[v]) * strength;
         if (basis) {
@@ -212,4 +273,4 @@ function evaluateMesh(input, cache = createStageCache()) {
     groups: stage.groups, capMaterialIndex: stage.capMaterialIndex, topologyKey, errors, warnings: Array.from(warnings), sphere: { center, radius: Math.sqrt(radiusSquared) } };
 }
 
-module.exports = { meshBuildKey, byteSize, createStageCache, evaluateMesh, evaluateCachedMesh, normalsFor };
+module.exports = { meshBuildKey, byteSize, createStageCache, evaluateMesh, evaluateCachedMesh, normalsFor, sampleKeyOf };

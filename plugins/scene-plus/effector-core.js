@@ -11,6 +11,13 @@ const TINY = 1e-9;
 const SERIES_LIMIT = 1e-4;
 const legacySubdivision = require("./legacy-subdivision.js");
 // Rotation planes used by a twist about each axis (X, Y, Z).
+// Delay's Spring weight is exp(-damping * age) * sin(2 * pi * cycles * age).
+const SPRING_DAMPING = 3;
+const SPRING_CYCLES = 1;
+const SPRING_MIN_TOTAL = 0.02;
+// One mesh evaluates at most this many Delay history samples per frame, and
+// stacked Delays share them. Windows up to 24 keep the original budget of 96.
+function delaySampleBudget(largestWindow) { return Math.max(96, 4 * largestWindow); }
 const TWIST_PLANES = [
   [1, 2],
   [2, 0],
@@ -537,10 +544,24 @@ function plainPositions(positions, stage, command) {
     rotations.push(command.rotation.map(v => v * w));
     scales.push(command.scale.map(v => 1 + (v - 1) * w));
   }
+  // Delay runs this once per history frame. The loop allocates nothing per
+  // vertex and applies the same operations in the same order as rotateXYZ.
+  const turns = new Float64Array(count * 6);
+  for (let id = 0; id < count; id++) for (let axis = 0; axis < 3; axis++) {
+    const angle = finiteOr(rotations[id][axis], 0) * Math.PI / 180 * 1;
+    turns[id * 6 + axis * 2] = Math.cos(angle);
+    turns[id * 6 + axis * 2 + 1] = Math.sin(angle);
+  }
+  const q = new Float64Array(3);
   for (let i = 0; i < positions.length / 3; i++) {
-    const id = ids ? ids[i] : 0, c = centers[id];
-    const q = rotateXYZ([0, 1, 2].map(a => (positions[i * 3 + a] - c[a]) * scales[id][a]), rotations[id]);
-    for (let a = 0; a < 3; a++) positions[i * 3 + a] = c[a] + q[a] + command.position[a] * weights[id];
+    const id = ids ? ids[i] : 0, c = centers[id], scale = scales[id], weight = weights[id];
+    for (let a = 0; a < 3; a++) q[a] = (positions[i * 3 + a] - c[a]) * scale[a];
+    for (let axis = 0; axis < 3; axis++) {
+      const plane = TWIST_PLANES[axis], u = plane[0], v = plane[1];
+      const cosine = turns[id * 6 + axis * 2], sine = turns[id * 6 + axis * 2 + 1], x = q[u], y = q[v];
+      q[u] = cosine * x - sine * y; q[v] = sine * x + cosine * y;
+    }
+    for (let a = 0; a < 3; a++) positions[i * 3 + a] = c[a] + q[a] + command.position[a] * weight;
   }
   return positions;
 }
@@ -632,6 +653,10 @@ function writePieceTransforms(positions, stage, basis, transforms) {
 }
 
 module.exports = {
+  SPRING_DAMPING,
+  SPRING_CYCLES,
+  SPRING_MIN_TOTAL,
+  delaySampleBudget,
   pieceTransformBasis,
   fitPieceTransforms,
   writePieceTransforms,

@@ -103,9 +103,25 @@ Plain transforms separate connected pieces, text characters, or upstream fractur
 | --- | --- |
 | **Mode** | **Blend** uses exponential weights. **Average** uses equal weights. **Spring** uses a damped oscillating kernel. Default Blend. |
 | **Strength** | Blend with the filtered result, 0 to 100. Default 75. |
-| **History frames** | Earlier samples at one-frame steps, 1 to 24. Default 12. |
+| **History frames** | Earlier samples at one-frame steps, 1 to 120. Default 12. |
+| **Spring damping** | How fast the Spring kernel decays, 0.25 to 12. Default 3. Lower values overshoot further. Applies to **Spring** only. |
+| **Spring cycles** | Oscillations of the Spring kernel across **History frames**, 0.25 to 8. Default 1. Higher values reach the peak sooner and bounce more. Applies to **Spring** only. |
 
-Nested Delay histories share a total budget of 96 samples per mesh. Samples with different fracture topology are skipped.
+The table lists the overshoot that **Spring** adds after a step in the upstream motion, at **Strength** 100, **Spring cycles** 1, and 48 **History frames**.
+
+| **Spring damping** | Overshoot |
+| --- | --- |
+| 3 | 29% |
+| 2 | 58% |
+| 1 | 154% |
+| 0.5 | 352% |
+| 0.25 | 751% |
+
+**Spring** has no effect when its weights cancel. Weights cancel at 1 or 2 **History frames** with **Spring cycles** 1.
+
+Nested Delay histories share a budget per mesh. The budget is 96 samples, or 4 times the largest **History frames** value when that is larger. Samples with different fracture topology are skipped.
+
+Builds older than Effector version 42 open these projects without an error. They ignore **Spring damping** and **Spring cycles**, and they evaluate **History frames** above 24 as 24 while the row still shows the saved number. Saving from such a build removes the two Spring controls and keeps **History frames**.
 
 ## Legacy projects
 
