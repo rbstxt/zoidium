@@ -646,3 +646,26 @@ test("removed project fonts release their cached preview canvas and file", async
   assert.equal(references.canvas.deref(), undefined);
   assert.equal(references.file.deref(), undefined);
 });
+
+
+test("non-object project font entries render without WeakMap insertion", async () => {
+  const env = loadPicker({ withEmptyState: true });
+  for (const asset of ["font-key", 42, true, null]) {
+    env.assets.list.invalid = asset;
+    const control = env.controls.generateFontInput(staticProperty("invalid", env.assets));
+    assert.doesNotThrow(() => control[0].pz_update());
+    await tick(); await tick();
+    assert.ok(partsOf(control).span.textContent || partsOf(control).span.children.length);
+  }
+});
+
+test("cached dropdown rows release their font asset when the dropdown closes", async () => {
+  const env = loadPicker({ withEmptyState: true });
+  env.assets.list.temporary = fontAsset("temporary", "Temporary.ttf");
+  const { dropdown } = openDropdown(env, staticProperty("temporary", env.assets));
+  const row = dropdown.children.find(row => row._zoidiumFontKey === "temporary");
+  assert.equal(row._zoidiumFontAsset, env.assets.list.temporary);
+  dropdown.blur();
+  assert.equal(row._zoidiumFontAsset, undefined);
+  assert.equal(dropdown.parentElement, null);
+});
