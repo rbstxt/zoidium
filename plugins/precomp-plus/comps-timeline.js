@@ -71,29 +71,49 @@ function refreshTimeline(editor) {
 
 function applySequence(editor, json) {
   const seq = editor.project.sequence;
-  // CM3 loads keyframes by appending. A composition switch reuses the
-  // sequence property list, so remove its previous keys before loading it.
-  function clearKeys(node) {
+  // CM3 appends keys, even defaults for omitted properties. Supply preserved
+  // keys for partial/older JSON before clearing lists the loader will refill.
+  const data = clone(json), keyLists = [];
+  function replacement(node, incoming) {
     if (node.keyframes) {
-      node.keyframes.splice(0, node.keyframes.length);
-    } else if (node.objects) {
-      for (const property of node.objects) clearKeys(property);
-    } else if (typeof node[Symbol.iterator] === "function") {
-      for (const property of node) clearKeys(property);
+      keyLists.push(node.keyframes);
+      return Array.isArray(incoming?.keyframes) ? incoming : {
+        ...clone(node), ...incoming, keyframes: clone(node.keyframes),
+      };
     }
+    if (node.objects) {
+      const result = { ...incoming };
+      result.objects = Array.from(node.objects, (property, index) => replacement(property,
+        Array.isArray(incoming?.keyframes) ? {
+          ...incoming.objects?.[index], animated: incoming.animated,
+          keyframes: incoming.keyframes.map(key => ({ ...key, value: key.value[index] })),
+        } : incoming?.objects?.[index]));
+      // Legacy grouped keys are now represented by the normalized axis lists.
+      delete result.keyframes;
+      return result;
+    }
+    if (typeof node[Symbol.iterator] === "function") {
+      const result = Array.isArray(node) ? [] : { ...incoming };
+      for (const key of Object.keys(node)) result[key] = replacement(node[key], incoming?.[key]);
+      return result;
+    }
+    return incoming;
   }
-  clearKeys(seq.properties);
+  data.properties = replacement(seq.properties, data.properties);
   // These tracks are replaced by freshly loaded clips. Release the old
   // layers and media while their project parent chain is still attached.
   for (const track of [...seq.videoTracks, ...seq.audioTracks]) {
-    for (const clip of track.clips) clip.unload();
+    for (const clip of track.clips) {
+      try { clip.unload(); }
+      catch (error) { console.error("[Precomp+] outgoing clip unload failed:", error); }
+    }
   }
+  for (const keys of keyLists) keys.splice(0, keys.length);
   seq.videoTracks.splice(0, seq.videoTracks.length);
   seq.audioTracks.splice(0, seq.audioTracks.length);
-  seq.load(clone(json));
+  seq.load(data);
   // The host loader keeps only clips; reapply the stored track switches so
   // muted and 3D tracks stay muted and 3D when a composition opens.
-  const data = json || {};
   (data.videoTracks || []).forEach(function (trackJSON, i) {
     if (seq.videoTracks[i]) applyTrackSwitches(seq.videoTracks[i], trackJSON);
   });
