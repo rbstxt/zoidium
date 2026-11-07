@@ -660,7 +660,7 @@ function isInUse() {
   }
   let used = false;
   project.forEachItemOfType(TextObject, (textObject) => {
-    if (state.splitTexts.has(textObject) || textUsesExtendedProperties(textObject)) used = true;
+    if (state.splitStates.has(textObject) || textUsesExtendedProperties(textObject)) used = true;
   });
   return used;
 }
@@ -727,7 +727,9 @@ function deactivate() {
   resetTextFontDiagnostics();
   // Split text can belong to a project that is no longer open, so one failed
   // restore must not stop the rest of the shutdown.
-  for (const textObject of Array.from(state.splitTexts)) {
+  for (const reference of Array.from(state.splitTexts)) {
+    const textObject = reference.deref();
+    if (!textObject) continue;
     try {
       restoreTextRendering(textObject);
     } catch (error) {
