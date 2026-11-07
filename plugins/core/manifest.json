@@ -414,6 +414,11 @@
       "id": "property-groups-drag",
       "source": "./plugins/core/property-groups-drag.js",
       "phase": "pre-init"
+    },
+    {
+      "id": "clipboard-assets",
+      "source": "./plugins/core/clipboard-assets.js",
+      "phase": "pre-init"
     }
   ],
   "modules": [

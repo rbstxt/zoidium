@@ -113,7 +113,8 @@
       "./plugins/core/waveform-samples.js",
       "./plugins/core/property-groups.js",
       "./plugins/core/property-groups-ui.js",
-      "./plugins/core/property-groups-drag.js"
+      "./plugins/core/property-groups-drag.js",
+      "./plugins/core/clipboard-assets.js"
     ],
     postInitScripts: [
       // ui-panels.js queues its installer for ui-kit.js, so it loads first.
