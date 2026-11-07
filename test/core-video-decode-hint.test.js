@@ -256,3 +256,205 @@ test("activate without media prototype or document leaves everything alone", () 
   api.activate({ PZ: { ui: {} }, window: { document: {} }, lifecycle });
   assert.equal(disposed, 0);
 });
+
+function activatedMedia({ importResult = null } = {}) {
+  const api = loadModule();
+  const cleanups = [];
+  const probes = [];
+  const prototype = {
+    loadVideo() { return "native"; },
+    generateThumbnail() { return "thumb"; },
+    loadAudio() { return undefined; },
+    async importAV(file) {
+      await this.loadVideo({ file, key: "hash", url: "blob:x", filename: file.name });
+      return importResult;
+    },
+  };
+  const assetList = { async createFromFile(_type, file) { return { file, key: "hash", url: "blob:x", filename: file?.name }; } };
+  const native = { loadAudio: prototype.loadAudio, importAV: prototype.importAV, createFromFile: assetList.createFromFile };
+  const host = {
+    document: {
+      createElement() {
+        const element = { removeAttribute() {}, load() {} };
+        probes.push(element);
+        return element;
+      },
+    },
+    setTimeout: () => 0, clearTimeout: () => {},
+    ZoidiumUI: { notify: () => {} },
+  };
+  const PZ = { ui: { media: { prototype } }, assetList: { prototype: assetList }, asset: { type: { AV: 2, IMAGE: 1 } } };
+  api.activate({ PZ, window: host, lifecycle: { onDispose(fn) { cleanups.push(fn); } } });
+  return { prototype, assetList, probes, native, host, dispose: () => cleanups.forEach(fn => fn()) };
+}
+
+test("an import with no readable stream yields an entry named after the file", async () => {
+  const { prototype, probes } = activatedMedia();
+  const file = { name: "Shockwave.mov", type: "video/quicktime" };
+  const pending = prototype.importAV(file);
+  await new Promise(setImmediate);
+  probes[0].onerror();
+  const entry = await pending;
+  assert.equal(entry.properties.name, "Shockwave.mov");
+  assert.equal(entry.baseType, "track");
+  assert.deepEqual(Array.from(entry.data), []);
+  assert.deepEqual(Array.from(entry.assets), ["hash"]);
+});
+
+test("a successful import returns the native entry unchanged", async () => {
+  const native = { properties: { name: "ok.webm" }, data: [{}], baseType: "track", assets: ["hash"] };
+  const { prototype, probes } = activatedMedia({ importResult: native });
+  const pending = prototype.importAV({ name: "ok.webm", type: "video/webm" });
+  await new Promise(setImmediate);
+  probes[0].onerror();
+  assert.equal(await pending, native);
+});
+
+test("a video chosen in a property is probed, so a failure is reported", async () => {
+  const { assetList, probes } = activatedMedia();
+  await assetList.createFromFile(2, { name: "Shockwave.mov", type: "video/quicktime" });
+  assert.equal(probes.length, 1);
+});
+
+test("other asset kinds and audio files are not probed", async () => {
+  const { assetList, probes } = activatedMedia();
+  await assetList.createFromFile(1, { name: "still.png", type: "image/png" });
+  await assetList.createFromFile(2, { name: "sound.wav", type: "audio/wav" });
+  await assetList.createFromFile(2, undefined);
+  assert.equal(probes.length, 0);
+});
+
+test("the import's own asset creation does not probe a second time", async () => {
+  const { prototype, assetList, probes } = activatedMedia({ importResult: { assets: [] } });
+  prototype.importAV = (original => async function (file) {
+    return original.call(this, file);
+  })(prototype.importAV);
+  const file = { name: "ok.webm", type: "video/webm" };
+  const pending = prototype.importAV(file);
+  await assetList.createFromFile(2, file);
+  await new Promise(setImmediate);
+  assert.equal(probes.length, 1, "only importAV's own loadVideo probe ran");
+  probes[0].onerror();
+  await pending;
+});
+
+test("importing the same bytes again warns again and keeps the asset reference", async () => {
+  const notifications = [];
+  const { prototype, assetList, probes, host } = activatedMedia();
+  host.ZoidiumUI.notify = detail => notifications.push(detail);
+  const existing = { file: { name: "first.mov" }, key: "hash", url: "blob:x", filename: "Shockwave.mov" };
+  assetList.createFromFile = (original => async function (type, file) {
+    await original.call(this, type, file);
+    return existing;
+  })(assetList.createFromFile);
+  const attempt = async file => {
+    prototype.importAV = (async function (nextFile) {
+      const asset = await assetList.createFromFile(2, nextFile);
+      await this.loadVideo(asset);
+      return null;
+    });
+    const asset = await assetList.createFromFile(2, file);
+    const pending = prototype.loadVideo(asset);
+    await new Promise(setImmediate);
+    probes.at(-1).onerror();
+    await pending;
+    return asset;
+  };
+  await attempt({ name: "Shockwave.mov", type: "video/quicktime" });
+  await attempt({ name: "Shockwave.mov", type: "video/quicktime" });
+  assert.equal(notifications.length, 2);
+});
+
+test("a failed import keeps the asset of a file the list already holds", async () => {
+  const api = loadModule();
+  const held = { file: { name: "first.mov" }, key: "hash", url: "blob:x", filename: "Shockwave.mov" };
+  const elements = [];
+  const assetList = { async createFromFile() { return held; } };
+  const prototype = {
+    loadVideo() { return "native"; }, generateThumbnail() { return "thumb"; }, loadAudio() { return undefined; },
+    async importAV(file) {
+      const asset = await assetList.createFromFile(2, file);
+      await this.loadVideo(asset);
+      return null;
+    },
+  };
+  const host = {
+    document: { createElement() { const e = { removeAttribute() {}, load() {} }; elements.push(e); return e; } },
+    setTimeout: () => 0, clearTimeout: () => {}, ZoidiumUI: { notify() {} },
+  };
+  api.activate({ PZ: { ui: { media: { prototype } }, assetList: { prototype: assetList }, asset: { type: { AV: 2 } } },
+    window: host, lifecycle: { onDispose() {} } });
+  const pending = prototype.importAV({ name: "Shockwave.mov", type: "video/quicktime" });
+  await new Promise(setImmediate);
+  elements[0].onerror();
+  const entry = await pending;
+  assert.deepEqual(Array.from(entry.assets), ["hash"]);
+  assert.equal(elements.length, 1, "the import's own asset creation does not probe twice");
+});
+
+test("dispose restores loadAudio, importAV and createFromFile", () => {
+  const { prototype, assetList, native, dispose } = activatedMedia();
+  assert.notEqual(prototype.loadAudio, native.loadAudio);
+  assert.notEqual(prototype.importAV, native.importAV);
+  assert.notEqual(assetList.createFromFile, native.createFromFile);
+  dispose();
+  assert.equal(prototype.loadAudio, native.loadAudio);
+  assert.equal(prototype.importAV, native.importAV);
+  assert.equal(assetList.createFromFile, native.createFromFile);
+});
+
+test("dispose keeps a foreign loadAudio patch", () => {
+  const { prototype, dispose } = activatedMedia();
+  function foreign() {}
+  prototype.loadAudio = foreign;
+  dispose();
+  assert.equal(prototype.loadAudio, foreign);
+});
+
+function audioProbe(support) {
+  const api = loadModule();
+  const element = {
+    removed: [], loads: 0, duration: 2.5,
+    canPlayType: () => support,
+    removeAttribute(name) { this.removed.push(name); },
+    load() { this.loads += 1; },
+  };
+  const load = api.createLoadAudio({ createElement(tag) { assert.equal(tag, "audio"); return element; } });
+  const asset = { file: { type: "video/mp4" }, url: "blob:x", filename: "clip.mp4", key: "hash" };
+  return { load, asset, element };
+}
+
+test("an audio probe that errors settles empty and releases its source", async () => {
+  const { load, asset, element } = audioProbe("maybe");
+  const pending = load(asset);
+  assert.equal(element.src, "blob:x");
+  element.onerror();
+  assert.equal(await pending, undefined);
+  assert.deepEqual(Array.from(element.removed), ["src"]);
+  assert.equal(element.loads, 1);
+});
+
+test("a playable audio probe returns the native clip fields", async () => {
+  const { load, asset, element } = audioProbe("probably");
+  const pending = load(asset);
+  element.onloadeddata();
+  assert.deepEqual(JSON.parse(JSON.stringify(await pending)), {
+    type: 1, start: 0, length: 75, offset: 0, properties: { name: "clip.mp4", media: "hash" },
+  });
+  assert.equal(asset.length, 2.5);
+});
+
+test("an audio probe without a file or url settles like the video probe", () => {
+  const { load } = audioProbe("maybe");
+  assert.equal(load(undefined), undefined);
+  assert.equal(load({}), undefined);
+  assert.equal(load({ file: { type: "video/mp4" } }), undefined);
+});
+
+test("an unsupported type skips the audio probe like the native gate", () => {
+  for (const support of ["", "no"]) {
+    const { load, asset, element } = audioProbe(support);
+    assert.equal(load(asset), undefined);
+    assert.equal(element.src, undefined);
+  }
+});

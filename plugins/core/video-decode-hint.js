@@ -20,8 +20,13 @@
 // (audio-style) result so the import can continue. A probe still silent after
 // a bounded time warns too but keeps waiting, so a slow valid file loads. Audio files
 // passed to loadVideo resolve through the normal zero-dimension path and
-// never warn. Video layers and video textures do not share this loader (they
-// play through PZ.schedule elements), so they need no handling here.
+// never warn. Video textures picked in a property play through PZ.schedule
+// elements and fail silently, so a file chosen there runs the same probe once.
+// When neither probe finds a stream, importAV returns null and PZ.media.load
+// throws with its tile stuck on "Loading...". The import then yields an empty
+// entry named after the file, so its tile can be deleted and undone as usual.
+// The native audio probe has no error handler, so an undecodable file whose type
+// passes canPlayType, such as HEVC .mp4, never settled. It settles empty now.
 const DEFAULT_PROBE_TIMEOUT_MS = 15000;
 
 function buildDecodeWarning(filename) {
@@ -30,6 +35,49 @@ function buildDecodeWarning(filename) {
     message: "This browser cannot decode \"" + filename +
       "\" (for example ProRes or HEVC .mov). Convert it to WebM (VP9, keeps transparency)" +
       " or MP4 (H.264) and import it again.",
+  };
+}
+
+function buildFailedImportEntry(file, asset) {
+  return {
+    properties: { name: file.name, icon: "wave" },
+    data: [],
+    baseType: "track",
+    assets: asset ? [asset.key] : [],
+  };
+}
+
+// Keeps the native audio probe's gate and clip fields, and adds the error path.
+function createLoadAudio(document) {
+  return function loadAudioWithError(asset) {
+    if (!asset || !asset.file || !asset.url) return undefined;
+    const audio = document.createElement("audio");
+    const support = audio.canPlayType(asset.file.type);
+    if (support === "" || support === "no") return undefined;
+    return new Promise((resolve) => {
+      audio.onloadeddata = function onAudioLoaded() {
+        const frames = Math.floor(30 * audio.duration);
+        asset.length = audio.duration;
+        audio.onloadeddata = null;
+        audio.onerror = null;
+        resolve({
+          type: 1,
+          start: 0,
+          length: frames,
+          offset: 0,
+          properties: { name: asset.filename, media: asset.key },
+        });
+      };
+      audio.onerror = function onAudioError() {
+        audio.onloadeddata = null;
+        audio.onerror = null;
+        audio.removeAttribute("src");
+        audio.load();
+        resolve(undefined);
+      };
+      audio.preload = "metadata";
+      audio.src = asset.url;
+    });
   };
 }
 
@@ -174,12 +222,19 @@ function createLoadVideoWithDecodeHint(dependencies) {
     });
   }
 
-  return { loadVideoWithDecodeHint, markDisposed, warned };
+  // Choosing the file again is a new attempt, so a failure is reported again.
+  function forgetWarning(asset) {
+    warned.delete(warningKey(asset, displayName(asset)));
+  }
+
+  return { loadVideoWithDecodeHint, markDisposed, forgetWarning, warned };
 }
 
 module.exports = {
   DEFAULT_PROBE_TIMEOUT_MS,
   buildDecodeWarning,
+  buildFailedImportEntry,
+  createLoadAudio,
   isAudioAsset,
   createLoadVideoWithDecodeHint,
   activate(context) {
@@ -207,13 +262,43 @@ module.exports = {
         if (host.dispatchEvent && host.CustomEvent) host.dispatchEvent(new host.CustomEvent("zoidium:asset-status", { detail: asset }));
       },
     });
+    const probedAssets = new WeakMap();
+    const importingFiles = new WeakSet();
     const replacement = function replacementLoadVideo(asset) {
+      if (asset && asset.file) probedAssets.set(asset.file, asset);
       return installed.loadVideoWithDecodeHint(asset);
     };
     prototype.loadVideo = replacement;
+    const originalLoadAudio = prototype.loadAudio;
+    const loadAudio = createLoadAudio(host.document);
+    if (typeof originalLoadAudio === "function") prototype.loadAudio = loadAudio;
+    const originalImportAV = prototype.importAV;
+    const importAV = async function importAVWithFailedEntry(file) {
+      importingFiles.add(file);
+      const entry = await originalImportAV.apply(this, arguments);
+      return entry || buildFailedImportEntry(file, probedAssets.get(file));
+    };
+    if (typeof originalImportAV === "function") prototype.importAV = importAV;
+    const assetList = context.PZ.assetList && context.PZ.assetList.prototype;
+    const originalCreate = assetList && assetList.createFromFile;
+    const createFromFile = async function createFromFileWithProbe(type, file) {
+      const asset = await originalCreate.apply(this, arguments);
+      if (type === context.PZ.asset.type.AV && file && asset) {
+        // The list returns its existing asset for identical bytes, and that
+        // asset keeps the file from the first import, so key by this file.
+        probedAssets.set(file, asset);
+        installed.forgetWarning(asset);
+        if (/^video\//.test(file.type || "") && !importingFiles.has(file)) installed.loadVideoWithDecodeHint(asset);
+      }
+      return asset;
+    };
+    if (typeof originalCreate === "function") assetList.createFromFile = createFromFile;
     context.lifecycle.onDispose(() => {
       installed.markDisposed();
       if (prototype.loadVideo === replacement) prototype.loadVideo = original;
+      if (prototype.loadAudio === loadAudio) prototype.loadAudio = originalLoadAudio;
+      if (prototype.importAV === importAV) prototype.importAV = originalImportAV;
+      if (assetList && assetList.createFromFile === createFromFile) assetList.createFromFile = originalCreate;
       if (host.ZoidiumVideoDecodeStatus === statusApi) {
         if (previousStatus) host.ZoidiumVideoDecodeStatus = previousStatus;
         else delete host.ZoidiumVideoDecodeStatus;
