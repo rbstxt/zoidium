@@ -32,7 +32,7 @@ Trapcode Particular is a suite object with properties in its designer and proper
 | **Rotation random** | Number | ≥ 0 | `0` | Variation of initial sprite angle. |
 | **Rotation speed** | Number | — | `0` | Initial sprite spin speed. |
 | **Rotation speed random** | Number | ≥ 0 | `0` | Variation of sprite spin speed. |
-| **Random seed** | Number | — | `100000` | Seed for repeatable random values. |
+| **Random seed** | Number | — | `100000` | Seed for repeatable random values. While no CPU-only feature, such as Physics, is on, it changes only **Velocity distribution**, **Color random**, and **Opacity random**. |
 
 
 ## Particle

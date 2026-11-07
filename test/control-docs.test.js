@@ -39,3 +39,13 @@ test("Optical Flares docs state which element types use Animate", () => {
   assert.deepEqual(blocks.filter(block => /\banimate\b/.test(block)).map(block => parseInt(block, 10)), [7, 9]);
   for (const page of docs("optical-flares.md")) assert.match(page, /\*\*Animate\*\*[^\n]*\*\*Sparkle\*\*[^\n]*\*\*Hoop\*\*/);
 });
+
+test("Particular seed docs state what the seed changes on the GPU path", () => {
+  const source = read("plugins/trapcode-suite/particular.js");
+  const seeded = source.split("\n").filter(line => /rand\(vec2\(\w+ \+ controlSeed/.test(line));
+  assert.equal(seeded.length, 3, "velocity distribution, color random, and opacity random");
+  for (const page of docs("trapcode-particular.md")) {
+    const text = page.split("\n").find(line => line.startsWith("| **Random seed**"));
+    assert.match(text, /\*\*Velocity distribution\*\*[^\n]*\*\*Color random\*\*[^\n]*\*\*Opacity random\*\*/);
+  }
+});

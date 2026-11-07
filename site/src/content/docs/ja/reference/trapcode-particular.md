@@ -32,7 +32,7 @@ Trapcode Particular は、デザイナーとプロパティパネルにプロパ
 | **Rotation random** | 数値 | ≥ 0 | `0` | スプライトの初期の角度の変動量です。 |
 | **Rotation speed** | 数値 | — | `0` | スプライトの初期の回転速度です。 |
 | **Rotation speed random** | 数値 | ≥ 0 | `0` | スプライトの回転速度の変動量です。 |
-| **Random seed** | 数値 | — | `100000` | 再現可能な乱数のシードです。 |
+| **Random seed** | 数値 | — | `100000` | 再現可能な乱数のシードです。Physics などの CPU 専用の機能がオフの間は、**Velocity distribution**、**Color random**、**Opacity random** にのみ影響します。 |
 
 
 ## Particle
