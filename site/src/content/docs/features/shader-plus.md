@@ -22,3 +22,6 @@ Declare, and templates.
 
 [Property controls](/docs/development/shader-properties/) describes each setting. [Shader+ compatibility](/docs/development/project-compatibility/#shader-property-kinds)
 describes plugin requirements for texture and array properties.
+
+To organize controls into collapsible sections, follow
+[Organize custom properties into groups](/docs/how-to/organize-property-groups/).

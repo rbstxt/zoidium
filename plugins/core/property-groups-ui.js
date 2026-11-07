@@ -21,7 +21,7 @@
     .zpg-settings input[type=checkbox] { justify-self:start; }
     .zpg-settings-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
     .zpg-settings-error { color:var(--zui-danger); }
-    .zpg-native-lock { font:inherit; font-size:var(--zui-font-size-small); color:var(--zui-text-muted); }
+    .actionbutton.zpg-native-lock { width:auto; min-width:32px; padding:0 4px; line-height:17px; font:inherit; font-size:var(--zui-font-size-small); color:var(--zui-text-muted); }
   `;
   global.document.head.append(style);
   function panel(anchor, title) {
@@ -144,6 +144,8 @@
       for (const p of block.items) {
         const nodesForProperty = nodes.get(p); if (!nodesForProperty) continue;
         const { row, child } = nodesForProperty;
+        if (row.zpgBasePadding === undefined) row.zpgBasePadding = parseFloat(row.firstElementChild.style.paddingLeft) || 0;
+        row.firstElementChild.style.paddingLeft = row.zpgBasePadding + (block.name ? 15 : 0) + "px";
         row.style.display = collapsed ? "none" : "";
         el.append(row);
         if (child) { child.style.display = collapsed ? "none" : row.querySelector(".collapse")?.classList.contains("collapsed") ? "none" : ""; el.append(child); }
@@ -157,10 +159,23 @@
       const value = api.nativeOwnLock(entry.object);
       entry.button.textContent = value ? "Locked" : "Lock";
       entry.button.title = value ? "Unlock group" : "Lock group";
+      entry.button.setAttribute("aria-label", entry.button.title);
       entry.button.setAttribute("aria-pressed", String(value));
     }
   }
+  let menuRegistered = false;
+  function registerMenu() {
+    if (menuRegistered || !global.ZoidiumUI?.registerMenuExtension) return;
+    menuRegistered = true;
+    global.ZoidiumUI.registerMenuExtension({ id: "core/property-groups", items(options) {
+      const row = options?.owner?.closest?.("li"), p = row?.pz_object;
+      if (!(p instanceof PZ.property) || !api.isList(p.parent) || options.items?.some(item => item.label === "Group…")) return [];
+      const entry = lists.get(row.parentElement);
+      return entry ? propertyMenu(entry.view, row, p) : [];
+    } });
+  }
   api.refresh = () => {
+    registerMenu();
     for (const [el, entry] of lists) {
       if (entry.seen && !el.isConnected) { lists.delete(el); continue; }
       entry.seen ||= el.isConnected;
@@ -171,11 +186,5 @@
   };
   api.propertyMenu = propertyMenu;
   api.groupSettings = settings;
-  global.ZoidiumUI?.registerMenuExtension({ id: "core/property-groups", items(options) {
-    const row = options?.owner?.closest?.("li"), p = row?.pz_object;
-    if (!(p instanceof PZ.property) || !api.isList(p.parent) || options.items?.some(item => item.label === "Group…")) return [];
-    const entry = lists.get(row.parentElement);
-    return entry ? propertyMenu(entry.view, row, p) : [];
-  } });
   global.setInterval(api.refresh, 150);
 })(window);

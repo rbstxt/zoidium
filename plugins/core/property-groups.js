@@ -43,17 +43,17 @@
       editor.history.pushCommand(next => exchange(editor, next), { address: command.address, state: previous });
       notify(editor);
     }
-    function edit(editor, list, change) {
-      if (editor.history.operation !== null) return false;
+    function edit(editor, list, change, join = false) {
+      if (editor.history.operation !== null && !join) return false;
       const before = snapshot(list), next = copy(before);
       change(next);
       if (JSON.stringify(before) === JSON.stringify(next)) return false;
-      editor.history.startOperation();
+      if (!join) editor.history.startOperation();
       try {
         apply(list, next);
         editor.history.pushCommand(command => exchange(editor, command), { address: list.getAddress(), state: before });
-        editor.history.finishOperation();
-      } catch (error) { apply(list, before); editor.history.discardOperation(); throw error; }
+        if (!join) editor.history.finishOperation();
+      } catch (error) { apply(list, before); if (!join) editor.history.discardOperation(); throw error; }
       notify(editor); return true;
     }
     function assign(record, group) {
@@ -87,7 +87,7 @@
     }
     // Only metadata changes. Native list indices remain the addresses used by
     // animation, shader uniforms, saved properties, and history commands.
-    function move(editor, list, moving, target, after = false) {
+    function move(editor, list, moving, target, after = false, join = false) {
       const sourceGroup = typeof moving === "string" ? moving : name(moving);
       const targetGroup = typeof target === "string" ? target : target ? name(target) : "";
       if (locked(list, sourceGroup) || locked(list, targetGroup)) return false;
@@ -108,7 +108,22 @@
       return edit(editor, list, state => {
         if (!movingGroup) assign(state[list.indexOf(moving)], targetGroup);
         order.forEach((p, i) => { const record = state[list.indexOf(p)]; record.meta = { ...record.meta, order: i }; });
-      });
+      }, join);
+    }
+    function duplicate(editor, view, list, property, target, after) {
+      const targetGroup = typeof target === "string" ? target : target ? name(target) : "";
+      if (!canAssign(property, targetGroup) || editor.history.operation !== null) return false;
+      editor.history.startOperation();
+      try {
+        const data = copy(property);
+        view.createObject({ newParentAddress: list.getAddress(), baseType: list.type, subType: data.type, data });
+        move(editor, list, list[list.length - 1], target, after, true);
+        editor.history.finishOperation();
+      } catch (error) {
+        for (const command of editor.history.operation.slice().reverse()) command.execute();
+        editor.history.discardOperation(); throw error;
+      }
+      return true;
     }
     const nativeGroup = PZ.object3d?.group?.prototype;
     if (nativeGroup) {
@@ -129,7 +144,13 @@
       for (let node = object; node; node = node.parent) if (locks.get(node)) return true;
       return false;
     }
-    const api = { FIELD, meta, name, isList, members, locked, blocks, snapshot, edit, canAssign, setGroup, settings, collapse, move,
+    function propertyLocked(object) {
+      for (let node = object; node; node = node.parent) {
+        if (node instanceof PZ.property && isList(node.parent) && locked(node.parent, name(node))) return true;
+      }
+      return false;
+    }
+    const api = { FIELD, meta, name, isList, members, locked, blocks, snapshot, edit, canAssign, setGroup, settings, collapse, move, duplicate, propertyLocked,
       nativeLocked, setNativeLock, nativeOwnLock: object => !!locks.get(object) };
     return api;
   }

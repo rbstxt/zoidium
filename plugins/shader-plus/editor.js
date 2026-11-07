@@ -208,6 +208,7 @@ function installEditor({ context, patch, presetFont }) {
       { label: "Duplicate", action: () => duplicate(view, p) },
       { label: "Delete", action: () => remove(view, p) },
       { separator: true },
+      ...(groups?.propertyMenu?.(view, row, p) || []),
       { label: "Property settings…", action: () => settings(row, p) },
     ];
   }
