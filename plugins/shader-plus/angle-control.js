@@ -7,7 +7,7 @@ const SIZE = 168, R = 66, TAU = Math.PI * 2;
 function registerAngle({ PZ, doc, register, commit }) {
   const SVG = "http://www.w3.org/2000/svg";
   function svg(tag, attrs, parent) {
-    const el = doc.createElementNS(SVG, tag);
+    const el = (parent?.ownerDocument || doc).createElementNS(SVG, tag);
     for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
     if (parent) parent.append(el);
     return el;
@@ -18,8 +18,9 @@ function registerAngle({ PZ, doc, register, commit }) {
 
   function popover(anchor, property, box) {
     close();
+    const owner = anchor.ownerDocument, view = owner.defaultView;
     const C = PZ.ui.controls;
-    const panel = doc.createElement("div");
+    const panel = owner.createElement("div");
     panel.className = "zsp-angle-pop"; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "Angle dial");
     const dial = svg("svg", { viewBox: `0 0 ${SIZE} ${SIZE}`, width: SIZE, height: SIZE, class: "zsp-dial", tabindex: "0", role: "slider", "aria-label": "Angle", "aria-valuemin": "0", "aria-valuemax": "360" }, panel);
     svg("circle", { cx: SIZE / 2, cy: SIZE / 2, r: R + 10, class: "zsp-dial-face" }, dial);
@@ -34,7 +35,7 @@ function registerAngle({ PZ, doc, register, commit }) {
     const knob = svg("g", { class: "zsp-dial-knob" }, dial);
     svg("circle", { r: 11, class: "zsp-dial-knob-disc" }, knob);
     svg("path", { d: "M-5 0H4M1-4L5 0L1 4", class: "zsp-dial-knob-arrow" }, knob);
-    const readout = doc.createElement("div"); readout.className = "zsp-dial-readout"; panel.append(readout);
+    const readout = owner.createElement("div"); readout.className = "zsp-dial-readout"; panel.append(readout);
 
     const frame = () => box.pz_frame ?? 0;
     function paint() {
@@ -86,12 +87,12 @@ function registerAngle({ PZ, doc, register, commit }) {
       commit(anchor, property, (Number(property.get(frame())) || 0) + direction * (event.shiftKey ? 15 : 1) * Math.PI / 180); paint();
     });
 
-    doc.body.append(panel);
+    owner.body.append(panel);
     const place = () => {
       if (!anchor.isConnected) { close(); return; }
       const a = anchor.getBoundingClientRect(), w = panel.offsetWidth, h = panel.offsetHeight;
-      const left = Math.max(4, Math.min(innerWidth - w - 4, a.left + a.width / 2 - w / 2));
-      const below = a.bottom + 8 + h <= innerHeight;
+      const left = Math.max(4, Math.min(view.innerWidth - w - 4, a.left + a.width / 2 - w / 2));
+      const below = a.bottom + 8 + h <= view.innerHeight;
       panel.style.left = left + "px"; panel.style.top = (below ? a.bottom + 8 : a.top - h - 8) + "px";
       panel.classList.toggle("zsp-angle-pop-above", !below);
       panel.style.setProperty("--zsp-caret", (a.left + a.width / 2 - left) + "px");
@@ -99,9 +100,9 @@ function registerAngle({ PZ, doc, register, commit }) {
     place(); paint(); dial.focus();
     const outside = event => { if (!panel.contains(event.target) && event.target !== anchor && !anchor.contains(event.target)) close(); };
     const timer = setInterval(() => { place(); if (!drag) paint(); }, 150);
-    doc.addEventListener("pointerdown", outside, true);
+    owner.addEventListener("pointerdown", outside, true);
     anchor.setAttribute("aria-expanded", "true");
-    open = { anchor, dispose() { anchor.setAttribute("aria-expanded", "false"); clearInterval(timer); doc.removeEventListener("pointerdown", outside, true); panel.remove(); } };
+    open = { anchor, dispose() { anchor.setAttribute("aria-expanded", "false"); clearInterval(timer); owner.removeEventListener("pointerdown", outside, true); panel.remove(); } };
   }
 
   register("shader-plus/angle", PZ.property.type.NUMBER, property => {

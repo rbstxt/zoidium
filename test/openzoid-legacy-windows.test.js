@@ -387,3 +387,22 @@ test("a second Place replaces the first and closing the window removes every lis
   windows.deactivate();
   delete globalThis.window;
 });
+
+test("Escape from the setup popup cancels main-viewport placement and releases both hosts", () => {
+  const { h, stubs, cleanup, place, win, windows } = placementSetup();
+  let popupKey, released = 0;
+  win.window = {};
+  win.listen = (kind, type, callback, capture) => {
+    assert.equal(kind, "window"); assert.equal(type, "keydown"); assert.equal(capture, true);
+    popupKey = callback;
+    return () => { popupKey = null; released++; };
+  };
+  place(2).onClick();
+  const edits = h.edits.length;
+  let prevented = false;
+  popupKey({ type: "keydown", key: "Escape", preventDefault() { prevented = true; }, stopPropagation() {} });
+  assert.equal(prevented, true); assert.equal(stubs.count(), 0);
+  assert.equal(released, 1); assert.equal(popupKey, null);
+  assert.equal(h.edits.length, edits); assert.equal(win.subtitle, "");
+  cleanup(); windows.deactivate(); delete globalThis.window;
+});

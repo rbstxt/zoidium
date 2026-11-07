@@ -273,7 +273,7 @@ const GraphPlus = (() => {
         placement: "center", width: Math.round((viewport.innerWidth || 1200) * 0.75),
         height: Math.round((viewport.innerHeight || 800) * 0.75),
         minWidth: 480, minHeight: 300, resizable: true, maximizable: true,
-        mount(body) {
+        mount(body, mounted) {
           facade.el = body;
           body.classList.add("editorwindow");
           Object.assign(body.style, { padding: "0", overflow: "hidden", position: "relative" });
@@ -281,6 +281,7 @@ const GraphPlus = (() => {
           // body so host shortcuts cannot run a second time. Graph handlers
           // consume their own keys before they reach this listener.
           const forward = (event) => {
+            if (mounted.isPoppedOut?.() && (event.ctrlKey || event.metaKey) && /^[zys]$/i.test(event.key || "")) return;
             if (typeof editor.keydown === "function") editor.keydown(event);
             event.stopPropagation();
           };
@@ -291,11 +292,27 @@ const GraphPlus = (() => {
           body.addEventListener("keydown", space, true);
           body.addEventListener("keyup", space, true);
           body.addEventListener("keydown", forward);
-          const owner = body.ownerDocument?.defaultView;
-          if (owner?.ResizeObserver) {
-            observer = new owner.ResizeObserver(() => facade.resize());
-            observer.observe(body);
+          const rehost = () => {
+            state.selectionHost?.bindDocument(body.ownerDocument);
+            function visit(panel) {
+              if (!panel) return;
+              if (panel._cancelUpdate) panel._cancelUpdate();
+              if (panel.enabled && panel._scheduleUpdate) panel._scheduleUpdate();
+              if (panel.panels) panel.panels.forEach(visit);
+            }
+            visit(facade.panel);
+            observeResize(); facade.resize();
+          };
+          mounted.onHostChange?.(rehost);
+          function observeResize() {
+            observer?.disconnect(); observer = null;
+            const owner = body.ownerDocument?.defaultView;
+            if (owner?.ResizeObserver) {
+              observer = new owner.ResizeObserver(() => facade.resize());
+              observer.observe(body);
+            }
           }
+          observeResize();
           return () => {
             if (observer) observer.disconnect();
             body.removeEventListener("keydown", space, true);
@@ -322,11 +339,7 @@ const GraphPlus = (() => {
       };
       host.element.addEventListener("keydown", graphShortcut, true);
       host.addCleanup(() => host.element.removeEventListener("keydown", graphShortcut, true));
-      const chromeKeydown = (event) => {
-        if (!event.ctrlKey || !/^[nmoszy]$/i.test(event.key || "")) return;
-        if (typeof editor.keydown === "function") editor.keydown(event);
-        event.stopPropagation();
-      };
+      const chromeKeydown = (event) => forwardChromeCommand(editor, host, event);
       host.element.addEventListener("keydown", chromeKeydown);
       host.addCleanup(() => host.element.removeEventListener("keydown", chromeKeydown));
       state.floating = facade;
@@ -338,6 +351,14 @@ const GraphPlus = (() => {
     state.windowPatch = { editor, descriptor, replacement, projectChanged };
     editor.onProjectChanged?.watch(projectChanged);
     editor.createWindow = replacement;
+  }
+
+  function forwardChromeCommand(editor, host, event) {
+    // The shared popup host forwards these commands before this listener.
+    if (host.isPoppedOut?.() && (event.ctrlKey || event.metaKey) && /^[zys]$/i.test(event.key || "")) return;
+    if (event.defaultPrevented || !event.ctrlKey || !/^[nmoszy]$/i.test(event.key || "")) return;
+    if (typeof editor.keydown === "function") editor.keydown(event);
+    event.stopPropagation();
   }
 
   function uninstall() {
@@ -449,6 +470,7 @@ const GraphPlus = (() => {
       beginPointerDrag: (...args) => beginPointerDrag(...args),
       disposePanel,
       restoreFloatingWindow,
+      forwardChromeCommand,
       sharedEmptyNote: (...args) => sharedEmptyNote(...args),
     },
   };

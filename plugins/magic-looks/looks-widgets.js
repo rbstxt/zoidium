@@ -18,8 +18,8 @@ var Looks = Looks || {};
     return el;
   }
 
-  function dpr() {
-    return (typeof window !== "undefined" && window.devicePixelRatio) || 1;
+  function dpr(canvas) {
+    return canvas.ownerDocument?.defaultView?.devicePixelRatio || 1;
   }
 
   // Theme colors for canvas chrome. Canvas cannot use CSS directly, so the
@@ -63,7 +63,7 @@ var Looks = Looks || {};
   // Sizes a canvas for crisp output and returns its 2D context (scaled so
   // drawing uses CSS pixels).
   function fitCanvas(canvas, width, height) {
-    var ratio = dpr();
+    var ratio = dpr(canvas);
     canvas.width = Math.round(width * ratio);
     canvas.height = Math.round(height * ratio);
     canvas.style.width = width + "px";
@@ -234,7 +234,10 @@ var Looks = Looks || {};
     canvas.addEventListener("dblclick", onDbl);
     canvas.addEventListener("keydown", onKey);
     var themeView = canvas.ownerDocument && canvas.ownerDocument.defaultView;
-    if (themeView) themeView.addEventListener("zoidium:theme-changed", draw);
+    var host = typeof window !== "undefined" && window.ZoidiumUIBuilder?.popouts?.environment(wrap);
+    var releaseTheme = host ? host.listen("window", "zoidium:theme-changed", draw) : null;
+    if (host) { host.listen("window", "resize", draw); host.onHostChange(draw); }
+    else if (themeView) themeView.addEventListener("zoidium:theme-changed", draw);
     draw();
 
     return {
@@ -249,7 +252,9 @@ var Looks = Looks || {};
       },
       destroy: function () {
         disposed = true;
-        if (themeView) themeView.removeEventListener("zoidium:theme-changed", draw);
+        if (releaseTheme) releaseTheme();
+        if (host) host.dispose();
+        else if (themeView) themeView.removeEventListener("zoidium:theme-changed", draw);
         canvas.removeEventListener("pointerdown", onDown);
         canvas.removeEventListener("pointermove", onMove);
         canvas.removeEventListener("pointerup", onUp);
@@ -441,7 +446,10 @@ var Looks = Looks || {};
     canvas.addEventListener("contextmenu", onContext);
     canvas.addEventListener("keydown", onKey);
     var themeView = canvas.ownerDocument && canvas.ownerDocument.defaultView;
-    if (themeView) themeView.addEventListener("zoidium:theme-changed", draw);
+    var host = typeof window !== "undefined" && window.ZoidiumUIBuilder?.popouts?.environment(wrap);
+    var releaseTheme = host ? host.listen("window", "zoidium:theme-changed", draw) : null;
+    if (host) { host.listen("window", "resize", draw); host.onHostChange(draw); }
+    else if (themeView) themeView.addEventListener("zoidium:theme-changed", draw);
     draw();
 
     return {
@@ -459,7 +467,9 @@ var Looks = Looks || {};
       },
       destroy: function () {
         disposed = true;
-        if (themeView) themeView.removeEventListener("zoidium:theme-changed", draw);
+        if (releaseTheme) releaseTheme();
+        if (host) host.dispose();
+        else if (themeView) themeView.removeEventListener("zoidium:theme-changed", draw);
         canvas.removeEventListener("pointerdown", onDown);
         canvas.removeEventListener("pointermove", onMove);
         canvas.removeEventListener("pointerup", onUp);

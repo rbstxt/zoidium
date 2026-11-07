@@ -200,6 +200,7 @@
     }
 
     var doc = global.document;
+    var project = global.CM && global.CM.project;
     var layer = getWindowLayer();
     var viewportWidth = global.innerWidth || 1280;
     var viewportHeight = global.innerHeight || 720;
@@ -274,7 +275,9 @@
       body: body,
       footer: footer,
       titlebar: titlebar,
-      _isValid: typeof config.isValid === "function" ? config.isValid : null,
+      _isValid: typeof config.isValid === "function" ? function () {
+        return (!project || !global.CM || global.CM.project === project) && config.isValid() !== false;
+      } : null,
       setTitle: function (title) {
         titleText.textContent = title || "";
         root.setAttribute("aria-label", title || "Window");
@@ -352,7 +355,7 @@
         openWindows.forEach(function (other) {
           other.element.classList.toggle("focused", other === win);
         });
-        if (!root.contains(doc.activeElement)) {
+        if (!root.contains((win.document || doc).activeElement)) {
           // preventScroll is not supported everywhere; focus still moves.
           try { root.focus({ preventScroll: true }); } catch (_error) { root.focus(); }
         }
@@ -360,6 +363,9 @@
       close: function () {
         if (closed) return;
         closed = true;
+        var active = (win.document || doc).activeElement;
+        if (active && root.contains(active) && typeof active.blur === "function") active.blur();
+        if (builder.popupControls) builder.popupControls.settle(root);
         openWindows.delete(id);
         delete warnedValidityFailures[id];
         cleanups.splice(0).reverse().forEach(function (cleanup) {
@@ -372,6 +378,7 @@
         focusTopWindow();
       },
       _clamp: function () {
+        if (win.isPoppedOut && win.isPoppedOut()) return;
         var vw = global.innerWidth || viewportWidth;
         var vh = global.innerHeight || viewportHeight;
         if (maximized) {
@@ -405,6 +412,15 @@
     });
 
     var maximizeButton = null;
+    if (builder.popouts) {
+      var popoutButton = titleButton("Pop out", "M9 1h6v6h-2V4.4L7 10.4 5.6 9 11.6 3H9zM2 3h5v2H4v7h7V9h2v5H2z", function () {
+        if (win.isPoppedOut()) win.returnToMain();
+        else win.popOut();
+      });
+      popoutButton.classList.add("zoidium-window-popout");
+      if (config.popout !== false) actions.appendChild(popoutButton);
+      builder.popouts.attach(win, config, layer, popoutButton);
+    }
     if (config.collapsible !== false) {
       actions.appendChild(titleButton("Collapse", "M3 7h10v2H3z", function () {
         win.setCollapsed(!collapsed);
@@ -419,7 +435,7 @@
     actions.appendChild(titleButton("Close", "M4.2 3 8 6.8 11.8 3 13 4.2 9.2 8l3.8 3.8-1.2 1.2L8 9.2 4.2 13 3 11.8 6.8 8 3 4.2z", function () {
       win.close();
     }));
-    titlebar.addEventListener("dblclick", function () { win.setCollapsed(!collapsed); });
+    titlebar.addEventListener("dblclick", function (event) { if (!isInteractive(event.target, titlebar) && !(win.isPoppedOut && win.isPoppedOut())) win.setCollapsed(!collapsed); });
 
     function isInteractive(target, handle) {
       var node = target;
@@ -432,7 +448,7 @@
 
     // Dragging by the title bar (or a custom chrome's drag handle).
     function startDrag(event) {
-      if (event.button !== 0) return;
+      if (event.button !== 0 || (win.isPoppedOut && win.isPoppedOut())) return;
       if (event.currentTarget !== titlebar && isInteractive(event.target, event.currentTarget)) return;
       if (maximized) return;
       if (activePointerCleanup) activePointerCleanup();
@@ -515,12 +531,33 @@
       });
     }
 
+    root.addEventListener("zoidium:before-host-change", function () {
+      if (activePointerCleanup) activePointerCleanup();
+    });
     root.addEventListener("pointerdown", function () { win.focus(); }, true);
     // Keep editor shortcuts (play, delete, frame keys) from firing while a
     // window has focus. Escape closes the window unless a control consumed it.
     // Ctrl+Z, Ctrl+Y and Ctrl+S still reach CM3's editor handler, which skips
     // them itself while the focus is in a text field, so undo, redo and save
     // work right after an edit made in a window.
+    // Popup key events cannot bubble to the opener. Keep text editor undo
+    // local, and send unconsumed project commands through CM3's own handler.
+    root.addEventListener("keydown", function (event) {
+      if (!win.isPoppedOut || !win.isPoppedOut() || event.defaultPrevented) return;
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || !/^[zys]$/i.test(event.key || "")) return;
+      if (event.target.closest?.("input,textarea,[contenteditable]:not([contenteditable='false'])")) return;
+      if (global.CM && typeof global.CM.keydown === "function") {
+        // Keep the original target: CM3 checks whether it is an input.
+        global.CM.keydown({
+          target: event.target,
+          key: event.shiftKey && event.key.toLowerCase() === "z" ? "y" : event.key,
+          code: event.code, ctrlKey: true, shiftKey: event.shiftKey, altKey: false,
+          preventDefault: function () { event.preventDefault(); },
+          stopPropagation: function () { event.stopPropagation(); },
+        });
+        event.stopPropagation();
+      }
+    });
     var EDITOR_COMMAND_KEYS = { z: true, y: true, s: true };
     ["keydown", "keyup", "keypress"].forEach(function (type) {
       root.addEventListener(type, function (event) {

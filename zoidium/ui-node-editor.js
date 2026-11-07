@@ -95,6 +95,9 @@
       disposers: [],
     };
     parts.createView(cx);
+    var host = global.ZoidiumUIBuilder?.popouts?.environment(cx.root);
+    if (host) Object.defineProperty(cx, "doc", { get: function () { return host.document; } });
+    cx.animationWindow = host || global;
     parts.createFields(cx);
     parts.createMenu(cx);
     cx.loadRecipe = function (recipe) {
@@ -724,10 +727,21 @@
     listen(cx.root, "keyup", onRootKeyUp);
     listen(cx.root, "keypress", onRootKeyPress);
     listen(cx.root, "blur", function () { spacePan = false; });
-    listen(doc, "pointerdown", onDocumentPointerDown, true);
+    if (host) {
+      host.listen("document", "pointerdown", onDocumentPointerDown, true);
+      host.onHostChange(function () {
+        cancelGesture(); cx.closeMenu(false);
+        observeResize();
+        cx.measure(); cx.redrawLinks();
+      });
+    } else listen(doc, "pointerdown", onDocumentPointerDown, true);
 
-    if (typeof global.ResizeObserver === "function") {
-      resizeObserver = new global.ResizeObserver(function () {
+    function observeResize() {
+      if (resizeObserver) resizeObserver.disconnect();
+      resizeObserver = null;
+      var view = cx.root.ownerDocument?.defaultView || global;
+      if (typeof view.ResizeObserver !== "function") return;
+      resizeObserver = new view.ResizeObserver(function () {
         if (cx.destroyed) return;
         cx.measure();
         if (cx.pendingFrame) cx.frameNodes(null);
@@ -735,6 +749,7 @@
       });
       resizeObserver.observe(cx.root);
     }
+    observeResize();
 
     // ---- public surface ------------------------------------------------
 
@@ -760,9 +775,10 @@
         resizeObserver = null;
       }
       if (cx.linkFrame) {
-        global.cancelAnimationFrame(cx.linkFrame);
+        cx.animationWindow.cancelAnimationFrame(cx.linkFrame);
         cx.linkFrame = 0;
       }
+      if (host) host.dispose();
       cx.root.remove();
       cx.nodeEls.clear();
       cx.socketEls.clear();

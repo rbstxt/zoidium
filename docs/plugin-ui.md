@@ -93,6 +93,32 @@ raises the window, the window is kept reachable when the browser resizes, and
 key events inside a window do not reach CM3 editor shortcuts. Geometry,
 collapsed and maximized state persist under `persistKey`.
 
+## Pop-out windows
+
+**Pop out** moves the same live DOM into a browser window. **Return to editor**
+and the browser window's close button return it to the floating layer.
+The editor's **Close** button disposes the editor in either location.
+Closing the main page closes its popups.
+`popout: false` hides the control for dialogs that must stay in the main page.
+
+Window handles expose these members for code that follows the current host.
+
+| Member | Behavior |
+| --- | --- |
+| `win.document`, `win.window` | Current owner document and browser window. Read these when handling input. |
+| `win.popOut()` | Opens the popup synchronously. Returns `false` when blocked. Call from a user gesture. |
+| `win.returnToMain()` | Returns the live editor and closes its popup. |
+| `win.isPoppedOut()` | Reports whether the editor occupies a popup. |
+| `win.listen("document", type, fn, options)` | Registers a listener that moves between owner documents. Returns a disposer. |
+| `win.listen("window", type, fn, options)` | Registers a listener that moves between owner windows. Returns a disposer. |
+| `win.onHostChange(fn)` | Runs after adoption. Receives the new and previous browser windows. Returns a disposer. |
+| `win.requestAnimationFrame(fn)`, `win.cancelAnimationFrame(id)` | Schedules or cancels work on the current host. Pending work moves with the editor. |
+
+The window manager removes these listeners and pending requests on close.
+For plugin-owned canvases, read `canvas.ownerDocument.defaultView.devicePixelRatio`
+at draw time. Use `win.onHostChange` to refresh canvas measurements and observers.
+For menus, pass their anchor or owner element to `context.ui.openMenu`.
+
 ## Native property rows: `context.ui.properties()`
 
 ```js

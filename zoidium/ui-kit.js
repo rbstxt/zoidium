@@ -82,6 +82,7 @@
       resizable: false,
       maximizable: false,
       collapsible: false,
+      popout: false,
       className: "zoidium-confirm",
       mount: function (body, mounted) {
         var text = note(message).element;

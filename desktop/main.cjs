@@ -730,6 +730,27 @@ function createRendererConsoleLogger() {
   };
 }
 
+// Empty editor popouts inherit the opener's origin, but receive no preload
+// bridge or Node access. All child navigations use the same local URL policy.
+function installPopupPolicy(contents) {
+  contents.setWindowOpenHandler(({ url, frameName }) => {
+    if (url === "about:blank" && String(frameName || "").startsWith("zoidium-popout-")) return {
+      action: "allow",
+      overrideBrowserWindowOptions: { webPreferences: {
+        contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true,
+        preload: "",
+      } },
+    };
+    if (isLocalUrl(url)) return { action: "allow" };
+    openExternal(url);
+    return { action: "deny" };
+  });
+  contents.on("will-navigate", (event, url) => {
+    if (isLocalUrl(url)) return;
+    event.preventDefault(); openExternal(url);
+  });
+}
+
 async function createWindow() {
   const port = server ? Number(new URL(serverOrigin).port) : await startServer();
   const state = readWindowState();
@@ -752,16 +773,14 @@ async function createWindow() {
   if (state?.maximized) window.maximize();
   window.on("close", () => saveWindowState(window));
 
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    if (isLocalUrl(url)) return { action: "allow" };
-    openExternal(url);
-    return { action: "deny" };
+  installPopupPolicy(window.webContents);
+  const popupWindows = new Set();
+  window.webContents.on("did-create-window", popup => {
+    popupWindows.add(popup);
+    popup.on("closed", () => popupWindows.delete(popup));
+    installPopupPolicy(popup.webContents);
   });
-  window.webContents.on("will-navigate", (event, url) => {
-    if (isLocalUrl(url)) return;
-    event.preventDefault();
-    openExternal(url);
-  });
+  window.on("closed", () => { for (const popup of popupWindows) popup.destroy(); });
   window.webContents.on("console-message", createRendererConsoleLogger());
   installPermissionHandlers(window.webContents.session);
   window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {

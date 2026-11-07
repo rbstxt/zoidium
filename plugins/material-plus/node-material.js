@@ -424,7 +424,7 @@ function activate(context) {
   function openEditor(material) {
     if (!ids.has(material)) ids.set(material, ++nextId);
     const CM = context.window.CM;
-    return context.ui.openWindow({ id: "nodes:" + ids.get(material), title: "Node Editor", width: 1000, height: 620, placement: "center", maximizable: true, persistKey: "node-editor", isValid: () => materials.has(material), mount(body) {
+    return context.ui.openWindow({ id: "nodes:" + ids.get(material), title: "Node Editor", width: 1000, height: 620, placement: "center", maximizable: true, persistKey: "node-editor", isValid: () => materials.has(material) && material.parentProject === CM.project, mount(body) {
       body.style.display = "flex";
       if (!doc.getElementById("zoidium-node-curves-style")) {
         const style = doc.createElement("style"); style.id = "zoidium-node-curves-style";

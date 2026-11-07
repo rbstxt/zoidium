@@ -31,7 +31,7 @@ function installTextureControls({ PZ, doc, register, curves, commit }) {
     const repsLabel = labeled("Repeat", repetitions);
     for (const el of [interpolation, space, cycle]) el.classList.add("zsp-option");
     const update = box.pz_update;
-    box.pz_update = () => { update(); const value = read(); interpolation.value = value.interpolation || "linear"; space.value = value.space || "srgb"; cycle.value = value.cyclic ? "on" : "off"; for (const el of repsLabel) el.hidden = !value.cyclic; if (doc.activeElement !== repetitions) repetitions.value = value.repetitions || 1; };
+    box.pz_update = () => { update(); const value = read(); interpolation.value = value.interpolation || "linear"; space.value = value.space || "srgb"; cycle.value = value.cyclic ? "on" : "off"; for (const el of repsLabel) el.hidden = !value.cyclic; if (repetitions.ownerDocument.activeElement !== repetitions) repetitions.value = value.repetitions || 1; };
     box.pz_update(); return box;
   });
   register("shader-plus/curve", PZ.property.type.TEXT, property => {
@@ -58,7 +58,7 @@ function installTextureControls({ PZ, doc, register, curves, commit }) {
     root.pz_update = () => {
       if (!widget || shownChannels !== raw().channels || shownStyle !== (property.definition.zoidiumShader?.editor || "graph")) build();
       widget.pz_update(); const state = parseCurve(property.get(), curves); channel.value = state.channels;
-      ranges.forEach((input, i) => { if (doc.activeElement !== input) input.value = state.range[i]; });
+      ranges.forEach((input, i) => { if (input.ownerDocument.activeElement !== input) input.value = state.range[i]; });
     };
     root.dispose = () => widget?.dispose?.();
     root.pz_update(); return root;

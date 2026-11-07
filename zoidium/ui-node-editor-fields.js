@@ -527,7 +527,7 @@
 
       function scheduleLinks() {
         if (cx.linkFrame || cx.destroyed) return;
-        cx.linkFrame = global.requestAnimationFrame(function () {
+        cx.linkFrame = (cx.animationWindow || global).requestAnimationFrame(function () {
           cx.linkFrame = 0;
           redrawLinks();
         });

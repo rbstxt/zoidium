@@ -469,7 +469,7 @@ test("graphEditor mounts when the host wraps splitPanel as a factory", () => {
   assert.equal(panel.title, "Graph editor");
 });
 
-test("graph panels style whichever document adopts them", () => {
+test("graph panels style and schedule frames in whichever document adopts them", () => {
   const appended = [];
   function makeDoc() {
     const store = {};
@@ -478,6 +478,8 @@ test("graph panels style whichever document adopts them", () => {
       head: { appendChild: (el) => appended.push(el) },
       getElementById: (id) => store[id] || null,
       __store: store,
+      frames: 0,
+      defaultView: { requestAnimationFrame() { this.frames = (this.frames || 0) + 1; return this.frames; } },
     };
   }
   const docA = makeDoc();
@@ -491,7 +493,9 @@ test("graph panels style whichever document adopts them", () => {
     _lastRulerFrame: 5,
     _legendTick: 1,
   };
+  Object.setPrototypeOf(self, proto);
   proto.update.call(self);
+  assert.equal(docA.defaultView.frames, 1);
   assert.equal(appended.length, 1);
   assert.equal(appended[0].id, GraphPlus.__test.STYLE_ID);
   docA.__store[appended[0].id] = appended[0];
@@ -500,6 +504,7 @@ test("graph panels style whichever document adopts them", () => {
   self.el.ownerDocument = docB;
   proto.update.call(self);
   assert.equal(appended.length, 2, "adopting document gets the styles");
+  assert.equal(docB.defaultView.frames, 1, "new frames use the popup's animation clock");
 });
 
 // --- live rebuild ------------------------------------------------------------

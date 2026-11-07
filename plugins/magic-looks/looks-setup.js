@@ -527,7 +527,7 @@ function buildFourway(effect, session, tool, body, widgets, afterCommit) {
 }
 
 // Window body. Returns a cleanup that destroys widgets and listeners.
-function buildBody(body, effect, session, view) {
+function buildBody(body, effect, session, view, handle) {
   if (effect.looksInstances) {
     const require = ZoidiumPluginApis.modules.createRequire(state.getAsset, { root: "./plugins/magic-looks/" });
     return require("./looks-instance-ui.js").mount({ state, body, effect, session, view,
@@ -795,7 +795,7 @@ function buildBody(body, effect, session, view) {
     // Rebuilding controls must not move the user's scroll or drop a typed
     // field's focus. Remember the control's position within this tool panel.
     const fields = Array.from(root.querySelectorAll("input, select, textarea, button, canvas"));
-    const active = document.activeElement;
+    const active = root.ownerDocument.activeElement;
     const focusIndex = fields.indexOf(active);
     const focusTool = root.dataset.tool;
     const selection = active && typeof active.selectionStart === "number"
@@ -829,8 +829,12 @@ function buildBody(body, effect, session, view) {
   function onDown() { busy = true; }
   function onUp() { busy = false; }
   root.addEventListener("pointerdown", onDown);
-  window.addEventListener("pointerup", onUp);
-  window.addEventListener("pointercancel", onUp);
+  const releases = ["pointerup", "pointercancel", "blur"].map(type => {
+    if (handle?.listen) return handle.listen("window", type, onUp);
+    window.addEventListener(type, onUp);
+    return () => window.removeEventListener(type, onUp);
+  });
+  root.addEventListener("lostpointercapture", onUp);
 
   // Undo/redo and external edits rebuild the contents. Our own commits update
   // lastSig in session.onCommit, so they do not trigger a rebuild.
@@ -846,8 +850,8 @@ function buildBody(body, effect, session, view) {
     clearInterval(timer);
     destroyWidgets();
     root.removeEventListener("pointerdown", onDown);
-    window.removeEventListener("pointerup", onUp);
-    window.removeEventListener("pointercancel", onUp);
+    releases.forEach(release => release());
+    root.removeEventListener("lostpointercapture", onUp);
     session.onCommit = null;
   };
 }
@@ -884,8 +888,8 @@ function openSetup(effect) {
       height: 620,
       minWidth: effect.looksInstances ? 360 : 300,
       minHeight: 260,
-      mount: function (body) {
-        return buildBody(body, effect, session, view);
+      mount: function (body, handle) {
+        return buildBody(body, effect, session, view, handle);
       },
       isValid: function () { return effectInProject(effect); },
       onClose: function () {
