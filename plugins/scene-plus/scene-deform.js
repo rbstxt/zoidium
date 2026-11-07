@@ -346,11 +346,15 @@ function createDeformationSupport(PZ, THREE, editor) {
           }
         }
       }
+      // Every task in this synchronous pass sees the same properties and world
+      // transforms. Share their historical reads across characters and nested
+      // Delays, then discard them before another pass or a property edit.
+      const sampling = { commands: new Map(), worlds: new Map() };
       for (const [index, task] of tasks.entries()) {
         const chain = task.chain.map(entry => ({ ...entry, bounds: bounds.get(entry.node) }));
         for (const entry of chain) { entry.effector._fieldBounds = entry.bounds; entry.effector._effectorFrame = task.frame; }
         meshDeformer.deformMesh(task.mesh, chain, task.frame, task.polygonCount, task.legacy,
-          (index + 1) / (tasks.length + 1) * 0.001);
+          (index + 1) / (tasks.length + 1) * 0.001, sampling);
       }
       return new Set(tasks.map(task => task.mesh));
     } finally { tasks = null; }
