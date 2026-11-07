@@ -9,6 +9,7 @@ const PlayerPlus = (() => {
     { value: 0.25, label: "1/4 quality" },
     { value: 0.125, label: "1/8 quality" },
   ];
+  const SPEED_OPTIONS = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
   const state = {
     active: false,
     installation: null,
@@ -21,6 +22,8 @@ const PlayerPlus = (() => {
     pauseIcon: null,
     renderOnceButton: null,
     qualitySelect: null,
+    speedSelect: null,
+    speedChanged: null,
     toolbarObserver: null,
     style: null,
     quality: 1,
@@ -86,9 +89,27 @@ const PlayerPlus = (() => {
     style.id = STYLE_ID;
     style.textContent = `
       .zoidium-player-plus-toolbar {
-        padding-left: 70px !important;
-        padding-right: 125px !important;
+        display: flex !important;
+        align-items: center;
+        gap: 2px;
+        overflow-x: auto;
+        padding: 5px !important;
         position: absolute !important;
+      }
+
+      .zoidium-player-plus-toolbar > * {
+        flex-shrink: 0;
+      }
+
+      .zoidium-player-plus-toolbar > button {
+        box-sizing: border-box;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 29px;
+      }
+
+      .zoidium-player-plus-toolbar > span {
+        width: 8px !important;
       }
 
       .zoidium-player-plus-pause,
@@ -101,7 +122,7 @@ const PlayerPlus = (() => {
         left: 5px;
         margin: 0 !important;
         padding: 0 !important;
-        position: absolute !important;
+        position: static !important;
         top: 5px;
         width: 30px;
       }
@@ -143,6 +164,7 @@ const PlayerPlus = (() => {
         fill: var(--zui-value);
       }
 
+      .zoidium-player-plus-speed,
       .zoidium-player-plus-quality {
         background-color: var(--zui-bg-input);
         border: 1px solid var(--zui-border);
@@ -156,18 +178,27 @@ const PlayerPlus = (() => {
         line-height: 25px;
         min-width: 112px;
         padding: 0 4px;
-        position: absolute;
+        position: static;
+        order: 2;
         right: 5px;
         text-align: left;
         top: 6px;
         z-index: 2;
       }
 
+      .zoidium-player-plus-speed {
+        order: 1;
+        min-width: 92px;
+        width: 92px;
+      }
+
+      .zoidium-player-plus-speed:focus-visible,
       .zoidium-player-plus-quality:focus-visible {
         border-color: var(--zui-accent);
         outline: 0;
       }
 
+      .zoidium-player-plus-speed option,
       .zoidium-player-plus-quality option {
         background-color: var(--zui-bg-input);
         color: var(--zui-text);
@@ -408,18 +439,51 @@ const PlayerPlus = (() => {
     state.qualitySelect = select;
   }
 
+  function updateSpeedSelect() {
+    const select = state.speedSelect;
+    if (!select) return;
+    const speed = state.editor?.playback?.speed ?? 0;
+    // J and L also select reverse and faster shuttle speeds.
+    const values = SPEED_OPTIONS.includes(speed) ? SPEED_OPTIONS : [...SPEED_OPTIONS, speed];
+    select.textContent = "";
+    for (const value of values) {
+      const option = state.document.createElement("option");
+      option.value = String(value);
+      option.textContent = value === 0 ? "Paused" : value + "x";
+      select.appendChild(option);
+    }
+    select.value = String(speed);
+  }
+
+  function createSpeedSelect(toolbar) {
+    const select = state.document.createElement("select");
+    select.className = "pz-inputbox zoidium-player-plus-speed";
+    select.title = "Playback speed";
+    select.setAttribute("aria-label", "Playback speed");
+    select.addEventListener("change", () => {
+      const speed = Number(select.value);
+      if (SPEED_OPTIONS.includes(speed) && state.editor?.playback) state.editor.playback.speed = speed;
+    });
+    toolbar.appendChild(select);
+    state.speedSelect = select;
+    updateSpeedSelect();
+  }
+
   function installControls(toolbar) {
     if (!toolbar) return;
     if (toolbar.dataset.zoidiumPlayerPlus === "true") {
       const pauseButton = toolbar.querySelector(".zoidium-player-plus-pause");
       const renderOnceButton = toolbar.querySelector(".zoidium-player-plus-render-once");
       const qualitySelect = toolbar.querySelector(".zoidium-player-plus-quality");
-      if (pauseButton && renderOnceButton && qualitySelect) {
+      const speedSelect = toolbar.querySelector(".zoidium-player-plus-speed");
+      if (pauseButton && renderOnceButton && qualitySelect && speedSelect) {
         state.toolbar = toolbar;
         state.pauseButton = pauseButton;
         state.pauseIcon = pauseButton.querySelector("svg");
         state.renderOnceButton = renderOnceButton;
         state.qualitySelect = qualitySelect;
+        state.speedSelect = speedSelect;
+        updateSpeedSelect();
         updatePauseButton();
         return;
       }
@@ -431,6 +495,7 @@ const PlayerPlus = (() => {
     createPauseButton(toolbar);
     createRenderOnceButton(toolbar);
     createQualitySelect(toolbar);
+    createSpeedSelect(toolbar);
     applyQualityToAllViewports();
   }
 
@@ -458,11 +523,13 @@ const PlayerPlus = (() => {
     state.pauseButton?.remove();
     state.renderOnceButton?.remove();
     state.qualitySelect?.remove();
+    state.speedSelect?.remove();
     state.toolbar = null;
     state.pauseButton = null;
     state.pauseIcon = null;
     state.renderOnceButton = null;
     state.qualitySelect = null;
+    state.speedSelect = null;
   }
 
   async function activate(context) {
@@ -477,6 +544,8 @@ const PlayerPlus = (() => {
     state.document = context.document || document;
     state.PZ = context.PZ || state.window.PZ;
     state.quality = readStoredQuality();
+    state.speedChanged = updateSpeedSelect;
+    state.editor?.playback?.onSpeedChanged?.watch(state.speedChanged);
     installStyle();
     installViewportPatches();
     watchForToolbar();
@@ -490,6 +559,8 @@ const PlayerPlus = (() => {
     if (!state.active) return;
     state.active = false;
     state.installation.active = false;
+    state.editor?.playback?.onSpeedChanged?.unwatch(state.speedChanged);
+    state.speedChanged = null;
     state.toolbarObserver?.disconnect();
     state.toolbarObserver = null;
     setDrawingPaused(false);

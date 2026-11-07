@@ -102,3 +102,10 @@ Selected keys show handles. Short handles have a minimum display length without 
 | Double-click a handle | Resets both handles to the default flat ease. |
 
 Each handle gesture creates one undo step. With multiple axes selected, value drags apply the same value delta to every selected key.
+
+## View scale
+
+Fit and wheel input use the same zoom limits. The X range is 0.0001 to 500 frames per CSS pixel.
+The Y range is 0.000001 to 10000 displayed units per CSS pixel.
+The frame ruler and grid use the same tick positions. Fractional labels retain their values at close zoom.
+View scale changes do not change keyframe positions or saved project data.

@@ -376,7 +376,7 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
   pill("frame <b>" + cf + "</b>");
   pill("curves <b>" + n + "</b>");
   pill("sel <b>" + sel + "</b>", sel > 0);
-  pill("zoom <b>" + (Math.round(this.zoomX * 100) / 100) + " / " + (Math.round(this.zoomY * 1000) / 1000) + "</b>");
+  pill("zoom <b>" + Number(this.zoomX.toPrecision(4)) + " / " + Number(this.zoomY.toPrecision(4)) + "</b>");
   pill((this.options.snap ? "snap ON" : "snap OFF") + " · " + (this.options.normalize ? "norm ON" : "norm OFF"), this.options.snap);
   if (extra) pill(escapeHtml(extra));
   else pill("LMB:select · Space/MMB:pan · click:deselect · RMB:scrub · dblclick:add · F:frame · \\:fit");

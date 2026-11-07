@@ -3,12 +3,12 @@
   "id": "player-plus",
   "name": "Player+",
   "author": "Zoidium",
-  "version": "14",
+  "version": "15",
   "kind": "extension",
   "modules": [
     {
       "id": "player-controls",
-      "source": "./plugins/player-plus/player-plus.js?v=14"
+      "source": "./plugins/player-plus/player-plus.js?v=15"
     }
   ]
 }

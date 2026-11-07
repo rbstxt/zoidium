@@ -1,4 +1,5 @@
 "use strict";
+const { clampZoom, ticks, tickLabel } = require("./view.js");
 const { expressionOf } = require("./property-state.js");
 
 const { controllers } = require("./selection.js");
@@ -51,11 +52,10 @@ GraphGrid.prototype.createText = function () {
   return e;
 };
 GraphGrid.prototype.ensure = function (lines, texts) {
-  var need = lines + texts;
-  while (this.el.children.length < need) {
-    if (this.el.querySelectorAll("line").length < lines) this.el.appendChild(this.createGridLine());
-    else this.el.appendChild(this.createText());
-  }
+  var lineCount = this.el.querySelectorAll("line").length;
+  var textCount = this.el.querySelectorAll("text").length;
+  while (lineCount++ < lines) this.el.appendChild(this.createGridLine());
+  while (textCount++ < texts) this.el.appendChild(this.createText());
 };
 GraphGrid.prototype.update = function () {
   var g = this.graph;
@@ -63,7 +63,7 @@ GraphGrid.prototype.update = function () {
   var dim = this.options.dimension;
   var zoom = dim === 0 ? g.zoomX : g.zoomY;
   if (!(zoom > 0)) return;
-  var step = this.options.gridUnit * Math.pow(2, Math.ceil(Math.log2(zoom)));
+  var step = ticks(zoom).minor;
   var sizePx = dim === 0 ? g.width : g.height;
   var center = dim === 0 ? g.centerX : g.centerY;
   var viewSize = sizePx * zoom;
@@ -71,7 +71,7 @@ GraphGrid.prototype.update = function () {
   var end = Math.ceil((center + 0.5 * viewSize) / step);
   var count = end - start + 1;
   if (count < 1 || count > 500) count = Math.min(Math.max(count, 1), 500);
-  var majors = Math.ceil(count / 2) + 1;
+  var majors = Math.ceil(count / 5) + 1;
   this.ensure(count, majors);
   var lines = this.el.querySelectorAll("line");
   var texts = this.el.querySelectorAll("text");
@@ -83,7 +83,7 @@ GraphGrid.prototype.update = function () {
     var a = idx * step;
     var line = lines[s];
     if (!line) break;
-    var isMajor = (idx % 2) === 0;
+    var isMajor = (idx % 5) === 0;
     var isZero = idx === 0;
     var col = isZero ? "var(--zui-text-faint)" : isMajor ? "var(--zui-hover)" : "var(--zui-bg)";
     line.setAttributeNS(null, "stroke", col);
@@ -111,7 +111,7 @@ GraphGrid.prototype.update = function () {
         ty.setAttributeNS(null, "font-size", "10");
         ty.setAttributeNS(null, "fill", "var(--zui-text-bright)");
         var v = -a;
-        ty.textContent = Math.abs(v) >= 100 ? Math.round(v).toString() : (Math.round(v * 10) / 10).toString();
+        ty.textContent = tickLabel(v);
       }
     }
   }
@@ -489,8 +489,8 @@ PZ.ui.graph.prototype.fitAll = function (onlySelected) {
   l -= padX; r += padX; t -= padY; b += padY;
   this.centerX = 0.5 * (l + r);
   this.centerY = 0.5 * (t + b);
-  if (this.width > 1) this.zoomX = clamp((r - l) / this.width, 0.02, 200);
-  if (this.height > 1) this.zoomY = clamp((b - t) / this.height, 0.001, 5000);
+  if (this.width > 1) this.zoomX = clampZoom((r - l) / this.width, "x");
+  if (this.height > 1) this.zoomY = clampZoom((b - t) / this.height, "y");
   this.updateViewBox();
   this.updateStatus?.();
 };
@@ -553,12 +553,8 @@ PZ.ui.graph.prototype.drawRuler = function () {
   ctx.fillRect(0, 0, w, h);
   var vx = this.viewX(), vw = Math.max(this.viewW(), 1e-6);
   var pxPerF = w / vw;
-  var steps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000, 2000];
-  var step = steps[steps.length - 1];
-  for (var si = 0; si < steps.length; si++) {
-    if (steps[si] * pxPerF >= 64) { step = steps[si]; break; }
-  }
-  var minor = step >= 5 ? step / 5 : step;
+  var interval = ticks(1 / pxPerF);
+  var step = interval.major, minor = interval.minor;
   // playback range shade
   var tf = totalFrames(this.editor);
   var rx0 = (0 - vx) / vw * w, rx1 = (tf - vx) / vw * w;
@@ -590,7 +586,7 @@ PZ.ui.graph.prototype.drawRuler = function () {
   ctx.stroke();
   for (var g = f0; g <= vx + vw; g += step) {
     var gx = (g - vx) / vw * w;
-    ctx.fillText(String(Math.round(g)), gx + 4, 3);
+    ctx.fillText(tickLabel(g), gx + 4, 3);
   }
   // Playhead marker follows the editor value color.
   var pf = currentFrame(this.editor);
