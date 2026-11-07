@@ -5,7 +5,7 @@ const NUMERIC = ["slider", "seed"], OPTIONS = ["dropdown", "staticDropdown"];
 const list = text => String(text).split(/[\n;]/).map(s => s.trim()).filter(Boolean);
 function installEditor({ context, patch, presetFont }) {
   const { PZ, editor: CM, document: doc, window: win } = context;
-  const rows = new Set();
+  const rows = new Set(), connectedRows = new WeakSet();
   const groups = PZ.zoidium?.propertyGroups;
   let openPanel = null;
   function uniqueName(base) {
@@ -31,7 +31,12 @@ function installEditor({ context, patch, presetFont }) {
   context.lifecycle.onDispose(() => { for (const entry of added) { const i = menu.indexOf(entry); if (i >= 0) menu.splice(i, 1); } });
   function effectOf(p) { return p?.parent instanceof PZ.objectList && p.parent.parent instanceof PZ.effect.shader ? p.parent.parent : null; }
   function notify(effect) { groups?.refresh?.(CM, effect?.customProperties); effect.fragmentShaderNeedsUpdate = true; CM.project.ui?.onChanged?.update(); CM.mainViewport?.requestRender?.(); }
-  function snapshot(p) { return { definition: clone(p.definition), name: p.properties.name.get() }; }
+  function historyDefinition(value) {
+    const definition = clone(value), meta = definition.zoidiumPropertyGroup;
+    if (meta) { delete meta.collapsed; if (!Object.keys(meta).length) delete definition.zoidiumPropertyGroup; }
+    return definition;
+  }
+  function snapshot(p) { return { definition: historyDefinition(p.definition), name: p.properties.name.get() }; }
   function apply(p, state) {
     const collapsed = groups?.meta(p).collapsed;
     for (const key of Object.keys(p.definition)) delete p.definition[key];
@@ -53,6 +58,7 @@ function installEditor({ context, patch, presetFont }) {
   function edit(p, state) {
     if (CM.history.operation !== null) throw new Error("Finish the current edit before changing property settings");
     const before = snapshot(p);
+    state = { ...state, definition: historyDefinition(state.definition) };
     if (JSON.stringify(before) === JSON.stringify(state)) return;
     CM.history.startOperation();
     try { apply(p, state); CM.history.pushCommand(exchange, { address: p.getAddress(), state: before }); CM.history.finishOperation(); }
@@ -224,7 +230,7 @@ function installEditor({ context, patch, presetFont }) {
     if (!effect || !this.options.showPropertyControls) return row;
     const view = this;
     row.classList.add("zsp-property");
-    rows.add({ row, p, effect });
+    rows.add(new WeakRef(row));
     row.oncontextmenu = event => { event.preventDefault(); event.stopPropagation(); context.ui.openMenu({ owner: row, x: event.clientX, y: event.clientY, items: actions(view, row, p) }); };
     sync(); return row;
   });
@@ -234,10 +240,13 @@ function installEditor({ context, patch, presetFont }) {
   } }));
   function sync() {
     if (openPanel && (!openPanel.row.isConnected || !effectOf(openPanel.p))) closeSettings();
-    for (const entry of rows) {
-      const { row, p, effect } = entry;
-      if (!row.isConnected) { if (entry.seenConnected) rows.delete(entry); continue; }
-      entry.seenConnected = true;
+    for (const ref of rows) {
+      const row = ref.deref();
+      if (!row) { rows.delete(ref); continue; }
+      if (!row.isConnected) { if (connectedRows.has(row)) rows.delete(ref); continue; }
+      connectedRows.add(row);
+      const p = row.pz_object, effect = effectOf(p);
+      if (!effect) { rows.delete(ref); continue; }
       const meta = p.definition.zoidiumShader || {};
       const when = meta.visibleWhen, controller = when && effect.customProperties.find(q => q.properties.name.get() === when.property);
       const frame = CM.playback.currentFrame - p.frameOffset;
@@ -248,7 +257,7 @@ function installEditor({ context, patch, presetFont }) {
     }
   }
   const timer = win.setInterval(sync, 100);
-  context.lifecycle.onDispose(() => { win.clearInterval(timer); closeSettings(); for (const { row } of rows) { row.hidden = false; row.parentElement?.querySelectorAll(".zsp-settings").forEach(el => el.remove()); } rows.clear(); });
+  context.lifecycle.onDispose(() => { win.clearInterval(timer); closeSettings(); for (const ref of rows) { const row = ref.deref(); if (!row) continue; row.hidden = false; row.parentElement?.querySelectorAll(".zsp-settings").forEach(el => el.remove()); } rows.clear(); });
   // New keys created by the discrete editors use hold. Existing keys and
   // user-selected tweens keep their values, including history replay.
   for (const method of ["startEdit", "toggleKeyframe"]) patch(PZ.ui.properties.prototype, method, original => function discreteKey(p) {

@@ -59,3 +59,23 @@ test("panels generated in another document receive one stylesheet", () => {
   assert.equal(other.head.querySelectorAll("style").length, 1);
   assert.equal(other.head.firstChild.id, "zoidium-property-groups-style");
 });
+test("Shader+ definition history preserves current collapse and ignores a fold-only settings change", () => {
+  const { PZ, api, editor, list, doc } = host();
+  Object.setPrototypeOf(list.parent, PZ.effect.shader.prototype);
+  const { installEditor } = require("../plugins/shader-plus/editor");
+  const controller = installEditor({ context: { PZ, editor, document: doc, window: { setInterval() {}, clearInterval() {} },
+    lifecycle: { onDispose() {} } }, patch(prototype, key, wrap) { prototype[key] = wrap(prototype[key]); }, presetFont() {} });
+  api.setGroup(editor, list[0], "Controls");
+  const state = () => ({ definition: JSON.parse(JSON.stringify(list[0].definition)), name: list[0].properties.name.get() });
+  const next = state(); next.definition.zoidiumShader = { help: "Updated tooltip" };
+  controller.edit(list[0], next);
+  api.collapse(editor, list, "Controls"); editor.history.undo();
+  assert.equal(api.meta(list[0]).collapsed, true);
+  api.collapse(editor, list, "Controls"); editor.history.redo();
+  assert.equal(api.meta(list[0]).collapsed, false);
+  const before = editor.history.undoStack.length;
+  const unchanged = state(); unchanged.definition.zoidiumPropertyGroup.collapsed = true;
+  controller.edit(list[0], unchanged);
+  assert.equal(editor.history.undoStack.length, before);
+  assert.equal(api.meta(list[0]).collapsed, false);
+});
