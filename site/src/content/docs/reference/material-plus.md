@@ -28,7 +28,7 @@ Material+ registers **Matcap**, **PBR+**, **UV Custom**, **Node Material**, and 
 | **Reflection intensity** | Number | ≥ 0 | `1` | Multiplier for environment reflection. |
 | **Transparency** | Choice | **off**, **on** | **off** | Enables alpha transparency. |
 | **Opacity** | Number | 0 to 1 | `1` | Opacity multiplier. |
-| **Blending** | Choice | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | Blend operation against the destination image. |
+| **Blending** | Choice | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | Blend operation against the destination image. It usually has no visible effect while **Transparency** is off. |
 | **Render side** | Choice | **front**, **back**, **both** | **front** | Faces included in rendering. |
 | **Wrap** | Choice | **none**, **tile**, **reflect** | **tile** | Clamps, repeats, or mirrors image coordinates. |
 | **Repeat** | 2D vector | — | `[1, 1]` | U and V texture repetition factors. |
@@ -105,7 +105,7 @@ Node Material uses the surface defaults below, with **Bump Strength** `1` and **
 | **Brightness** | Number | ≥ 0 | `1` | Multiplier for Matcap image brightness. |
 | **Transparency** | Choice | **off**, **on** | **off** | Enables alpha transparency. |
 | **Opacity** | Number | 0 to 1 | `1` | Opacity multiplier. |
-| **Blending** | Choice | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | Blend operation against the destination image. |
+| **Blending** | Choice | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | Blend operation against the destination image. It usually has no visible effect while **Transparency** is off. |
 | **Render side** | Choice | **front**, **back**, **both** | **front** | Faces included in rendering. |
 
 
@@ -120,7 +120,7 @@ Node Material uses the surface defaults below, with **Bump Strength** `1` and **
 | **Texture** | Asset | image/* | None | Base-color image multiplied by Color. |
 | **Transparency** | Choice | **off**, **on** | **off** | Enables alpha transparency. |
 | **Opacity** | Number | 0 to 1 | `1` | Opacity multiplier. |
-| **Blending** | Choice | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | Blend operation against the destination image. |
+| **Blending** | Choice | **none**, **normal**, **additive**, **subtractive**, **multiply** | **normal** | Blend operation against the destination image. It usually has no visible effect while **Transparency** is off. |
 | **Render side** | Choice | **front**, **back**, **both** | **front** | Faces included in rendering. |
 | **Normal map** | Asset | image/* | None | Tangent-space normal image. |
 | **Normal scale** | Number | ≥ 0 | `1` | Strength of the imported normal image. |

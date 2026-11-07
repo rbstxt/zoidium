@@ -49,3 +49,11 @@ test("Particular seed docs state what the seed changes on the GPU path", () => {
     assert.match(text, /\*\*Velocity distribution\*\*[^\n]*\*\*Color random\*\*[^\n]*\*\*Opacity random\*\*/);
   }
 });
+
+test("Material+ Blending docs state its dependency on Transparency", () => {
+  for (const page of docs("material-plus.md")) {
+    const rows = page.split("\n").filter(line => line.startsWith("| **Blending**"));
+    assert.equal(rows.length, 3);
+    for (const line of rows) assert.match(line, /\*\*Transparency\*\*/);
+  }
+});
