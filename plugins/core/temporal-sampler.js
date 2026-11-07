@@ -449,6 +449,7 @@
           ? withFrameSamplerInputContext(state, stage, projectFrame, context, mapSource) : mapSource();
       registry.capture.checkPolicy(context);
       context?.resourcePolicy?.assertMedia(item.media);
+      // Retain the output-selected clip, then decode its content at the tap clock.
       isolated.update(stage?.selectionFrame ?? sourceFrame, getProjectRate(stage.layer, sequence));
       if (isolated.currentItem) {
         context?.resourcePolicy?.assertMedia(item.media);

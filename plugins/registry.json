@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=119",
       "bundle": "./plugins/core/bundle.json?v=119",
-      "integrity": "sha256-tsA2N4MW1nHkmL4ifXxEkkbNfb21MQ46ihK2n38BDj8="
+      "integrity": "sha256-PpeLnQgZGiP9oMR60uEnzAu3XJovICNXO5G5lopHJ+0="
     },
     {
       "id": "easing-plus",
@@ -80,7 +80,7 @@
       "description": "Native custom shader controls with optional baked texture inputs.",
       "manifest": "./plugins/shader-plus/manifest.json?v=24",
       "bundle": "./plugins/shader-plus/bundle.json?v=24",
-      "integrity": "sha256-zP4jIV3nML6w8XB80Q8W6dm+NdfAjG9zEUI7u+YOhGI="
+      "integrity": "sha256-PTv+sOTmcoINUK/7bRzoasB+ZDf6+NBhxigidR9PKlA="
     },
     {
       "id": "player-plus",

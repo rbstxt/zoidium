@@ -66,6 +66,46 @@ test("zero sample binds the exact input object and nonzero uses only resolved te
     assert.throws(() => fx.pass.render({}, {}, input), /Time sample input is unavailable/);
   } finally { h.dispose(); }
 });
+test("prepare without update uses its frame for planning, resolution, and zero bindings", needsCache, async () => {
+  const h = setup();
+  let fx;
+  try {
+    const r = record(-1); r.animated = true; r.keyframes.push({ frame: 20, value: 1, tween: 1 });
+    fx = await h.effect([r, record(2, "Other")]);
+    fx.pass = { ...fx.pass, render() {} }; fx.update(10);
+    const temporal = h.PZ.zoidium.temporal, input = { texture: { current: true } };
+    let prepared, textures;
+    temporal.prepareFrameSamples = async (owner, frame) => {
+      prepared = owner._zoidiumFrameSampler.getRequest(owner, frame);
+      textures = prepared.frames.map(offset => ({ frame: frame + offset }));
+    };
+    temporal.resolveFrameSamples = owner => {
+      assert.deepEqual(owner._zoidiumFrameSampler.getRequest(owner, owner._zoidiumFrameSamplerFrame ?? 0), prepared);
+      return textures.map(texture => ({ texture }));
+    };
+    // Exercise an absent update frame, stale same-length taps, and a tap
+    // changing between sampled input and the exact current input.
+    delete fx._zoidiumFrameSamplerFrame;
+    for (const frame of [5, 15, 10, 0]) {
+      await fx.prepare(frame);
+      fx.pass.render({}, {}, input);
+      const zero = frame === 10;
+      assert.equal(fx.pass.uniforms.Past.value, zero ? input.texture : textures[0]);
+      assert.equal(fx.pass.uniforms.Other.value, textures[zero ? 0 : 1]);
+      assert.equal(textures[0].frame, zero ? frame + 2 : frame + frame / 10 - 1);
+    }
+  } finally { h.dispose(); }
+  assert.equal(fx._zoidiumFrameSamplerFrame, undefined);
+});
+test("seconds offsets evaluate the sequence rate at the requested frame", () => {
+  const frames = [], definition = KINDS.timeSample.create(); definition.zoidiumShader.units = "seconds";
+  const fx = { customProperties: [{ definition, properties: { name: { get: () => "Past" } }, get: () => 0.5 }],
+    parentProject: { sequence: { properties: { rate: { get(frame) { frames.push(frame); return frame; } } } } },
+    fixPropertyName: name => name };
+  assert.equal(readSamples(fx, 5)[0].offset, 2.5);
+  assert.equal(readSamples(fx, 15)[0].offset, 7.5);
+  assert.deepEqual(frames, [5, 15]);
+});
 test("saved time samples reopen with keys and metadata, with an older-build compile guard", needsCache, async () => {
   const h = setup();
   try {
@@ -110,6 +150,7 @@ test("50 add-remove cycles release samplers, restore the pass, and leave ordinar
       fx.update(10); assert.ok(fx._zoidiumFrameSampler);
       fx.customProperties.splice(fx.customProperties.indexOf(p), 1);
       assert.equal(fx._zoidiumFrameSampler, undefined); assert.equal(fx.pass.render, render);
+      assert.equal(fx._zoidiumFrameSamplerFrame, undefined);
     }
     assert.ok(h.releases >= 50);
     assert.equal(JSON.stringify(fx), baseline);
@@ -157,6 +198,7 @@ test("effect unload releases time samples and stale preparation cannot recreate 
     const fx = await h.effect(); await fx.prepare(10);
     const prepares = h.prepares;
     fx.unload(); assert.equal(fx._zoidiumFrameSampler, undefined);
+    assert.equal(fx._zoidiumFrameSamplerFrame, undefined);
     assert.ok(h.releases > 0);
     await fx.prepare(10); fx.update(10);
     assert.equal(h.prepares, prepares); assert.equal(fx._zoidiumFrameSampler, undefined);

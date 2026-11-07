@@ -5,7 +5,7 @@ const propertiesOf = effect => Array.from(effect.customProperties || []).filter(
 function readSamples(effect, frame) {
   const properties = propertiesOf(effect);
   if (properties.length > MAX_TIME_SAMPLES) throw new Error("Shader+ supports at most four Time sample properties per effect");
-  const rate = Number(effect.parentProject?.sequence?.properties?.rate?.get?.() || 30);
+  const rate = Number(effect.parentProject?.sequence?.properties?.rate?.get?.(frame) || 30);
   return properties.map(property => {
     const value = Number(property.get(frame));
     const offset = property.definition.zoidiumShader.units === "seconds" ? value * rate : value;
@@ -39,6 +39,7 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose, editor = () => nul
     if (entry.pass?.render === entry.render) entry.pass.render = entry.original;
     restoreUnload(effect, entry);
     delete effect._zoidiumFrameSampler;
+    delete effect._zoidiumFrameSamplerFrame;
     live.delete(effect);
   }
   function sync(effect) {
@@ -85,7 +86,7 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose, editor = () => nul
     if (!pass?.render || entry.pass === pass) return;
     entry.pass = pass; entry.original = pass.render;
     entry.render = function renderTimeSamples(renderer, output, input) {
-      const bindings = readSamples(effect, effect._zoidiumFrameSamplerFrame || 0);
+      const bindings = readSamples(effect, effect._zoidiumFrameSamplerFrame ?? 0);
       const nonzero = bindings.filter(binding => binding.offset !== 0);
       const samples = nonzero.length ? temporal()?.resolveFrameSamples?.(effect) || [] : [];
       if (samples.length !== nonzero.length) {
@@ -135,6 +136,9 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose, editor = () => nul
     if (unloaded.has(this)) return;
     sync(this);
     if (this._zoidiumFrameSampler) {
+      // Preparation can run without update. Bind and resolve the same clock
+      // that plans these samples, including transitions to or from zero.
+      this._zoidiumFrameSamplerFrame = frame;
       readSamples(this, frame);
       if (!temporal()?.prepareFrameSamples) throw new Error("Shader+ Time sample requires the temporal sampler");
       await temporal().prepareFrameSamples(this, frame, context);
@@ -170,6 +174,7 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose, editor = () => nul
       if (entry.pass?.render === entry.render) entry.pass.render = entry.original;
       restoreUnload(effect, entry);
       delete effect._zoidiumFrameSampler;
+      delete effect._zoidiumFrameSamplerFrame;
       effect.fragmentShaderNeedsUpdate = true;
     }
     live.clear();
