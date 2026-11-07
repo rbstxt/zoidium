@@ -236,7 +236,7 @@ async function main() {
   } finally {
     if (browser) await browser.close();
     if (fixture) await fixture.close();
-    if (locked) fs.rmSync(lock, { recursive: true });
+    if (locked) require("./browser-lock").releaseLock(lock);
     report.finished = new Date().toISOString();
     const output = process.env.ZOIDIUM_COMMUNITY_NETWORK_REPORT;
     if (output) {

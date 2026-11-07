@@ -180,7 +180,7 @@ async function main() {
   } finally {
     if (application) await application.close();
     if (sink) { sink.closeAllConnections(); await new Promise(resolve => sink.close(resolve)); }
-    if (locked) fs.rmSync(lock, { recursive: true });
+    if (locked) require("./browser-lock").releaseLock(lock);
     report.finished = new Date().toISOString();
     if (output) fs.writeFileSync(output, JSON.stringify(report, null, 2) + "\n");
     fs.rmSync(folder, { recursive: true, force: true });

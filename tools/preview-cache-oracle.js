@@ -9,6 +9,7 @@ const { execFileSync } = require("node:child_process");
 const handler = require("serve-handler");
 const { chromium } = require("playwright");
 const { prepareRuntimeStage } = require("./runtime-resources");
+const { releaseLock } = require("./browser-lock");
 const approvals = require("./preview-cache-approvals");
 const { fixtures, compareFixture } = require("./preview-cache-oracle-fixtures");
 
@@ -65,7 +66,7 @@ async function run(options, test) {
     if (browser) await browser.close();
     if (server) await new Promise(resolve => server.close(resolve));
     if (runtime) await runtime.cleanup();
-    if (locked) fs.rmSync(lock, { recursive: true });
+    if (locked) releaseLock(lock);
   }
 }
 
