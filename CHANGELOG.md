@@ -7,6 +7,22 @@ each line describes one visible change.
 
 ### Added
 
+- Custom properties can be organized into named, collapsible groups, using
+  Group… on a property's menu. A group's Settings has its name and a Lock that
+  stops its rows being dragged. 3D groups have a Lock button in the Objects
+  panel. Grouping and locks only affect the panel, never the picture.
+- Trapcode Form has particle rotation: Rotate X, Y, Z, Random rotation,
+  Degrees/sec X, Y, Z, Random speed rotate, and Random speed distribution, in
+  the panel and the Form Designer. Existing Forms look the same.
+- ExpressText+ shows each effector's Field as a wire box in the 3D view while
+  the text is selected. The box is not in the Preview cache or exports.
+- ExpressText+ effectors can be reordered by dragging their rows.
+- ExpressText+ Shake has a Mode: Sine, as before, or Noise.
+- Player+ has a playback speed menu, from 0.25x to 2x, which follows J, K, and L.
+- Expressions can read the project frame rate as `fps`, and shaders as
+  `uniform float zFps;`.
+- Graph Editor 2 zooms in much further: 200 times closer in time and 1000 times
+  closer in value.
 - Delay has Spring damping and Spring cycles controls for much stronger overshoot.
   Their defaults keep existing projects unchanged.
 - Plugin windows can open as separate browser windows, so you can move Graph
@@ -111,6 +127,29 @@ each line describes one visible change.
 
 ### Fixed
 
+- Audio waveforms were blank for 44.1 kHz audio. They now draw.
+- Waveforms of long files slowly drifted from the sound, by over a second at
+  five minutes. WAV peaks now land on the exact point and MP3 peaks within
+  10 ms. Two timeline windows no longer stop each other's waveform.
+- Graph Editor 2 grid lines did not line up with the frame ruler or their value
+  labels. They now share the same steps.
+- A clip's Time expression could fail as if it referred to itself. It now
+  evaluates, so projects with a Time expression can look different.
+- Shader+ Property settings called a plain number a Toggle, hid Minimum and
+  Maximum, and Apply could turn it into a toggle. Numbers now show Slider
+  settings, and Apply with no change does nothing.
+- ExpressText+ Letters and Formula Expression fields were hidden between
+  keyframes. They can now be edited on any frame.
+- Delay's tooltip and docs explain that Plain and Random need animated values
+  for Delay to show.
+- Nested effectors with Delay render about 28% faster in a test scene. The
+  picture is unchanged.
+- Pasting into another project lost embedded files, such as a material's image.
+  The files now come along.
+- Undo restored the wrong value after edits between keyframes in Magic Looks,
+  Optical Flares, and the Trapcode designers, and a Trapcode preset on animated
+  values could hang. Closing Optical Flares options mid-drag now records the
+  edit, and Command+Z and Shift+Z work in plugin windows.
 - Replacing a project now releases more of the old project. Text+ projects, Material+
   graphs and workers, Optical Flares objects, shader passes, and composition clips
   no longer stay in memory for the session.

@@ -55,7 +55,7 @@
     if (!prototype?.keydown) return;
     const keydown = prototype.keydown;
     prototype.keydown = function (event) {
-      if (!event.ctrlKey || event.key.toLowerCase() !== "v" ||
+      if (!retained?.files.size || !event.ctrlKey || event.key.toLowerCase() !== "v" ||
           PZ.ui.toolbar.prototype.shouldIgnoreKeydown(event.target, event.key)) {
         return keydown.apply(this, arguments);
       }
@@ -71,7 +71,9 @@
         }
       }
       const args = arguments;
+      // A failed clipboard read or import must not cancel the native paste.
       return restore(editor, type => types.has(PZ.object.getType(type)))
+        .catch(error => console.warn("[Zoidium] Could not restore copied files", error))
         .then(() => keydown.apply(this, args));
     };
   }

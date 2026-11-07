@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "a868e70c98293d254366f0b78dc8a57e3b1a7fd09cfb8a0de4150193425cfe01",
+  "fingerprint": "b29fe37a10137751aa1818009d7389fc4a9cbbb332a6ff95a2a1ed2eae520321",
   "plugins": {
     "native-fx": {
       "version": "39",
@@ -69,7 +69,7 @@
       ]
     },
     "repeater": {
-      "version": "42",
+      "version": "43",
       "cases": [
         "Repeater",
         "Linear Repeater",
@@ -93,7 +93,7 @@
       ]
     },
     "trapcode-suite": {
-      "version": "48",
+      "version": "49",
       "cases": [
         "Particular",
         "Default burst",
@@ -113,7 +113,7 @@
       ]
     },
     "optical-flares": {
-      "version": "20",
+      "version": "21",
       "cases": [
         "Optical Flares",
         "Anamorphic Blue",
@@ -124,14 +124,14 @@
       ]
     },
     "expresstext-plus": {
-      "version": "4",
+      "version": "5",
       "cases": [
         "ExpressText+",
         "ExpressText+-full"
       ]
     },
     "shader-plus": {
-      "version": "24",
+      "version": "25",
       "cases": [
         "time-sample",
         "time-sample-adjustment",
