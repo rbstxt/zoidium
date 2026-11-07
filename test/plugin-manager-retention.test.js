@@ -7,7 +7,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-async function retentionProbe() {
+async function retentionProbe(kind = "effect") {
   assert.equal(typeof global.gc, "function");
   const events = new Map();
   const sandbox = {
@@ -27,23 +27,29 @@ async function retentionProbe() {
   }
   const m = sandbox.ZoidiumPluginManagerInternals;
   m.installProjectPluginHooks();
+  const pluginId = kind === "object" ? "probe-plugin" : "native-fx";
   const state = {
-    plugin: { id: "native-fx" }, runtimeModules: [],
+    plugin: { id: pluginId }, runtimeModules: [],
     card: { dataset: { phase: "enabled" }, querySelector: () => null },
     toggle: {},
   };
   m.pluginStates.set(state.plugin.id, state);
-  const metadata = { id: "native-fx", effect: "probe", effectName: "Probe" };
+  const objectTracking = kind === "object";
+  const track = objectTracking ? m.trackPluginObject : m.trackNativeEffect;
+  const untrack = objectTracking ? m.untrackPluginObject : m.untrackNativeEffect;
+  const tracked = objectTracking ? m.trackedPluginObjects : m.trackedNativeEffects;
+  const missing = objectTracking ? m.missingPluginObjects : m.missingNativeEffects;
+  const metadata = { id: pluginId, [kind]: "probe", [kind + "Name"]: "Probe" };
   function openProject(missing) {
     const project = new sandbox.PZ.project();
     const effect = { parentProject: project };
     project.effects = [effect];
     sandbox.CM.project = project;
-    m.trackNativeEffect(effect, metadata, missing);
+    track(effect, metadata, missing);
     // Duplicate loads must not increment explicit usage bookkeeping.
-    m.trackNativeEffect(effect, metadata, missing);
+    track(effect, metadata, missing);
     events.get("zoidium:project-changed")();
-    assert.equal(state.toggle.disabled, true);
+    assert.equal(state.toggle.disabled, !objectTracking || !missing);
     return project;
   }
   const refs = [];
@@ -59,39 +65,39 @@ async function retentionProbe() {
   await collect();
   const alive = refs.filter((ref) => ref.deref()).length;
   assert.equal(alive, 0, "manager tracking must release all 20 abandoned projects");
-  assert.equal(m.trackedNativeEffects.size, 2, "iteration prunes collected effects");
-  assert.equal(m.missingNativeEffects.size, 1, "missing effects must also be weakly indexed");
+  assert.equal(tracked.size, 2, "iteration prunes collected effects");
+  assert.equal(missing.size, 1, "missing effects must also be weakly indexed");
   assert.equal(m.getDebugProjectUsage().totalInstances, 1);
   assert.equal(m.getDebugProjectUsage().missingInstances, 0);
-  assert.equal(m.collectProjectPlugins(pendingSaveProject)[0].effects[0], "probe");
-  assert.equal(m.collectProjectPlugins(activeProject)[0].effects[0], "probe");
+  assert.equal(m.collectProjectPlugins(pendingSaveProject)[0][objectTracking ? "objects" : "effects"][0], "probe");
+  assert.equal(m.collectProjectPlugins(activeProject)[0][objectTracking ? "objects" : "effects"][0], "probe");
   sandbox.CM.project = pendingSaveProject;
   events.get("zoidium:project-changed")();
-  assert.equal(state.toggle.disabled, true, "a still-owned old project keeps its usage lock");
+  assert.equal(state.toggle.disabled, !objectTracking, "missing objects do not lock their unavailable plugin");
   assert.equal(m.getDebugProjectUsage().missingInstances, 1);
   const effect = pendingSaveProject.effects[0];
   const countBeforeUnload = [...m.debugUsageCounts.values()][0];
-  m.untrackNativeEffect(effect);
-  m.untrackNativeEffect(effect);
+  untrack(effect);
+  untrack(effect);
   assert.equal([...m.debugUsageCounts.values()][0], countBeforeUnload - 1);
-  assert.equal(m.trackedNativeEffects.has(effect), false);
-  assert.equal(m.missingNativeEffects.has(effect), false);
+  assert.equal(tracked.has(effect), false);
+  assert.equal(missing.has(effect), false);
   assert.equal(state.toggle.disabled, false, "explicit unload releases the lock immediately");
   assert.equal(m.collectProjectPlugins(pendingSaveProject).length, 0);
-  assert.equal(m.trackedNativeEffects.size, 1);
-  m.trackedNativeEffects.clear();
-  assert.equal(m.trackedNativeEffects.size, 0);
+  assert.equal(tracked.size, 1);
+  tracked.clear();
+  assert.equal(tracked.size, 0);
   return { replacedProjects: 20, projectsAliveAfterGc: alive, stillOwnedProjects: 2 };
 }
 
 if (process.argv.includes("--retention-probe")) {
-  retentionProbe().then((result) => console.log(JSON.stringify(result))).catch((error) => {
+  retentionProbe(process.argv.at(-1)).then((result) => console.log(JSON.stringify(result))).catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });
 } else {
-  test("manager weak tracking releases replaced projects and preserves live ownership", () => {
-    const result = spawnSync(process.execPath, ["--expose-gc", __filename, "--retention-probe"], {
+  for (const kind of ["effect", "object"]) test(`manager weak ${kind} tracking releases replaced projects and preserves live ownership`, () => {
+    const result = spawnSync(process.execPath, ["--expose-gc", __filename, "--retention-probe", kind], {
       encoding: "utf8", timeout: 30000,
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
