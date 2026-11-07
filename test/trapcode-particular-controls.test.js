@@ -224,3 +224,21 @@ test("old saves with absent controls keep neutral uniforms and finite simulation
   assert.equal(system.material.uniforms.opacityRandom.value, 0);
   assert.ok(system.simulateFrame(30).positions.every(Number.isFinite));
 });
+
+test("Spherical Scale changes the field's reach and the default keeps the plain distance", () => {
+  const field = values => {
+    const env = burst(setup());
+    const { spherical, physics } = env.p;
+    physics.enabled.set(1);
+    spherical.strength.set(400);
+    spherical.position.set([40, 0, 0]);
+    spherical.radius.set(5);
+    spherical.feather.set(0);
+    for (const [key, value] of Object.entries(values)) spherical[key].set(value);
+    return digest(env.system.simulateFrame(30));
+  };
+  const plain = field({});
+  assert.equal(field({ scaleX: 100, scaleY: 100, scaleZ: 100 }), plain);
+  assert.notEqual(field({ scaleX: 2000 }), plain);
+  assert.notEqual(field({ scaleX: 2000 }), field({ scaleY: 2000 }));
+});
