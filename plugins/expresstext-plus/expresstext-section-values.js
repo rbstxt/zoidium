@@ -8,6 +8,7 @@
 // first three rows take the fields and the next rows take undefined until the
 // first nested vector row throws. A section row therefore shows no fields.
 
+const { createShakePropertyDefinitions } = require("./expresstext-properties.js");
 const { kindOfGroup } = require("./expresstext-sections.js");
 
 const SECTION_ROW_CONTROL = "zoidium:expresstext-plus/section-row";
@@ -27,6 +28,16 @@ function isSection(PZ, property) {
 // The stamp is not enumerable, so saved files keep their exact definition.
 function markSection(PZ, property) {
   if (!isSection(PZ, property) || !property.definition) return;
+  // Saved section definitions contain their own row list. Append new controls
+  // so existing row addresses stay stable, including animated rows.
+  if (kindOfGroup(property) === "shake" && PZ.property.create &&
+      !Array.from(property.objects).some(row => row.definition?.effectorKey === "shakeMode")) {
+    const definition = createShakePropertyDefinitions(PZ).shakeMode;
+    const row = PZ.property.create(definition);
+    property.definition.objects.push(definition);
+    property.objects.push(row);
+    row.load();
+  }
   Object.defineProperty(property.definition, "zoidiumControl", {
     value: SECTION_ROW_CONTROL, enumerable: false, configurable: true,
   });

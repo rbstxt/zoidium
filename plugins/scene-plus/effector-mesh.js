@@ -279,7 +279,7 @@ function createMeshDeformer(THREE, jobs) {
   // Evaluates one mesh. `chain` lists {effector, node} outer to inner. The
   // deformers run in their own local space (node.matrixWorld relative to the
   // mesh), so transformed effectors and nested groups act in their own frame.
-  function deformMesh(mesh, chain, frame, requestedPolygonCount, legacySubdivision = false, renderOrderOffset = 0) {
+  function deformMesh(mesh, chain, frame, requestedPolygonCount, legacySubdivision = false, renderOrderOffset = 0, sampling = { commands: new Map(), worlds: new Map() }) {
     let state = meshStates.get(mesh);
     if (!chain.length) {
       jobs?.release(mesh);
@@ -321,17 +321,30 @@ function createMeshDeformer(THREE, jobs) {
     // Pending jobs keep the mesh untouched until the exact frame is available.
     if (chain.every(entry => typeof entry.effector.workerCommand === "function")) {
       let historyBudget = core.delaySampleBudget(chain.reduce((largest, entry) => Math.max(largest, entry.effector.historyFrames?.(frame) || 0), 0));
-      const sampledWorlds = new Map();
+      const sampledWorlds = sampling.worlds;
+      const commandAt = (effector, time) => {
+        let frames = sampling.commands.get(effector);
+        if (!frames) sampling.commands.set(effector, frames = new Map());
+        if (!frames.has(time)) frames.set(time, effector.workerCommand(time));
+        return frames.get(time);
+      };
+      const relations = new Map();
+      const relationAt = (entry, time) => {
+        let frames = relations.get(entry.node);
+        if (!frames) relations.set(entry.node, frames = new Map());
+        if (!frames.has(time)) frames.set(time, core.relativeTransform(world(entry.node, time), world(mesh, time)));
+        return frames.get(time);
+      };
       const world = (node, time) => {
         if (time === frame) return node?.matrixWorld?.elements;
         if (!sampledWorlds.has(time)) sampledWorlds.set(time, new Map());
         return worldAt(node, time, sampledWorlds.get(time));
       };
       const sampleCommands = (time, length) => chain.slice(0, length).map((entry, index) => {
-        const command = { ...entry.effector.workerCommand(time), bounds: entry.bounds,
-          relation: core.relativeTransform(world(entry.node, time), world(mesh, time)) };
+        const sampled = commandAt(entry.effector, time);
+        const command = { ...sampled, bounds: entry.bounds, relation: relationAt(entry, time) };
         command.field = core.fieldForBounds(command.field, entry.bounds);
-        if (command.motion) command.motion.field = core.fieldForBounds(command.motion.field, entry.bounds);
+        if (command.motion) command.motion = { ...command.motion, field: core.fieldForBounds(command.motion.field, entry.bounds) };
         if (command.kind === "delay" && command.strength > 0) {
           command.history = [];
           for (let i = 0; i < command.window && historyBudget > 0; i++) {

@@ -34,21 +34,32 @@ Every section has an enable switch, a letter selection, a strength, a per-letter
 | **Field position** | 3D vector | — | `[0, 0, 0]` | Center of the field volume. |
 | **Field scale** | 3D vector | — | `[100, 100, 100]` | Size of the field volume. |
 
+**Letters** and Formula **Expression** display their current text values between keyframes.
+
+The per-letter **Delay** shifts time. Static **Plain** transforms and static **Random** ranges produce the same pose at every time. Animated transforms produce a stagger. **Random Noise** and **Turbulence** also respond when **Animation speed** is above zero.
+
+When the container is selected, each non-**Infinite** **Field** has a separate wire box in the 3D editor. Each box follows its text's undeformed coordinates. The box shows the bounds of **Box** and **Sphere**, or the reference volume of **Linear**. These guides do not appear in Preview cache frames or exports.
+
+The native drag operation reorders section headers within **Custom properties**. One drop is one undo operation. Saved projects and duplicated containers retain the order. The order controls composition and changes the numbering of `kind-N` selections.
+
 The **Delay** section replaces the stagger rows with channel picks.
 
 
 ## Shake
 
-Sinusoidal position, rotation, and scale. **Offset** shifts the phase in cycles.
+**Sine** produces sinusoidal position, rotation, and scale. **Noise** uses seeded fractal noise. Both modes depend on the requested frame and produce the same result in any frame order. **Offset** shifts time in cycles.
+
+The default amplitudes produce no motion. **Position** and **Rotation** default to zero, and **Scale** defaults to one. **Delay** becomes visible when at least one amplitude produces motion.
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
+| **Mode** | Choice | **Sine**, **Noise** | **Sine** | Oscillator used by Shake. Existing sections retain Sine. |
 | **Position** | 3D vector | — | `[0, 0, 0]` | Shake amplitude per axis. |
 | **Rotation** | 3D vector | — | `[0, 0, 0]` | Shake amplitude in degrees per axis. |
 | **Scale** | 3D vector | — | `[1, 1, 1]` | Shake amplitude as a scale multiplier per axis. |
 | **Frequency** | Number | ≥ 0 | `1` | Oscillation speed in cycles per second. |
 | **Offset** | Number | — | `0` | Phase offset in cycles. |
-| **Seed** | Number | — | `1` | Seed for Random delay order. |
+| **Seed** | Number | — | `1` | Seed for Noise and Random delay order. |
 
 
 ## Plain

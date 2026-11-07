@@ -146,30 +146,38 @@ function evaluateCachedMesh(input, cache) {
 
 // JSON turns NaN and Infinity into null and -0 into 0. Tags keep each number
 // exact, so two commands share a key only when every value is identical.
-function sampleKeyOf(value) {
+function sampleKeyWithMemo(value, memo) {
   if (typeof value === "number") return Object.is(value, -0) ? "-0" : String(value);
   if (typeof value === "string") return JSON.stringify(value);
   if (value === null || value === undefined || typeof value !== "object") return String(value);
+  if (memo.has(value)) return memo.get(value);
   if (Array.isArray(value) || ArrayBuffer.isView(value)) {
     let text = ArrayBuffer.isView(value) ? value.constructor.name + "[" : "[";
-    for (let i = 0; i < value.length; i++) text += sampleKeyOf(value[i]) + ",";
-    return text + "]";
+    for (let i = 0; i < value.length; i++) text += sampleKeyWithMemo(value[i], memo) + ",";
+    text += "]"; memo.set(value, text);
+    return text;
   }
   let text = "{";
-  for (const key of Object.keys(value)) text += key + ":" + sampleKeyOf(value[key]) + ",";
-  return text + "}";
+  for (const key of Object.keys(value)) text += key + ":" + sampleKeyWithMemo(value[key], memo) + ",";
+  text += "}"; memo.set(value, text);
+  return text;
 }
+
+function sampleKeyOf(value) { return sampleKeyWithMemo(value, new WeakMap()); }
 
 // Upstream positions of one Delay history frame. Consecutive frames share all
 // but one sample. Callers only read the result.
-function historySample(input, commands, cache) {
+function historySample(input, commands, cache, sampleKeys) {
   const { base, polygonCount, legacySubdivision = false, sourceId, materialCount = 1 } = input;
-  const build = () => evaluateMesh({ base, commands, polygonCount, legacySubdivision, sourceId, materialCount, geometryOnly: true }, cache);
+  const build = () => evaluateMesh({ base, commands, polygonCount, legacySubdivision, sourceId, materialCount, geometryOnly: true, sampleKeys }, cache);
   if (!cache.sample) return build();
-  return cache.sample(sourceId + ":sample:" + polygonCount + ":" + legacySubdivision + ":" + materialCount + ":" + sampleKeyOf(commands), build);
+  return cache.sample(sourceId + ":sample:" + polygonCount + ":" + legacySubdivision + ":" + materialCount + ":" + sampleKeyWithMemo(commands, sampleKeys), build);
 }
 
 function evaluateMesh(input, cache = createStageCache()) {
+  // Commands stay immutable during one evaluation, including nested histories.
+  // Keep exact sample keys for that call only, so edits always read fresh data.
+  const sampleKeys = input.sampleKeys || new WeakMap();
   const { base, commands, polygonCount, sourceId, legacySubdivision = false, materialCount = 1 } = input;
   if (!base.pieceIds) Object.assign(base, cache.get(sourceId + ":pieces", () => core.connectedPieces(base)));
   let topologyKey = sourceId + ":subdivide:" + polygonCount + ":" + legacySubdivision + (materialCount > 1 ? ":materials:" + materialCount : "");
@@ -202,7 +210,7 @@ function evaluateMesh(input, cache = createStageCache()) {
       const damping = command.damping ?? core.SPRING_DAMPING, cycles = command.cycles ?? core.SPRING_CYCLES;
       let total = 0, peak = 0;
       for (let i = 0; i < command.history.length; i++) {
-        const sample = historySample(input, command.history[i], cache);
+        const sample = historySample(input, command.history[i], cache, sampleKeys);
         // Only matching topology can be interpolated by vertex index.
         if (sample.topologyKey !== topologyKey || sample.positions.length !== work.length) continue;
         const age = (i + 1) / command.history.length;

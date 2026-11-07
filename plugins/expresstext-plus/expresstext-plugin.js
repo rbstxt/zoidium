@@ -52,6 +52,11 @@ const EXPRESS_WRAP_TYPE = "zoidium:expresstext-plus/wrap";
 const EXPRESS_VORONOI_TYPE = "zoidium:expresstext-plus/voronoi";
 const EXPRESS_DELAY_TYPE = "zoidium:expresstext-plus/delay";
 
+const { installFieldGuides } = require("./expresstext-field-guides.js");
+let disposeFieldGuides = null;
+const { installEditorRows } = require("./expresstext-editor-rows.js");
+let disposeEditorRows = null;
+
 function getExpressDefinitions() {
   return [
     {
@@ -160,6 +165,7 @@ function createExpressObjectClass(PZ, definition) {
     constructor() {
       super();
       this.objects.name = definition.objectsName;
+      if (this.threeObj) this.threeObj.__zoidiumExpressOwner = this;
       // The customs list carries our scoped item class, so the stock +
       // dialog on ExpressText+ containers offers only effectors. The row
       // keeps its stock "Custom properties" label.
@@ -248,6 +254,7 @@ function createExpressObjectClass(PZ, definition) {
               self.expressProperties.load(data.expressProperties);
             }
           } catch (_props) {}
+          if (self.threeObj) self.threeObj.__zoidiumExpressOwner = self;
           return out;
         };
       } catch (_hook) {}
@@ -402,6 +409,8 @@ function activate(context) {
   // Effector entries for the stock Custom properties + dialog, scoped to
   // ExpressText+ containers only. Best-effort: without the host registry
   // the customs row keeps the stock five and everything else works.
+  disposeEditorRows = installEditorRows(PZ);
+  disposeFieldGuides = installFieldGuides(PZ, THREE, state.editor);
   registerEffectorEntries(PZ);
   installSectionRow(PZ, (context && context.apis) || globalThis.ZoidiumPluginApis);
   try {
@@ -412,6 +421,10 @@ function activate(context) {
 }
 
 function deactivate() {
+  disposeEditorRows?.();
+  disposeEditorRows = null;
+  disposeFieldGuides?.();
+  disposeFieldGuides = null;
   clearDelayCache();
   uninstallSectionRow();
   unregisterEffectorEntries();
