@@ -188,8 +188,8 @@ const PlayerPlus = (() => {
 
       .zoidium-player-plus-speed {
         order: 1;
-        min-width: 76px;
-        width: 76px;
+        min-width: 92px;
+        width: 92px;
       }
 
       .zoidium-player-plus-speed:focus-visible,
