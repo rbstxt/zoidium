@@ -19,9 +19,24 @@ function install() {
   return { PZ, Native, dispose: () => disposers.forEach(fn => fn()) };
 }
 
-test("a video schedule uploads RGBA", () => {
+test("a Video layer uploads RGBA", () => {
   const { PZ } = install();
-  assert.equal(new PZ.schedule(0).texture.format, THREE.RGBAFormat);
+  const schedule = new PZ.schedule(0);
+  assert.equal(schedule.texture.format, THREE.RGBAFormat);
+  schedule.currentItem = { clip: {} };
+  assert.equal(schedule.texture.format, THREE.RGBAFormat);
+});
+
+test("a Video material uploads by its Transparency setting at each upload", () => {
+  const { PZ } = install();
+  const schedule = new PZ.schedule(0);
+  const threeObj = { transparent: false };
+  schedule.currentItem = { obj: { threeObj } };
+  assert.equal(schedule.texture.format, THREE.RGBFormat);
+  threeObj.transparent = true;
+  assert.equal(schedule.texture.format, THREE.RGBAFormat);
+  schedule.currentItem = { obj: { threeObj: { transparent: false } } };
+  assert.equal(schedule.texture.format, THREE.RGBFormat);
 });
 
 test("an audio schedule has no texture and stays unchanged", () => {
