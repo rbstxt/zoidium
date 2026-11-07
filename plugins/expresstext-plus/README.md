@@ -97,6 +97,7 @@ save/load.
   seeded Voronoi cells, then Explodes the pieces outward along their own
   centers and spins them by Spin (XYZ degrees). Strength blends the
   shatter; the base letter hides while its chunks are displaced at 100%.
+  Off shows whole letters at any Strength.
   Other sections can address the parts: a Delay section with Letters
   `voronoi-1` trails the chunks of the first Voronoi section (every
   section kind answers `kind-N` tokens: `plain-2`, `shake-1`, ...).
