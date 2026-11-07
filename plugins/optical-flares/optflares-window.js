@@ -960,6 +960,12 @@ module.exports = function installWindow(PZ) {
                     staticScope.dispose();
                     if (customView && typeof customView.dispose === "function") customView.dispose();
                     customView = null;
+                    if (pending.size && editor.project === project && root.isLive()) group(function () {
+                        for (var [prop, old] of pending) {
+                            var value = PZ.ui.properties.getStoredValue(prop, frameOf(prop));
+                            if (JSON.stringify(old) !== JSON.stringify(value)) record(prop, value, old);
+                        }
+                    });
                     pending.clear();
                     view = {};
                 };

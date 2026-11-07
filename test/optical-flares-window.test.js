@@ -462,6 +462,34 @@ test("animated options record the replaced key instead of its interpolated displ
   } finally { env.restore(); }
 });
 
+test("closing options commits an unfinished live drag once", () => {
+  const env = setup();
+  try {
+    const { cleanup } = openAndMount(env);
+    const input = env.log.controls.filter(c => c.config.label === "Brightness").at(-1);
+    input.config.onInput(125); input.config.onInput(150);
+    assert.equal(env.history.operations, 0);
+    cleanup();
+    assert.equal(env.history.operations, 1);
+    assert.equal(env.history.commands.at(-1).params.old, 100);
+    assert.equal(env.root.properties.flareSetup.brightness.get(), 150);
+    cleanup();
+    assert.equal(env.history.operations, 1, "cleanup cannot record the drag twice");
+  } finally { env.restore(); }
+});
+
+test("closing a retired options window cannot append to the new project's history", () => {
+  const env = setup();
+  try {
+    const { cleanup } = openAndMount(env);
+    const input = env.log.controls.filter(c => c.config.label === "Brightness").at(-1);
+    input.config.onInput(150);
+    env.editor.project = {};
+    cleanup();
+    assert.equal(env.history.operations, 0);
+  } finally { env.restore(); }
+});
+
 function buttonNamed(env, title) {
   const button = env.log.buttons.find((b) => b.title === title);
   assert.ok(button, "button " + title);
