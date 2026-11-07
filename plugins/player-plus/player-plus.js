@@ -89,9 +89,27 @@ const PlayerPlus = (() => {
     style.id = STYLE_ID;
     style.textContent = `
       .zoidium-player-plus-toolbar {
-        padding-left: 70px !important;
-        padding-right: 280px !important;
+        display: flex !important;
+        align-items: center;
+        gap: 2px;
+        overflow-x: auto;
+        padding: 5px !important;
         position: absolute !important;
+      }
+
+      .zoidium-player-plus-toolbar > * {
+        flex-shrink: 0;
+      }
+
+      .zoidium-player-plus-toolbar > button {
+        box-sizing: border-box;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 29px;
+      }
+
+      .zoidium-player-plus-toolbar > span {
+        width: 8px !important;
       }
 
       .zoidium-player-plus-pause,
@@ -104,7 +122,7 @@ const PlayerPlus = (() => {
         left: 5px;
         margin: 0 !important;
         padding: 0 !important;
-        position: absolute !important;
+        position: static !important;
         top: 5px;
         width: 30px;
       }
@@ -160,7 +178,8 @@ const PlayerPlus = (() => {
         line-height: 25px;
         min-width: 112px;
         padding: 0 4px;
-        position: absolute;
+        position: static;
+        order: 2;
         right: 5px;
         text-align: left;
         top: 6px;
@@ -168,8 +187,9 @@ const PlayerPlus = (() => {
       }
 
       .zoidium-player-plus-speed {
-        right: 125px;
-        min-width: 145px;
+        order: 1;
+        min-width: 76px;
+        width: 76px;
       }
 
       .zoidium-player-plus-speed:focus-visible,
@@ -429,7 +449,7 @@ const PlayerPlus = (() => {
     for (const value of values) {
       const option = state.document.createElement("option");
       option.value = String(value);
-      option.textContent = value === 0 ? "Playback: Paused" : "Playback: " + value + "x";
+      option.textContent = value === 0 ? "Paused" : value + "x";
       select.appendChild(option);
     }
     select.value = String(speed);
