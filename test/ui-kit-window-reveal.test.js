@@ -65,6 +65,20 @@ test("popup commands preserve the target and translate Command and Shift+Z witho
   win.close();
 });
 
+test("docked windows forward Command undo and Shift+Z redo exactly once", () => {
+  const { context, api } = loadKit(1000, 600), commands = [];
+  context.CM = { keydown(event) { commands.push(event.key); event.preventDefault(); } };
+  const win = api.openWindow({ id: "docked-commands", title: "Commands" });
+  for (const options of [{ metaKey: true }, { metaKey: true, shiftKey: true }, { ctrlKey: true, shiftKey: true }]) {
+    win.element.dispatch("keydown", { key: "z", target: win.element, ...options });
+  }
+  assert.deepEqual(commands, ["z", "y", "y"]);
+  const input = new FakeElement("textarea"); input.closest = () => input;
+  win.element.dispatch("keydown", { key: "z", metaKey: true, target: input });
+  assert.equal(commands.length, 3, "text undo remains local");
+  win.close();
+});
+
 test("popup host and Graph chrome listeners together forward each command exactly once", () => {
   const { context, api } = loadKit(1000, 600), commands = [];
   const editor = context.CM = { keydown(event) { commands.push(event.key); } };

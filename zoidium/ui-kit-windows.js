@@ -540,12 +540,13 @@
     // Ctrl+Z, Ctrl+Y and Ctrl+S still reach CM3's editor handler, which skips
     // them itself while the focus is in a text field, so undo, redo and save
     // work right after an edit made in a window.
-    // Popup key events cannot bubble to the opener. Keep text editor undo
-    // local, and send unconsumed project commands through CM3's own handler.
+    // Popup key events cannot bubble to the opener. Docked windows also
+    // translate Command and Shift+Z for CM3's Ctrl-based shortcuts.
     root.addEventListener("keydown", function (event) {
-      if (!win.isPoppedOut || !win.isPoppedOut() || event.defaultPrevented) return;
+      if (event.defaultPrevented) return;
       if (!(event.ctrlKey || event.metaKey) || event.altKey || !/^[zys]$/i.test(event.key || "")) return;
       if (event.target.closest?.("input,textarea,[contenteditable]:not([contenteditable='false'])")) return;
+      if (!win.isPoppedOut?.() && !event.metaKey && !(event.shiftKey && event.key.toLowerCase() === "z")) return;
       if (global.CM && typeof global.CM.keydown === "function") {
         // Keep the original target: CM3 checks whether it is an input.
         global.CM.keydown({
