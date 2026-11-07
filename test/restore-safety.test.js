@@ -115,3 +115,18 @@ test("Web Locks guard the complete write and read-back operation", async () => {
   assert.ok(calls[0].signal instanceof AbortSignal);
   assert.ok((await h.store.getSnapshot("locked-good")).integrity);
 });
+
+test("a restore is refused while an export owns the editor", async () => {
+  let refused = 0, loads = 0;
+  const h = loadRestore({ projectFiles: { refuseDuringExport: () => { refused += 1; return true; } } });
+  await flush();
+  const { store, panel } = h.sandbox.__zoidiumRestoreParts;
+  await store.saveSnapshot(record("export-busy"));
+  const load = h.editor.loadProject;
+  h.editor.loadProject = function () { loads += 1; return load.apply(this, arguments); };
+  const project = h.editor.project;
+  await panel.recoverFromLatestBackup();
+  assert.equal(refused, 1);
+  assert.equal(loads, 0);
+  assert.equal(h.editor.project, project);
+});

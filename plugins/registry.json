@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "121",
+      "version": "122",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=121",
-      "bundle": "./plugins/core/bundle.json?v=121",
-      "integrity": "sha256-VKlMrVwW+ef9VtRJc+fgoOLqtyO0F9b36hHOoBM+h1I="
+      "manifest": "./plugins/core/manifest.json?v=122",
+      "bundle": "./plugins/core/bundle.json?v=122",
+      "integrity": "sha256-ZuZAxtVO8h3cKVoKuJhiqo2LGiYd3TnEzS37USRoDG0="
     },
     {
       "id": "easing-plus",
@@ -296,16 +296,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "46",
+      "version": "47",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=46",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=46",
-      "integrity": "sha256-NGYE/NwjTWxWzbhihFCU9pudoLJzX2YTqAiXhoBRse0="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=47",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=47",
+      "integrity": "sha256-EQ5F8WdOZnqgVg/jYGrSJHz/5mJcuCzQ8qIuu6bAvSI="
     },
     {
       "id": "optical-flares",
@@ -521,14 +521,14 @@
       "id": "mp4-export",
       "name": "MP4 Export",
       "author": "Zoidium",
-      "version": "9",
+      "version": "10",
       "category": "utilities",
       "defaultEnabled": true,
       "tagline": "H.264 MP4 video export",
       "description": "Export MP4 from the native Export panel with AAC or Opus audio. Requires WebCodecs encoder support.",
-      "manifest": "./plugins/mp4-export/manifest.json?v=9",
-      "integrity": "sha256-q9L8t7Tgf7Shfp2oRaoNAOsBXNZN4GxjUvMxGOHXtZI=",
-      "bundle": "./plugins/mp4-export/bundle.json?v=9"
+      "manifest": "./plugins/mp4-export/manifest.json?v=10",
+      "integrity": "sha256-6nVzsZ8NOax088m03a79xYTBXCIrsh/p6OPcikIlKOA=",
+      "bundle": "./plugins/mp4-export/bundle.json?v=10"
     }
   ]
 }

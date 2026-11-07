@@ -754,3 +754,46 @@ test("IES Filename is a visible file row and stored keys stay compatible", () =>
     PZ.trapcode.lights.uninstall();
   }
 });
+
+function compileHookMaterials() {
+  const { PZ, THREE } = setup();
+  THREE.Material ||= class {};
+  THREE.ShaderChunk ||= {};
+  THREE.ShaderChunk.lights_pars_begin = "float angleCos = dot( directLight.direction, spotLight.direction ); spotLight.decay";
+  THREE.ShaderLib ||= {};
+  THREE.DataTexture.prototype.dispose ||= function () {};
+  PZ.trapcode.lights.install(PZ);
+  assert.ok(Object.getOwnPropertyDescriptor(THREE.Material.prototype, "onBeforeCompile")?.get,
+    "Enabling the suite must install the compile hook");
+  return { PZ, THREE };
+}
+
+test("the photometry compile hook does not keep materials alive", async () => {
+  require("node:v8").setFlagsFromString("--expose-gc");
+  const collect = require("node:vm").runInNewContext("gc");
+  const { THREE, PZ } = compileHookMaterials();
+  const references = (() => Array.from({ length: 50 }, () => {
+    const material = new THREE.Material();
+    assert.equal(typeof material.onBeforeCompile, "function");
+    return new WeakRef(material);
+  }))();
+  for (let round = 0; round < 12 && references.some(ref => ref.deref()); round++) {
+    await new Promise(setImmediate);
+    collect();
+  }
+  assert.equal(references.filter(ref => ref.deref()).length, 0);
+  PZ.trapcode.lights.uninstall();
+});
+
+test("removing the photometry hook still restores a live material's own callback", () => {
+  const { THREE, PZ } = compileHookMaterials();
+  const material = new THREE.Material();
+  const own = () => {};
+  material.onBeforeCompile = own;
+  assert.notEqual(material.onBeforeCompile, own);
+  const plain = new THREE.Material();
+  assert.equal(typeof plain.onBeforeCompile, "function");
+  PZ.trapcode.lights.uninstall();
+  assert.equal(material.onBeforeCompile, own);
+  assert.equal(Object.getOwnPropertyDescriptor(THREE.Material.prototype, "onBeforeCompile")?.get, undefined);
+});

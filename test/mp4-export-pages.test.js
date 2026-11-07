@@ -84,3 +84,71 @@ test("MP4 bookkeeping collects 100 closed pages and devices while connected page
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
+
+function progressHarness() {
+  const { activate } = require("../plugins/mp4-export/mp4-export.js");
+  let generation = 0, finishJob;
+  const disposers = [];
+  class Export {
+    constructor() { generation += 1; this.framesRendered = 0; this.totalFrames = 1; }
+    unload() {}
+  }
+  const control = () => ({ pz_update() {} });
+  const PZ = {
+    export: Export,
+    zoidium: { exportGeneration: () => generation },
+    ui: {
+      controls: { legacy: { generateDescription: control, generateProgressbar: control, generateValue: control } },
+      export: { device: { prototype: { createOptionsPage() {}, createProgressPage() {}, createFinishedPage() {} } } },
+    },
+  };
+  const job = { cancel() {}, run: () => new Promise((_, reject) => { finishJob = () => reject(new Error("cancelled")); }) };
+  activate({
+    PZ,
+    apis: { modules: { createRequire: () => file => (file === "./render.js" ? { createJob: () => job } : require("../plugins/mp4-export/" + file)) } },
+    lifecycle: { onDispose(fn) { disposers.push(fn); } },
+  });
+  let back;
+  const owner = {
+    params: { format: "mp4_h264" },
+    editor: { enabled: true, playback: { enabled: true }, sequence: {} },
+    export: {
+      createPage(_title, _hasBack, onBack) { back = onBack; return { appendChild: item => item }; },
+      navigate() {},
+    },
+    renderCleanUp() {},
+  };
+  const start = () => PZ.ui.export.device.prototype.createProgressPage.call(owner);
+  const settled = () => new Promise(resolve => setImmediate(resolve));
+  return { Export, owner, start, settled, cancel: () => back(), finish: () => finishJob(),
+    dispose: () => { for (const fn of disposers.splice(0)) fn(); } };
+}
+
+test("a cancelled MP4 job returns the editor when no other render started", async () => {
+  const run = progressHarness();
+  run.start();
+  await run.settled();
+  run.cancel();
+  assert.equal(run.owner.editor.enabled, false);
+  run.finish();
+  await run.settled();
+  assert.equal(run.owner.editor.enabled, true);
+  assert.equal(run.owner.editor.playback.enabled, true);
+  run.dispose();
+});
+
+test("a cancelled MP4 job leaves the editor to a render that started after it", async () => {
+  const run = progressHarness();
+  run.start();
+  await run.settled();
+  run.cancel();
+  // A native render took over before the cancelled frame finished.
+  new run.Export();
+  run.owner.editor.enabled = false;
+  run.owner.editor.playback.enabled = false;
+  run.finish();
+  await run.settled();
+  assert.equal(run.owner.editor.enabled, false);
+  assert.equal(run.owner.editor.playback.enabled, false);
+  run.dispose();
+});

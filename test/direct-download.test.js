@@ -163,6 +163,18 @@ test("each finished page downloads the Blob captured when it was created", async
   assert.deepEqual(forwarded, []);
 });
 
+test("the long-lived export device keeps no reference to the delivered file", () => {
+  const { globalObject, DeviceExport } = createWindow();
+  install(globalObject, { downloadArtifact() {} });
+  globalObject.PZ.downloadBlob = new Blob(["video"]);
+  globalObject.PZ.downloadFilename = "video.webm";
+  const device = new DeviceExport();
+  device.createFinishedPage();
+  const held = Object.values(device).filter((value) => value && typeof value === "object" && "blob" in value);
+  assert.deepEqual(held, []);
+  assert.deepEqual(Object.getOwnPropertySymbols(device), []);
+});
+
 test("cleanup of one render cannot invalidate another finished page", async () => {
   const { globalObject, DeviceExport } = createWindow();
   const downloads = [];

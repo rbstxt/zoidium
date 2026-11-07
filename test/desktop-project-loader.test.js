@@ -7,6 +7,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 
 function harness() {
+  const history = [];
   const events = [];
   const listeners = new Map();
   const calls = [];
@@ -28,9 +29,14 @@ function harness() {
   class Editor {
     confirmIfDirty() { calls.push("confirm"); return this.approved !== false; }
     showFilePicker(callback) { this.pick = callback; }
-    async loadProject() { calls.push("load"); return this.nextProject; }
+    async loadProject() { calls.push("load"); this.duringLoad?.(); return this.nextProject; }
+    new() { calls.push("native new"); this.project = this.nextProject; }
   }
-  const PZ = { archive: Archive, ui: { editor: Editor }, zoidium: { define(name, value) { this[name] = value; } } };
+  class History {
+    undo() { history.push("undo"); }
+    redo() { history.push("redo"); }
+  }
+  const PZ = { archive: Archive, ui: { editor: Editor, history: History }, zoidium: { define(name, value) { this[name] = value; } } };
   const window = {
     PZ, Blob, File, ZoidiumDesktopProjects: bridge,
     addEventListener(name, callback) { listeners.set(name, callback); },
@@ -48,7 +54,7 @@ function harness() {
   editor.project = { previous: true };
   editor.nextProject = { children: [] };
   window.CM = editor;
-  return { window, editor, bridge, listeners, calls, events };
+  return { window, editor, bridge, listeners, calls, events, history, History };
 }
 
 const file = () => new File(["project archive"], "Saved.PZ");
@@ -163,4 +169,58 @@ test("a desktop import waits for a toolbar transition instead of discarding the 
   await operation;
   assert.equal(run.editor.project, run.editor.nextProject);
   assert.deepEqual(run.calls.at(-1), ["complete", "queued"]);
+});
+
+const busyErrors = run => run.events.filter(event => event.type === "zoidium:project-error" &&
+  /An export is using this project/.test(event.detail.message));
+
+test("New, Open, and a desktop file are refused while an export owns the editor", async () => {
+  const run = harness();
+  const previous = run.editor.project;
+  run.editor.enabled = false;
+  run.editor.new();
+  await run.editor.open(file());
+  run.editor.open();
+  assert.equal(run.editor.pick, undefined);
+  await run.bridge.receive({ id: "file-1", url: "/project/file-1", name: "Saved.pz" });
+  assert.equal(run.editor.project, previous);
+  // Nothing was read, and the desktop queue is released for the next file.
+  assert.deepEqual(run.calls, [["complete", "file-1"]]);
+  assert.equal(busyErrors(run).length, 4);
+});
+
+test("an export that starts while a project loads keeps the current project", async () => {
+  const run = harness();
+  const previous = run.editor.project;
+  run.editor.duringLoad = () => { run.editor.enabled = false; };
+  await run.editor.open(file());
+  assert.equal(run.editor.project, previous);
+  assert.equal(busyErrors(run).length, 1);
+});
+
+test("replacement works again after the export returns the editor", async () => {
+  const run = harness();
+  run.editor.enabled = false;
+  await run.editor.open(file());
+  run.editor.enabled = true;
+  await run.editor.open(file());
+  assert.equal(run.editor.project, run.editor.nextProject);
+});
+
+test("undo and redo wait until the export returns the editor", () => {
+  const run = harness();
+  const history = new run.window.PZ.ui.history();
+  history.editor = run.editor;
+  run.editor.enabled = false;
+  history.undo();
+  history.redo();
+  assert.deepEqual(run.history, []);
+  const messages = run.events.filter(event => event.type === "zoidium:project-error").map(event => event.detail.message);
+  assert.equal(messages.length, 2);
+  assert.match(messages[0], /^Undo is unavailable while an export/);
+  assert.match(messages[1], /^Redo is unavailable while an export/);
+  run.editor.enabled = true;
+  history.undo();
+  history.redo();
+  assert.deepEqual(run.history, ["undo", "redo"]);
 });

@@ -327,7 +327,12 @@
         if (!THREE.Material) return function () {};
         var proto = THREE.Material.prototype;
         var descriptor = Object.getOwnPropertyDescriptor(proto, "onBeforeCompile");
-        var original = proto.onBeforeCompile, records = new Map(), revision = ++shaderRevision;
+        // Three.js reads this accessor for every material it compiles, including
+        // the private ones of each export and each retired project. Weak records
+        // let those go; the references only serve the restore on uninstall.
+        var original = proto.onBeforeCompile, records = new WeakMap(), revision = ++shaderRevision;
+        var references = new Set();
+        var collected = new FinalizationRegistry(function (reference) { references.delete(reference); });
         function record(material, callback, own) {
             var entry = records.get(material);
             if (entry) { if (callback) { entry.original = callback; entry.own = own; } return entry; }
@@ -340,6 +345,9 @@
             entry.dispose = function () { restore(material, entry); };
             if (material.addEventListener) material.addEventListener("dispose", entry.dispose);
             records.set(material, entry);
+            entry.reference = new WeakRef(material);
+            references.add(entry.reference);
+            collected.register(material, entry.reference, entry.reference);
             return entry;
         }
         function restore(material, entry) {
@@ -347,6 +355,8 @@
             if (entry.own) Object.defineProperty(material, "onBeforeCompile", { value: entry.original, writable: true, configurable: true });
             else delete material.onBeforeCompile;
             records.delete(material);
+            references.delete(entry.reference);
+            collected.unregister(entry.reference);
         }
         Object.defineProperty(proto, "onBeforeCompile", {
             configurable: true,
@@ -364,7 +374,10 @@
             });
         }
         return function () {
-            records.forEach(function (entry, material) { restore(material, entry); });
+            Array.from(references).forEach(function (reference) {
+                var material = reference.deref();
+                if (material) restore(material, records.get(material));
+            });
             if (descriptor) Object.defineProperty(proto, "onBeforeCompile", descriptor);
             else delete proto.onBeforeCompile;
         };

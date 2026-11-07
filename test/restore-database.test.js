@@ -512,6 +512,7 @@ function loadRestore(options = {}) {
     openValidatedArchive: async () => ({}),
     isProjectDataError: () => false,
     triggerDownload: (blob, filename) => downloads.push({ blob, filename }),
+    refuseDuringExport: () => false,
     ...(options.projectFiles || {}),
   };
 

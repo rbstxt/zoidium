@@ -753,6 +753,8 @@
   }
 
   function assertProjectUnchanged(editor, expected) {
+    // Loading takes time, so an export can start after the first check.
+    if (shared.isExportBusy(editor)) throw new Error(shared.EXPORT_BUSY_MESSAGE);
     if (editor.project !== expected.project || getProjectRevision(editor) !== expected.revision || getProjectName(editor) !== expected.name) {
       throw new Error("The current project changed during the operation. It was kept. Retry after editing has finished.");
     }
@@ -762,6 +764,7 @@
   if (typeof originalNew === "function") {
     editorPrototype.new = function () {
       if (!this.project) return originalNew.apply(this, arguments);
+      if (shared.refuseDuringExport(this)) return;
       return newProjectWithBackup.call(this, arguments);
     };
     async function newProjectWithBackup(args) {
@@ -812,6 +815,7 @@
 
   editorPrototype.open = function (selectedFile) {
     var editor = this;
+    if (shared.refuseDuringExport(editor)) return;
     if (shared.transitionBusy(editor)) return editor._zoidiumTransitionPromise;
     if (!editor.confirmIfDirty()) return;
 
@@ -893,6 +897,7 @@
     desktopProjects.onFile(async function (message) {
       var editor = global.CM;
       try {
+        if (shared.refuseDuringExport(editor)) return;
         var response = await archiveIO.bounded(global.fetch(message.url), "Desktop project read");
         if (!response.ok) throw new Error("The project file is no longer available.");
         var length = response.headers && response.headers.get ? response.headers.get("content-length") : 0;
@@ -929,6 +934,7 @@
     prepareProject: prepareProject,
     backupBeforeReplace: backupBeforeReplace,
     assertProjectUnchanged: assertProjectUnchanged,
+    refuseDuringExport: shared.refuseDuringExport,
     fingerprintArchive: fingerprintArchive,
     getProjectRevision: getProjectRevision,
     isProjectUnsaved: shared.diskUnsaved,

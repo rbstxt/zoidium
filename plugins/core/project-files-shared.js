@@ -329,7 +329,43 @@
     return progress;
   }
 
+  // An export renders the editor's project directly, and the export pages hold
+  // editor.enabled false for as long as they own it. Replacing the project would
+  // release GPU resources the export is using and leave its progress page over
+  // an unrelated timeline, so every replacement path stops here instead.
+  var EXPORT_BUSY_MESSAGE = "An export is using this project. Finish or cancel it on the Export page, then try again. The current project was kept.";
+
+  function isExportBusy(editor) {
+    return Boolean(editor) && editor.enabled === false;
+  }
+
+  function refuseDuringExport(editor, message) {
+    if (!isExportBusy(editor)) return false;
+    try {
+      global.dispatchEvent(new CustomEvent("zoidium:project-error", {
+        detail: { editor: editor, message: message || EXPORT_BUSY_MESSAGE, retry: null, download: null, recoverable: false },
+      }));
+    } catch (_error) {
+      // A failed notification must not let the replacement continue.
+    }
+    return true;
+  }
+
+  // The toolbar and shortcuts reach undo and redo while the panels are disabled,
+  // and an edit halfway through an export would mix two versions of the project.
+  var historyPrototype = PZ.ui && PZ.ui.history && PZ.ui.history.prototype;
+  ["undo", "redo"].forEach(function (method) {
+    var original = historyPrototype && historyPrototype[method];
+    if (typeof original !== "function") return;
+    historyPrototype[method] = function () {
+      var name = method === "undo" ? "Undo" : "Redo";
+      if (refuseDuringExport(this.editor, name + " is unavailable while an export is using this project. Finish or cancel it on the Export page, then try again.")) return;
+      return original.apply(this, arguments);
+    };
+  });
+
   PZ.zoidium.projectFilesShared = {
+    EXPORT_BUSY_MESSAGE, isExportBusy, refuseDuringExport,
     captureDiskState, recordDiskSave, projectEdited, updateProjectDirty, diskUnsaved,
     prepareProject, slowStepQuestion, saveReadinessWait, transitionBusy, transitionProgress,
     DEFAULT_PROJECT_NAME: DEFAULT_PROJECT_NAME,
