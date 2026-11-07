@@ -27,10 +27,10 @@ test("selected fields stay in helper layer and follow each text's undeformed tra
     const expected = new h.THREE.Vector3(7, 2, 0).applyMatrix4(text.threeObj.matrixWorld);
     assert.deepEqual(Array.from(center.toArray()), Array.from(expected.toArray()));
     plain.objects.find(row => row.definition.effectorKey === "plainFieldPosition").set([11, 0, 0], 0);
-    helper.onBeforeRender();
+    helper.update();
     assert.equal(helper.__expressFieldGuides[0], guide);
     plain.objects.find(row => row.definition.effectorKey === "plainFieldPosition").set([7, 2, 0], 0);
-    helper.onBeforeRender();
+    helper.update();
     assert.equal(JSON.stringify(h.container), saved);
     assert.deepEqual(text.threeObj.children, children);
     assert.equal(h.container.threeObj.children.includes(helper), false);

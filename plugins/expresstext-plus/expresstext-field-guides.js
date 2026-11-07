@@ -38,7 +38,7 @@ function installFieldGuides(PZ, THREE, editor) {
     if (!owner) return helper;
     helpers.add(helper);
     helper.__expressFieldGuides = [];
-    const beforeRender = helper.onBeforeRender;
+    const originalUpdate = helper.update;
     function update() {
       if (disposed) return;
       const frame = editor.playback.currentFrame - (owner.frameOffset || 0);
@@ -77,7 +77,7 @@ function installFieldGuides(PZ, THREE, editor) {
     }
     // Guides are children of CM3's selection helper, never the project tree.
     // Only the editor camera enables helper layer 1.
-    helper.onBeforeRender = function () { beforeRender?.apply(this, arguments); update(); };
+    helper.update = function () { originalUpdate?.apply(this, arguments); update(); };
     update();
     return helper;
   }

@@ -54,6 +54,8 @@ const EXPRESS_DELAY_TYPE = "zoidium:expresstext-plus/delay";
 
 const { installFieldGuides } = require("./expresstext-field-guides.js");
 let disposeFieldGuides = null;
+const { installEditorRows } = require("./expresstext-editor-rows.js");
+let disposeEditorRows = null;
 
 function getExpressDefinitions() {
   return [
@@ -407,6 +409,7 @@ function activate(context) {
   // Effector entries for the stock Custom properties + dialog, scoped to
   // ExpressText+ containers only. Best-effort: without the host registry
   // the customs row keeps the stock five and everything else works.
+  disposeEditorRows = installEditorRows(PZ);
   disposeFieldGuides = installFieldGuides(PZ, THREE, state.editor);
   registerEffectorEntries(PZ);
   installSectionRow(PZ, (context && context.apis) || globalThis.ZoidiumPluginApis);
@@ -418,6 +421,8 @@ function activate(context) {
 }
 
 function deactivate() {
+  disposeEditorRows?.();
+  disposeEditorRows = null;
   disposeFieldGuides?.();
   disposeFieldGuides = null;
   clearDelayCache();

@@ -134,6 +134,11 @@
       "id": "expresstext-field-guides",
       "type": "text",
       "source": "./plugins/expresstext-plus/expresstext-field-guides.js?v=5"
+    },
+    {
+      "id": "expresstext-editor-rows",
+      "type": "text",
+      "source": "./plugins/expresstext-plus/expresstext-editor-rows.js?v=5"
     }
   ]
 }

@@ -10,14 +10,17 @@ const keys = list => Array.from(list, section => section.objects[0].definition.e
 test("native section moves use one undo operation and survive reopen and duplicate", () => {
   const h = fixture();
   try {
-    const plain = h.section("Plain", { plainPosition: [4, 0, 0] });
-    const wrap = h.section("Wrap", { wrapAmplitude: 10 });
+    const plain = h.section("Plain", { plainPosition: [4, 0, 0], plainRotation: [0, 1, 0] });
+    const formula = h.section("Formula", { formulaExpression: "ry", formulaPosition: [1, 0, 0] });
     const random = h.section("Random", { randomSeed: 9 });
     const list = h.container.customProperties;
     assert.ok(plain instanceof list.type);
-    assert.ok(wrap instanceof list.type);
+    assert.ok(formula instanceof list.type);
     assert.equal(new h.PZ.object3d.group() instanceof list.type, false);
     const before = copy(list);
+    const evaluate = () => h.T.evaluateStack(h.T.customSections(h.container), h.T.staticProps({}), 13,
+      0, {order: [0], total: 1}, [0, 0, 0]);
+    const originalOutput = evaluate();
     const editor = editorFor(h.PZ, h.project);
     const context = { editor };
     const address = list.getAddress();
@@ -26,14 +29,16 @@ test("native section moves use one undo operation and survive reopen and duplica
       oldParentAddress: address, oldIdx: 1, newParentAddress: address, newIdx: 0,
     });
     editor.history.finishOperation();
-    assert.deepEqual(keys(list), ["wrapEnable", "plainEnable", "randomEnable"]);
-    assert.equal(list[0], wrap);
+    assert.deepEqual(keys(list), ["formulaEnable", "plainEnable", "randomEnable"]);
+    assert.notDeepEqual(evaluate(), originalOutput);
+    assert.equal(list[0], formula);
     assert.equal(list[1], plain);
     assert.equal(list[2], random);
     assert.deepEqual(copy(list[1]), before[0]);
     assert.deepEqual(copy(list[2]), before[2]);
     editor.history.undo();
     assert.deepEqual(copy(list), before);
+    assert.deepEqual(evaluate(), originalOutput);
     editor.history.redo();
     const saved = copy(h.container);
     const Container = h.T.createExpressObjectClass(h.PZ, h.T.getExpressDefinitions()[0]);
