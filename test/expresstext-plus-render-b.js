@@ -350,6 +350,16 @@ test("voronoi chunks shatter the letter through the render path", () => {
     T.updateExpressRendering(textObject, splitState, weakLayers, 1);
     assert.equal(entry.mesh.visible, true, "base returns when calm");
     assert.ok(entry.chunks.every((c) => !c.node.visible), "chunks hide when calm");
+    // Off restores the whole letter at any Strength, like every other section.
+    const switched = (enable) => fakeSection("Voronoi", { voronoiEnable: enable, voronoiStrength: 100, voronoiChunks: 4, voronoiExplode: 10 });
+    container.customProperties = [switched(1)];
+    T.updateExpressRendering(textObject, splitState, T.collectExpressObjects(textObject), 2);
+    assert.equal(splitState.entries[0].mesh.visible, false, "on shatters");
+    assert.equal(splitState.entries[0].chunks.length, 4, "on builds chunks");
+    container.customProperties = [switched(0)];
+    T.updateExpressRendering(textObject, splitState, T.collectExpressObjects(textObject), 3);
+    assert.notEqual(splitState.entries[0].mesh.visible, false, "off shows the base letter");
+    assert.equal(splitState.entries[0].chunks.length, 0, "off builds no chunks");
   } finally {
     mod.deactivate();
   }

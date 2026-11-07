@@ -675,7 +675,7 @@ function prepareExpressRendering(textObject, splitState, stack, frame) {
   // re-roll rebuilds the cells.
   let voronoiSpec = null;
   for (const layer of stack) {
-    if (layer && layer.kind === "voronoi") {
+    if (layer && layer.kind === "voronoi" && numberValue(readProp(layer.props, "voronoiEnable", frame, 1), 1)) {
       const chunks = Math.max(
         0,
         Math.min(64, Math.floor(numberValue(readProp(layer.props, "voronoiChunks", frame, 8), 8)))
@@ -830,6 +830,7 @@ function updateExpressRendering(textObject, splitState, layers, frame) {
       let chunkWeight = 0;
       for (const layer of stack) {
         if (!layer || layer.kind !== "voronoi") continue;
+        if (!numberValue(readProp(layer.props, "voronoiEnable", frame, 1), 1)) continue;
         const ctx = letterContext(layer.props, "voronoi", frame, globalIndex, globalList, plainLists);
         if (!isLetterSelected(ctx.selected, globalIndex)) continue;
         const w = applyFieldWeight(ctx.strength, layer.props, "voronoi", frame, entry.base);
