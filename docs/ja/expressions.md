@@ -30,7 +30,11 @@ Expressions+ の構文または API を必要とするプログラムには、�
 
 ## 値とナビゲーション
 
-`frame` は CM3 のプロパティローカルフレームです。`time` は、所有するクリップの Time プロパティを保持します。単位は秒で、タイムリマッピングを含みます。`fps` は所有するシーケンスのフレームレートです。フレーム 0 でも同じ値を返します。Export のフレームレート変更はサンプリングを変更しますが、`fps` と `time` の意味は変更しません。`value` は、その式の前のプロパティ自身の値です。値とハンドルは、プロジェクトへの書き込みを公開しません。
+`frame` は CM3 のプロパティローカルフレームです。`time` は、所有するクリップの Time プロパティを保持します。単位は秒で、タイムリマッピングを含みます。
+`fps` は所有するシーケンスのフレームレートです。フレーム 0 でも同じ値を返します。
+Export のフレームレート変更はサンプリングを変更します。
+この変更は `fps` と `time` の意味を維持します。
+`value` は、その式の前のプロパティ自身の値です。値とハンドルは、プロジェクトへの書き込みを公開しません。
 
 `thisProperty` は、`value`、`valueAtTime(seconds)`、`velocity`、`speed`、`numKeys`、`key(index)`、`nearestKey(seconds)` を持ちます。キーインデックスは 1 から開始します。キーレコードは `index`、`time`、`value` を含みます。Velocity は 0.01 秒の対称微分です。speed はその大きさです。自身の valueAtTime は、式を経由して再帰せず、元のキーフレームをサンプリングします。
 
@@ -122,7 +126,7 @@ Custom Shader エフェクトは、元の保存済み GLSL を保持します。
 
 チャンクは 1 回だけ出力されます。Noise は hash を自動的に含みます。GLSL ES 1.00 ライブラリは、`zHash(float/vec2/vec3)`、`zNoise(vec2/vec3)`、`zSrgbToLinear(vec3)`、`zLinearToSrgb(vec3)`、`zRgbToHsv(vec3)`、`zHsvToRgb(vec3)`、`zSdCircle(vec2,float)`、`zSdSphere(vec3,float)`、`zSdBox(vec2,vec2)`、`zSdBox(vec3,vec3)`、`zSmoothUnion(float,float,float)` を持ちます。Hash/noise は 0–1 を返します。HSV は 0–1 の色相を使います。SDF 距離は内部で負です。色変換は RGB に作用し、アルファはシェーダー作成者に委ねます。
 
-`uniform float zTime;` と `uniform float zFrame;` を宣言すると、所有クリップの Time を秒単位と、エフェクトローカルフレームを受け取ります。スカラー `int` uniform も受け付けます。ゼロ方向に切り捨てます。`ctl_<Name>` を float、int、vec2、vec3、vec4 として宣言すると、Sequence Control にバインドします。名前内の非 ASCII/空白/句読点文字は `_` になります。正規化後の名前が衝突するとエラーを報告します。コントロールの次元は一致する必要があります。Color は RGB を vec3 として、または不透明 RGBA を vec4 としてバインドします。Point 2D/3D は vec2/vec3 にバインドします。カンマ区切りの uniform 宣言を受け付けます。自動バインドは uniform 配列をサポートしません。
+`uniform float zTime;` と `uniform float zFrame;` を宣言すると、所有クリップの Time を秒単位と、エフェクトローカルフレームを受け取ります。スカラー `int` uniform も受け付けます。ゼロ方向に切り捨てます。`uniform float zFps;` はシーケンスのフレームレートを受け取ります。Export のフレームレート変更は `zFps` を変更しません。これらの uniform は、シェーダーで宣言した場合にだけバインドされます。`ctl_<Name>` を float、int、vec2、vec3、vec4 として宣言すると、Sequence Control にバインドします。名前内の非 ASCII/空白/句読点文字は `_` になります。正規化後の名前が衝突するとエラーを報告します。コントロールの次元は一致する必要があります。Color は RGB を vec3 として、または不透明 RGBA を vec4 としてバインドします。Point 2D/3D は vec2/vec3 にバインドします。カンマ区切りの uniform 宣言を受け付けます。自動バインドは uniform 配列をサポートしません。
 
 Amount という名前の Slider の場合:
 
@@ -140,7 +144,3 @@ void main() {
 ```
 
 ネイティブカスタムプロパティ式と Node Effect の公開パラメーターは、同じ式エンジンを使います。これらの宣言/include のない既存シェーダーは、正確に元のコンパイラ入力とネイティブ uniform を受け取ります。シェーダーエラーは CM3 のシェーダーエラーハンドラーを通じて表示されます。不足しているコントロールは、互換性のあるコントロールが存在すればすぐに回復できます。
-
-### シーケンスのフレームレート
-
-`uniform float zFps;` はシーケンスのフレームレートを受け取ります。Export のフレームレート変更は `zFps` を変更しません。`zTime`、`zFrame`、`zFps` は、シェーダーで宣言した場合にだけバインドされます。

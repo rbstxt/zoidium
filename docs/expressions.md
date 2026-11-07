@@ -63,7 +63,11 @@ starts a fresh stream. No stream state survives into the next frame.
 ## Values and navigation
 
 `frame` is CM3's property-local frame. `time` retains the owning clip's Time
-property, in seconds, including time remapping. `fps` is the owning sequence's frame rate, including at frame zero. An export frame rate override changes sampling, not `fps` or the meaning of `time`. `value` is the property's
+property, in seconds, including time remapping.
+`fps` is the owning sequence's frame rate, including at frame zero.
+An export frame rate override changes sampling.
+The override preserves `fps` and the meaning of `time`.
+`value` is the property's
 own value before its expression. Values and handles expose no project writes.
 
 `thisProperty` has `value`, `valueAtTime(seconds)`, `velocity`, `speed`,

@@ -51,7 +51,8 @@ for (const definition of [
   { type: 0, value: 4 }, { type: 1, dynamic: true, group: true, objects: [{ dynamic: true, type: 0, value: 1 }, { dynamic: true, type: 0, value: 2 }] },
   { type: 2, dynamic: true, group: true, objects: [0, 1, 2].map(value => ({ dynamic: true, type: 0, value })) },
   { type: 3, dynamic: true, group: true, objects: [0, 1, 2, 3].map(value => ({ dynamic: true, type: 0, value })) },
-  { type: 4, value: null }, { type: 5, value: [] }, { type: 6, value: "0", items: "First;Second" }, { type: 7, value: "literal text" },
+  { type: 4, value: null }, { type: 5, value: [] },
+  { type: 8, value: null }, { type: 9, value: null }, { type: 10, value: [] }, { type: 11, value: "void main() {}" }, { type: 6, value: "0", items: "First;Second" }, { type: 7, value: "literal text" },
 ]) test("kind-less native type " + definition.type + " retains its definition on Apply and metadata edits", () => {
   const { p, find, apply } = setup({ custom: true, ...definition });
   const before = JSON.stringify(p.definition), value = JSON.stringify(p.get(0));
