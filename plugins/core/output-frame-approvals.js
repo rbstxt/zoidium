@@ -3,10 +3,10 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "a6c2232b43b0aef37d338c4b0492d29d4b1d0a8609a8c801e9034325780fd91d",
+  "fingerprint": "e0c7482ec55d7c5bd4a667de5d402b4eda21dd898965c851d956a0709335dcfa",
   "plugins": {
     "native-fx": {
-      "version": "38",
+      "version": "39",
       "cases": [
         "radialblurspin",
         "colorcurves",
@@ -38,7 +38,7 @@
       ]
     },
     "ccfx-shader-pack": {
-      "version": "2",
+      "version": "3",
       "cases": [
         "part-1-backgrounds-sunburst",
         "part-1-backgrounds-voronoi-cell-pattern",
@@ -69,7 +69,7 @@
       ]
     },
     "repeater": {
-      "version": "41",
+      "version": "42",
       "cases": [
         "Repeater",
         "Linear Repeater",
@@ -93,7 +93,7 @@
       ]
     },
     "trapcode-suite": {
-      "version": "47",
+      "version": "48",
       "cases": [
         "Particular",
         "Default burst",
@@ -124,7 +124,7 @@
       ]
     },
     "expresstext-plus": {
-      "version": "3",
+      "version": "4",
       "cases": [
         "ExpressText+",
         "ExpressText+-full"

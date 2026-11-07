@@ -10,6 +10,8 @@ each line describes one visible change.
 
 ### Added
 
+- Delay has Spring damping and Spring cycles controls for much stronger overshoot.
+  Their defaults keep existing projects unchanged.
 - Plugin windows can open as separate browser windows, so you can move Graph
   Editor 2, the code editors, the Trapcode designers, and other tools to another
   monitor. Use Pop out in the window's title bar. Closing the separate window
@@ -178,6 +180,28 @@ each line describes one visible change.
 
 ### Fixed
 
+- ExpressText+ section header rows no longer have fields. Clicking those blank
+  fields used to write NaN and off into the section's first rows. Damaged values
+  are repaired when a project loads. Turn the section back on if needed.
+- Voronoi's off switch in ExpressText+ now works. Letters with Voronoi off render
+  whole in existing projects.
+- Delay is much faster: playback with 24 history frames and two Text objects fell
+  from 157 ms to 17.5 ms per frame. History frames now go up to 120.
+- Video with alpha now keeps it on Video layers and on Video materials with
+  Transparency on. It used to render over opaque black. Existing projects using
+  such clips will look different.
+- A video or audio file that cannot be decoded no longer leaves a tile stuck on
+  Loading. It shows a warning and keeps a named entry, and importing it again
+  warns again. The Video material file picker checks the file too.
+- Turning on a keyframe stopwatch scrolls the keyframe panel to the new row.
+- Particular Transform (rotation, scale, offset) now moves the particle cloud, and
+  Spherical field Scale X, Y, Z now stretch the field. These values were ignored,
+  so existing projects that set them will look different.
+- Timecode with Time Source set to Composition now counts from the sequence start.
+  Clips that do not start at frame 0 will show a different time.
+- Controls that had no effect are hidden or removed from new effects: Particular
+  Particle Random seed and five rows in shader effects. Saved values still load.
+- Reference pages now state what several controls actually do.
 - New and Open no longer rebuild a restore point when the project has not
   changed, and they no longer wait for another tab. A progress message appears
   for slow operations, and a repeated click says the operation is already
