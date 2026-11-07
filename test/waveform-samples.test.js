@@ -45,3 +45,30 @@ test("fractional bins cover exact channel ranges and append without changing aud
   const cancellation=record();analyze(buffer(44100,(_i,c)=>c?.5:-.5,2),{},cancellation);
   assert.ok(cancellation.minBuf.every(value=>value===0));assert.ok(cancellation.maxBuf.every(value=>value===0));
 });
+
+test("timeline windows share one analysis per asset and serialize different assets", async () => {
+  const context=host(), prototype=context.PZ.ui.waveform.prototype;
+  const asset={}, other={};
+  function deferred(){let resolve;const promise=new Promise(yes=>{resolve=yes;});return{resolve,promise};}
+  const nativeJobs=[];
+  const nativeWindow=()=>Object.assign(Object.create(prototype),{bufferCache:new WeakMap(),analyze(){const job=deferred();nativeJobs.push(job);return job.promise;}});
+  const a=nativeWindow(),b=nativeWindow();
+  const before=[a.analyzeMedia(asset),b.analyzeMedia(asset)];
+  assert.equal(nativeJobs.length,2,"native per-window queues start two jobs on the shared decoder");
+  nativeJobs.forEach(job=>job.resolve());await Promise.all(before);
+  vm.runInContext(patch,context);
+  let active=0,maximum=0;const jobs=[];
+  const window=()=>Object.assign(Object.create(prototype),{bufferCache:new WeakMap(),analyze(media){
+    active++;maximum=Math.max(maximum,active);const job=deferred();jobs.push({media,...job});
+    return job.promise.then(()=>{active--;this.bufferCache.get(media).maxBuf=new Int8Array([42]);});
+  }});
+  const first=window(),second=window();
+  const one=first.analyzeMedia(asset),shared=second.analyzeMedia(asset),two=second.analyzeMedia(other);
+  assert.equal(first.bufferCache.get(asset),second.bufferCache.get(asset));
+  await Promise.resolve();assert.equal(jobs.length,1);
+  jobs[0].resolve();await one;await shared;await Promise.resolve();
+  assert.equal(jobs.length,2);assert.equal(jobs[1].media,other);
+  assert.equal(second.bufferCache.get(asset).maxBuf[0],42);
+  jobs[1].resolve();await two;
+  assert.equal(maximum,1);assert.equal(first.analyzeLoading,null);assert.equal(second.analyzeLoading,null);
+});

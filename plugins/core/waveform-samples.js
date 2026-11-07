@@ -28,5 +28,28 @@
       high[offset + point] = 127 * max;
     }
   };
+  // CM3's AV decoder is shared by every timeline. Separate per-window
+  // queues can replace its worker while another waveform still uses it.
+  const analyses = new WeakMap();
+  let pending = Promise.resolve();
+  prototype.analyzeMedia = function (asset) {
+    if (!asset) return Promise.resolve();
+    let analysis = analyses.get(asset);
+    if (!analysis) {
+      const record = { pointsPerSec: 200, minBuf: new Int8Array(0), maxBuf: new Int8Array(0) };
+      analysis = { record, promise: null };
+      this.bufferCache.set(asset, record);
+      analysis.promise = pending.then(() => this.analyze(asset)).catch(error => {
+        console.warn("[Zoidium] Waveform analysis failed", error);
+      });
+      analyses.set(asset, analysis);
+      pending = analysis.promise;
+    } else this.bufferCache.set(asset, analysis.record);
+    const loading = analysis.promise.then(() => {
+      if (this.analyzeLoading === loading) this.analyzeLoading = null;
+    });
+    this.analyzeLoading = loading;
+    return loading;
+  };
   prototype.__zoidiumWaveformSamples = true;
 })(window);
