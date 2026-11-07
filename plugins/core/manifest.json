@@ -400,6 +400,10 @@
       "source": "./plugins/core/keyframe-row-reveal.js?v=120"
     },
     {
+      "id": "video-texture-alpha",
+      "source": "./plugins/core/video-texture-alpha.js?v=120"
+    },
+    {
       "id": "video-decode-hint",
       "source": "./plugins/core/video-decode-hint.js?v=120"
     },
