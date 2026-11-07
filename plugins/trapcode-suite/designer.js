@@ -99,7 +99,7 @@ var PZ = PZ || {};
     }
 
     function snapshot(property) {
-        return JSON.parse(JSON.stringify(property.get(frame())));
+        return PZ.ui.properties.getStoredValue(property, frame() - (property.frameOffset || 0));
     }
 
     function sameValue(a, b) {
@@ -122,7 +122,7 @@ var PZ = PZ || {};
 
     function recordSetValue(property, value, oldValue) {
         var ops = new PZ.ui.properties(CM);
-        ops.setValue({ property: property.getAddress(), frame: frame(), value: value, oldValue: oldValue });
+        ops.setValue({ property: property.getAddress(), frame: frame() - (property.frameOffset || 0), value: value, oldValue: oldValue });
     }
 
     // Leaf properties under a list or a group, in definition order.
@@ -145,7 +145,16 @@ var PZ = PZ || {};
     function recordChanges(target, fn) {
         var leaves = collectLeaves(target.properties);
         var before = leaves.map(snapshot);
-        var result = fn();
+        // Presets call set(value) without a frame. Native animated setters
+        // require one, and their search can loop forever when it is absent.
+        var restores = leaves.filter(function (p) { return p.keyframes; }).map(function (p) {
+            var own = Object.prototype.hasOwnProperty.call(p, "set"), set = p.set;
+            p.set = function (value, at) { return set.call(this, value, at === undefined ? frame() - (this.frameOffset || 0) : at); };
+            return function () { if (own) p.set = set; else delete p.set; };
+        });
+        var result;
+        try { result = fn(); }
+        finally { restores.forEach(function (restore) { restore(); }); }
         operate(function () {
             leaves.forEach(function (property, index) {
                 var now = snapshot(property);

@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=127",
       "bundle": "./plugins/core/bundle.json?v=127",
-      "integrity": "sha256-hOy4QzOWZ4ptYpUz1E/ZILNvbZuntwAfB22w6rwy7rU="
+      "integrity": "sha256-ywvaHboqeXCdfKVxcinIArOho6hHV5Fpcq4Olqx5ZNk="
     },
     {
       "id": "easing-plus",
@@ -305,23 +305,23 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/trapcode-suite/manifest.json?v=49",
       "bundle": "./plugins/trapcode-suite/bundle.json?v=49",
-      "integrity": "sha256-E0/i6CWXiay6yHlQ3cGR4cEZ1cIxSYt04Bxt9V1vNvw="
+      "integrity": "sha256-Ds1w/QJSJaen+MFCBqXJLWFwhlBgPHn3crbJ70+tJtc="
     },
     {
       "id": "optical-flares",
       "category": "scene",
       "name": "Optical Flares",
       "author": "DaviFX",
-      "version": "20",
+      "version": "21",
       "itemCount": 5,
       "format": "3D objects",
       "tagline": "3D lens flares",
       "color": "#4a90d9",
       "description": "Video Copilot style lens flares placed in 3D space and projected through the scene camera, edited in one floating window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/optical-flares/manifest.json?v=20",
-      "bundle": "./plugins/optical-flares/bundle.json?v=20",
-      "integrity": "sha256-LiZcUZJOJ+L7lxXrZAPteTZgrfWqMIo9nh7jnQHeVtY="
+      "manifest": "./plugins/optical-flares/manifest.json?v=21",
+      "bundle": "./plugins/optical-flares/bundle.json?v=21",
+      "integrity": "sha256-sOtqHvWJlGq0xnG51VTdK44ktw6CJbHN5KfXnYiG5NI="
     },
     {
       "id": "effector-plus",
@@ -446,16 +446,16 @@
       "category": "adjustment",
       "name": "Magic Looks",
       "author": "DaviFX",
-      "version": "22",
+      "version": "23",
       "itemCount": 29,
       "format": "setup",
       "tagline": "Looks-style color grading",
       "color": "#f7941d",
       "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain with look presets and a floating setup window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/magic-looks/manifest.json?v=22",
-      "bundle": "./plugins/magic-looks/bundle.json?v=22",
-      "integrity": "sha256-/gQVGIqNJrpwFuf/Qlk6Mjvhw8Qsx7Ot3I5zC766hng="
+      "manifest": "./plugins/magic-looks/manifest.json?v=23",
+      "bundle": "./plugins/magic-looks/bundle.json?v=23",
+      "integrity": "sha256-7wrrgyWC0fHt/kw4UPty0vQzvNHwNophnjK8qHEdftE="
     },
     {
       "id": "layer-input",

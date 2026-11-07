@@ -180,6 +180,7 @@ function setup() {
     state.history.ops.push({ key: e.property[0], value: e.value, oldValue: e.oldValue });
     prop.set(e.value, e.frame);
   };
+  new Function("window", fs.readFileSync("plugins/core/property-history.js", "utf8"))({ PZ });
   const ui = {
     controls: makeControls(log),
     getWindow() { return null; },
@@ -287,6 +288,24 @@ test("a parameter edit commits through the effect property as one history step",
   assert.equal(h.state.history.ops[0].key, "conPivot");
   assert.equal(h.state.history.ops[0].oldValue, 0.18, "undo restores the value from before the drag");
   assert.equal(h.state.history.starts, h.state.history.finishes, "history operations are balanced");
+});
+
+test("animated setup previews record the stored key instead of the interpolated value", () => {
+  const h = setup(), p = h.store.conPivot;
+  p.keyframes = [{ value: 0.1 }, { value: 0.5 }];
+  p.getClosestKeyframeIndex = () => 1;
+  p.get = () => (p.keyframes[0].value + p.keyframes[1].value) / 2;
+  p.set = value => { p.keyframes[1].value = value; };
+  openFromEditor(h);
+  const chain = since(h, 0, "list").find(r => r.opts.items.some(i => i.id === "contrast"));
+  chain.opts.onSelect("contrast");
+  const pivot = h.log.filter(r => r.opts.label === "Pivot").at(-1);
+  pivot.opts.onChange(0.3);
+  assert.equal(h.state.history.ops.length, 0, "unchanged display does not write a key");
+  pivot.opts.onInput(0.4); pivot.opts.onChange(0.45);
+  assert.equal(h.state.history.ops.at(-1).oldValue, 0.5);
+  assert.equal(p.keyframes[1].value, 0.45);
+  h.windows[0].close();
 });
 
 test("chain edits are undoable commits that change the chain order", () => {

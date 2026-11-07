@@ -307,6 +307,7 @@ function installCommon(fakes) {
       }
     },
   };
+  new Function("window", fs.readFileSync("plugins/core/property-history.js", "utf8"))({ PZ });
   // Commands run with `this` bound to an object carrying the editor.
   for (const key of ["createObject", "deleteObject", "moveObject"]) {
     const original = commands[key];
@@ -441,6 +442,53 @@ function findControl(env, label) {
   assert.ok(node, "control " + label);
   return node;
 }
+
+test("animated options record the replaced key instead of its interpolated display", () => {
+  const env = setup();
+  try {
+    const p = env.root.properties.flareSetup.brightness;
+    p.keyframes = [{ value: 100 }, { value: 200 }];
+    p.getClosestKeyframeIndex = () => 1;
+    p.get = () => (p.keyframes[0].value + p.keyframes[1].value) / 2;
+    p.set = value => { p.keyframes[1].value = value; };
+    openAndMount(env);
+    const input = env.log.controls.filter(c => c.config.label === "Brightness").at(-1);
+    input.config.onChange(150);
+    assert.equal(env.history.operations, 0, "blurring an unchanged interpolated value is a no-op");
+    input.config.onInput(170); input.config.onInput(180); input.config.onChange(175);
+    assert.equal(env.history.commands.at(-1).params.old, 200);
+    assert.equal(env.history.operations, 1);
+    assert.equal(p.keyframes[1].value, 175);
+  } finally { env.restore(); }
+});
+
+test("closing options commits an unfinished live drag once", () => {
+  const env = setup();
+  try {
+    const { cleanup } = openAndMount(env);
+    const input = env.log.controls.filter(c => c.config.label === "Brightness").at(-1);
+    input.config.onInput(125); input.config.onInput(150);
+    assert.equal(env.history.operations, 0);
+    cleanup();
+    assert.equal(env.history.operations, 1);
+    assert.equal(env.history.commands.at(-1).params.old, 100);
+    assert.equal(env.root.properties.flareSetup.brightness.get(), 150);
+    cleanup();
+    assert.equal(env.history.operations, 1, "cleanup cannot record the drag twice");
+  } finally { env.restore(); }
+});
+
+test("closing a retired options window cannot append to the new project's history", () => {
+  const env = setup();
+  try {
+    const { cleanup } = openAndMount(env);
+    const input = env.log.controls.filter(c => c.config.label === "Brightness").at(-1);
+    input.config.onInput(150);
+    env.editor.project = {};
+    cleanup();
+    assert.equal(env.history.operations, 0);
+  } finally { env.restore(); }
+});
 
 function buttonNamed(env, title) {
   const button = env.log.buttons.find((b) => b.title === title);

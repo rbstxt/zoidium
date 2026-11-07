@@ -77,7 +77,7 @@ module.exports = function installWindow(PZ) {
 
         // Live preview while dragging: no undo record yet.
         function live(prop, value) {
-            if (!pending.has(prop)) pending.set(prop, winData.copy(read(prop)));
+            if (!pending.has(prop)) pending.set(prop, PZ.ui.properties.getStoredValue(prop, frameOf(prop)));
             prop.set(value, frameOf(prop));
         }
 
@@ -152,7 +152,8 @@ module.exports = function installWindow(PZ) {
 
         // One undo record per user edit.
         function commit(prop, value) {
-            var old = pending.has(prop) ? pending.get(prop) : winData.copy(read(prop));
+            if (!pending.has(prop) && JSON.stringify(read(prop)) === JSON.stringify(value)) return;
+            var old = pending.has(prop) ? pending.get(prop) : PZ.ui.properties.getStoredValue(prop, frameOf(prop));
             pending.delete(prop);
             if (JSON.stringify(old) === JSON.stringify(value)) return;
             group(function () { record(prop, value, old); });
@@ -959,6 +960,12 @@ module.exports = function installWindow(PZ) {
                     staticScope.dispose();
                     if (customView && typeof customView.dispose === "function") customView.dispose();
                     customView = null;
+                    if (pending.size && editor.project === project && root.isLive()) group(function () {
+                        for (var [prop, old] of pending) {
+                            var value = PZ.ui.properties.getStoredValue(prop, frameOf(prop));
+                            if (JSON.stringify(old) !== JSON.stringify(value)) record(prop, value, old);
+                        }
+                    });
                     pending.clear();
                     view = {};
                 };

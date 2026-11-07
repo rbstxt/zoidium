@@ -224,6 +224,7 @@ function withGlobals(fn) {
 }
 
 function loadDesigner(PZ) {
+  new Function("window", fs.readFileSync("plugins/core/property-history.js", "utf8"))({ PZ });
   CM.project = { addressLookup: () => PZ.trapcode.testRoot?.parent ? PZ.trapcode.testRoot : null };
   new Function("PZ", source)(PZ);
   return PZ.trapcode.designer;
@@ -418,6 +419,34 @@ test("a preset is applied as one recorded undo step and the rows are refreshed",
     assert.equal(history.started, 1);
     assert.equal(history.finished, 1);
     assert.ok(view.refreshes >= 1);
+  });
+});
+
+test("a preset restores the exact native keys when the playhead is between keys", () => {
+  withGlobals(() => {
+    const { host, fixture, editorFor } = require("./helpers/editor-identity-host.cjs");
+    const native = host(), { project, layer } = fixture(native);
+    new Function("window", fs.readFileSync("plugins/core/property-history.js", "utf8"))({ PZ: native.PZ });
+    const editor = editorFor(native.PZ, project), p = layer.properties.position.objects[0];
+    p.animated = true; p.keyframes.push(new native.PZ.keyframe(10, 24, 1));
+    editor.playback.currentFrame = 12;
+    const { designer, root, PZ } = setup();
+    PZ.property = native.PZ.property; PZ.propertyList = native.PZ.propertyList;
+    PZ.ui.properties = native.PZ.ui.properties;
+    root.systems[0].properties = layer.properties;
+    root.constructor.designer.applyPreset = () => p.set(4);
+    root.getAddress = () => ["designer"];
+    const lookup = project.addressLookup;
+    project.addressLookup = function (address, ...args) {
+      return address[0] === "designer" ? root : lookup.call(this, address, ...args);
+    };
+    globalThis.CM = editor;
+    const win = designer.open(root), before = JSON.stringify(project);
+    byClass(win.body, "tc-preset")[0].onclick();
+    const after = JSON.stringify(project);
+    assert.notEqual(after, before); assert.equal(editor.history.undoStack.length, 1);
+    editor.history.undo(); assert.equal(JSON.stringify(project), before);
+    editor.history.redo(); assert.equal(JSON.stringify(project), after);
   });
 });
 

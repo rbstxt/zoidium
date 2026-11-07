@@ -51,6 +51,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "property-history",
+      "source": "./plugins/core/property-history.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "video-seek-policy",
       "source": "./plugins/core/video-seek-policy.js",
       "phase": "pre-init"

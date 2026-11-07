@@ -74,6 +74,16 @@ function setup() {
   return { editor, viewport, changes, selections };
 }
 
+test("Command undo and redo reach the node editor's window host", () => {
+  const { editor } = setup();
+  let stopped = 0;
+  for (const key of ["z", "y", "s"]) editor.element.dispatch("keydown", {
+    key, metaKey: true, stopPropagation() { stopped++; },
+  });
+  assert.equal(stopped, 0);
+  editor.destroy();
+});
+
 function pointer(target, type, detail) {
   return target.dispatch(type, Object.assign({
     button: 0,
