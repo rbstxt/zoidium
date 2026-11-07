@@ -6,7 +6,10 @@
     const created = playback.scheduleCreated, unloaded = playback.scheduleUnloaded;
     function idle(context) {
       let entries = idleByContext.get(context);
-      if (!entries) { entries = []; idleByContext.set(context, entries); }
+      if (!entries) {
+        entries = []; idleByContext.set(context, entries);
+        context.addEventListener?.("statechange", () => { if (context.state === "closed") entries.length = 0; });
+      }
       return entries;
     }
     playback.scheduleCreated = function (schedule) {
@@ -15,13 +18,17 @@
       // Web Audio keeps media-element source nodes alive until context close.
       // Reuse their empty elements instead of allocating on every clip edit.
       schedule.el = entry.el;
-      schedule.sourceNode = entry.source;
-      if (this.audioCtx.state === "suspended") this.audioCtx.resume();
-      schedule.panNode = this.audioCtx.createStereoPanner();
-      schedule.gainNode = this.audioCtx.createGain();
-      schedule.sourceNode.connect(schedule.gainNode);
-      schedule.gainNode.connect(schedule.panNode);
-      schedule.panNode.connect(this.audioDst);
+      const context = this.audioCtx, descriptor = Object.getOwnPropertyDescriptor(context, "createMediaElementSource");
+      const factory = context.createMediaElementSource;
+      context.createMediaElementSource = function (element) {
+        return element === entry.el ? entry.source : factory.apply(this, arguments);
+      };
+      try { return created.apply(this, arguments); }
+      catch (error) { idle(context).push(entry); throw error; }
+      finally {
+        if (descriptor) Object.defineProperty(context, "createMediaElementSource", descriptor);
+        else delete context.createMediaElementSource;
+      }
     };
     playback.scheduleUnloaded = function (schedule) {
       const result = unloaded.apply(this, arguments);
@@ -38,7 +45,7 @@
     const unload = schedule.unload;
     schedule.unload = function () {
       const result = unload.apply(this, arguments);
-      if (this.el) {
+      if (this.type === 1 && this.el) {
         // Disconnecting an audio graph leaves its media decoder active.
         // Reset the retired element without revoking the shared asset URL.
         this.el.pause();
