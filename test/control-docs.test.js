@@ -21,3 +21,13 @@ test("Stretch docs state its dependency on Orient to motion", () => {
   assert.match(read("plugins/trapcode-suite/particular.js"), /float wBlend = orient \* wFade;[\s\S]{0,40}1\.0 \+ stretch \* min\(wSpd \* 0\.9, 3\.0\) \* wBlend/);
   for (const page of docs("trapcode-particular.md")) assert.match(row(page, "Stretch along motion"), /\*\*Orient to motion\*\*/);
 });
+
+test("Optical Flares docs state which textures use Falloff and Illumination", () => {
+  const shader = read("plugins/optical-flares/optflares-shaders.js");
+  const start = shader.indexOf("vec3 lensTexture(");
+  const body = shader.slice(start, shader.indexOf("void main()", start));
+  const modes = body.split("if (mode == ").slice(1);
+  assert.deepEqual(modes.filter(mode => mode.includes("falloff")).map(mode => mode[0]), ["3"]);
+  assert.equal(modes.find(mode => mode[0] === "6").includes("ill"), false);
+  for (const page of docs("optical-flares.md")) assert.match(page, /\*\*Falloff\*\*[^\n]*\*\*Ring\*\*[^\n]*\*\*Illumination\*\*[^\n]*\*\*Orbs\*\*/);
+});
