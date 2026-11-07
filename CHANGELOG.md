@@ -102,6 +102,31 @@ each line describes one visible change.
 
 ### Fixed
 
+- New and Open no longer rebuild a restore point when the project has not
+  changed, and they no longer wait for another tab. A progress message appears
+  for slow operations, and a repeated click says the operation is already
+  running.
+- Restore points made automatically before New and Open now follow the same
+  limits as other automatic points, so they no longer fill browser storage.
+  Backup now points stay until you delete them.
+- Editing no longer stalls while the preview cache checks a captured frame: the
+  longest stall in a 20-minute session fell from 400 ms to 186 ms.
+- Repeated exports no longer use up graphics contexts. The preview used to be
+  lost at the 16th export in a session.
+- Undo, redo, New, Open, and Restore are refused during an export, with a
+  message. Undo or redo during an export could write a corrupt file.
+- Cancelling an export during audio no longer makes the next export fail.
+- Time effects now reach video inside a pre-comp. Time Offset and Posterize Time
+  on a pre-comp clip or an Adjustment above it now move that video, and samplers
+  such as Echo, Time Displacement, and Smart Motion Blur read the correct frame.
+  Existing projects with these setups will look different, and preview and
+  export now match.
+- A time effect running past a trimmed video's end holds its last frame instead
+  of showing the frame after the out point. Later effects on a clamped video
+  can read a clock up to one frame earlier.
+- Asking for a video's last frame twice no longer fails.
+- An expression with no usable number now shows a message instead of silently
+  giving 0.
 - Replacing a project now releases the previous project's media files. They
   used to stay in memory or browser storage until the tab closed, so reopening
   a project with large media kept adding to that use.
