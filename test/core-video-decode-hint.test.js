@@ -264,12 +264,14 @@ function activatedMedia({ importResult = null } = {}) {
   const prototype = {
     loadVideo() { return "native"; },
     generateThumbnail() { return "thumb"; },
+    loadAudio() { return undefined; },
     async importAV(file) {
       await this.loadVideo({ file, key: "hash", url: "blob:x", filename: file.name });
       return importResult;
     },
   };
   const assetList = { async createFromFile(_type, file) { return { file, key: "hash", url: "blob:x", filename: file?.name }; } };
+  const native = { loadAudio: prototype.loadAudio, importAV: prototype.importAV, createFromFile: assetList.createFromFile };
   const host = {
     document: {
       createElement() {
@@ -283,7 +285,7 @@ function activatedMedia({ importResult = null } = {}) {
   };
   const PZ = { ui: { media: { prototype } }, assetList: { prototype: assetList }, asset: { type: { AV: 2, IMAGE: 1 } } };
   api.activate({ PZ, window: host, lifecycle: { onDispose(fn) { cleanups.push(fn); } } });
-  return { prototype, assetList, probes, dispose: () => cleanups.forEach(fn => fn()) };
+  return { prototype, assetList, probes, native, dispose: () => cleanups.forEach(fn => fn()) };
 }
 
 test("an import with no readable stream yields an entry named after the file", async () => {
@@ -336,12 +338,23 @@ test("the import's own asset creation does not probe a second time", async () =>
   await pending;
 });
 
-test("dispose restores importAV and createFromFile", () => {
-  const { prototype, assetList, dispose } = activatedMedia();
-  const patched = [prototype.importAV, assetList.createFromFile];
+test("dispose restores loadAudio, importAV and createFromFile", () => {
+  const { prototype, assetList, native, dispose } = activatedMedia();
+  assert.notEqual(prototype.loadAudio, native.loadAudio);
+  assert.notEqual(prototype.importAV, native.importAV);
+  assert.notEqual(assetList.createFromFile, native.createFromFile);
   dispose();
-  assert.notEqual(prototype.importAV, patched[0]);
-  assert.notEqual(assetList.createFromFile, patched[1]);
+  assert.equal(prototype.loadAudio, native.loadAudio);
+  assert.equal(prototype.importAV, native.importAV);
+  assert.equal(assetList.createFromFile, native.createFromFile);
+});
+
+test("dispose keeps a foreign loadAudio patch", () => {
+  const { prototype, dispose } = activatedMedia();
+  function foreign() {}
+  prototype.loadAudio = foreign;
+  dispose();
+  assert.equal(prototype.loadAudio, foreign);
 });
 
 function audioProbe(support) {
@@ -375,6 +388,13 @@ test("a playable audio probe returns the native clip fields", async () => {
     type: 1, start: 0, length: 75, offset: 0, properties: { name: "clip.mp4", media: "hash" },
   });
   assert.equal(asset.length, 2.5);
+});
+
+test("an audio probe without a file or url settles like the video probe", () => {
+  const { load } = audioProbe("maybe");
+  assert.equal(load(undefined), undefined);
+  assert.equal(load({}), undefined);
+  assert.equal(load({ file: { type: "video/mp4" } }), undefined);
 });
 
 test("an unsupported type skips the audio probe like the native gate", () => {

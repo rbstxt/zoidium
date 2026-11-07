@@ -50,6 +50,7 @@ function buildFailedImportEntry(file, asset) {
 // Keeps the native audio probe's gate and clip fields, and adds the error path.
 function createLoadAudio(document) {
   return function loadAudioWithError(asset) {
+    if (!asset || !asset.file || !asset.url) return undefined;
     const audio = document.createElement("audio");
     const support = audio.canPlayType(asset.file.type);
     if (support === "" || support === "no") return undefined;
