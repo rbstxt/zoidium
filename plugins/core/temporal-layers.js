@@ -336,7 +336,7 @@
     if (operators.length === 0 && scopeOperators.length === 0) return null;
 
     const extrapolate = isExtrapolatableLayer(layer);
-    const sourceFrame = mapTemporalFrameWithScopes(
+    const mappedFrame = mapTemporalFrameWithScopes(
       rawLocalFrame,
       projectRate,
       operators,
@@ -345,6 +345,8 @@
       finiteNumber(clip.start, 0),
       extrapolate,
     );
+    const sourceFrame = clip.media && !extrapolate
+      ? math.holdLastMediaFrame(mappedFrame, clip.length) : mappedFrame;
     return {
       clip,
       localFrame: outputLocalFrame,
@@ -352,6 +354,51 @@
       projectFrame: clip.start + sourceFrame,
       projectRate,
     };
+  }
+
+  // Precomp+ schedules nested video through proxy items in Main time. A proxy's
+  // path lists the clips from the Main composition clip to the video clip. Walk
+  // that chain like the render does: each clip's operators, then its comp offset.
+  // A stage clip's own operators are already part of a sampler tap's clock.
+  // Returns the video clip's source frame, or null if the chain is not drawn.
+  function getNestedSourceFrame(path, projectFrame, sequence, stageClip) {
+    const first = stageClip ? path.indexOf(stageClip) : 0;
+    if (first < 0) return null;
+    let local = projectFrame - finiteNumber(path[first].start, 0);
+    for (let index = first; index < path.length; index += 1) {
+      const clip = path[index], layer = clip.object;
+      if (!(local >= 0 && local < finiteNumber(clip.length, 0))) return null;
+      const source = math.holdLastMediaFrame(stageClip && index === first ? local
+        : getTemporalLayerFrame(layer, local, sequence)?.sourceFrame ?? local, clip.length);
+      if (index === path.length - 1) return source;
+      local = source + finiteNumber(layer.offset, 0) - finiteNumber(path[index + 1].start, 0);
+    }
+    return null;
+  }
+
+  // The nested item a schedule must show at an output frame. A comp clip's
+  // operators can select another item than the one whose window holds the frame.
+  function findNestedScheduleItem(schedule, projectFrame) {
+    for (const item of schedule?.items || []) {
+      const path = item?.clip?.path;
+      if (!path) continue;
+      const source = getNestedSourceFrame(path, projectFrame, getSequenceForLayer(item.clip.object));
+      if (source !== null) return { item, source };
+    }
+    return null;
+  }
+
+  // Sampler media inside a comp. A Main or adjustment scope maps the whole clip
+  // chain. An owner's sampler tap starts at the owner, in the owner's own clock.
+  function findNestedMediaInput(sequence, schedule, stage, projectFrame, allTracks, activeClips, scoped) {
+    const whole = allTracks || isAdjustmentLayer(stage.layer);
+    for (const item of schedule.items || []) {
+      const path = item?.clip?.path;
+      if (!path || !item.media || !(whole ? activeClips.has(path[0]) : path.includes(stage.clip))) continue;
+      const source = scoped(() => getNestedSourceFrame(path, projectFrame, sequence, whole ? null : stage.clip));
+      if (source !== null) return { schedule, item, source };
+    }
+    return null;
   }
 
   function usesSingleEvaluation(sequence, excludeSamplers = false) {
@@ -639,6 +686,9 @@
     readAdjustmentScopeOperators: readAdjustmentScopeOperators,
     getTemporalLayerFrame: getTemporalLayerFrame,
     getScheduleSourceFrame: getScheduleSourceFrame,
+    getNestedSourceFrame: getNestedSourceFrame,
+    findNestedScheduleItem: findNestedScheduleItem,
+    findNestedMediaInput: findNestedMediaInput,
     canRenderLayer: canRenderLayer,
     findFrameSamplerStage: findFrameSamplerStage,
   };

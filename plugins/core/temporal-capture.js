@@ -16,6 +16,14 @@
     return new Error(`Temporal sample failed for effect "${safeMessage(effect)}", clip "${safeMessage(clip)}", requested frame ${frame}: ${safeMessage(error)}`, { cause: error });
   }
   function checkPolicy(context) { context?.exportPolicy?.check?.(); context?.resourcePolicy?.check?.(); }
+  // A live playback tick can select a comp's clips at the playhead while a tap
+  // decodes. Select them again at the clock this capture evaluated.
+  function settleCompTime(layer) {
+    const frame = layer.__zoidiumTemporalLastUpdateFrame;
+    if (typeof layer.setCompTime === "function" && Number.isFinite(frame)) {
+      layer.setCompTime(frame + registry.math.finiteNumber(layer.offset, 0));
+    }
+  }
   function captureFrameSamplerInput(
     state,
     root,
@@ -89,6 +97,7 @@
           preparedLayers.get(layer) !== layer.__zoidiumTemporalUpdateRevision) {
           layer.update(projectFrame - finiteNumber(clip.start, 0));
         }
+        settleCompTime(layer);
         capture.renderLayer(layer, 0, false);
       }
 
@@ -100,6 +109,7 @@
         preparedLayers.get(stage.layer) !== stage.layer.__zoidiumTemporalUpdateRevision) {
         stage.layer.update(projectFrame - finiteNumber(stage.clip.start, 0));
       }
+      settleCompTime(stage.layer);
       // Render the owner's content with the host's viewport and UV rules, then
       // stop before its composite transform. Samples represent effect input,
       // not a transformed layer or the last screen buffer.

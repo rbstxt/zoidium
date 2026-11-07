@@ -10,9 +10,11 @@ sidebar:
 ## Time and input rules
 
 **Time Offset** and **Posterize Time** remap the input clock in effect-list order.
-On an **Adjustment** layer, they remap the image from lower tracks.
-Media-backed layers clamp mapped input time to the clip range. **3D Scene** and **Adjustment** layers can evaluate beyond their clip boundaries.
+On an ordinary layer, they retime the whole layer: its transform and every effect in its list, before and after the operator.
+On an **Adjustment** layer, they remap the image from lower tracks. Effects before the operator use the mapped time, and effects after it keep the output time.
+Media-backed layers clamp mapped input time to the clip range, and video holds the clip's last frame. **3D Scene** and **Adjustment** layers can evaluate beyond their clip boundaries.
 A clip still contributes nothing outside its output range.
+On a **Precomp+** composition clip, or an **Adjustment** layer above it, the time effects also reach the video inside the composition.
 
 **Echo**, **Time Displacement**, **CC Wide Time**, and **Time Difference** explicitly capture their input at requested times.
 Their sample plans clamp to the owning clip's start and just before its end, including on procedural layers.
@@ -54,6 +56,10 @@ Evaluates the layer input at an offset in project frames.
 
 Fractional offsets are retained.
 This is a clock operator. It does not blend two frames or interpolate recorded footage.
+
+**Offset (frames)** reads its keys and its expression at the output frame, so the offset can change on every frame.
+An expression result that is not a finite number reads as 0, and the expression row shows the error.
+The no-argument `random()` needs a seed. Use `random(frame)`, or call `seedRandom(1)` first.
 
 ## Posterize Time
 
