@@ -38,6 +38,7 @@
       "./plugins/core/preview-context-menu.js",
       "./plugins/core/particle-defaults.js",
       "./plugins/core/empty-keyframes.js",
+      "./plugins/core/property-history.js",
       "./plugins/core/video-seek-policy.js",
       "./plugins/core/temporal-math.js",
       "./plugins/core/temporal-layers.js",
