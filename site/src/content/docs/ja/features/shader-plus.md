@@ -22,3 +22,6 @@ sidebar:
 種類メタデータがないネイティブ数値では、Property settings は Slider と Minimum、Maximum を表示します。編集せずに Apply をクリックしても、プロパティは変わりません。他のネイティブ型は、種類を選ぶまで Native と表示されます。
 
 Expressions+ を有効にして `uniform float zFps;` を宣言すると、シーケンスのフレームレートを使えます。Export のフレームレート変更はこの値を変更しません。
+
+コントロールを折りたたみ可能なセクションに整理するには、
+[カスタムプロパティをグループに整理する](/docs/ja/how-to/organize-property-groups/)を参照してください。

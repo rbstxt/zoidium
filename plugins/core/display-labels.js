@@ -142,14 +142,16 @@
       pendingByShader.set(shader, entries);
       shader.onChanged.watch(function () {
         entries.splice(0).forEach(function (entry) {
-          if (entry.label.isConnected !== false) refreshLabel(entry.label, entry.object);
+          var node = entry.label.deref();
+          if (node && node.isConnected !== false) refreshLabel(node, entry.object);
         });
       });
     }
     for (var i = entries.length - 1; i >= 0; i -= 1) {
-      if (entries[i].label.isConnected === false) entries.splice(i, 1);
+      var node = entries[i].label.deref();
+      if (!node || node.isConnected === false) entries.splice(i, 1);
     }
-    entries.push({ label: label, object: object });
+    entries.push({ label: new WeakRef(label), object: object });
   }
 
   // CM3 writes the label through innerText: once when the row is built and

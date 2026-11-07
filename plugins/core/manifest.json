@@ -399,6 +399,21 @@
       "id": "waveform-samples",
       "source": "./plugins/core/waveform-samples.js",
       "phase": "pre-init"
+    },
+    {
+      "id": "property-groups",
+      "source": "./plugins/core/property-groups.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "property-groups-ui",
+      "source": "./plugins/core/property-groups-ui.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "property-groups-drag",
+      "source": "./plugins/core/property-groups-drag.js",
+      "phase": "pre-init"
     }
   ],
   "modules": [

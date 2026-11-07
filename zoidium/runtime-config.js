@@ -110,7 +110,10 @@
       "./plugins/core/camera-resources.js",
       "./plugins/core/light-resources.js",
       "./plugins/core/media-lifecycle.js",
-      "./plugins/core/waveform-samples.js"
+      "./plugins/core/waveform-samples.js",
+      "./plugins/core/property-groups.js",
+      "./plugins/core/property-groups-ui.js",
+      "./plugins/core/property-groups-drag.js"
     ],
     postInitScripts: [
       // ui-panels.js queues its installer for ui-kit.js, so it loads first.

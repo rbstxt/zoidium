@@ -86,7 +86,7 @@ function originalGenerateListItem(parent, object) {
   return item;
 }
 
-function runDisplayLabels(prototype) {
+function runDisplayLabels(prototype, overrides = {}) {
   const sandbox = {
     console: console,
     HTMLElement: FakeElement,
@@ -95,6 +95,7 @@ function runDisplayLabels(prototype) {
       property: FakeProperty,
     },
   };
+  Object.assign(sandbox, overrides);
   sandbox.window = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(source, sandbox);
@@ -261,4 +262,21 @@ test("the file does nothing when CM3's edit panel is not present", () => {
   sandbox.window = sandbox;
   vm.createContext(sandbox);
   assert.doesNotThrow(() => vm.runInContext(source, sandbox));
+});
+
+test("a pending shader label can be collected before its shader arrives", () => {
+  const refs = [], prototype = { generateListItem: originalGenerateListItem };
+  class Ref {
+    constructor(value) { this.value = value; refs.push(this); }
+    deref() { return this.value; }
+  }
+  runDisplayLabels(prototype, { WeakRef: Ref });
+  const effect = makeEffect("A_Glossy", false);
+  const label = rowFor(prototype.generateListItem, effect);
+  assert.equal(refs.length, 1);
+  refs[0].value = undefined;
+  effect.properties.fragShader.set(PLAIN_SHADER + PACK_MARKER);
+  assert.equal(label.innerText, "A_Glossy");
+  const current = rowFor(prototype.generateListItem, effect);
+  assert.equal(current.innerText, "Glossy");
 });
