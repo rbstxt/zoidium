@@ -142,6 +142,11 @@
       "id": "code-templates-js",
       "type": "text",
       "source": "./plugins/shader-plus/code-templates.js?v=24"
+    },
+    {
+      "id": "time-samples",
+      "type": "text",
+      "source": "./plugins/shader-plus/time-samples.js?v=24"
     }
   ]
 }

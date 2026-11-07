@@ -140,6 +140,7 @@
         // Effect scripts install descriptors before addAll() publishes their
         // property definitions. The effect may already be in its owner list.
         observeStructure(effect?.properties?.onListChanged);
+        observeStructure(effect?.customProperties?.onListChanged);
         result.temporal ||= Boolean(effect?._zoidiumTemporal);
         result.sampler ||= Boolean(effect?._zoidiumFrameSampler);
       }
@@ -614,6 +615,7 @@
       [compositor.renderer?.shadowMap?.type, compositor.renderer?.shadowMap?.enabled], pluginStateEpoch,
       frameSamplerReuseDisabled(), math.temporalMode(stage?.effect), math.temporalMode(scope?.effect),
       preserveInputRGB === true];
+    if (stage?.inputClips) settings.push(stage.inputClips.map(clip => clip ? frameSamplerIdentity(clip) : 0));
     if (scoped) {
       const serialized = JSON.stringify(["layer-prefix", compositor.readBuffer.width, compositor.readBuffer.height,
         scoped, sequence.videoTracks[stage.trackIndex].enabled, assets, settings]);

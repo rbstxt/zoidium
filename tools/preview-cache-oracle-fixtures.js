@@ -56,6 +56,25 @@ function fixtures() {
     return data;
   };
   for (const effect of ccfx.effects) add(ccfx.id, effect.id, project([box()], [shaderData(effect)]));
+  const sampleDefinition = require("../plugins/shader-plus/kinds.js").KINDS.timeSample.create();
+  const sampleShader = "precision highp float;\nuniform sampler2D Past;\nvarying vec2 vUvScaled;\nvoid main(){gl_FragColor=texture2D(Past,vUvScaled);}";
+  for (const adjustment of [false, true]) {
+    const data = project([box()], [{ type: 1, properties: { fragShader: sampleShader }, customProperties: [
+      { type: copy(sampleDefinition), properties: { name: "Past" }, ...scalar(-2, 2) },
+    ] }], adjustment);
+    add("shader-plus", adjustment ? "time-sample-adjustment" : "time-sample", data);
+  }
+  for (const kind of ["slider", "gradient", "curve", "palette", "text", "timeSample"]) {
+    const definition = require("../plugins/shader-plus/kinds.js").KINDS[kind].create();
+    const texture = ["gradient", "curve", "text", "timeSample"].includes(kind);
+    const source = "precision highp float;\nuniform sampler2D tDiffuse;\nuniform " + (texture ? "sampler2D" : kind === "palette" ? "vec4" : "float") +
+      " Input" + (kind === "palette" ? "[16]" : "") + ";\nvarying vec2 vUvScaled;\nvoid main(){gl_FragColor=" +
+      (texture ? kind === "text" ? "texture2D(tDiffuse,vUvScaled)*texture2D(Input,vUvScaled).a" : "texture2D(Input,vUvScaled)" : kind === "palette" ? "texture2D(tDiffuse,vUvScaled)*Input[0]" : "texture2D(tDiffuse,vUvScaled)*Input") + ";}";
+    add("shader-plus", kind === "timeSample" ? "zero-offset" : "legacy-" + kind,
+      project([box()], [{ type: 1, properties: { fragShader: source }, customProperties: [
+        { type: copy(definition), properties: { name: "Input" }, ...(definition.dynamic ? scalar(definition.value) : { value: definition.value }) },
+      ] }]));
+  }
   const { effectorEntryDefs } = require("../plugins/expresstext-plus/expresstext-properties");
   const propertyTypes = { NUMBER: 0, VECTOR3: 2, OPTION: 6, TEXT: 7 };
   const expressEntries = effectorEntryDefs({ property: { type: propertyTypes } });
@@ -109,7 +128,7 @@ function fixtures() {
     project([{ type, objects: [box()], properties: { angle: scalar(0.2, 1.1), amount: scalar(2, 8) }, repeaterProperties: {} }]));
   for (const fixture of result) {
     fixture.requiredPlugin = fixture.plugin === "effector-plus" ? "repeater" : fixture.plugin;
-    if (fixture.plugin === "ccfx-shader-pack") fixture.requiredPlugin = null;
+    if (fixture.plugin === "ccfx-shader-pack" || fixture.name === "legacy-slider") fixture.requiredPlugin = null;
     fixture.prefetch = !fixture.liveOnly && (fixture.name === result.find(item => item.plugin === fixture.plugin)?.name ||
       /echo|smartmotionblur|timedisplacement|ccwidetime|timedifference|Shake|Delay|Particular|Form|Plexus/.test(fixture.name));
   }

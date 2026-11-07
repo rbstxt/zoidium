@@ -643,7 +643,7 @@
   }
 
   function detectShaderProperties(value, found) {
-    if (["gradient", "curve", "palette", "text"].includes(value.zoidiumShader?.kind)) found.add("shader-properties");
+    if (["gradient", "curve", "palette", "text", "timeSample"].includes(value.zoidiumShader?.kind)) found.add("shader-properties");
   }
 
   function findExpressionFeatures(value, found = new Set(), visited = new WeakSet()) {

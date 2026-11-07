@@ -1,5 +1,5 @@
 "use strict";
-const { KINDS, ORDER, kindOf, items } = require("./kinds.js");
+const { KINDS, ORDER, kindOf, items, MAX_TIME_SAMPLES } = require("./kinds.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 const NUMERIC = ["slider", "seed"], OPTIONS = ["dropdown", "staticDropdown"];
 const list = text => String(text).split(/[\n;]/).map(s => s.trim()).filter(Boolean);
@@ -91,6 +91,8 @@ function installEditor({ context, patch, presetFont }) {
       if (NUMERIC.includes(k)) {
         input(specific, "min", "Minimum", d.min, "number"); input(specific, "max", "Maximum", d.max, "number");
         input(specific, "step", "Step", d.step, "number"); input(specific, "default", "Default", same ? meta.default ?? d.value : "", "number");
+      } else if (k === "timeSample") {
+        select(specific, "units", "Offset units", [["frames", "Frames"], ["seconds", "Seconds"]], meta.units || "frames");
       } else if (k === "angle") {
         input(specific, "default", "Default (°)", same && Number.isFinite(meta.default) ? meta.default * 180 / Math.PI : "", "number");
       } else if (k === "checkbox") {
@@ -135,11 +137,16 @@ function installEditor({ context, patch, presetFont }) {
         if (!target) throw new Error("Choose a compatible property kind");
         for (const key of ["zoidiumControl", "scaleFactor", "decimals"]) { delete definition[key]; if (target[key] !== undefined) definition[key] = target[key]; }
         const next = { ...meta, kind: kind.value };
-        for (const key of ["default", "items", "space", "editor", "axis"]) delete next[key];
+        for (const key of ["default", "items", "space", "editor", "axis", "units"]) delete next[key];
         if (NUMERIC.includes(kind.value)) {
           for (const key of ["min", "max", "step"]) { const n = number(key); if (n === undefined) delete definition[key]; else definition[key] = n; }
           if (definition.min > definition.max || definition.step <= 0) throw new Error("Use an ordered range and a positive step");
           const def = number("default"); if (def !== undefined) { next.default = def; definition.value = def; }
+        } else if (kind.value === "timeSample") {
+          if (current !== "timeSample" && effect.customProperties.filter(q => kindOf(q) === "timeSample").length >= MAX_TIME_SAMPLES) throw new Error("Shader+ supports at most four Time sample properties per effect");
+          next.units = fields.units.value;
+          if (current !== "timeSample") { delete definition.min; delete definition.max; }
+          definition.step = next.units === "seconds" ? 0.01 : 1;
         } else if (kind.value === "angle") {
           const def = number("default"); if (def !== undefined) { next.default = def * Math.PI / 180; definition.value = next.default; }
         } else if (kind.value === "checkbox") {

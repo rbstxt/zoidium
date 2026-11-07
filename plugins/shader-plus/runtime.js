@@ -149,7 +149,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       if (kind === "dropdown" || kind === "staticDropdown") {
         for (const [key, index] of Object.entries(constants(name, items(property.definition)))) if (referenced.has(key)) defines[key] = index;
       }
-      if (!KINDS[kind].texture) continue;
+      if (!KINDS[kind].texture || kind === "timeSample") continue;
       delete defines[name];
       if (preview) continue;
       const entry = prepareEntry(effect, property, kind);
@@ -201,7 +201,7 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       // Native NUMBER/VECTOR values are never overridden here.
       for (const property of this.customProperties || []) {
         const kind = kindOf(property);
-        if (!kind || !KINDS[kind].texture) continue;
+        if (!kind || !KINDS[kind].texture || kind === "timeSample") continue;
         const entry = prepareEntry(this, property, kind);
         const name = this.fixPropertyName(property.properties.name.get());
         if (kind === "gradient" && this.pass.uniforms[name+"_repetitions"]) {
@@ -216,11 +216,12 @@ function installRuntime({ PZ, THREE, doc, patch, curves, editor, presetFont, pip
       }
     },
   }));
+  require("./time-samples.js").installTimeSamples({ PZ, patch, pipeline, onDispose, editor });
   const changed = new Map();
   patch(proto, "propertyAdded", original => function addShaderProperty(property) {
     const result = original.apply(this, arguments);
     const kind = kindOf(property);
-    if (kind && KINDS[kind].texture) {
+    if (kind && KINDS[kind].texture && kind !== "timeSample") {
       property.onChanged.unwatch(this.updateFn);
       const update = () => { prepareEntry(this, property, kindOf(property)); refresh(this); };
       changed.set(property, { update, effect: this }); property.onChanged.watch(update);

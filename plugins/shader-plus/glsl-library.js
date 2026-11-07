@@ -1,5 +1,14 @@
 "use strict";
 const helpers = {
+  temporal: `vec2 zTimeMotion(sampler2D before, sampler2D after, vec2 uv, vec2 texel) {
+  vec3 weights = vec3(0.2126, 0.7152, 0.0722);
+  float change = dot(texture2D(after, uv).rgb - texture2D(before, uv).rgb, weights);
+  vec2 gradient = vec2(
+    dot(texture2D(before, uv + vec2(texel.x, 0.0)).rgb - texture2D(before, uv - vec2(texel.x, 0.0)).rgb, weights),
+    dot(texture2D(before, uv + vec2(0.0, texel.y)).rgb - texture2D(before, uv - vec2(0.0, texel.y)).rgb, weights)) * 0.5;
+  return clamp(-change * gradient / max(dot(gradient, gradient), 0.0001), vec2(-4.0), vec2(4.0)) * texel;
+}`,
+
   gradient: `vec4 zGradient(sampler2D s, float t) { return texture2D(s, vec2((clamp(t,0.0,1.0)*255.0+0.5)/256.0,0.5)); }
 vec4 zGradientCycle(sampler2D s, float t) { return zGradient(s,fract(t)); }
 vec4 zGradientCycle(sampler2D s, float t, float repetitions) { return zGradient(s,fract(t*repetitions)); }`,

@@ -4,7 +4,7 @@
 // and `zoidiumControl` selects the row editor. CM3 saves custom definitions
 // verbatim, so vanilla CM3 and older Zoidium keep (and resave) both fields.
 const T = { NUMBER: 0, VECTOR2: 1, VECTOR4: 3, GRADIENT: 5, OPTION: 6, TEXT: 7 };
-const MAX_ITEMS = 32, MAX_PALETTE = 16;
+const MAX_ITEMS = 32, MAX_PALETTE = 16, MAX_TIME_SAMPLES = 4;
 
 const DEFAULT_CURVE = JSON.stringify({ points: [[0, 0], [1, 1]], range: [0, 1], channels: "single", composite: [[0, 0], [1, 1]], red: [[0, 0], [1, 1]], green: [[0, 0], [1, 1]], blue: [[0, 0], [1, 1]], alpha: [[0, 0], [1, 1]] });
 const DEFAULT_GRADIENT = JSON.stringify({ stops: [{ position: 0, color: [0, 0, 0, 1] }, { position: 1, color: [1, 1, 1, 1] }], interpolation: "linear", space: "srgb", cyclic: false });
@@ -50,6 +50,10 @@ const KINDS = {
     label: "Color + alpha", desc: "RGBA color, passed as vec4.", texture: false,
     create: () => ({ custom: true, dynamic: true, group: true, type: T.VECTOR4, objects: [channel("R", 1), channel("G", 1), channel("B", 1), channel("A", 1)], zoidiumControl: "shader-plus/color4", zoidiumShader: { kind: "color4" } }),
   },
+  timeSample: {
+    label: "Time sample", desc: "Layer input at a frame or seconds offset, as sampler2D. Up to four per effect.", texture: true,
+    create: () => ({ custom: true, dynamic: true, type: T.NUMBER, value: 0, step: 1, decimals: 3, zoidiumShader: { kind: "timeSample", units: "frames" } }),
+  },
   gradient: {
     label: "Gradient", desc: "Color stops, sampled with zGradient(Name, t).", texture: true,
     create: () => ({ custom: true, type: T.TEXT, value: DEFAULT_GRADIENT, zoidiumControl: "shader-plus/gradient", zoidiumShader: { kind: "gradient" } }),
@@ -68,7 +72,7 @@ const KINDS = {
   },
 };
 // Hidden kinds stay loadable for saved projects but are not offered in menus.
-const ORDER = ["point", "checkbox", "dropdown", "staticDropdown", "slider", "angle", "seed", "color4", "gradient", "curve", "palette", "text"];
+const ORDER = ["point", "checkbox", "dropdown", "staticDropdown", "slider", "angle", "seed", "color4", "gradient", "curve", "palette", "text", "timeSample"];
 
 function kindOf(property) {
   const kind = property?.definition?.zoidiumShader?.kind;
@@ -105,4 +109,4 @@ function discreteValue(kind, raw, definition) {
   return Math.round(raw);
 }
 
-module.exports = { T, KINDS, ORDER, MAX_ITEMS, MAX_PALETTE, DEFAULT_CURVE, DEFAULT_GRADIENT, DEFAULT_PALETTE, kindOf, identifier, items, constants, discreteValue };
+module.exports = { T, KINDS, ORDER, MAX_ITEMS, MAX_PALETTE, MAX_TIME_SAMPLES, DEFAULT_CURVE, DEFAULT_GRADIENT, DEFAULT_PALETTE, kindOf, identifier, items, constants, discreteValue };

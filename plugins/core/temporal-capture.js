@@ -10,6 +10,16 @@
     try { return object?.properties?.name?.get?.() || object?.name || fallback; }
     catch (_error) { return fallback; }
   }
+  // Time Offset selects lower clips at the output clock, then evaluates their
+  // inputs at the shifted clock. New samplers can opt into the same selection.
+  function anchorInputClips(stage, sequence, request, frame) {
+    if (!request.outputClips || !registry.layers.isAdjustmentLayer(stage.layer)) return stage;
+    return { ...stage, selectionFrame: frame, inputClips: sequence.videoTracks
+      .map(track => track.getCurrentClip?.(frame) || null) };
+  }
+  function inputClip(stage, track, index, frame) {
+    return stage?.inputClips ? stage.inputClips[index] : track?.getCurrentClip?.(frame);
+  }
   function sampleError(stage, frame, error) {
     const effect = objectName(stage.effect, "frame sampler");
     const clip = objectName(stage.clip, objectName(stage.clip?.object, "video clip"));
@@ -89,7 +99,7 @@
       for (let index = 0; index < (isAdjustmentLayer(stage.layer) ? stage.trackIndex : 0); index += 1) {
         const track = tracks[index];
         if (!track || track.enabled === false) continue;
-        const clip = track.getCurrentClip?.(projectFrame);
+        const clip = inputClip(stage, track, index, projectFrame);
         const layer = clip?.object;
         if (!clip || !canRenderLayer(layer)) continue;
         changedLayers.set(layer, layer.__zoidiumTemporalLastUpdateFrame);
@@ -293,6 +303,6 @@
     }
   }
 
-  registry.capture = { frameSamplerAuthority, drawAuthority, prepareChildren, captureFrameSamplerInput, safeMessage, sampleError, checkPolicy,
+  registry.capture = { anchorInputClips, inputClip, frameSamplerAuthority, drawAuthority, prepareChildren, captureFrameSamplerInput, safeMessage, sampleError, checkPolicy,
     reductionKey, cachedReduction, createReduction };
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -690,6 +690,41 @@ module.exports = {
           "example": "Name_grid"
         }
       ]
+    },
+    {
+      "id": "kind.timeSample",
+      "category": "kind",
+      "name": "Time sample",
+      "signature": "uniform sampler2D Name;",
+      "description": "Layer input at a frame or seconds offset, as sampler2D. Up to four per effect.",
+      "example": "texture2D(Name, vUvScaled)",
+      "kind": "timeSample",
+      "types": [
+        "sampler2D"
+      ],
+      "storageType": 0,
+      "dynamic": true,
+      "auxiliary": []
+    },
+    {
+      "id": "include.temporal",
+      "category": "include",
+      "name": "zoidium/temporal",
+      "signature": "// #include <zoidium/temporal>",
+      "description": "Load the time-sample motion helper once per shader.",
+      "example": "// #include <zoidium/temporal>",
+      "provider": "shader-plus"
+    },
+    {
+      "id": "helper.zTimeMotion.1",
+      "category": "helper",
+      "name": "zTimeMotion",
+      "signature": "vec2 zTimeMotion(sampler2D before, sampler2D after, vec2 uv, vec2 texel);",
+      "description": "Brightness-based motion estimate between two images, in texture UV units. Limited to four texels per axis. Flat regions and large motion are ambiguous.",
+      "example": "zTimeMotion(Before, After, vUvScaled, uvScale / resolution)",
+      "type": "vec2",
+      "include": "zoidium/temporal",
+      "provider": "shader-plus"
     }
   ]
 };

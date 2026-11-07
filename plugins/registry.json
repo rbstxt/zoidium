@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "123",
+      "version": "124",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=123",
-      "bundle": "./plugins/core/bundle.json?v=123",
-      "integrity": "sha256-65UYPIPJvp8wUrzmN1FR3CmgFizYowpW1f1SlZkD4ZE="
+      "manifest": "./plugins/core/manifest.json?v=124",
+      "bundle": "./plugins/core/bundle.json?v=124",
+      "integrity": "sha256-GfpR/ePDF4KzcwM2D3OTi20oCM6C9x9WA1QXZykIlyk="
     },
     {
       "id": "easing-plus",
@@ -80,7 +80,7 @@
       "description": "Native custom shader controls with optional baked texture inputs.",
       "manifest": "./plugins/shader-plus/manifest.json?v=24",
       "bundle": "./plugins/shader-plus/bundle.json?v=24",
-      "integrity": "sha256-FW9qfKEBWrJr/IKwCC0Bbd6I0l4ooj2q2X+0P1vHB9k="
+      "integrity": "sha256-WJdtIfc4zaRTUShrHdDc22KMBZNoQj5PfJGeUX7QltE="
     },
     {
       "id": "player-plus",

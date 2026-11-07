@@ -183,11 +183,12 @@
 
   // A sampler request uses either the legacy evenly spaced Echo plan
   // (count/offsetFrames/startOpacity/decay) or, when `request.frames` is a
-  // non-empty array of frame offsets, an explicit per-tap plan. Both clamp
-  // to the clip bounds; only the caps differ (16 vs 64 taps).
+  // non-empty array of frame offsets, an explicit per-tap plan. Plans clamp
+  // to the clip bounds unless an explicit request opts into extrapolation.
   function planRequestSamples(request, controlFrame, maximum) {
     if (request && Array.isArray(request.frames) && request.frames.length > 0) {
-      return planExplicitFrameSamples(controlFrame, request.frames, 0, maximum);
+      return planExplicitFrameSamples(controlFrame, request.frames,
+        request.extrapolate === true ? -Infinity : 0, request.extrapolate === true ? Infinity : maximum);
     }
     return buildFrameSamplePlan(
       controlFrame,
@@ -410,12 +411,12 @@
     for (let index = start; index < end; index += 1) {
       const track = tracks[index];
       if (!track || track.enabled === false) continue;
-      const clip = track.getCurrentClip?.(projectFrame);
+      const clip = registry.capture.inputClip(stage, track, index, projectFrame);
       if (clip) activeClips.add(clip);
     }
     const inputs = [];
     for (const schedule of sequence.videoSchedules || []) {
-      const item = findScheduleItemAtFrame(schedule, projectFrame)?.item;
+      const item = findScheduleItemAtFrame(schedule, stage?.selectionFrame ?? projectFrame)?.item;
       if (item?.clip && activeClips.has(item.clip) && item.media) inputs.push({ schedule, item });
       else if (stage) {
         const nested = layers.findNestedMediaInput(sequence, schedule, stage, projectFrame, allTracks, activeClips, scoped);
@@ -455,7 +456,8 @@
           ? withFrameSamplerInputContext(state, stage, projectFrame, context, mapSource) : mapSource();
       registry.capture.checkPolicy(context);
       context?.resourcePolicy?.assertMedia(item.media);
-      isolated.update(sourceFrame, getProjectRate(stage.layer, sequence));
+      // Retain the output-selected clip, then decode its content at the tap clock.
+      isolated.update(stage?.selectionFrame ?? sourceFrame, getProjectRate(stage.layer, sequence));
       if (isolated.currentItem) {
         context?.resourcePolicy?.assertMedia(item.media);
         const time = nested ? item.clip.path.at(-1).properties.time.get(source)
@@ -483,7 +485,7 @@
     for (let index = start; index <= stage.trackIndex; index += 1) {
       registry.capture.checkPolicy(context);
       if (tracks[index]?.enabled === false) continue;
-      const clip = index === stage.trackIndex ? stage.clip : tracks[index]?.getCurrentClip?.(frame);
+      const clip = index === stage.trackIndex ? stage.clip : registry.capture.inputClip(stage, tracks[index], index, frame);
       const layer = clip?.object;
       if (!layer) continue;
       context?.resourcePolicy?.assertLayer(layer);
@@ -530,7 +532,7 @@
     if (!layer || !clip || !sequence) return;
 
     const projectFrame = finiteNumber(clip.start, 0) + finiteNumber(localFrame, 0);
-    const stage = findFrameSamplerStage(sequence, effect, projectFrame);
+    let stage = findFrameSamplerStage(sequence, effect, projectFrame);
     const roots = state.compositorsBySequence.get(sequence);
     if (!stage || !roots?.size) return;
 
@@ -566,6 +568,7 @@
       return;
     }
     if (!request || request.enabled === false) return;
+    stage = registry.capture.anchorInputClips(stage, sequence, request, projectFrame);
 
     const maximum = Math.max(0, finiteNumber(clip.length, 0) - EPSILON);
     const plan = planRequestSamples(request, controlFrame, maximum);
@@ -766,7 +769,7 @@
 
     const depth = finiteNumber(context?.frameSamplerDepth, 0) + 1;
     if (depth > MAX_FRAME_SAMPLER_DEPTH || state.samplingEffects.has(effect)) return [];
-    const stage = findFrameSamplerStage(sequence, effect, outputFrame);
+    let stage = findFrameSamplerStage(sequence, effect, outputFrame);
     if (!stage) return [];
 
     const lastLayerFrame = finiteNumber(
@@ -790,6 +793,7 @@
       return [];
     }
     if (!request || request.enabled === false) return [];
+    stage = registry.capture.anchorInputClips(stage, sequence, request, outputFrame);
 
     const maximum = Math.max(0, finiteNumber(stage.clip.length, 0) - EPSILON);
     const plan = planRequestSamples(request, controlFrame, maximum);
