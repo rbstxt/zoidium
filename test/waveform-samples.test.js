@@ -46,6 +46,85 @@ test("fractional bins cover exact channel ranges and append without changing aud
   assert.ok(cancellation.minBuf.every(value=>value===0));assert.ok(cancellation.maxBuf.every(value=>value===0));
 });
 
+test("five-minute segmented peaks use source time and exclude remux padding", () => {
+  const context=host();vm.runInContext(patch,context);
+  const analyze=context.PZ.ui.waveform.prototype.analyzeBuffer;
+  for(const sampleRate of [44100,48000]){
+    const peaks=record();
+    const times=Array.from({length:30},(_,i)=>1.002+i*10).concat([15.002,150.002,285.002]);
+    for(let startTime=0;startTime<300;startTime+=15){
+      const startOffset=.02+(startTime%5)*.001;
+      const samples=new Float32Array(Math.ceil((15+startOffset+.05)*sampleRate));
+      samples.fill(.9,0,Math.floor(startOffset*sampleRate)-1);
+      samples.fill(.9,Math.ceil((startOffset+15)*sampleRate)+1);
+      for(const time of times)if(time>=startTime&&time<startTime+15)
+        samples[Math.round((startOffset+time-startTime)*sampleRate)]=.5;
+      analyze({sampleRate,length:samples.length,numberOfChannels:1,getChannelData:()=>samples},
+        {startTime,startOffset,duration:15},peaks);
+    }
+    assert.equal(peaks.maxBuf.length,60000);
+    assert.equal(peaks.maxBuf.filter(value=>value!==0).length,times.length);
+    assert.ok(peaks.maxBuf.every(value=>value===0||value===63),"padding must not become a peak");
+    for(const time of times)assert.equal(peaks.maxBuf[Math.floor(time*200)],63);
+  }
+});
+
+test("partial bins, missing intervals and repeated segments retain absolute placement", () => {
+  const context=host();vm.runInContext(patch,context);
+  const analyze=context.PZ.ui.waveform.prototype.analyzeBuffer,peaks=record();
+  const input=buffer(48000,()=>.5);
+  analyze(input,{startTime:1.003,startOffset:0,duration:.003},peaks);
+  assert.equal(peaks.maxBuf.length,202);
+  assert.ok(peaks.maxBuf.subarray(0,200).every(value=>value===0));
+  assert.deepEqual([...peaks.maxBuf.subarray(200)],[63,63]);
+  const before=[...peaks.maxBuf];
+  analyze(input,{startTime:1.003,startOffset:0,duration:.003},peaks);
+  assert.deepEqual([...peaks.maxBuf],before);
+  analyze(input,{startTime:2,startOffset:.999,duration:15},peaks);
+  assert.equal(peaks.maxBuf.length,401,"a short final buffer keeps its partial bin");
+  assert.equal(peaks.maxBuf[400],63);
+  assert.ok(peaks.maxBuf.subarray(202,400).every(value=>value===0));
+});
+
+test("only later remuxed MP3 segments discard encoder delay and always close the decoder", async () => {
+  const context=host();vm.runInContext(patch,context);
+  const decode=context.PZ.ui.waveform.prototype.decodeSegment;
+  function mp3(){
+    const bytes=new Uint8Array(512);
+    bytes.set([73,68,51,4,0,0,0,0,0,0]);
+    bytes.set([255,251,144,192],10);
+    const tag=31,encoder=tag+120;
+    bytes.set(Buffer.from("Info"),tag);bytes[tag+7]=15;
+    bytes.set(Buffer.from("Lavf"),encoder);
+    bytes.set([0xde,0xf5,0x10],encoder+21);
+    return{bytes,delay:encoder+21};
+  }
+  let closed=0,decoded;
+  context.AudioContext=class{
+    async decodeAudioData(bytes){decoded=new Uint8Array(bytes).slice();return "decoded";}
+    async close(){closed++;}
+  };
+  for(const startTime of [0,285]){
+    const {bytes,delay}=mp3(),before=bytes.slice();
+    context.PZ.av.remux=async()=>({buffer:bytes.buffer,offset:startTime-.02});
+    const segment={startTime,duration:15};
+    assert.equal(await decode(segment),"decoded");
+    assert.ok(Math.abs(segment.startOffset-.02)<1e-10);
+    if(startTime>0){before[delay]=0;before[delay+1]&=15;}
+    assert.deepEqual(decoded,before,"keep the first segment's delay and all end padding");
+  }
+  for(const bytes of [new Uint8Array(2),new Uint8Array(100),Uint8Array.from(Buffer.from("RIFF....WAVE"))]){
+    const before=bytes.slice();context.PZ.av.remux=async()=>({buffer:bytes.buffer,offset:15});
+    await decode({startTime:15,duration:15});assert.deepEqual(decoded,before);
+  }
+  assert.equal(closed,5);
+  context.AudioContext.prototype.decodeAudioData=async()=>{throw new Error("Invalid audio");};
+  assert.equal(await decode({startTime:15,duration:15}),undefined);
+  assert.equal(closed,6);
+  context.PZ.av.remux=async()=>({buffer:null,offset:30});
+  assert.equal(await decode({startTime:30,duration:15}),null);assert.equal(closed,6);
+});
+
 test("timeline windows share one analysis per asset and serialize different assets", async () => {
   const context=host(), prototype=context.PZ.ui.waveform.prototype;
   const asset={}, other={};
