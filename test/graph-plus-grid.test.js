@@ -42,3 +42,16 @@ test("Fit and wheel use identical zoom endpoints without editing project data", 
     assert.equal(JSON.stringify(property), before);
   }
 });
+
+
+test("grid growth counts lines separately from surplus labels", () => {
+  const { PZ } = host();
+  require("../plugins/graph-plus/editor.js")(PZ);
+  const children = [...Array(22).fill("line"), ...Array(12).fill("text")];
+  PZ.ui.graph.grid.prototype.ensure.call({
+    el: {children,querySelectorAll:tag=>children.filter(value=>value===tag),appendChild:tag=>children.push(tag)},
+    createGridLine:()=>"line",createText:()=>"text",
+  },25,6);
+  assert.equal(children.filter(tag=>tag==="line").length,25);
+  assert.equal(children.filter(tag=>tag==="text").length,12);
+});

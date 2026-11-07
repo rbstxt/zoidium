@@ -52,11 +52,10 @@ GraphGrid.prototype.createText = function () {
   return e;
 };
 GraphGrid.prototype.ensure = function (lines, texts) {
-  var need = lines + texts;
-  while (this.el.children.length < need) {
-    if (this.el.querySelectorAll("line").length < lines) this.el.appendChild(this.createGridLine());
-    else this.el.appendChild(this.createText());
-  }
+  var lineCount = this.el.querySelectorAll("line").length;
+  var textCount = this.el.querySelectorAll("text").length;
+  while (lineCount++ < lines) this.el.appendChild(this.createGridLine());
+  while (textCount++ < texts) this.el.appendChild(this.createText());
 };
 GraphGrid.prototype.update = function () {
   var g = this.graph;
