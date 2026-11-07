@@ -31,7 +31,7 @@ function setup() {
   context.window = context;
   vm.runInNewContext(source, context);
   const api = context.PZ.zoidium.projectResources;
-  const editor = { project: null, onProjectChanged: new Signal() };
+  const editor = { project: null, onProjectChanged: new Signal(), onEnabledChanged: new Signal() };
   api.observeEditor(editor);
   function open(project) { editor.project = project; editor.onProjectChanged.update(); }
   function project(...children) { const p = new Project(); p.load(children); return p; }
@@ -187,4 +187,78 @@ test("an export in progress keeps the replaced project's object URLs", async () 
   h.open(h.project());
   await h.tick();
   assert.deepEqual(h.urls.revoked, []);
+});
+
+
+test("deferred object URLs are revoked when the last export releases its editor", async () => {
+  const h = setup(), old = h.project();
+  withAsset(old, "blob:old");
+  h.open(old);
+  h.editor.enabled = false;
+  h.open(h.project());
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, []);
+  const other = { project: h.project(), enabled: false,
+    onProjectChanged: new h.context.PZ.observable(), onEnabledChanged: new h.context.PZ.observable() };
+  h.api.observeEditor(other);
+  h.editor.enabled = true;
+  h.editor.onEnabledChanged.update();
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, [], "a second export still owns its URLs");
+  other.enabled = true;
+  other.onEnabledChanged.update();
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, ["blob:old"]);
+  other.onEnabledChanged.update();
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, ["blob:old"], "completion notifications do not revoke twice");
+});
+
+test("a deferred project can return before export completion without losing its URLs", async () => {
+  const h = setup(), old = h.project();
+  const asset = withAsset(old, "blob:old");
+  h.open(old);
+  h.editor.enabled = false;
+  h.open(h.project());
+  await h.tick();
+  h.open(old);
+  h.editor.enabled = true;
+  h.editor.onEnabledChanged.update();
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, []);
+  assert.equal(asset.url, "blob:old");
+});
+
+test("deferred URL release also waits for preparation that starts during export", async () => {
+  const h = setup(), work = deferred(), old = h.project();
+  withAsset(old, "blob:old");
+  h.open(old);
+  h.editor.enabled = false;
+  h.open(h.project());
+  await h.tick();
+  const pending = h.api.prepare(old, () => work.promise);
+  h.editor.enabled = true;
+  h.editor.onEnabledChanged.update();
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, []);
+  work.resolve();
+  await pending;
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, ["blob:old"]);
+});
+
+test("deferred URLs are released even if the retired graph is collected before export ends", async () => {
+  const h = setup(), old = h.project();
+  withAsset(old, "blob:old");
+  h.open(old);
+  h.editor.enabled = false;
+  // Simulate collection of the deferred project while the editor remains live.
+  h.context.WeakRef = class { deref() { return undefined; } };
+  h.open(h.project());
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, []);
+  h.editor.enabled = true;
+  h.editor.onEnabledChanged.update();
+  await h.tick();
+  assert.deepEqual(h.urls.revoked, ["blob:old"]);
 });
