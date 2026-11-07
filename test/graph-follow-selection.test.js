@@ -298,3 +298,18 @@ test("native detached Edit windows get property menus and shortcuts and release 
   f.host.dispose(); assert.equal(listeners.size, 0); assert.equal(NativeWindow.prototype.setPanel, original);
   delete PZ.ui.window;
 });
+
+test("pruning a detached selected row also releases the shortcut's last row", async () => {
+  class Row extends FakeElement {}
+  Edit.prototype.selectItems = function () {};
+  const f = fixture();
+  function select() {
+    const row = f.row(new Channel("Detached")); Object.setPrototypeOf(row, Row.prototype);
+    const field = { closest: selector => selector.includes("contenteditable") ? {} : row.closest(selector) };
+    f.event("pointerdown", field); row.isConnected = false; f.rows.length = 0;
+    f.edit.selection = []; f.edit.selectItems();
+  }
+  select(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(queryObjects(Row), 0);
+  f.host.dispose(); delete Edit.prototype.selectItems;
+});

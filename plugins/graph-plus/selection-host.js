@@ -55,6 +55,7 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
     }
   }
   function forgetRow(row, original) {
+    if (lastRow === row) lastRow = null;
     decorated.delete(row);
     rows.delete(original.ref);
     collectedRows.unregister(original.ref);
