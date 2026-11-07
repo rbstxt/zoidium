@@ -6,6 +6,7 @@
   const states = new WeakMap();
   const editors = new WeakSet();
   const editorRefs = new Set();
+  const deferredReleases = new Set();
   const wrapped = new WeakSet();
 
   function stateFor(project) {
@@ -57,7 +58,7 @@
   function revokeObjectUrls(project, state, liveUrls) {
     if (typeof global.URL?.revokeObjectURL !== "function") return;
     for (const asset of objectUrlAssets(project)) {
-      if (liveUrls.has(asset.url)) continue;
+      if (liveUrls.has(asset.url) || state.revoked.has(asset)) continue;
       global.URL.revokeObjectURL(asset.url);
       state.revoked.add(asset);
     }
@@ -70,6 +71,21 @@
     state.revoked.clear();
   }
 
+  function liveResources() {
+    const live = new Set(), liveUrls = new Set();
+    let exporting = false;
+    for (const ref of editorRefs) {
+      const editor = ref.deref();
+      if (!editor) { editorRefs.delete(ref); continue; }
+      if (editor.enabled === false) exporting = true;
+      if (editor.project) {
+        for (const resource of gpuResources(editor.project)) live.add(resource);
+        for (const asset of objectUrlAssets(editor.project)) liveUrls.add(asset.url);
+      }
+    }
+    return { live, liveUrls, exporting };
+  }
+
   function queueRelease(project, state) {
     if (!state.retired || state.pending || state.owners.size || state.queued) return;
     state.queued = true;
@@ -78,25 +94,24 @@
       if (!state.retired || state.pending || state.owners.size) return;
       observeGraph(project);
       if (state.pending) return;
-      const live = new Set(), liveUrls = new Set();
-      // An export renders its project's sequence directly and can still load
-      // media from these URLs after the editor moved on.
-      let exporting = false;
-      for (const ref of editorRefs) {
-        const editor = ref.deref();
-        if (!editor) { editorRefs.delete(ref); continue; }
-        if (editor.enabled === false) exporting = true;
-        if (editor.project) {
-          for (const resource of gpuResources(editor.project)) live.add(resource);
-          for (const asset of objectUrlAssets(editor.project)) liveUrls.add(asset.url);
-        }
-      }
+      // Export can still load media after its project leaves the editor.
+      const { live, liveUrls, exporting } = liveResources();
       for (const resource of gpuResources(project)) {
         if (live.has(resource)) continue;
         try { resource.dispose(); }
         catch (error) { global.console.warn("[Zoidium] Could not release a retired project's GPU resource.", error); }
       }
-      if (!exporting) revokeObjectUrls(project, state, liveUrls);
+      if (exporting) {
+        if (!state.releaseRef) {
+          state.releaseRef = { project: new WeakRef(project), urls: new Set() };
+          deferredReleases.add(state.releaseRef);
+        }
+        for (const asset of objectUrlAssets(project)) state.releaseRef.urls.add(asset.url);
+      } else {
+        deferredReleases.delete(state.releaseRef);
+        state.releaseRef = null;
+        revokeObjectUrls(project, state, liveUrls);
+      }
     });
   }
 
@@ -168,6 +183,22 @@
     if (!editor?.onProjectChanged || editors.has(editor)) return;
     editors.add(editor);
     editorRefs.add(new WeakRef(editor));
+    // The native export pages return editor.enabled on completion or cancel.
+    // Keep only weak references while waiting, so this retry cannot pin a project.
+    editor.onEnabledChanged?.watch(() => {
+      if (!deferredReleases.size) return;
+      const { liveUrls, exporting } = liveResources();
+      for (const entry of deferredReleases) {
+        const project = entry.project.deref();
+        if (project) queueRelease(project, stateFor(project));
+        else if (!exporting) {
+          // Blob URLs outlive the JS graph. Retain their strings so collection
+          // cannot erase the only record needed for eventual revocation.
+          for (const url of entry.urls) if (!liveUrls.has(url)) global.URL?.revokeObjectURL?.(url);
+          deferredReleases.delete(entry);
+        }
+      }
+    });
     let previous = editor.project;
     if (previous) { stateFor(previous).owners.add(editor); observeGraph(previous); }
     editor.onProjectChanged.watch(() => {
@@ -179,6 +210,8 @@
         const state = stateFor(current);
         state.owners.add(editor);
         state.retired = false;
+        deferredReleases.delete(state.releaseRef);
+        state.releaseRef = null;
         restoreObjectUrls(state);
         observeGraph(current);
       }

@@ -32,6 +32,7 @@ const {
 
 // Requests contain owner identities only in private state, never in userData.
 const splitRequests = new Map();
+const splitTextCleanup = new FinalizationRegistry(reference => state.splitTexts.delete(reference));
 const legacyScale = require("./legacy-text-scale.js");
 
 function requestCharacterSplit(textObject, owner) {
@@ -781,6 +782,7 @@ function getSplitState(textObject) {
   let splitState = state.splitStates.get(textObject);
   if (splitState) return splitState;
   splitState = {
+    textReference: new WeakRef(textObject),
     fullGeometry: null,
     emptyGeometry: null,
     renderRoot: null,
@@ -788,7 +790,9 @@ function getSplitState(textObject) {
     layers: [],
   };
   state.splitStates.set(textObject, splitState);
-  state.splitTexts.add(textObject);
+  // The shutdown index must not own the text's project after replacement.
+  state.splitTexts.add(splitState.textReference);
+  splitTextCleanup.register(textObject, splitState.textReference, splitState.textReference);
   return splitState;
 }
 
@@ -810,7 +814,8 @@ function restoreTextRendering(textObject) {
     splitState.emptyGeometry.dispose?.();
   }
   state.splitStates.delete(textObject);
-  state.splitTexts.delete(textObject);
+  state.splitTexts.delete(splitState.textReference);
+  splitTextCleanup.unregister(splitState.textReference);
 }
 
 function syncTextRendering(textObject, frame) {

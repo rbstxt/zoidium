@@ -17,10 +17,44 @@
   var THREE_API = typeof THREE !== "undefined" ? THREE : null;
   var originalCreate = PZ.object3d.create;
   var classRegistry = new Map();
-  var trackedObjects = new Set();
-  var missingObjects = new Set();
+  var trackedObjects = iterableWeakSet();
+  var missingObjects = iterableWeakSet();
   var usageTracker = null;
   var typePattern = /^zoidium:([a-z0-9][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)$/;
+
+  // Projects own both registered and missing objects. The registry needs
+  // iteration for restoration and usage checks without owning retired graphs.
+  function iterableWeakSet() {
+    const entries = new WeakMap(), references = new Set();
+    const cleanup = new FinalizationRegistry(reference => references.delete(reference));
+    return {
+      add(object) {
+        if (!entries.has(object)) {
+          const reference = new WeakRef(object);
+          entries.set(object, reference);
+          references.add(reference);
+          cleanup.register(object, reference, reference);
+        }
+        return this;
+      },
+      has(object) { return entries.has(object); },
+      delete(object) {
+        const reference = entries.get(object);
+        if (!reference) return false;
+        entries.delete(object);
+        cleanup.unregister(reference);
+        return references.delete(reference);
+      },
+      *[Symbol.iterator]() {
+        for (const reference of references) {
+          const object = reference.deref();
+          if (object) yield object;
+          else references.delete(reference);
+        }
+      },
+      forEach(visit) { for (const object of this) visit(object, object, this); },
+    };
+  }
 
   // Shared JSON clone (zoidium/shared/props.js). This pre-init script runs
   // before the shared overlay scripts load, but cloneJson is only called at

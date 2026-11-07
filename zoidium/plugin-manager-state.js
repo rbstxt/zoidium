@@ -108,8 +108,8 @@
   const pluginStates = new Map();
   const pluginGroups = [];
   const pluginGroupByPluginId = new Map();
-  // Projects own their effects. Tracking must not keep an abandoned project
-  // alive when the editor replaces it without unloading every effect.
+  // Projects own their effects and objects. Tracking must not keep an abandoned
+  // project alive when the editor replaces it without unloading its graph.
   function iterableWeakSet() {
     let referencesByItem = new WeakMap();
     const references = new Set();
