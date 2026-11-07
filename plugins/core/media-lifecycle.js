@@ -1,5 +1,55 @@
 (function (global) {
   "use strict";
+  const playback = global.PZ?.ui?.playback?.prototype;
+  if (playback?.scheduleCreated && playback.scheduleUnloaded && !playback.__zoidiumMediaCleanup) {
+    const idleByContext = new WeakMap();
+    const created = playback.scheduleCreated, unloaded = playback.scheduleUnloaded;
+    function idle(context) {
+      let entries = idleByContext.get(context);
+      if (!entries) { entries = []; idleByContext.set(context, entries); }
+      return entries;
+    }
+    playback.scheduleCreated = function (schedule) {
+      const entry = schedule.type === 1 && idle(this.audioCtx).pop();
+      if (!entry) return created.apply(this, arguments);
+      // Web Audio keeps media-element source nodes alive until context close.
+      // Reuse their empty elements instead of allocating on every clip edit.
+      schedule.el = entry.el;
+      schedule.sourceNode = entry.source;
+      if (this.audioCtx.state === "suspended") this.audioCtx.resume();
+      schedule.panNode = this.audioCtx.createStereoPanner();
+      schedule.gainNode = this.audioCtx.createGain();
+      schedule.sourceNode.connect(schedule.gainNode);
+      schedule.gainNode.connect(schedule.panNode);
+      schedule.panNode.connect(this.audioDst);
+    };
+    playback.scheduleUnloaded = function (schedule) {
+      const result = unloaded.apply(this, arguments);
+      if (schedule.type === 1 && schedule.sourceNode) {
+        idle(this.audioCtx).push({ el: schedule.el, source: schedule.sourceNode });
+        schedule.sourceNode = schedule.gainNode = schedule.panNode = null;
+      }
+      return result;
+    };
+    playback.__zoidiumMediaCleanup = true;
+  }
+  const schedule = global.PZ?.schedule?.prototype;
+  if (schedule?.unload && !schedule.__zoidiumMediaCleanup) {
+    const unload = schedule.unload;
+    schedule.unload = function () {
+      const result = unload.apply(this, arguments);
+      if (this.el) {
+        // Disconnecting an audio graph leaves its media decoder active.
+        // Reset the retired element without revoking the shared asset URL.
+        this.el.pause();
+        this.el.removeAttribute("src");
+        this.el.load();
+        this.playing = false;
+      }
+      return result;
+    };
+    schedule.__zoidiumMediaCleanup = true;
+  }
   const prototype = global.PZ?.ui?.media?.list?.project?.prototype;
   if (!prototype?.createItem || prototype.__zoidiumMediaCleanup) return;
   const owners = new WeakMap();
