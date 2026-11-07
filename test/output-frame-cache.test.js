@@ -3,126 +3,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const fs = require("node:fs");
-const model = require("../plugins/core/output-frame-store.js");
 
-function observable() {
-  const watchers = new Set();
-  return { watch(fn) { watchers.add(fn); }, unwatch(fn) { watchers.delete(fn); },
-    update() { for (const fn of Array.from(watchers)) fn(); }, watchers };
-}
-const flush = () => new Promise(resolve => setImmediate(resolve));
-
-function harness({ prefetch = false, stale = false } = {}) {
-  const events = new Map(), docEvents = new Map(), timers = new Map();
-  let nextTimer = 0;
-  const notices = [], canvasEvents = new Map();
-  const canvas = { addEventListener: (n, f) => canvasEvents.set(n, f), removeEventListener: n => canvasEvents.delete(n) };
-  const counts = { allocated: 0, live: 0, display: 0, disposed: 0, serialized: 0, pick: 0, prepared: 0 };
-  const clock = { now: 0 };
-  class Sequence {
-    constructor() {
-      this.length = 100; this.audioTracks = []; this.videoSchedules = []; this.audioSchedules = [];
-      this.properties = { resolution: { onChanged: observable() } };
-      this.object = { objects: [], effects: [], loading: Promise.resolve() };
-      this.clip = { start: 0, length: 100, object: this.object };
-      this.videoTracks = [{ enabled: true, clips: [], getCurrentClip: () => this.clip }];
-    }
-    toJSON() {
-      counts.serialized += 1;
-      return { length: this.length, value: this.value,
-        ...(prefetch ? { schedules: this.videoSchedules.map(({ padding, items }) => ({ padding, items })) } : {}) };
-    }
-    load(data) {
-      this.length = data.length; this.value = data.value;
-      this.videoSchedules = data.schedules.map(schedule => ({ ...schedule,
-        prepare(frame) {
-          if (schedule.items.some(item => frame >= item.start - schedule.padding && frame < item.start + item.length)) {
-            counts.privateDecodes = (counts.privateDecodes || 0) + 1;
-          }
-        },
-        unload() { counts.unloadedSchedules = (counts.unloadedSchedules || 0) + 1; },
-      }));
-    }
-    update() {}
-  }
-  class Project {
-    constructor() { this.media = []; this.assets = { list: {} }; this.sequence = new Sequence(); this.ui = { onChanged: observable() }; }
-    toJSON() { return { sequence: this.sequence, plugins: this.plugins }; }
-  }
-  class Compositor {
-    constructor(renderer) { this.renderer = renderer; }
-    renderSequence(frame) { (counts.privateFrames ||= []).push(frame); }
-    unload() { counts.unloadedCompositors = (counts.unloadedCompositors || 0) + 1; }
-  }
-  class History {
-    startOperation() { this.operation = []; }
-    pushCommand() {}
-    finishOperation() { this.operation = null; }
-    discardOperation() { this.operation = null; }
-    undo() {}
-    redo() {}
-  }
-  class Viewport {
-    _render() {
-      counts.live += 1;
-      if (this.draws !== false) this.lastFrame = this.editor.playback.currentFrame;
-    }
-    pickColor() { counts.pick += 1; this._render(); }
-  }
-  const temporalRuntimes = new Map();
-  const PZ = { compositor: Compositor, ui: { viewport: Viewport, history: History },
-    project: Project, asset: class {},
-    zoidium: { getDebugPlugins: () => [], temporal: { frameSamplerRuntimes: temporalRuntimes,
-      usesSingleEvaluation: () => false, registerExportCompositor() {} } } };
-  const context = { drawingBufferWidth: 4, drawingBufferHeight: 4, getContextAttributes: () => ({ alpha: false }),
-    canvas, lost: false, error: 0, copyError: 0,
-    copyTexSubImage2D(...args) {
-      counts.copies = (counts.copies || 0) + 1;
-      counts.copySize = args.slice(-2);
-      this.error = this.copyError; this.copyError = 0;
-    },
-    getError() { const error = this.error; this.error = 0; return error; },
-    isContextLost() { return this.lost; }, NO_ERROR: 0, OUT_OF_MEMORY: 1285 };
-  const renderer = { context, shadowMap: {}, setRenderTarget() {}, setViewport() {}, setTexture2D() {} };
-  const project = new Project();
-  const history = new History();
-  history.operation = null;
-  const viewport = new Viewport();
-  Object.assign(viewport, { renderer, compositor: new Compositor(renderer), lastFrame: -1,
-    editor: { project, history, onProjectChanged: observable(), playback: { currentFrame: 0, speed: 0 } },
-    options: { widget2dObjects: [] } });
-  const THREE = {
-    ShaderMaterial: class { constructor(o) { Object.assign(this, o); } dispose() {} },
-    ShaderPass: class { constructor(m) { this.material = m; this.uniforms = m.uniforms; } render() {
-      counts.display += 1; (counts.displayTextures ||= []).push(this.uniforms.tDiffuse.value);
-    } },
-    WebGLRenderTarget: class { constructor() { this.texture = {}; counts.allocated += 1; } dispose() { counts.disposed += 1; } },
-  };
-  const document = { fonts: { status: "loaded", ready: Promise.resolve(), addEventListener() {}, removeEventListener() {} },
-    addEventListener: (n, f) => docEvents.set(n, f), removeEventListener: n => docEvents.delete(n) };
-  const window = { document, PZ, THREE, CM: { mainViewport: viewport }, ZoidiumOutputFrameStore: model,
-    ZoidiumOutputFrameVideo: require("../plugins/core/output-frame-video.js"),
-    ZoidiumOutputFrameApprovals: { ...require("../plugins/core/output-frame-approvals.js"), stale },
-    ZoidiumUI: { notify(message) { notices.push(message); } },
-    localStorage: { getItem: () => null }, performance: { now: () => clock.now },
-    addEventListener: (n, f) => events.set(n, f), removeEventListener: n => events.delete(n) };
-  window.__zoidiumTemporalParts = { sampler: { frameSamplerMediaInputs: require("../plugins/core/temporal-sampler.js").frameSamplerMediaInputs,
-    getFrameSamplerRuntime: () => ({ schedules: new Map() }) } };
-  vm.runInNewContext(fs.readFileSync(require.resolve("../plugins/core/output-frame-cache.js"), "utf8"), {
-    window, PZ, THREE, performance: window.performance, console,
-    setTimeout: fn => { timers.set(++nextTimer, fn); return nextTimer; }, clearTimeout: id => timers.delete(id),
-  });
-  const api = window.ZoidiumFrameCache;
-  // Draw until the frame is stored: resources and per-frame readiness settle
-  // asynchronously, then the next complete live draw is captured.
-  async function warm() {
-    for (let i = 0; i < 6 && api.debug.entries === 0; i++) { viewport._render(); await flush(); }
-  }
-  // Leave the post-signal window in which every draw serializes the project.
-  function cool() { clock.now += 5000; }
-  return { api, viewport, project, history, counts, events, docEvents, clock, warm, cool, temporalRuntimes, timers,
-    Viewport, Compositor, History, PZ, document, canvasEvents, notices, window, sampler: window.__zoidiumTemporalParts.sampler };
-}
+const { harness, flush } = require("./helpers/output-frame-harness.js");
 
 test("stale approvals keep every preview live and explain why", async () => {
   const h = harness({ stale: true });
@@ -258,7 +140,7 @@ test("a paused frame waits for its objects' own prepare() before it is stored", 
   assert.equal(h.api.debug.entries, 0);
   assert.equal(h.counts.prepared >= 1, true);
   release(); await flush(); await flush();
-  h.viewport._render();
+  h.viewport._render(); await flush();
   assert.equal(h.api.debug.entries, 1);
   h.api.dispose();
 });
@@ -281,7 +163,7 @@ test("an asynchronous preview draw during playback is stored for its own frame",
   const h = harness();
   await h.warm();
   h.viewport.editor.playback.speed = 1;
-  h.api.capturePreview(h.viewport, 5);
+  h.api.capturePreview(h.viewport, 5); await flush();
   assert.equal(h.api.debug.entries, 2);
   h.viewport.editor.playback.currentFrame = 5;
   const live = h.counts.live;
@@ -521,17 +403,17 @@ test("GPU memory failures lower the ceiling, evict frames and notify only once",
   const h = harness(), gl = h.viewport.renderer.context;
   await h.warm();
   h.viewport.editor.playback.speed = 1;
-  h.api.capturePreview(h.viewport, 1); h.api.capturePreview(h.viewport, 2);
+  h.api.capturePreview(h.viewport, 1); h.api.capturePreview(h.viewport, 2); await flush();
   assert.equal(h.api.debug.bytes, 192);
   gl.copyError = gl.OUT_OF_MEMORY;
-  h.api.capturePreview(h.viewport, 3);
+  h.api.capturePreview(h.viewport, 3); await flush();
   assert.equal(h.api.debug.entries, 2);
   assert.equal(h.api.debug.effectiveLimit, 172);
   assert.match(h.notices[0].message, /The GPU ran out of memory at 0 MiB/);
   assert.match(h.notices[0].message, /for this session/);
   for (let frame = 4; frame < 7; frame++) {
     gl.copyError = gl.OUT_OF_MEMORY;
-    h.api.capturePreview(h.viewport, frame);
+    h.api.capturePreview(h.viewport, frame); await flush();
   }
   assert.equal(h.notices.length, 1);
   assert.equal(h.api.debug.entries, 0);
@@ -546,7 +428,7 @@ test("unrelated GL errors drop a capture without claiming memory exhaustion", as
   const h = harness(); await h.warm();
   h.viewport.editor.playback.speed = 1;
   h.viewport.renderer.context.copyError = 1282;
-  h.api.capturePreview(h.viewport, 1);
+  h.api.capturePreview(h.viewport, 1); await flush();
   assert.equal(h.api.debug.entries, 1);
   assert.equal(h.api.debug.effectiveLimit, 512 * 1048576);
   assert.equal(h.notices.length, 0);
@@ -557,7 +439,7 @@ test("context loss forgets dead textures and a second loss disables captures", a
   const h = harness(), gl = h.viewport.renderer.context;
   await h.warm();
   h.viewport.editor.playback.speed = 1;
-  h.api.capturePreview(h.viewport, 1); h.api.capturePreview(h.viewport, 2);
+  h.api.capturePreview(h.viewport, 1); h.api.capturePreview(h.viewport, 2); await flush();
   const disposals = h.counts.disposed;
   gl.lost = true; h.canvasEvents.get("webglcontextlost")();
   assert.equal(h.api.debug.entries, 0);
@@ -631,7 +513,7 @@ test("a failed copy into a recycled target never publishes its old pixels", asyn
   h.viewport.editor.playback.currentFrame = 1;
   h.viewport._render(); await flush();
   h.viewport.renderer.context.copyError = 1280;
-  h.viewport._render();
+  h.viewport._render(); await flush();
   assert.equal(h.counts.allocated, allocated);
   assert.equal(h.api.debug.entries, 0);
   assert.equal(h.counts.disposed, 1);
@@ -802,7 +684,7 @@ test("cancelled video work leaves a newer live backup owned by the next request"
   const h = await videoHarness();
   await h.start();
   h.viewport.editor.playback.currentFrame = 1;
-  h.viewport._render();
+  h.viewport._render(); await flush();
   const newer = h.viewport.__zoidiumOutputFrames.videoLive;
   assert.equal(newer.frame, 1);
   h.finish();
