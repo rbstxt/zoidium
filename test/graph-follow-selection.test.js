@@ -3,6 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { Selection, curvesFor, animatedCurves, controllers, FOLLOW_KEY } = require("../plugins/graph-plus/selection.js");
 const install = require("../plugins/graph-plus/selection-host.js");
+const { queryObjects } = require("node:v8");
 const { FakeElement } = require("./fake-dom.js");
 class Channel {
   constructor(name, animated = false) { this.definition = { name }; this.animated = animated; this.keyframes = [{ value: 1 }]; }
@@ -74,6 +75,23 @@ function fixture() {
   }
   return { host, graph, editor, edit, row, event, listeners, doc, rows, get focused() { return focused; }, get opens() { return opens; } };
 }
+
+test("graph row decoration does not retain detached native property panels", async () => {
+  class Row extends FakeElement {}
+  const original = Edit.prototype.generateListItem = function () {
+    const row = new Row("li");
+    row.pz_object = new Channel("Opacity");
+    return row;
+  };
+  const f = fixture();
+  for (let i = 0; i < 40; i++) f.edit.generateListItem();
+  // Do not trigger selection paint or project replacement to prune the rows.
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(queryObjects(Row), 0);
+  f.host.dispose();
+  assert.equal(Edit.prototype.generateListItem, original);
+  delete Edit.prototype.generateListItem;
+});
 
 test("property identities map scalar, vector, color, nested material and plugin rows", () => {
   const scalar = new Channel("Opacity"), position = new Group("Position", ["X", "Y", "Z"]), color = new Group("Color", ["R", "G", "B"]);
@@ -279,4 +297,19 @@ test("native detached Edit windows get property menus and shortcuts and release 
   assert.equal(row.getAttribute("title"), null);
   f.host.dispose(); assert.equal(listeners.size, 0); assert.equal(NativeWindow.prototype.setPanel, original);
   delete PZ.ui.window;
+});
+
+test("pruning a detached selected row also releases the shortcut's last row", async () => {
+  class Row extends FakeElement {}
+  Edit.prototype.selectItems = function () {};
+  const f = fixture();
+  function select() {
+    const row = f.row(new Channel("Detached")); Object.setPrototypeOf(row, Row.prototype);
+    const field = { closest: selector => selector.includes("contenteditable") ? {} : row.closest(selector) };
+    f.event("pointerdown", field); row.isConnected = false; f.rows.length = 0;
+    f.edit.selection = []; f.edit.selectItems();
+  }
+  select(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(queryObjects(Row), 0);
+  f.host.dispose(); delete Edit.prototype.selectItems;
 });

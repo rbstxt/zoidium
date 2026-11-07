@@ -623,3 +623,49 @@ test("project font previews accept the host's opentype Path, not only Path2D", (
   // The host's opentype getPath() returns an opentype Path; filling it directly throws and leaves the row blank.
   assert.match(source, /toPathData\(/);
 });
+
+test("removed project fonts release their cached preview canvas and file", async () => {
+  const env = loadPicker({ withEmptyState: true });
+  async function preview() {
+    const asset = fontAsset("temporary", "Temporary.ttf");
+    env.assets.list.temporary = asset;
+    env.font2dByKey.temporary = fakeFont2d("Temporary", "Regular");
+    const control = env.controls.generateFontInput(staticProperty("temporary", env.assets));
+    control[0].pz_update();
+    await tick(); await tick();
+    const canvas = partsOf(control).span.querySelector("canvas");
+    assert.ok(canvas);
+    const references = { canvas: new WeakRef(canvas), file: new WeakRef(asset.file) };
+    delete env.assets.list.temporary;
+    return references;
+  }
+  const references = await preview();
+  await tick();
+  // queryObjects requests a full collection without depending on --expose-gc.
+  require("node:v8").queryObjects(FakeElement, { format: "count" });
+  assert.equal(references.canvas.deref(), undefined);
+  assert.equal(references.file.deref(), undefined);
+});
+
+
+test("non-object project font entries render without WeakMap insertion", async () => {
+  const env = loadPicker({ withEmptyState: true });
+  for (const asset of ["font-key", 42, true, null]) {
+    env.assets.list.invalid = asset;
+    const control = env.controls.generateFontInput(staticProperty("invalid", env.assets));
+    assert.doesNotThrow(() => control[0].pz_update());
+    await tick(); await tick();
+    assert.ok(partsOf(control).span.textContent || partsOf(control).span.children.length);
+  }
+});
+
+test("cached dropdown rows release their font asset when the dropdown closes", async () => {
+  const env = loadPicker({ withEmptyState: true });
+  env.assets.list.temporary = fontAsset("temporary", "Temporary.ttf");
+  const { dropdown } = openDropdown(env, staticProperty("temporary", env.assets));
+  const row = dropdown.children.find(row => row._zoidiumFontKey === "temporary");
+  assert.equal(row._zoidiumFontAsset, env.assets.list.temporary);
+  dropdown.blur();
+  assert.equal(row._zoidiumFontAsset, undefined);
+  assert.equal(dropdown.parentElement, null);
+});

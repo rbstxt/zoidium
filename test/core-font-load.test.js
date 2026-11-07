@@ -74,7 +74,7 @@ function fixture(options = {}) {
     Object.assign(host, { AbortController, setTimeout: (...args) => setTimeout(...args), clearTimeout: id => clearTimeout(id) });
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../plugins/core/asset-registry-fetch.js"), "utf8"), host);
   }
-  const sandbox = { module: { exports: {} } };
+  const sandbox = { module: { exports: {} }, ...options.globals };
   vm.runInNewContext(source, sandbox);
   sandbox.module.exports.activate({ PZ, window: host, lifecycle: { onDispose(fn) { cleanup.push(fn); } } });
   const asset = (file = { bytes: "ttf" }) => ({ file, source: 1, sha256: "key", key: "key", filename: "Example.ttf", references: 0, mediaReferences: 0, data: new Map() });
@@ -345,4 +345,16 @@ test("private clone font wrappers share retries without extra reads or stale com
   resolve("invalid"); await flush();
   assert.equal(font.data.zoidiumFont3dState, "ready"); assert.equal(f.notifications.length, 0);
   assert.equal(await clone.get3DFont(), font.font3d);
+});
+
+
+test("font reloads keep one cleanup registration per shared data object", async () => {
+  let registrations = 0;
+  const f = fixture({ globals: { WeakRef: class extends WeakRef {
+    constructor(value) { super(value); registrations++; }
+  } } });
+  const wrapper = new f.Font(f.asset());
+  for (let i = 0; i < 40; i++) await wrapper.reset();
+  assert.equal(registrations, 1);
+  f.dispose();
 });

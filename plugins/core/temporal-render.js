@@ -248,7 +248,11 @@
 
     prototype.unload = function temporalCompositorUnload() {
       disposeFrameSamplerRuntime(state, this);
-      return state.originalCompositorUnload.apply(this, arguments);
+      const result = state.originalCompositorUnload.apply(this, arguments);
+      // Native compositor unload releases buffers but leaves its pass quads
+      // registered in the renderer's geometry cache.
+      for (const pass of [this.copyPass, this.mixPass]) pass?.quad?.geometry?.dispose?.();
+      return result;
     };
 
     prototype.renderLayer = function temporalRenderLayer(layer) {

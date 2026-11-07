@@ -56,7 +56,10 @@
     return;
   }
 
-  var previewCache = {};
+  // Preview ownership follows the asset, including its attached file bytes.
+  var previewCache = new WeakMap();
+  function cacheKey(asset) { return asset !== null && (typeof asset === "object" || typeof asset === "function"); }
+  function cachedPreview(asset) { return cacheKey(asset) ? previewCache.get(asset) : null; }
 
   function projectAssets(property) {
     try {
@@ -167,14 +170,14 @@
   function ensurePreview(entry) {
     var key = entry.key;
     var identity = fileIdentity(entry.asset);
-    var cached = previewCache[key];
+    var cached = cachedPreview(entry.asset);
     if (cached && cached.identity === identity) {
       if (cached.failed) return Promise.resolve(null);
       if (cached.canvas) return Promise.resolve(cached.canvas);
       return cached.pending;
     }
     var record = { identity: identity, canvas: null, failed: false, pending: null };
-    previewCache[key] = record;
+    if (cacheKey(entry.asset)) previewCache.set(entry.asset, record);
     record.pending = readAndRender(entry).then(
       function (canvas) {
         record.canvas = canvas;
@@ -322,7 +325,7 @@
       }
       repaintOpenRow(key);
     });
-    var cachedNow = previewCache[key];
+    var cachedNow = cachedPreview(entry.asset);
     if (cachedNow && cachedNow.canvas) {
       paintCanvasInto(parts.span, cachedNow.canvas);
       return;
@@ -545,6 +548,7 @@
   function projectRow(doc, entry) {
     var item = doc.createElement("li");
     item._zoidiumFontKey = entry.key;
+    item._zoidiumFontAsset = entry.asset;
     item._zoidiumFontName = fileNameOf(entry);
     var span = doc.createElement("span");
     span.style.cssText = "display:block; width:200px; height:25px;";
@@ -552,7 +556,7 @@
     span.textContent = fileNameOf(entry);
     span.title = fileNameOf(entry);
     item.appendChild(span);
-    var cached = previewCache[entry.key];
+    var cached = cachedPreview(entry.asset);
     if (cached && cached.canvas) {
       paintCanvasInto(span, cached.canvas);
     } else if (!cached || !cached.failed) {
@@ -590,7 +594,7 @@
         if (rows[i]._zoidiumFontKey === key) {
           var span = rows[i].children && rows[i].children[0];
           if (!span) return;
-          var cached = previewCache[key];
+          var cached = cachedPreview(rows[i]._zoidiumFontAsset);
           if (cached && cached.canvas) {
             paintCanvasInto(span, cached.canvas);
           } else if (cached && cached.failed) {
@@ -606,6 +610,14 @@
   }
 
   function rebuildDropdown(dropdown, button) {
+    if (!dropdown.onblur?.__zoidiumReleaseFontAssets) {
+      var blur = dropdown.onblur;
+      dropdown.onblur = function () {
+        for (var row of this.children) delete row._zoidiumFontAsset;
+        return blur?.apply(this, arguments);
+      };
+      dropdown.onblur.__zoidiumReleaseFontAssets = true;
+    }
     var doc = dropdown.ownerDocument || global.document;
     var presets = PZ.asset.font.preset;
     var property = (button && button._zoidiumFontProperty) || null;

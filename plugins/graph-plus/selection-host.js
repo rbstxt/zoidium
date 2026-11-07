@@ -6,7 +6,9 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
   const storage = (() => { try { return doc?.defaultView?.localStorage; } catch (_error) { return null; } })();
   const selection = new Selection(PZ, storage);
   controllers.set(editor, selection);
-  const cleanups = [], labels = new WeakMap(), keySelections = new WeakMap(), decorated = new Map(), documents = new Map();
+  const cleanups = [], labels = new WeakMap(), keySelections = new WeakMap(), decorated = new WeakMap(), documents = new Map();
+  const rows = new Set();
+  const collectedRows = new FinalizationRegistry(ref => rows.delete(ref));
   let disposed = false, menu = null, pending = null, queued = false, lastRow = null;
   function patch(target, key, after) {
     if (typeof target?.[key] !== "function") return;
@@ -38,7 +40,10 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
   }
   function decorate(row) {
     if (!row || decorated.has(row)) return;
-    decorated.set(row, { tabindex: row.getAttribute("tabindex"), title: row.getAttribute("title") });
+    const ref = new WeakRef(row);
+    decorated.set(row, { tabindex: row.getAttribute("tabindex"), title: row.getAttribute("title"), ref });
+    rows.add(ref);
+    collectedRows.register(row, ref, ref);
     row.tabIndex = 0;
     row.title = "Show in Graph Editor (Alt+Shift+G)";
   }
@@ -47,6 +52,19 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
     labels.delete(row);
     for (const key of ["tabindex", "title"]) {
       if (original[key] === null) row.removeAttribute(key); else row.setAttribute(key, original[key]);
+    }
+  }
+  function forgetRow(row, original) {
+    if (lastRow === row) lastRow = null;
+    decorated.delete(row);
+    rows.delete(original.ref);
+    collectedRows.unregister(original.ref);
+  }
+  function* liveRows() {
+    for (const ref of rows) {
+      const row = ref.deref();
+      if (row) yield [row, decorated.get(row)];
+      else rows.delete(ref);
     }
   }
   function propertyRow(row) {
@@ -78,8 +96,8 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
     return { label: "Rename…", action: () => { panel.renameClick({ currentTarget: row, preventDefault() {} }); row.querySelector("input.rename")?.select(); } };
   }
   function paint() {
-    for (const row of decorated.keys()) {
-      if (!row.isConnected) { decorated.delete(row); continue; }
+    for (const [row, original] of liveRows()) {
+      if (!row.isConnected) { restoreRow(row, original); forgetRow(row, original); continue; }
       row.classList.toggle("g2-property-selected", selection.properties.includes(targetProperty(row)));
     }
   }
@@ -231,8 +249,8 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
       for (const [type, fn] of listeners) owner.removeEventListener(type, fn, true);
       owner.defaultView?.removeEventListener?.("pagehide", release);
       documents.delete(owner);
-      for (const [row, original] of decorated) if (row.ownerDocument === owner) {
-        restoreRow(row, original); decorated.delete(row);
+      for (const [row, original] of liveRows()) if (row.ownerDocument === owner) {
+        restoreRow(row, original); forgetRow(row, original);
       }
       if (lastRow?.ownerDocument === owner) lastRow = null;
       if (owner !== doc) unstyleDocument?.(owner);
@@ -271,10 +289,11 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
       disposed = true; pending = null; lastRow = null; closeMenu();
       for (const release of Array.from(documents.values())) release();
       for (const cleanup of cleanups.reverse()) cleanup();
-      for (const [row, original] of decorated) {
+      for (const [row, original] of liveRows()) {
         restoreRow(row, original);
+        forgetRow(row, original);
       }
-      decorated.clear(); selection.dispose();
+      rows.clear(); selection.dispose();
       controllers.delete(editor);
     },
   };

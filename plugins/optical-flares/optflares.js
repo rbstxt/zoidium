@@ -69,7 +69,12 @@ module.exports = function installOptflares(PZ, THREE) {
     // Live flare objects in the open project. The plugin manager asks this
     // through isInUse() so the pack cannot be disabled under a project that
     // still uses it.
-    var liveFlares = new Set();
+    var liveFlares = new WeakMap(), flareRefs = new Set();
+    var collectedFlares = new FinalizationRegistry(function (ref) { flareRefs.delete(ref); });
+    function liveCount() {
+        for (var ref of flareRefs) if (!ref.deref()) flareRefs.delete(ref);
+        return flareRefs.size;
+    }
 
     var flareSetupDefinitions = {
         positionXY: vector2("2D Position", [0, 0]),
@@ -281,7 +286,11 @@ module.exports = function installOptflares(PZ, THREE) {
             } else {
                 this.stack.push.apply(this.stack, this.elementsFor(presetKeyFor(this.objectType)));
             }
-            liveFlares.add(this);
+            if (!liveFlares.has(this)) {
+                var ref = new WeakRef(this);
+                liveFlares.set(this, ref); flareRefs.add(ref);
+                collectedFlares.register(this, ref, ref);
+            }
             this.ensureMaterial();
             this.parentChanged();
         }
@@ -292,6 +301,8 @@ module.exports = function installOptflares(PZ, THREE) {
             return liveFlares.has(this);
         }
         unload() {
+            var ref = liveFlares.get(this);
+            if (ref) { flareRefs.delete(ref); collectedFlares.unregister(ref); }
             liveFlares.delete(this);
             this.unloadStack();
             this.releaseCustomTextures();
@@ -722,9 +733,9 @@ module.exports = function installOptflares(PZ, THREE) {
     PZ.opticalflares.presetData = presetData;
     PZ.opticalflares.spec = spec;
     PZ.opticalflares.isInUse = function () {
-        return liveFlares.size > 0;
+        return liveCount() > 0;
     };
     PZ.opticalflares.liveCount = function () {
-        return liveFlares.size;
+        return liveCount();
     };
 };

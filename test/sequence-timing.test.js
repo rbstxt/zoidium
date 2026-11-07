@@ -41,6 +41,8 @@ function fixture(options) {
     const item = audio ? new PZ.clip.audio() : new PZ.clip.video(layerType);
     item.start = start; item.length = length; tracks[trackIndex].clips.push(item);
     item.properties.load(); item.object.properties.load();
+    // These timing fixtures never load shader assets or allocate render state.
+    item.object.unload = function () {};
     return item;
   }
   function edit(rate, live = false) {

@@ -38,12 +38,24 @@ function activate(context) {
   for (const name of GRAPH_MODULES) graphSources[name] = context.getAsset("text", MATERIAL_ROOT + name);
   const graphWorkerSource = createGraphWorkerSource(graphSources);
   const owned = new Map();
-  const materials = new Set();
+  const materials = new WeakMap(), materialRefs = new Set();
+  const collectedMaterials = new FinalizationRegistry(ref => materialRefs.delete(ref));
+  const collectedWorkers = new FinalizationRegistry(({ worker, url }) => {
+    worker.terminate();
+    context.window.URL.revokeObjectURL(url);
+  });
+  function* liveMaterials() {
+    for (const ref of materialRefs) {
+      const material = ref.deref();
+      if (material) yield material;
+      else materialRefs.delete(ref);
+    }
+  }
   const assets = context.apis?.assets || context.window.ZoidiumAssets;
   if (assets?.registerReloader) context.lifecycle.onDispose(assets.registerReloader({
     id: "material-plus/graph-images",
     async reload(key, asset) {
-      await Promise.all(Array.from(materials, async material => {
+      await Promise.all(Array.from(liveMaterials(), async material => {
         if (material.pzEnvironment?.key === key && material.pzEnvironment.asset === asset) {
           material.pzLoadEnvironment();
           await material.pzEnvironment?.loading;
@@ -58,7 +70,7 @@ function activate(context) {
   let nextId = 0;
   const previous = context.window.ZoidiumMaterialPlus;
   context.lifecycle.onDispose(() => {
-    for (const material of materials) material._surfaceDispose?.();
+    for (const material of liveMaterials()) material._surfaceDispose?.();
     for (const [id, entry] of owned) if (PZ.material.fnList[id] === entry.factory) {
       if (entry.previous) PZ.material.fnList[id] = entry.previous;
       else delete PZ.material.fnList[id];
@@ -160,6 +172,7 @@ function activate(context) {
       if (!worker && context.window.Worker && context.window.Blob && context.window.URL?.createObjectURL) {
         workerUrl = context.window.URL.createObjectURL(new context.window.Blob([graphWorkerSource], { type: "text/javascript" }));
         worker = new context.window.Worker(workerUrl);
+        collectedWorkers.register(material, { worker, url: workerUrl }, material);
       }
     }
     function apply(outputs, size) {
@@ -206,14 +219,16 @@ function activate(context) {
           return;
         }
         cancelBake = () => { cancelBake = null; resolve({}); };
+        const finish = () => { worker.onmessage = worker.onerror = null; cancelBake = null; };
         worker.onmessage = ({ data }) => {
           if (data.id !== id) return;
-          cancelBake = null;
+          finish();
           trace("finished", job, { duration: data.duration });
           if (data.error) reject(new Error(data.error)); else resolve(data.outputs);
         };
-        worker.onerror = (event) => { cancelBake = null; reject(new Error(event.message || "Material+ graph worker failed.")); };
-        worker.postMessage({ ...job, id });
+        worker.onerror = (event) => { finish(); reject(new Error(event.message || "Material+ graph worker failed.")); };
+        try { worker.postMessage({ ...job, id }); }
+        catch (error) { finish(); reject(error); }
       });
     }
     async function drain() {
@@ -356,6 +371,7 @@ function activate(context) {
       if (refinement !== null) clearTimeout(refinement);
       pending = null;
       cancelBake?.();
+      collectedWorkers.unregister(this);
       worker?.terminate();
       if (workerUrl) context.window.URL.revokeObjectURL(workerUrl);
       nodes.releaseImages(this);
@@ -368,9 +384,15 @@ function activate(context) {
       environmentSource = null;
       this.pzNoiseTexture?.dispose();
       this.pzRampTexture?.dispose();
+      const ref = materials.get(this);
+      if (ref) { materialRefs.delete(ref); collectedMaterials.unregister(ref); }
       materials.delete(this);
     };
-    materials.add(material);
+    if (!materials.has(material)) {
+      const ref = new WeakRef(material);
+      materials.set(material, ref); materialRefs.add(ref);
+      collectedMaterials.register(material, ref, ref);
+    }
   }
 
   function nodeFactory() {
@@ -424,7 +446,8 @@ function activate(context) {
   function openEditor(material) {
     if (!ids.has(material)) ids.set(material, ++nextId);
     const CM = context.window.CM;
-    return context.ui.openWindow({ id: "nodes:" + ids.get(material), title: "Node Editor", width: 1000, height: 620, placement: "center", maximizable: true, persistKey: "node-editor", isValid: () => materials.has(material) && material.parentProject === CM.project, mount(body) {
+    const project = CM.project;
+    return context.ui.openWindow({ id: "nodes:" + ids.get(material), title: "Node Editor", width: 1000, height: 620, placement: "center", maximizable: true, persistKey: "node-editor", isValid: () => materials.has(material) && CM.project === project, mount(body) {
       body.style.display = "flex";
       if (!doc.getElementById("zoidium-node-curves-style")) {
         const style = doc.createElement("style"); style.id = "zoidium-node-curves-style";

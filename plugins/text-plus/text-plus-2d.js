@@ -8,6 +8,8 @@ function install(context) {
   const Text = PZ.layer?.shape?.text, proto = Text?.prototype;
   if (!proto?.draw || !proto.load) return () => {};
   const states = new WeakMap(), layers = new Set(), boundsCache = new WeakMap(), restore = [];
+  const layerRefs = new WeakMap();
+  const collectedLayers = new FinalizationRegistry(reference => layers.delete(reference));
   let live = true;
   function attach(layer, reload = false) {
     if (states.has(layer) && !reload) return states.get(layer);
@@ -28,7 +30,11 @@ function install(context) {
       configurable: true, get: () => snapshot(stack, saved),
     });
     states.set(layer, stack);
-    layers.add(new WeakRef(layer));
+    if (!layerRefs.has(layer)) {
+      const reference = new WeakRef(layer);
+      layerRefs.set(layer, reference); layers.add(reference);
+      collectedLayers.register(layer, reference, reference);
+    }
     return stack;
   }
   function patch(key, implementation) {
@@ -55,6 +61,8 @@ function install(context) {
   });
   const unload = patch("unload", function () {
     states.delete(this);
+    const reference = layerRefs.get(this);
+    if (reference) { layers.delete(reference); collectedLayers.unregister(reference); layerRefs.delete(this); }
     return unload.apply(this, arguments);
   });
   function refreshPanels() {
@@ -72,6 +80,7 @@ function install(context) {
     // Keep the hidden property lists at their original addresses. Native
     // undo commands still resolve them, and serialization reads live values.
     for (const reference of layers) {
+      collectedLayers.unregister(reference);
       const layer = reference.deref(), stack = layer && states.get(layer);
       if (!stack) continue;
       stack.live = false;
