@@ -125,7 +125,7 @@ function createSession(effect) {
       if (!effectInProject(effect)) return;
       const p = propOf(effect, key);
       if (!p) return;
-      if (!pending.has(key)) pending.set(key, { old: cloneValue(readProp(effect, key)) });
+      if (!pending.has(key)) pending.set(key, { old: state.PZ.ui.properties.getStoredValue(p, frameOf(p)) });
       try { p.set(value, frameOf(p)); } catch (_err) { /* property rejected the value */ }
     },
     commit(writes) {
@@ -138,7 +138,8 @@ function createSession(effect) {
         if (!p) { pending.delete(w.key); continue; }
         const pend = pending.get(w.key);
         pending.delete(w.key);
-        const old = pend ? pend.old : cloneValue(readProp(effect, w.key));
+        if (!pend && JSON.stringify(readProp(effect, w.key)) === JSON.stringify(w.value)) continue;
+        const old = pend ? pend.old : state.PZ.ui.properties.getStoredValue(p, frameOf(p));
         if (JSON.stringify(old) === JSON.stringify(w.value)) continue;
         entries.push({ p: p, value: w.value, old: old });
       }
