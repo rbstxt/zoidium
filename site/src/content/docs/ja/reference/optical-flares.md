@@ -48,7 +48,7 @@ Optical Flares は、要素のスタックを設定できる 3D オブジェク�
 | **Shape**: **Texture**、**Illumination**、**Falloff** | 任意のテクスチャと、その形状コントロールです。 |
 | **Shape**: **Matte shape**、**Matte start**、**Matte fade** | マットの形状と境界のコントロールです。 |
 
-**Falloff** は **Ring** テクスチャにのみ影響します。**Illumination** は **None** と **Orbs** には影響しません。
+**Animate** は **Sparkle** と **Hoop** の要素にのみ影響します。**Falloff** は **Ring** テクスチャにのみ影響します。**Illumination** は **None** と **Orbs** には影響しません。
 
 Texture の選択肢は **None**、**Soft**、**Hex**、**Ring**、**Streak**、**Spikes**、**Orbs**、**Custom 1**、**Custom 2**、**Custom 3** です。Custom の選択肢は、**Custom Layers** の **Custom Layer 1**、**Custom Layer 2**、**Custom Layer 3** を参照します。
 

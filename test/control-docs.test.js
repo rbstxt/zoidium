@@ -31,3 +31,11 @@ test("Optical Flares docs state which textures use Falloff and Illumination", ()
   assert.equal(modes.find(mode => mode[0] === "6").includes("ill"), false);
   for (const page of docs("optical-flares.md")) assert.match(page, /\*\*Falloff\*\*[^\n]*\*\*Ring\*\*[^\n]*\*\*Illumination\*\*[^\n]*\*\*Orbs\*\*/);
 });
+
+test("Optical Flares docs state which element types use Animate", () => {
+  const shader = read("plugins/optical-flares/optflares-shaders.js");
+  const start = shader.indexOf('if (etype == 0)');
+  const blocks = shader.slice(start, shader.indexOf('c *= (etype == 0)', start)).split("if (etype == ").slice(1);
+  assert.deepEqual(blocks.filter(block => /\banimate\b/.test(block)).map(block => parseInt(block, 10)), [7, 9]);
+  for (const page of docs("optical-flares.md")) assert.match(page, /\*\*Animate\*\*[^\n]*\*\*Sparkle\*\*[^\n]*\*\*Hoop\*\*/);
+});
