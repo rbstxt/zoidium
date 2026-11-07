@@ -5,7 +5,8 @@ const NUMERIC = ["slider", "seed"], OPTIONS = ["dropdown", "staticDropdown"];
 const list = text => String(text).split(/[\n;]/).map(s => s.trim()).filter(Boolean);
 function installEditor({ context, patch, presetFont }) {
   const { PZ, editor: CM, document: doc, window: win } = context;
-  const rows = new Set(), folded = new WeakMap();
+  const rows = new Set();
+  const groups = PZ.zoidium?.propertyGroups;
   let openPanel = null;
   function uniqueName(base) {
     const names = new Set();
@@ -29,7 +30,7 @@ function installEditor({ context, patch, presetFont }) {
   menu.push(...added);
   context.lifecycle.onDispose(() => { for (const entry of added) { const i = menu.indexOf(entry); if (i >= 0) menu.splice(i, 1); } });
   function effectOf(p) { return p?.parent instanceof PZ.objectList && p.parent.parent instanceof PZ.effect.shader ? p.parent.parent : null; }
-  function notify(effect) { effect.fragmentShaderNeedsUpdate = true; CM.project.ui?.onChanged?.update(); CM.mainViewport?.requestRender?.(); }
+  function notify(effect) { groups?.refresh?.(); effect.fragmentShaderNeedsUpdate = true; CM.project.ui?.onChanged?.update(); CM.mainViewport?.requestRender?.(); }
   function snapshot(p) { return { definition: clone(p.definition), name: p.properties.name.get() }; }
   function apply(p, state) {
     for (const key of Object.keys(p.definition)) delete p.definition[key];
@@ -112,7 +113,8 @@ function installEditor({ context, patch, presetFont }) {
       }
     }
     kind.onchange = buildSpecific; buildSpecific();
-    input(common, "group", "Group", meta.group);
+    const groupField = input(common, "group", "Group", groups ? groups.name(p) : meta.group);
+    if (groups && !groups.canAssign(p, "")) groupField.disabled = true;
     input(common, "help", "Tooltip", meta.help);
     const others = (effect?.customProperties || []).filter(q => q !== p).map(q => q.properties.name.get());
     const when = select(common, "when", "Visible when", [["", "Always"], ...others.map(n => [n, n])], meta.visibleWhen?.property || "");
@@ -171,6 +173,11 @@ function installEditor({ context, patch, presetFont }) {
         } else delete next.visibleWhen;
         const name = fields.name.value.trim();
         if (!name) throw new Error("Enter a name");
+        const group = fields.group.value.trim();
+        if (groups && group !== groups.name(p)) {
+          if (!groups.canAssign(p, group)) throw new Error("Unlock the group before moving its properties");
+          definition.zoidiumPropertyGroup = { ...definition.zoidiumPropertyGroup, name: group };
+        }
         definition.zoidiumShader = next;
         closeSettings(); edit(p, { definition, name });
       } catch (e) { error.textContent = e.message; }
@@ -223,25 +230,17 @@ function installEditor({ context, patch, presetFont }) {
       const { row, p, effect } = entry;
       if (!row.isConnected) { if (entry.seenConnected) rows.delete(entry); continue; }
       entry.seenConnected = true;
-      const meta = p.definition.zoidiumShader || {}, group = meta.group || "";
-      let groups = folded.get(row.parentElement);
-      if (!groups) { groups = new Map(); folded.set(row.parentElement, groups); }
-      if (group && (!groups.has(group) || !groups.get(group).heading.isConnected)) {
-        const heading = doc.createElement("button"); heading.className = "zsp-group"; heading.textContent = group; heading.setAttribute("aria-label", group); heading.setAttribute("aria-expanded", "true");
-        heading.style.paddingLeft = (parseInt(row.firstElementChild?.style.paddingLeft, 10) || 0) + "px";
-        const state = { heading, collapsed: false }; groups.set(group, state); row.before(heading);
-        heading.onclick = () => { state.collapsed = !state.collapsed; heading.setAttribute("aria-expanded", String(!state.collapsed)); sync(); };
-      }
+      const meta = p.definition.zoidiumShader || {};
       const when = meta.visibleWhen, controller = when && effect.customProperties.find(q => q.properties.name.get() === when.property);
       const frame = CM.playback.currentFrame - p.frameOffset;
       const visible = !when || !!controller && when.values.includes(controller.get(frame));
-      row.hidden = !visible || !!groups.get(group)?.collapsed;
+      row.hidden = !visible;
       if (row.nextElementSibling?.tagName === "UL" && p.definition.group) row.nextElementSibling.hidden = row.hidden;
       if (meta.help) { row.title = meta.help; row.firstElementChild.title = meta.help; }
     }
   }
   const timer = win.setInterval(sync, 100);
-  context.lifecycle.onDispose(() => { win.clearInterval(timer); closeSettings(); for (const { row } of rows) { row.hidden = false; row.parentElement?.querySelectorAll(".zsp-group,.zsp-settings").forEach(el => el.remove()); } rows.clear(); });
+  context.lifecycle.onDispose(() => { win.clearInterval(timer); closeSettings(); for (const { row } of rows) { row.hidden = false; row.parentElement?.querySelectorAll(".zsp-settings").forEach(el => el.remove()); } rows.clear(); });
   // New keys created by the discrete editors use hold. Existing keys and
   // user-selected tweens keep their values, including history replay.
   for (const method of ["startEdit", "toggleKeyframe"]) patch(PZ.ui.properties.prototype, method, original => function discreteKey(p) {
