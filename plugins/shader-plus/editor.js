@@ -30,11 +30,18 @@ function installEditor({ context, patch, presetFont }) {
   menu.push(...added);
   context.lifecycle.onDispose(() => { for (const entry of added) { const i = menu.indexOf(entry); if (i >= 0) menu.splice(i, 1); } });
   function effectOf(p) { return p?.parent instanceof PZ.objectList && p.parent.parent instanceof PZ.effect.shader ? p.parent.parent : null; }
-  function notify(effect) { groups?.refresh?.(); effect.fragmentShaderNeedsUpdate = true; CM.project.ui?.onChanged?.update(); CM.mainViewport?.requestRender?.(); }
+  function notify(effect) { groups?.refresh?.(CM, effect?.customProperties); effect.fragmentShaderNeedsUpdate = true; CM.project.ui?.onChanged?.update(); CM.mainViewport?.requestRender?.(); }
   function snapshot(p) { return { definition: clone(p.definition), name: p.properties.name.get() }; }
   function apply(p, state) {
+    const collapsed = groups?.meta(p).collapsed;
     for (const key of Object.keys(p.definition)) delete p.definition[key];
     Object.assign(p.definition, clone(state.definition)); p.properties.name.set(state.name);
+    if (groups) {
+      const meta = { ...p.definition.zoidiumPropertyGroup }; delete meta.collapsed;
+      if (collapsed !== undefined) meta.collapsed = collapsed;
+      if (Object.keys(meta).length) p.definition.zoidiumPropertyGroup = meta;
+      else delete p.definition.zoidiumPropertyGroup;
+    }
     p.parent.onObjectRemoved.update(p, p.parent.indexOf(p));
     p.parent.onObjectAdded.update(p, p.parent.indexOf(p));
     notify(effectOf(p));

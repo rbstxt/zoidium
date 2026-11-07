@@ -22,26 +22,31 @@
       return result;
     }
     function snapshot(list) {
-      return Array.from(list, p => ({ meta: copy(p.definition[FIELD]),
-        shader: copy(p.definition.zoidiumShader) }));
+      return Array.from(list, p => {
+        const metadata = copy(p.definition[FIELD]);
+        if (metadata) delete metadata.collapsed;
+        return { meta: metadata && Object.keys(metadata).length ? metadata : undefined,
+          shader: copy(p.definition.zoidiumShader) };
+      });
     }
     function apply(list, state) {
       state.forEach((record, index) => {
-        const d = list[index].definition;
+        const d = list[index].definition, collapsed = meta(list[index]).collapsed;
         for (const [key, value] of [[FIELD, record.meta], ["zoidiumShader", record.shader]]) {
           if (value === undefined) delete d[key]; else d[key] = copy(value);
         }
+        if (collapsed !== undefined) d[FIELD] = { ...d[FIELD], collapsed };
       });
     }
-    function notify(editor) {
+    function notify(editor, subject) {
       editor.project.ui?.onChanged?.update();
-      api.refresh?.();
+      api.refresh?.(editor, subject);
     }
     function exchange(editor, command) {
       const list = editor.project.addressLookup(command.address), previous = snapshot(list);
       apply(list, command.state);
       editor.history.pushCommand(next => exchange(editor, next), { address: command.address, state: previous });
-      notify(editor);
+      notify(editor, list);
     }
     function edit(editor, list, change, join = false) {
       if (editor.history.operation !== null && !join) return false;
@@ -54,7 +59,7 @@
         editor.history.pushCommand(command => exchange(editor, command), { address: list.getAddress(), state: before });
         if (!join) editor.history.finishOperation();
       } catch (error) { apply(list, before); if (!join) editor.history.discardOperation(); throw error; }
-      notify(editor); return true;
+      notify(editor, list); return true;
     }
     function assign(record, group) {
       record.meta = { ...record.meta, name: group };
@@ -81,9 +86,11 @@
     }
     function collapse(editor, list, group) {
       const collapsed = !members(list, group).some(p => meta(p).collapsed);
-      return edit(editor, list, state => {
-        for (const p of members(list, group)) state[list.indexOf(p)].meta = { ...meta(p), collapsed };
-      });
+      const properties = members(list, group);
+      if (!properties.length) return false;
+      for (const p of properties) p.definition[FIELD] = { ...meta(p), collapsed };
+      notify(editor, list);
+      return true;
     }
     // Only metadata changes. Native list indices remain the addresses used by
     // animation, shader uniforms, saved properties, and history commands.
@@ -136,7 +143,7 @@
       const exchangeLock = command => {
         const object = editor.project.addressLookup(command.address), previous = !!locks.get(object);
         locks.set(object, command.value);
-        editor.history.pushCommand(exchangeLock, { address: command.address, value: previous }); notify(editor);
+        editor.history.pushCommand(exchangeLock, { address: command.address, value: previous }); notify(editor, object);
       };
       editor.history.startOperation(); exchangeLock({ address: group.getAddress(), value: !!value }); editor.history.finishOperation(); return true;
     }

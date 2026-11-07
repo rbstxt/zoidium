@@ -59,7 +59,8 @@ test("legacy Shader+ groups share settings, collapse and display-only drag order
   editor.history.undo(); assert.deepEqual(api.blocks(list).map(block => block.name), ["Existing", "", "Other"]);
   editor.history.redo(); api.collapse(editor, list, "Existing");
   assert.equal(api.meta(list[0]).collapsed, true);
-  editor.history.undo(); assert.equal(api.meta(list[0]).collapsed, undefined);
+  editor.history.undo(); assert.equal(api.meta(list[0]).collapsed, true);
+  api.collapse(editor, list, "Existing");
   api.move(editor, list, list[1], "Existing", true);
   assert.equal(api.name(list[1]), "Existing");
   api.settings(editor, list, "Existing", { name: "Renamed", locked: false });
@@ -171,9 +172,31 @@ test("an unorganized custom-property list retains native same-list drag indices"
   const view = Object.create(PZ.ui.edit.prototype); view.editor = editor; view.selectItems = () => {};
   PZ.zoidium = { propertyGroups: api }; context.window = { PZ };
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../plugins/core/property-groups-drag.js"), "utf8"), context);
+  list[0].definition.zoidiumPropertyGroup = { order: 7 };
   const parent = { pz_object: list }, rows = Array.from(list, pz_object => ({ pz_object, tagName: "LI", parentElement: parent })); parent.children = rows;
   const drag = { ctx: view, item: rows[0], target: rows[1], operation: 2, moved: true, indicatorEl: { remove() {} } };
   PZ.ui.edit.prototype.itemDragEnd.call(drag, { altKey: false });
   assert.deepEqual(Array.from(list, p => p.properties.name.get()), ["Size", "Amount", "Mix"]);
   editor.history.undo(); assert.deepEqual(Array.from(list, p => p.properties.name.get()), ["Amount", "Size", "Mix"]);
+});
+test("collapse is saved without history and survives unrelated undo during an open edit", () => {
+  const { PZ, api, editor, list, owner } = host();
+  api.setGroup(editor, list[0], "Controls");
+  const undo = editor.history.undoStack.length;
+  assert.equal(api.collapse(editor, list, "Controls"), true);
+  assert.equal(editor.history.undoStack.length, undo);
+  api.settings(editor, list, "Controls", { name: "Controls", locked: true });
+  editor.history.startOperation();
+  assert.equal(api.collapse(editor, list, "Controls"), true);
+  assert.equal(editor.history.operation.length, 0);
+  editor.history.discardOperation();
+  editor.history.undo();
+  assert.equal(api.meta(list[0]).collapsed, false);
+  editor.history.redo(); assert.equal(api.meta(list[0]).collapsed, false);
+  editor.history.undo(); editor.history.undo();
+  assert.equal(api.name(list[0]), ""); assert.equal(api.meta(list[0]).collapsed, false);
+  editor.history.redo(); assert.equal(api.meta(list[0]).collapsed, false);
+  const restored = new PZ.objectList(owner, PZ.property);
+  for (const data of copy(list)) { const p = PZ.property.create(data.type); restored.push(p); p.load(data); }
+  assert.equal(api.meta(restored[0]).collapsed, false);
 });

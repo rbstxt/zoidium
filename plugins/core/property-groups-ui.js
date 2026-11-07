@@ -2,11 +2,13 @@
   "use strict";
   const PZ = global.PZ, api = PZ?.zoidium?.propertyGroups, prototype = PZ?.ui?.edit?.prototype;
   if (!api || !prototype) return;
-  const lists = new Map(), nativeRows = new Set();
+  // Keys follow the panel DOM. The editor's iterable index contains only
+  // WeakRefs, so abandoned panels never become session-owned roots.
+  const lists = new WeakMap(), nativeRows = new WeakMap(), panels = new WeakMap();
+  const editors = new WeakMap(), lifetimes = new WeakMap();
   let open = null;
-  const close = () => { open?.remove(); open = null; };
-  const style = global.document.createElement("style");
-  style.textContent = `
+  const close = () => { open?.deref()?.remove(); open = null; };
+  const css = `
     .zpg-heading { display:flex; align-items:center; min-height:28px; background:var(--zui-bg-sunken); color:var(--zui-text); border-bottom:1px solid var(--zui-border); }
     .zpg-heading button { font:inherit; color:inherit; border:0; background:transparent; cursor:pointer; }
     .zpg-toggle { flex:1; text-align:left; padding:4px 6px; min-width:0; overflow:hidden; text-overflow:ellipsis; }
@@ -23,9 +25,91 @@
     .zpg-settings-error { color:var(--zui-danger); }
     .actionbutton.zpg-native-lock { width:auto; min-width:32px; padding:0 4px; line-height:17px; font:inherit; font-size:var(--zui-font-size-small); color:var(--zui-text-muted); }
   `;
-  global.document.head.append(style);
+  function ensureStyle(doc) {
+    if (doc.getElementById("zoidium-property-groups-style")) return;
+    const style = doc.createElement("style"); style.id = "zoidium-property-groups-style";
+    style.textContent = css; doc.head.append(style);
+  }
+  function editorState(editor) {
+    let state = editors.get(editor);
+    if (state) return state;
+    state = { views: new Set(), renders: 0, domMoves: 0 };
+    editors.set(editor, state);
+    editor.onProjectChanged.watch(() => {
+      for (const ref of state.views) {
+        const view = ref.deref();
+        if (!view) state.views.delete(ref);
+        else if (panels.get(view)?.project !== editor.project) releasePanel(view);
+      }
+      close();
+    });
+    return state;
+  }
+  function panelState(view) {
+    let state = panels.get(view);
+    if (state) return state;
+    const editor = editorState(view.editor), ref = new WeakRef(view);
+    state = { lists: new Set(), rows: new Set(), project: view.editor.project, ref };
+    panels.set(view, state); editor.views.add(ref);
+    if (!lifetimes.has(view)) {
+      const enabled = () => { if (view.enabled) rescan(view); else releasePanel(view); };
+      view.onEnabledChanged.watch(enabled); lifetimes.set(view, enabled);
+    }
+    return state;
+  }
+  function releaseList(view, el) {
+    lists.delete(el); panels.get(view)?.lists.delete(el);
+  }
+  function releasePanel(view) {
+    const state = panels.get(view);
+    if (!state) return;
+    for (const el of state.lists) lists.delete(el);
+    for (const row of state.rows) nativeRows.delete(row);
+    state.lists.clear(); state.rows.clear();
+    editors.get(view.editor)?.views.delete(state.ref); panels.delete(view);
+    if (view.el.contains(open?.deref())) close();
+  }
+  function registerList(view, el) {
+    let entry = lists.get(el);
+    if (!entry) {
+      entry = { view, dirty: false, queued: false, organized: Array.from(el.children).some(child => child.classList.contains("zpg-heading")) };
+      lists.set(el, entry); panelState(view).lists.add(el);
+    }
+    schedule(el, entry);
+    return entry;
+  }
+  function schedule(el, entry) {
+    entry.dirty = true;
+    if (entry.queued) return;
+    entry.queued = true;
+    const ref = new WeakRef(el);
+    global.queueMicrotask(() => {
+      const element = ref.deref(), current = element && lists.get(element);
+      if (!current || current !== entry) return;
+      current.queued = false;
+      if (!current.dirty) return;
+      current.dirty = false; render(element, current);
+    });
+  }
+  function registerNative(view, row, object) {
+    let button = row.querySelector(".zpg-native-lock");
+    if (!button) {
+      button = row.ownerDocument.createElement("button"); button.className = "actionbutton zpg-native-lock";
+      button.onclick = event => { event.stopPropagation(); api.setNativeLock(view.editor, object, !api.nativeOwnLock(object)); };
+      row.children[1].prepend(button);
+    }
+    nativeRows.set(row, button); panelState(view).rows.add(row); syncNative(row);
+  }
+  function rescan(view) {
+    ensureStyle(view.el.ownerDocument);
+    for (const el of view.el.querySelectorAll("ul")) if (api.isList(el.pz_object)) registerList(view, el);
+    for (const row of view.el.querySelectorAll("li")) {
+      if (row.pz_object instanceof PZ.object3d.group && !view.options.showPropertyControls) registerNative(view, row, row.pz_object);
+    }
+  }
   function panel(anchor, title) {
     close();
+    ensureStyle(anchor.ownerDocument);
     const doc = anchor.ownerDocument, el = doc.createElement("div");
     el.className = "zpg-settings"; el.setAttribute("role", "group"); el.setAttribute("aria-label", title);
     const heading = doc.createElement("div"); heading.className = "zpg-settings-title"; heading.textContent = title; el.append(heading);
@@ -42,7 +126,7 @@
       cancel.textContent = "Cancel"; ok.textContent = "Apply"; cancel.className = ok.className = "pz-inputbox";
       cancel.onclick = close;
       ok.onclick = () => { const message = apply(); if (message) error.textContent = message; else close(); };
-      actions.append(cancel, ok); el.append(error, actions); anchor.after(el); open = el;
+      actions.append(cancel, ok); el.append(error, actions); anchor.after(el); open = new WeakRef(el);
       el.addEventListener("mousedown", event => event.stopPropagation());
       el.addEventListener("keydown", event => { event.stopPropagation(); if (event.key === "Escape") close(); if (event.key === "Enter") { event.preventDefault(); ok.click(); } });
       el.querySelector("input")?.focus();
@@ -90,14 +174,11 @@
           { label: "Rename", action: () => view.renameClick({ currentTarget: row, preventDefault() {} }) }, ...propertyMenu(view, row, object),
         ] });
       };
-      let entry = lists.get(parent);
-      if (!entry) { entry = { view: this, generation: 0 }; lists.set(parent, entry); }
-      entry.generation++; render(parent, entry);
+      ensureStyle(row.ownerDocument); registerMenu();
+      registerList(this, parent);
     }
     if (object instanceof PZ.object3d.group && !this.options.showPropertyControls) {
-      const button = row.ownerDocument.createElement("button"); button.className = "actionbutton zpg-native-lock";
-      button.onclick = event => { event.stopPropagation(); api.setNativeLock(this.editor, object, !api.nativeOwnLock(object)); };
-      row.children[1].prepend(button); nativeRows.add({ row, button, object }); syncNative();
+      ensureStyle(row.ownerDocument); registerNative(this, row, object);
     }
     return row;
   };
@@ -112,34 +193,46 @@
     el.pz_objectRemoved = object => {
       const item = Array.from(el.children).find(child => child.pz_object === object);
       if (item) this.unloadListItem(item);
-      const entry = lists.get(el); if (entry) { entry.generation++; render(el, entry); }
+      const entry = lists.get(el); if (entry) schedule(el, entry);
     };
     list.onObjectRemoved.watch(el.pz_objectRemoved);
+    registerList(this, el);
     return result;
   };
   function render(el, entry) {
     const list = el.pz_object;
     const rows = Array.from(el.children).filter(child => child.tagName === "LI" && child.pz_object instanceof PZ.property);
-    const signature = JSON.stringify([entry.generation, Array.from(list, p => [api.name(p), api.meta(p)])]);
-    if (signature === entry.signature) return;
-    entry.signature = signature;
-    if (open?.parentElement === el) close();
-    for (const heading of Array.from(el.children).filter(child => child.classList.contains("zpg-heading"))) {
-      entry.view.item_drag.removeElts?.(heading); heading.remove();
-    }
+    const organized = Array.from(list).some(p => api.name(p));
+    // Untouched native lists require no DOM writes, signatures, or sorting.
+    if (!organized && !entry.organized) return;
+    editorState(entry.view.editor).renders++;
+    if (open?.deref()?.parentElement === el) close();
+    for (const heading of Array.from(el.children).filter(child => child.classList.contains("zpg-heading"))) heading.remove();
     const nodes = new Map(rows.map(row => [row.pz_object, { row, child: row.nextElementSibling?.tagName === "UL" ? row.nextElementSibling : null }]));
+    if (!organized) {
+      for (const p of list) {
+        const pair = nodes.get(p);
+        if (!pair) continue;
+        const { row, child } = pair;
+        row.firstElementChild.style.paddingLeft = (row.zpgBasePadding || 0) + "px"; row.style.display = "";
+        append(el, row, entry);
+        if (child) { child.style.display = row.querySelector(".collapse")?.classList.contains("collapsed") ? "none" : ""; append(el, child, entry); }
+      }
+      entry.organized = false; return;
+    }
+    entry.organized = true;
     for (const block of api.blocks(list)) {
       const collapsed = block.name && block.items.some(p => api.meta(p).collapsed);
       if (block.name) {
         const doc = el.ownerDocument, heading = doc.createElement("div"), toggle = doc.createElement("button"), button = doc.createElement("button");
         heading.className = "zpg-heading"; heading.zpg = { list, name: block.name };
-        heading.dataset.locked = String(api.locked(list, block.name));
+        heading.dataset.locked = String(block.items.some(p => api.meta(p).locked === true));
         toggle.className = "zpg-toggle"; toggle.textContent = block.name; toggle.setAttribute("aria-expanded", String(!collapsed));
         toggle.style.paddingLeft = (el.pz_paddingLevel || 0) + "px";
         toggle.onclick = () => api.collapse(entry.view.editor, list, block.name);
         button.className = "zpg-settings-button"; button.textContent = "Settings"; button.setAttribute("aria-label", block.name + " settings");
         button.onclick = event => { event.stopPropagation(); settings(entry.view, heading, list, block.name); };
-        heading.append(toggle, button); el.append(heading); entry.view.item_drag.addElts(heading);
+        heading.append(toggle, button); append(el, heading, entry); entry.view.item_drag.addElts(heading);
       }
       for (const p of block.items) {
         const nodesForProperty = nodes.get(p); if (!nodesForProperty) continue;
@@ -147,22 +240,44 @@
         if (row.zpgBasePadding === undefined) row.zpgBasePadding = parseFloat(row.firstElementChild.style.paddingLeft) || 0;
         row.firstElementChild.style.paddingLeft = row.zpgBasePadding + (block.name ? 15 : 0) + "px";
         row.style.display = collapsed ? "none" : "";
-        el.append(row);
-        if (child) { child.style.display = collapsed ? "none" : row.querySelector(".collapse")?.classList.contains("collapsed") ? "none" : ""; el.append(child); }
+        append(el, row, entry);
+        if (child) { child.style.display = collapsed ? "none" : row.querySelector(".collapse")?.classList.contains("collapsed") ? "none" : ""; append(el, child, entry); }
       }
     }
   }
-  function syncNative() {
-    for (const entry of nativeRows) {
-      if (entry.seen && !entry.row.isConnected) { nativeRows.delete(entry); continue; }
-      entry.seen ||= entry.row.isConnected;
-      const value = api.nativeOwnLock(entry.object);
-      entry.button.textContent = value ? "Locked" : "Lock";
-      entry.button.title = value ? "Unlock group" : "Lock group";
-      entry.button.setAttribute("aria-label", entry.button.title);
-      entry.button.setAttribute("aria-pressed", String(value));
-    }
+  function append(parent, node, entry) {
+    editorState(entry.view.editor).domMoves++; parent.append(node);
   }
+  function syncNative(row) {
+    const button = nativeRows.get(row);
+    if (!button) return;
+    const value = api.nativeOwnLock(row.pz_object);
+    button.textContent = value ? "Locked" : "Lock";
+    button.title = value ? "Unlock group" : "Lock group";
+    button.setAttribute("aria-label", button.title); button.setAttribute("aria-pressed", String(value));
+  }
+  const unloadItem = prototype.unloadListItem;
+  prototype.unloadListItem = function (row) {
+    const next = row.nextElementSibling;
+    if (next?.tagName === "UL") releaseList(this, next);
+    nativeRows.delete(row); panels.get(this)?.rows.delete(row);
+    if (row.contains(open?.deref()) || next?.contains(open?.deref())) close();
+    return unloadItem.apply(this, arguments);
+  };
+  const changed = prototype.objectsChanged;
+  prototype.objectsChanged = function () {
+    releasePanel(this);
+    return changed.apply(this, arguments);
+  };
+  const unload = prototype.unload;
+  prototype.unload = function () {
+    this.enabled = false; this.objects = null;
+    this.objectsChanged(); releasePanel(this);
+    const listener = lifetimes.get(this);
+    if (listener) this.onEnabledChanged.unwatch(listener);
+    lifetimes.delete(this);
+    return unload?.apply(this, arguments);
+  };
   let menuRegistered = false;
   function registerMenu() {
     if (menuRegistered || !global.ZoidiumUI?.registerMenuExtension) return;
@@ -174,17 +289,33 @@
       return entry ? propertyMenu(entry.view, row, p) : [];
     } });
   }
-  api.refresh = () => {
+  api.refresh = (editor = global.CM, subject) => {
     registerMenu();
-    for (const [el, entry] of lists) {
-      if (entry.seen && !el.isConnected) { lists.delete(el); continue; }
-      entry.seen ||= el.isConnected;
-      render(el, entry);
+    const index = editors.get(editor);
+    if (!index) return;
+    for (const ref of index.views) {
+      const view = ref.deref(), state = view && panels.get(view);
+      if (!state) { index.views.delete(ref); continue; }
+      ensureStyle(view.el.ownerDocument);
+      for (const el of state.lists) if (!subject || el.pz_object === subject) schedule(el, lists.get(el));
+      for (const row of state.rows) if (!subject || row.pz_object === subject) syncNative(row);
     }
-    syncNative();
-    if (open && !open.isConnected) close();
+  };
+  // Counts contain no objects and allow lifecycle checks without retaining DOM.
+  api.uiStats = editor => {
+    const index = editors.get(editor);
+    let count = 0, listCount = 0, rowCount = 0, queued = 0;
+    for (const ref of index?.views || []) {
+      const view = ref.deref(), state = view && panels.get(view);
+      if (!state) { index.views.delete(ref); continue; }
+      count++; listCount += state.lists.size; rowCount += state.rows.size;
+      for (const el of state.lists) if (lists.get(el)?.queued) queued++;
+    }
+    return { panels: count, lists: listCount, nativeRows: rowCount, queuedLists: queued,
+      renders: index?.renders || 0, domMoves: index?.domMoves || 0 };
   };
   api.propertyMenu = propertyMenu;
   api.groupSettings = settings;
-  global.setInterval(api.refresh, 150);
+  global.addEventListener("zoidium:ready", registerMenu, { once: true });
+  registerMenu();
 })(window);

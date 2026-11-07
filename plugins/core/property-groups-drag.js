@@ -38,7 +38,7 @@
   prototype.itemDragUpdate = function () {
     const list = listOf(this.item), target = targetOf(this.target);
     const ownList = target?.pz_object === list || target?.nextElementSibling?.pz_object === list;
-    const organized = api.isList(list) && Array.from(list).some(p => api.name(p) || Number.isFinite(api.meta(p).order));
+    const organized = api.isList(list) && Array.from(list).some(p => api.name(p));
     const custom = organized && (this.item.zpg || target?.zpg || listOf(target) === list || ownList);
     if (!custom) {
       const result = update.apply(this, arguments);

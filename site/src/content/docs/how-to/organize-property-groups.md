@@ -45,7 +45,9 @@ The group's transforms and animation continue to render.
 
 Save the project after you organize its properties.
 Group names, display order, collapsed state, and locks survive reopen and duplication.
-Each group edit or lock change is one undo step.
+Each group assignment, name change, display-order change, or lock change is one undo step.
+Collapsing or expanding a group is saved without an undo step.
+Undo and redo preserve the current collapsed state.
 
 Existing projects keep their current property organization.
 Shader+ properties with an existing **Group** setting use the shared group headings.
