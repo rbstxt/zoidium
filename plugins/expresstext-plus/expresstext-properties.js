@@ -288,9 +288,10 @@ function effectorEntryDefs(PZ) {
         // this def would come back nameless after save/load.
         name,
         objects,
-        // VECTOR3 routes the group row through the same editor stock
-        // vector groups use. NUMBER would route through generateInput,
-        // which reads keyframes the fresh group does not have yet.
+        // VECTOR3 is the saved type of every section. NUMBER would route
+        // through generateInput, which reads keyframes the fresh group does
+        // not have yet. expresstext-section-values.js renders this row
+        // without fields, because three fields cannot address the rows.
         type: PZ.property.type.VECTOR3,
       },
     });

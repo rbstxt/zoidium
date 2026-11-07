@@ -12,6 +12,7 @@ const { haltonSequence, splitVoronoiCells, voronoiChunkPose } = require("./expre
 const { DELAY_BLEND_CATCH, DELAY_EVEN_SPAN, DELAY_SIM_WINDOW, DELAY_SPRING_DAMP, DELAY_SPRING_DAMP_MIN, DELAY_SPRING_STIFF, blankDelayVelocity, blendDelayOutput, chaseToward, delayLinkParams, evaluateStack, plainListsAt, runDelayLetterStage, simulateDelayLetter } = require("./expresstext-delay.js");
 const { EFFECTOR_PIVOT_KEYS, customSections, customsChildren, groupReader, kindOfGroup, kindOfKey, rawArray, reattachCustomDefinitions, sectionGroupOf, stackLayersFor } = require("./expresstext-sections.js");
 const { EFFECTOR_KINDS, EFFECTOR_NAMES, EFFECTOR_ORDER, EFFECTOR_TYPES, createContainerPropertyDefinitions, createDelayPropertyDefinitions, createFormulaPropertyDefinitions, createOrbitPropertyDefinitions, createPlainPropertyDefinitions, createRandomPropertyDefinitions, createRepeaterPropertyDefinitions, createShakePropertyDefinitions, createSplinePropertyDefinitions, createTwistPropertyDefinitions, createVoronoiPropertyDefinitions, createWrapPropertyDefinitions, customPropertyClass, effectorEntryDefs, newEffectorInstance, registerEffectorEntries, unregisterEffectorEntries, withPrefix } = require("./expresstext-properties.js");
+const { installSectionRow, markSections, recoverSectionValues, uninstallSectionRow, watchSections } = require("./expresstext-section-values.js");
 const { collectExpressObjects, expressContainerOf, expressStackOf, getAncestorObject, getExpressCenterOffset, getExpressLayout, getExpressTextCenter, repeaterCopyOffset, repeaterCopyOpacity, repeaterSpecsFor } = require("./expresstext-layout.js");
 const { applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, geometryTriangleArrays, getSplitState, layoutLetterCount, ownTransformOf, restoreExpressRendering, retainNativeGeometry, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering } = require("./expresstext-render.js");
 
@@ -177,6 +178,7 @@ function createExpressObjectClass(PZ, definition) {
             this.children.push(scoped);
           }
           this.customProperties = scoped;
+          watchSections(PZ, scoped);
         }
       } catch (_scope) {}
       this.expressProperties = createPropertyCategory(
@@ -238,6 +240,8 @@ function createExpressObjectClass(PZ, definition) {
               self.customProperties,
               data && data.customProperties
             );
+            recoverSectionValues(PZ, self.customProperties);
+            markSections(PZ, self.customProperties);
           } catch (_reattach) {}
           try {
             if (self.expressProperties && data && data.expressProperties) {
@@ -399,6 +403,7 @@ function activate(context) {
   // ExpressText+ containers only. Best-effort: without the host registry
   // the customs row keeps the stock five and everything else works.
   registerEffectorEntries(PZ);
+  installSectionRow(PZ, (context && context.apis) || globalThis.ZoidiumPluginApis);
   try {
     console.log(
       "[ExpressText+] effector engine v11 (geometry rebuilds follow, never freeze; bundle v10)"
@@ -408,6 +413,7 @@ function activate(context) {
 
 function deactivate() {
   clearDelayCache();
+  uninstallSectionRow();
   unregisterEffectorEntries();
   restoreTextPatches();
   for (const textObject of Array.from(state.splitTexts)) {

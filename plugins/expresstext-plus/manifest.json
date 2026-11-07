@@ -101,6 +101,11 @@
       "source": "./plugins/expresstext-plus/expresstext-sections.js?v=3"
     },
     {
+      "id": "expresstext-section-values",
+      "type": "text",
+      "source": "./plugins/expresstext-plus/expresstext-section-values.js?v=3"
+    },
+    {
       "id": "expresstext-properties",
       "type": "text",
       "source": "./plugins/expresstext-plus/expresstext-properties.js?v=3"
