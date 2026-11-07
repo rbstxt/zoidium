@@ -285,7 +285,7 @@ function activatedMedia({ importResult = null } = {}) {
   };
   const PZ = { ui: { media: { prototype } }, assetList: { prototype: assetList }, asset: { type: { AV: 2, IMAGE: 1 } } };
   api.activate({ PZ, window: host, lifecycle: { onDispose(fn) { cleanups.push(fn); } } });
-  return { prototype, assetList, probes, native, dispose: () => cleanups.forEach(fn => fn()) };
+  return { prototype, assetList, probes, native, host, dispose: () => cleanups.forEach(fn => fn()) };
 }
 
 test("an import with no readable stream yields an entry named after the file", async () => {
@@ -336,6 +336,60 @@ test("the import's own asset creation does not probe a second time", async () =>
   assert.equal(probes.length, 1, "only importAV's own loadVideo probe ran");
   probes[0].onerror();
   await pending;
+});
+
+test("importing the same bytes again warns again and keeps the asset reference", async () => {
+  const notifications = [];
+  const { prototype, assetList, probes, host } = activatedMedia();
+  host.ZoidiumUI.notify = detail => notifications.push(detail);
+  const existing = { file: { name: "first.mov" }, key: "hash", url: "blob:x", filename: "Shockwave.mov" };
+  assetList.createFromFile = (original => async function (type, file) {
+    await original.call(this, type, file);
+    return existing;
+  })(assetList.createFromFile);
+  const attempt = async file => {
+    prototype.importAV = (async function (nextFile) {
+      const asset = await assetList.createFromFile(2, nextFile);
+      await this.loadVideo(asset);
+      return null;
+    });
+    const asset = await assetList.createFromFile(2, file);
+    const pending = prototype.loadVideo(asset);
+    await new Promise(setImmediate);
+    probes.at(-1).onerror();
+    await pending;
+    return asset;
+  };
+  await attempt({ name: "Shockwave.mov", type: "video/quicktime" });
+  await attempt({ name: "Shockwave.mov", type: "video/quicktime" });
+  assert.equal(notifications.length, 2);
+});
+
+test("a failed import keeps the asset of a file the list already holds", async () => {
+  const api = loadModule();
+  const held = { file: { name: "first.mov" }, key: "hash", url: "blob:x", filename: "Shockwave.mov" };
+  const elements = [];
+  const assetList = { async createFromFile() { return held; } };
+  const prototype = {
+    loadVideo() { return "native"; }, generateThumbnail() { return "thumb"; }, loadAudio() { return undefined; },
+    async importAV(file) {
+      const asset = await assetList.createFromFile(2, file);
+      await this.loadVideo(asset);
+      return null;
+    },
+  };
+  const host = {
+    document: { createElement() { const e = { removeAttribute() {}, load() {} }; elements.push(e); return e; } },
+    setTimeout: () => 0, clearTimeout: () => {}, ZoidiumUI: { notify() {} },
+  };
+  api.activate({ PZ: { ui: { media: { prototype } }, assetList: { prototype: assetList }, asset: { type: { AV: 2 } } },
+    window: host, lifecycle: { onDispose() {} } });
+  const pending = prototype.importAV({ name: "Shockwave.mov", type: "video/quicktime" });
+  await new Promise(setImmediate);
+  elements[0].onerror();
+  const entry = await pending;
+  assert.deepEqual(Array.from(entry.assets), ["hash"]);
+  assert.equal(elements.length, 1, "the import's own asset creation does not probe twice");
 });
 
 test("dispose restores loadAudio, importAV and createFromFile", () => {

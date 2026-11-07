@@ -222,7 +222,12 @@ function createLoadVideoWithDecodeHint(dependencies) {
     });
   }
 
-  return { loadVideoWithDecodeHint, markDisposed, warned };
+  // Choosing the file again is a new attempt, so a failure is reported again.
+  function forgetWarning(asset) {
+    warned.delete(warningKey(asset, displayName(asset)));
+  }
+
+  return { loadVideoWithDecodeHint, markDisposed, forgetWarning, warned };
 }
 
 module.exports = {
@@ -278,8 +283,12 @@ module.exports = {
     const originalCreate = assetList && assetList.createFromFile;
     const createFromFile = async function createFromFileWithProbe(type, file) {
       const asset = await originalCreate.apply(this, arguments);
-      if (type === context.PZ.asset.type.AV && file && /^video\//.test(file.type || "") && !importingFiles.has(file)) {
-        installed.loadVideoWithDecodeHint(asset);
+      if (type === context.PZ.asset.type.AV && file && asset) {
+        // The list returns its existing asset for identical bytes, and that
+        // asset keeps the file from the first import, so key by this file.
+        probedAssets.set(file, asset);
+        installed.forgetWarning(asset);
+        if (/^video\//.test(file.type || "") && !importingFiles.has(file)) installed.loadVideoWithDecodeHint(asset);
       }
       return asset;
     };
