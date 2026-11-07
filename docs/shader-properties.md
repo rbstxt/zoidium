@@ -11,6 +11,11 @@ Kind choices share the property's native storage type. Changing a numeric
 kind preserves all keys, tweens and expressions. A default is authoring
 metadata; changing it does not overwrite the current value.
 
+
+A native number without Shader+ kind metadata shows Slider range settings.
+Other native types show Native until a kind is selected.
+Apply without edits leaves the definition and current value unchanged.
+
 ## Numbers and vectors
 
 Slider is a NUMBER with a range bar. Angle stores radians and displays degrees.

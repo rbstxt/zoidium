@@ -80,7 +80,7 @@
       "description": "Native custom shader controls with optional baked texture inputs.",
       "manifest": "./plugins/shader-plus/manifest.json?v=25",
       "bundle": "./plugins/shader-plus/bundle.json?v=25",
-      "integrity": "sha256-QaLcfviWA5ALJIgUwmh68jd76nR89ExSROvNMPEcG+A="
+      "integrity": "sha256-jZl36GsWp/sa9iNr6FxiiAkRqDsUvLZD4zQ3yX8RSoQ="
     },
     {
       "id": "player-plus",
@@ -296,16 +296,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "48",
+      "version": "49",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=48",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=48",
-      "integrity": "sha256-Ps0XotINZliN6gSj/uZosgzn2ihoReZ9nJfa5XEioEc="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=49",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=49",
+      "integrity": "sha256-E0/i6CWXiay6yHlQ3cGR4cEZ1cIxSYt04Bxt9V1vNvw="
     },
     {
       "id": "optical-flares",

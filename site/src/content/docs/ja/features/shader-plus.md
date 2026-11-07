@@ -18,3 +18,7 @@ sidebar:
 最初のエフェクトを作成する場合は、[パススルーシェーダーを作成する](/docs/ja/shaders/basics/) に従います。各コントロールの宣言については、[プロパティの種類ごとの例](/docs/ja/shaders/kind-examples/) を参照します。補完、診断、Declare、テンプレートには、[シェーダーの編集とチェック](/docs/ja/shaders/editor/)を使います。
 
 [プロパティコントロール](/docs/ja/development/shader-properties/) では各設定について説明しています。[Shader+ の互換性](/docs/ja/development/project-compatibility/#shader-のプロパティ種類)では、テクスチャおよび配列プロパティに対するプラグインの要件について説明しています。
+
+種類メタデータがないネイティブ数値では、Property settings は Slider と Minimum、Maximum を表示します。編集せずに Apply をクリックしても、プロパティは変わりません。他のネイティブ型は、種類を選ぶまで Native と表示されます。
+
+Expressions+ を有効にして `uniform float zFps;` を宣言すると、シーケンスのフレームレートを使えます。Export のフレームレート変更はこの値を変更しません。

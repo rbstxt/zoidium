@@ -81,9 +81,13 @@ function installEditor({ context, patch, presetFont }) {
     input(body, "name", "Name", p.properties.name.get());
     body.insertBefore(body.lastElementChild, specific);
     const compatible = ORDER.filter(key => { const c = KINDS[key].create(); return (!KINDS[key].hidden || key === kindOf(p)) && c.type === d.type && !!c.dynamic === !!d.dynamic; });
-    const kind = select(body, "kind", "Kind", compatible.map(key => [key, KINDS[key].label]), kindOf(p) || compatible[0] || "");
+    // Native numbers share Slider's range settings. Other native types keep
+    // an explicit entry instead of silently selecting a specialized control.
+    const current = kindOf(p) || (d.type === 0 && d.dynamic ? "slider" : "native");
+    const choices = compatible.map(key => [key, KINDS[key].label]);
+    if (current === "native") choices.unshift(["native", "Native"]);
+    const kind = select(body, "kind", "Kind", choices, current);
     body.insertBefore(body.lastElementChild, specific);
-    const current = kindOf(p);
     function buildSpecific() {
       for (const key of Object.keys(fields)) if (!["name", "kind"].includes(key) && specific.contains(fields[key])) delete fields[key];
       specific.replaceChildren();
@@ -131,13 +135,22 @@ function installEditor({ context, patch, presetFont }) {
       if (!text) return undefined;
       const n = Number(text); if (!Number.isFinite(n)) throw new Error("Use finite numbers"); return n;
     }
+    const fieldState = () => JSON.stringify(Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.value])));
+    const initialFields = fieldState();
     ok.onclick = () => {
       try {
-        const definition = clone(d), target = KINDS[kind.value]?.create(presetFont());
-        if (!target) throw new Error("Choose a compatible property kind");
-        for (const key of ["zoidiumControl", "scaleFactor", "decimals"]) { delete definition[key]; if (target[key] !== undefined) definition[key] = target[key]; }
-        const next = { ...meta, kind: kind.value };
-        for (const key of ["default", "items", "space", "editor", "axis", "units"]) delete next[key];
+        if (fieldState() === initialFields) { closeSettings(); return; }
+        const definition = clone(d), changedKind = kind.value !== current;
+        const target = KINDS[kind.value]?.create(presetFont());
+        if (!target && kind.value !== "native") throw new Error("Choose a compatible property kind");
+        if (changedKind) for (const key of ["zoidiumControl", "scaleFactor", "decimals"]) {
+          delete definition[key]; if (target?.[key] !== undefined) definition[key] = target[key];
+        }
+        const next = { ...meta };
+        if (changedKind) {
+          next.kind = kind.value;
+          for (const key of ["default", "items", "space", "editor", "axis", "units"]) delete next[key];
+        }
         if (NUMERIC.includes(kind.value)) {
           for (const key of ["min", "max", "step"]) { const n = number(key); if (n === undefined) delete definition[key]; else definition[key] = n; }
           if (definition.min > definition.max || definition.step <= 0) throw new Error("Use an ordered range and a positive step");
@@ -171,7 +184,8 @@ function installEditor({ context, patch, presetFont }) {
         } else delete next.visibleWhen;
         const name = fields.name.value.trim();
         if (!name) throw new Error("Enter a name");
-        definition.zoidiumShader = next;
+        if (Object.keys(next).length) definition.zoidiumShader = next;
+        else delete definition.zoidiumShader;
         closeSettings(); edit(p, { definition, name });
       } catch (e) { error.textContent = e.message; }
     };
