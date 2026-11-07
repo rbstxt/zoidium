@@ -10,6 +10,13 @@ each line describes one visible change.
 
 ### Added
 
+- Plugin windows can open as separate browser windows, so you can move Graph
+  Editor 2, the code editors, the Trapcode designers, and other tools to another
+  monitor. Use Pop out in the window's title bar. Closing the separate window
+  returns the tool to the editor.
+- Shader+ has a Time sample property. A shader can read its input at up to four
+  other times, in frames or seconds, with keyframes and expressions. Templates
+  and docs show motion vectors and time jitter.
 - A small dot on the Save button shows that the project has changes that are
   not saved to disk. It turns to the accent colour after 10 minutes, and the
   Save button's tooltip says how long. Automatic restore points do not count

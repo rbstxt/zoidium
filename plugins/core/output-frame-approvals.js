@@ -3,10 +3,10 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "3a00a40885a30098b0cef2cfad19d2aa4ae3c1edf06ed8d48d436eb1c7c089e5",
+  "fingerprint": "a6c2232b43b0aef37d338c4b0492d29d4b1d0a8609a8c801e9034325780fd91d",
   "plugins": {
     "native-fx": {
-      "version": "37",
+      "version": "38",
       "cases": [
         "radialblurspin",
         "colorcurves",
@@ -128,6 +128,20 @@
       "cases": [
         "ExpressText+",
         "ExpressText+-full"
+      ]
+    },
+    "shader-plus": {
+      "version": "24",
+      "cases": [
+        "time-sample",
+        "time-sample-adjustment",
+        "legacy-slider",
+        "legacy-gradient",
+        "legacy-curve",
+        "legacy-palette",
+        "legacy-text",
+        "zero-offset",
+        "time-sample-full"
       ]
     }
   },
