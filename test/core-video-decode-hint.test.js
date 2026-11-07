@@ -343,3 +343,44 @@ test("dispose restores importAV and createFromFile", () => {
   assert.notEqual(prototype.importAV, patched[0]);
   assert.notEqual(assetList.createFromFile, patched[1]);
 });
+
+function audioProbe(support) {
+  const api = loadModule();
+  const element = {
+    removed: [], loads: 0, duration: 2.5,
+    canPlayType: () => support,
+    removeAttribute(name) { this.removed.push(name); },
+    load() { this.loads += 1; },
+  };
+  const load = api.createLoadAudio({ createElement(tag) { assert.equal(tag, "audio"); return element; } });
+  const asset = { file: { type: "video/mp4" }, url: "blob:x", filename: "clip.mp4", key: "hash" };
+  return { load, asset, element };
+}
+
+test("an audio probe that errors settles empty and releases its source", async () => {
+  const { load, asset, element } = audioProbe("maybe");
+  const pending = load(asset);
+  assert.equal(element.src, "blob:x");
+  element.onerror();
+  assert.equal(await pending, undefined);
+  assert.deepEqual(Array.from(element.removed), ["src"]);
+  assert.equal(element.loads, 1);
+});
+
+test("a playable audio probe returns the native clip fields", async () => {
+  const { load, asset, element } = audioProbe("probably");
+  const pending = load(asset);
+  element.onloadeddata();
+  assert.deepEqual(JSON.parse(JSON.stringify(await pending)), {
+    type: 1, start: 0, length: 75, offset: 0, properties: { name: "clip.mp4", media: "hash" },
+  });
+  assert.equal(asset.length, 2.5);
+});
+
+test("an unsupported type skips the audio probe like the native gate", () => {
+  for (const support of ["", "no"]) {
+    const { load, asset, element } = audioProbe(support);
+    assert.equal(load(asset), undefined);
+    assert.equal(element.src, undefined);
+  }
+});

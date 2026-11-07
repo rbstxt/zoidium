@@ -25,6 +25,8 @@
 // When neither probe finds a stream, importAV returns null and PZ.media.load
 // throws with its tile stuck on "Loading...". The import then yields an empty
 // entry named after the file, so its tile can be deleted and undone as usual.
+// The native audio probe has no error handler, so an undecodable file whose type
+// passes canPlayType, such as HEVC .mp4, never settled. It settles empty now.
 const DEFAULT_PROBE_TIMEOUT_MS = 15000;
 
 function buildDecodeWarning(filename) {
@@ -42,6 +44,39 @@ function buildFailedImportEntry(file, asset) {
     data: [],
     baseType: "track",
     assets: asset ? [asset.key] : [],
+  };
+}
+
+// Keeps the native audio probe's gate and clip fields, and adds the error path.
+function createLoadAudio(document) {
+  return function loadAudioWithError(asset) {
+    const audio = document.createElement("audio");
+    const support = audio.canPlayType(asset.file.type);
+    if (support === "" || support === "no") return undefined;
+    return new Promise((resolve) => {
+      audio.onloadeddata = function onAudioLoaded() {
+        const frames = Math.floor(30 * audio.duration);
+        asset.length = audio.duration;
+        audio.onloadeddata = null;
+        audio.onerror = null;
+        resolve({
+          type: 1,
+          start: 0,
+          length: frames,
+          offset: 0,
+          properties: { name: asset.filename, media: asset.key },
+        });
+      };
+      audio.onerror = function onAudioError() {
+        audio.onloadeddata = null;
+        audio.onerror = null;
+        audio.removeAttribute("src");
+        audio.load();
+        resolve(undefined);
+      };
+      audio.preload = "metadata";
+      audio.src = asset.url;
+    });
   };
 }
 
@@ -193,6 +228,7 @@ module.exports = {
   DEFAULT_PROBE_TIMEOUT_MS,
   buildDecodeWarning,
   buildFailedImportEntry,
+  createLoadAudio,
   isAudioAsset,
   createLoadVideoWithDecodeHint,
   activate(context) {
@@ -227,6 +263,9 @@ module.exports = {
       return installed.loadVideoWithDecodeHint(asset);
     };
     prototype.loadVideo = replacement;
+    const originalLoadAudio = prototype.loadAudio;
+    const loadAudio = createLoadAudio(host.document);
+    if (typeof originalLoadAudio === "function") prototype.loadAudio = loadAudio;
     const originalImportAV = prototype.importAV;
     const importAV = async function importAVWithFailedEntry(file) {
       importingFiles.add(file);
@@ -247,6 +286,7 @@ module.exports = {
     context.lifecycle.onDispose(() => {
       installed.markDisposed();
       if (prototype.loadVideo === replacement) prototype.loadVideo = original;
+      if (prototype.loadAudio === loadAudio) prototype.loadAudio = originalLoadAudio;
       if (prototype.importAV === importAV) prototype.importAV = originalImportAV;
       if (assetList && assetList.createFromFile === createFromFile) assetList.createFromFile = originalCreate;
       if (host.ZoidiumVideoDecodeStatus === statusApi) {
