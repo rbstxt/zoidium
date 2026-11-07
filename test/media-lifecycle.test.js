@@ -14,11 +14,13 @@ function fixture(loaded = true) {
     constructor() { this.el = { children: rows }; this.fuse = { list: [] }; }
     createItem(media) {
       const row = { images: [], querySelectorAll() { return this.images; } };
-      media.onLoaded.watch(() => {
+      const callback = () => {
         if (!media.loaded) return;
         if (media.thumbnail) { row.images.push({ src: "blob:thumbnail" }); delete media.thumbnail; }
         this.fuse.list.push({ el: row });
-      });
+      };
+      this.createdCallback = callback;
+      media.onLoaded.watch(callback);
       rows.push(row); return row;
     }
     mediaDeleted(_media, index) { rows.splice(index, 1); }
@@ -51,4 +53,18 @@ test("redraw and project replacement release every old row, including late-loade
   f.panel.redrawList();
   assert.equal(f.rows.length, 0); assert.equal(f.media.onLoaded.watchers.length, 0);
   assert.deepEqual(f.revoked, ["blob:thumbnail"]);
+});
+
+
+test("native callback aliases can be unwatched without removing unrelated subscribers", () => {
+  const f = fixture(false); f.panel.createItem(f.media);
+  let called = 0; const unrelated = () => called++;
+  f.media.onLoaded.watch(unrelated); called = 0;
+  f.media.onLoaded.unwatch(f.panel.createdCallback);
+  f.media.onLoaded.unwatch(f.panel.createdCallback);
+  assert.deepEqual(f.media.onLoaded.watchers, [unrelated]);
+  f.media.loaded = true; f.media.onLoaded.update();
+  assert.equal(called, 1); assert.equal(f.panel.fuse.list.length, 0);
+  f.panel.mediaDeleted(f.media, 0);
+  assert.deepEqual(f.media.onLoaded.watchers, [unrelated]);
 });

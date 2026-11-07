@@ -60,6 +60,22 @@
   const prototype = global.PZ?.ui?.media?.list?.project?.prototype;
   if (!prototype?.createItem || prototype.__zoidiumMediaCleanup) return;
   const owners = new WeakMap();
+  const aliases = new WeakMap();
+  function alias(observable, original, wrapped) {
+    let maps = aliases.get(observable);
+    if (!maps) {
+      maps = { forward: new WeakMap(), reverse: new WeakMap() };
+      aliases.set(observable, maps);
+      const unwatch = observable.unwatch;
+      observable.unwatch = function (callback) {
+        const actual = maps.forward.get(callback) || callback;
+        const original = maps.reverse.get(actual);
+        if (original) { maps.forward.delete(original); maps.reverse.delete(actual); }
+        if (this.watchers.includes(actual)) return unwatch.call(this, actual);
+      };
+    }
+    maps.forward.set(original, wrapped); maps.reverse.set(wrapped, original);
+  }
   function records(panel) {
     let entries = owners.get(panel);
     if (!entries) { entries = new Map(); owners.set(panel, entries); }
@@ -100,6 +116,7 @@
         return result;
       };
       observable.watchers[i] = wrapped;
+      alias(observable, original, wrapped);
       record.callbacks.push(wrapped);
     }
     return row;
