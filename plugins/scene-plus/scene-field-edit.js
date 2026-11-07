@@ -44,6 +44,8 @@ function installFieldEdit(PZ, THREE) {
   }
   function patchedInput(property) {
     const element = originalInput.apply(this, arguments);
+    // A later wrapper can keep this function in the chain after disposal.
+    if (disposed) return element;
     const target = property.parentObject;
     if (property !== target?.properties?.fieldPosition || !target?.threeObj?.__zoidiumEffectorOwner) return element;
     const toggle = ui.controls.checkbox({ label: "Edit field in viewport", value: isEditing(target),
