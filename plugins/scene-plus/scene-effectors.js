@@ -18,6 +18,9 @@ const { restoreDeformedTree } = require("./scene-clone.js");
 const { liveObjectLayer } = require("./scene-deform.js");
 const state = require("./scene-state.js");
 
+// 120 frames is four seconds at 30 fps. See the budget in effector-mesh.js.
+const MAX_DELAY_HISTORY = 120;
+
 function createEffectorBaseClass(PZ, THREE) {
   const GroupBase = PZ.object3d.group || PZ.object3d;
   return class EffectorObject extends GroupBase {
@@ -340,14 +343,24 @@ function createDelayClass(PZ, THREE) {
       this.properties.addAll({
         mode: { name: "Mode", type: PZ.property.type.OPTION, value: 0, items: "Blend;Average;Spring" },
         strength: { dynamic: true, name: "Strength", type: PZ.property.type.NUMBER, value: 75, min: 0, max: 100 },
-        window: { name: "History frames", type: PZ.property.type.NUMBER, value: 12, min: 1, max: 24, decimals: 0 },
+        window: { name: "History frames", type: PZ.property.type.NUMBER, value: 12, min: 1, max: MAX_DELAY_HISTORY, decimals: 0 },
+        springDamping: { dynamic: true, name: "Spring damping", type: PZ.property.type.NUMBER, value: 3, min: 0.25, max: 12, step: 0.25, decimals: 2 },
+        springCycles: { dynamic: true, name: "Spring cycles", type: PZ.property.type.NUMBER, value: 1, min: 0.25, max: 8, step: 0.25, decimals: 2 },
       });
       this.type = "zoidium:repeater/delay";
     }
+    historyFrames(frame) {
+      return integerValue(propertyValue(this.properties.window, frame, 12), 12, 1, MAX_DELAY_HISTORY);
+    }
     workerCommand(frame) {
-      return { kind: "delay", mode: optionPropertyValue(this.properties.mode, frame, 0),
+      const command = { kind: "delay", mode: optionPropertyValue(this.properties.mode, frame, 0),
         strength: numberPropertyValue(this.properties.strength, frame, 75) / 100,
-        window: integerValue(propertyValue(this.properties.window, frame, 12), 12, 1, 24) };
+        window: this.historyFrames(frame) };
+      if (command.mode === 2) {
+        command.damping = Math.min(12, Math.max(0.25, numberPropertyValue(this.properties.springDamping, frame, 3)));
+        command.cycles = Math.min(8, Math.max(0.25, numberPropertyValue(this.properties.springCycles, frame, 1)));
+      }
+      return command;
     }
     deformPositions(positions) { return positions; }
   }

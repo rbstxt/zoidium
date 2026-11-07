@@ -11,6 +11,13 @@ const TINY = 1e-9;
 const SERIES_LIMIT = 1e-4;
 const legacySubdivision = require("./legacy-subdivision.js");
 // Rotation planes used by a twist about each axis (X, Y, Z).
+// Delay's Spring weight is exp(-damping * age) * sin(2 * pi * cycles * age).
+const SPRING_DAMPING = 3;
+const SPRING_CYCLES = 1;
+const SPRING_MIN_TOTAL = 0.02;
+// One mesh evaluates at most this many Delay history samples per frame, and
+// stacked Delays share them. Windows up to 24 keep the original budget of 96.
+function delaySampleBudget(largestWindow) { return Math.max(96, 4 * largestWindow); }
 const TWIST_PLANES = [
   [1, 2],
   [2, 0],
@@ -646,6 +653,10 @@ function writePieceTransforms(positions, stage, basis, transforms) {
 }
 
 module.exports = {
+  SPRING_DAMPING,
+  SPRING_CYCLES,
+  SPRING_MIN_TOTAL,
+  delaySampleBudget,
   pieceTransformBasis,
   fitPieceTransforms,
   writePieceTransforms,

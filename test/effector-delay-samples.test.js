@@ -96,3 +96,109 @@ test("a sample miss never builds a cold stage on the presenting thread", () => {
   evaluateMesh(input, cache);
   assert.ok(evaluateCachedMesh({ ...input, commands: commandsAt(6, 2, 4) }, cache), "ready topology evaluates locally");
 });
+
+function stepResponse(mode, window, spring) {
+  // One piece steps from 0 to 1 at frame 100. The Delay output peak is the overshoot.
+  const source = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]), count: 4, attributes: {},
+    index: new Uint16Array([0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]), groups: [], smooth: false };
+  const at = time => ({ kind: "plain", relation, position: [time >= 100 ? 1 : 0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], field: { type: 0 } });
+  let peak = -Infinity;
+  const cache = createStageCache();
+  for (let time = 90; time < 100 + window + 2; time++) {
+    const commands = [at(time), { kind: "delay", relation, mode, strength: 1, window, ...spring,
+      history: Array.from({ length: window }, (_, i) => [at(Math.max(0, time - i - 1))]) }];
+    const result = evaluateMesh({ base: source, sourceId: "step", polygonCount: 1, commands }, cache);
+    peak = Math.max(peak, result.positions[0]);
+  }
+  return peak;
+}
+
+test("the default Spring settings keep the original weights bit for bit", () => {
+  const core = require("../plugins/scene-plus/effector-core.js");
+  assert.equal(core.SPRING_DAMPING, 3);
+  assert.equal(core.SPRING_CYCLES, 1);
+  for (let window = 1; window <= 24; window++) for (let i = 0; i < window; i++) {
+    const age = (i + 1) / window;
+    assert.equal(Math.exp(-core.SPRING_DAMPING * age) * Math.sin(age * Math.PI * 2 * core.SPRING_CYCLES),
+      Math.exp(-3 * age) * Math.sin(age * Math.PI * 2));
+  }
+  for (const window of [1, 2, 3, 12, 24]) for (const frame of [0, 5, 40]) {
+    const implicit = evaluate(frame, 2, window, createStageCache());
+    const commands = commandsAt(frame, 2, window);
+    commands[1].damping = 3; commands[1].cycles = 1;
+    const explicit = evaluateMesh({ base: base(), sourceId: "s", polygonCount: 1, commands }, createStageCache());
+    assert.deepEqual(bits(explicit.positions), bits(implicit.positions), `window ${window} frame ${frame}`);
+  }
+});
+
+test("Spring overshoot grows as damping falls and stays bounded", () => {
+  const peaks = [3, 2, 1, 0.5, 0.25].map(damping => stepResponse(2, 48, { damping, cycles: 1 }));
+  const overshoot = peaks.map(peak => peak - 1);
+  assert.ok(Math.abs(overshoot[0] - 0.29) < 0.02, "the default settings overshoot by about 29%: " + overshoot[0]);
+  for (let i = 1; i < overshoot.length; i++) assert.ok(overshoot[i] > overshoot[i - 1], "lower damping overshoots further");
+  assert.ok(overshoot[2] > 1.2, "damping 1 passes the target by more than the step: " + overshoot[2]);
+  for (const damping of [0.25, 1, 3, 12]) for (const cycles of [0.25, 0.5, 1, 2, 3.5, 8]) for (const window of [1, 2, 3, 5, 9, 16, 24, 120]) {
+    const peak = stepResponse(2, window, { damping, cycles });
+    assert.ok(Number.isFinite(peak) && Math.abs(peak) < 60, `damping ${damping} cycles ${cycles} window ${window}: ${peak}`);
+  }
+});
+
+test("more Spring cycles settle sooner within the same history", () => {
+  const motion = cycles => {
+    const positions = [];
+    for (let age = 1; age <= 48; age++) {
+      const source = { positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]), count: 4, attributes: {},
+        index: new Uint16Array([0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3]), groups: [], smooth: false };
+      const at = time => ({ kind: "plain", relation, position: [time >= 100 ? 1 : 0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], field: { type: 0 } });
+      const time = 100 + age;
+      positions.push(evaluateMesh({ base: source, sourceId: "c", polygonCount: 1, commands: [at(time), { kind: "delay", relation, mode: 2, strength: 1, window: 48, damping: 3, cycles,
+        history: Array.from({ length: 48 }, (_, i) => [at(time - i - 1)]) }] }).positions[0]);
+    }
+    return positions.indexOf(Math.max(...positions));
+  };
+  assert.ok(motion(2) < motion(1), "two cycles reach their peak earlier");
+});
+
+test("the sample budget keeps its old value up to 24 frames and covers the limit", () => {
+  const { delaySampleBudget } = require("../plugins/scene-plus/effector-core.js");
+  for (const window of [0, 1, 12, 24]) assert.equal(delaySampleBudget(window), 96);
+  assert.equal(delaySampleBudget(120), 480);
+});
+
+test("Delay's new properties default to the original Spring and clamp saved values", () => {
+  const { _test } = require("../plugins/scene-plus/scene-plus.js");
+  class Properties {
+    constructor(definitions) { this.addAll(definitions); }
+    addAll(definitions) {
+      for (const [key, definition] of Object.entries(definitions || {})) {
+        this[key] = { definition, value: definition.value, get() { return this.value; } };
+      }
+    }
+    load() {}
+  }
+  class List extends Array { constructor() { super(); this.onListChanged = { watch() {}, unwatch() {} }; } }
+  class Group {
+    constructor() {
+      this.properties = new Properties({ enabled: { value: 1 } });
+      this.objects = new List();
+      this.children = [this.properties, this.objects];
+    }
+  }
+  const PZ = { object3d: Object.assign(function () {}, { group: Group }), objectList: List, propertyList: Properties,
+    property: { type: { NUMBER: 0, VECTOR3: 2, OPTION: 6, TEXT: 7 } } };
+  const delay = new (_test.createDelayClass(PZ, {}))();
+  assert.equal(delay.properties.window.definition.max, 120);
+  assert.equal(delay.properties.window.definition.value, 12);
+  const blend = delay.workerCommand(0);
+  assert.deepEqual(blend, { kind: "delay", mode: 0, strength: 0.75, window: 12 }, "other modes keep their command");
+  delay.properties.mode.value = 2;
+  const spring = delay.workerCommand(0);
+  assert.equal(spring.damping, 3);
+  assert.equal(spring.cycles, 1);
+  delay.properties.window.value = 500;
+  delay.properties.springDamping.value = 0;
+  delay.properties.springCycles.value = 99;
+  const clamped = delay.workerCommand(0);
+  assert.deepEqual([clamped.window, clamped.damping, clamped.cycles], [120, 0.25, 8]);
+  assert.equal(delay.historyFrames(0), 120);
+});

@@ -199,14 +199,16 @@ function evaluateMesh(input, cache = createStageCache()) {
       const basis = curved ? null : core.pieceTransformBasis(stage);
       const current = basis ? core.fitPieceTransforms(stage, work, basis) : null;
       const filtered = current?.map(t => t ? { center: [0,0,0], scale: [0,0,0], rotation: [0,0,0,0] } : null);
-      let total = 0;
+      const damping = command.damping ?? core.SPRING_DAMPING, cycles = command.cycles ?? core.SPRING_CYCLES;
+      let total = 0, peak = 0;
       for (let i = 0; i < command.history.length; i++) {
         const sample = historySample(input, command.history[i], cache);
         // Only matching topology can be interpolated by vertex index.
         if (sample.topologyKey !== topologyKey || sample.positions.length !== work.length) continue;
         const age = (i + 1) / command.history.length;
-        const weight = command.mode === 1 ? 1 : command.mode === 2 ? Math.exp(-3 * age) * Math.sin(age * Math.PI * 2) : Math.exp(-4 * age);
+        const weight = command.mode === 1 ? 1 : command.mode === 2 ? Math.exp(-damping * age) * Math.sin(age * Math.PI * 2 * cycles) : Math.exp(-4 * age);
         total += weight;
+        peak = Math.max(peak, Math.abs(weight));
         if (basis) {
           // The topology check above makes this stage the sample's stage.
           const transforms = sample.transforms || (sample.transforms = core.fitPieceTransforms(stage, sample.positions, basis));
@@ -219,7 +221,10 @@ function evaluateMesh(input, cache = createStageCache()) {
         }
         for (let v = 0; v < work.length; v++) sum[v] += sample.positions[v] * weight;
       }
-      if (Math.abs(total) > 1e-6) {
+      // Spring weights change sign. Custom settings can sample them so that they
+      // almost cancel, which would multiply the motion without limit.
+      const tuned = command.mode === 2 && (damping !== core.SPRING_DAMPING || cycles !== core.SPRING_CYCLES);
+      if (Math.abs(total) > (tuned ? Math.max(1e-6, peak * core.SPRING_MIN_TOTAL) : 1e-6)) {
         const strength = core.clampUnit(command.strength);
         for (let v = 0; v < work.length; v++) work[v] += (sum[v] / total - work[v]) * strength;
         if (basis) {
