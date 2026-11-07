@@ -2,7 +2,7 @@
 
 const acorn = require("./vendor/acorn.txt");
 const astring = require("./vendor/astring.txt");
-const API_NAMES = new Set(("value thisProperty thisObject thisLayer thisClip thisSequence thisComp layer effect object prop controls control seedRandom wiggle easeIn easeOut degreesToRadians radiansToDegrees lookAt toWorld fromWorld worldPosition worldRotation toScreen fromScreen").split(" "));
+const API_NAMES = new Set(("fps value thisProperty thisObject thisLayer thisClip thisSequence thisComp layer effect object prop controls control seedRandom wiggle easeIn easeOut degreesToRadians radiansToDegrees lookAt toWorld fromWorld worldPosition worldRotation toScreen fromScreen").split(" "));
 const PURE_NAMES = new Set("Array Number String Boolean parseFloat parseInt isNaN isFinite Infinity NaN undefined JSON Math".split(" "));
 const DENIED = new Set("this globalThis window document self top parent parentWindow frames Function eval Date Reflect Proxy WebAssembly Atomics SharedArrayBuffer".split(" "));
 const FORBIDDEN = new Set("ThisExpression Super ClassDeclaration ClassExpression ImportDeclaration ExportNamedDeclaration ExportDefaultDeclaration ExportAllDeclaration ImportExpression AwaitExpression YieldExpression WithStatement DebuggerStatement MetaProperty".split(" "));

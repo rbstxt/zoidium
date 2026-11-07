@@ -34,7 +34,7 @@ function installEngine(options) {
       return function legacyEntry(frame, time, methods, custom, _parent, property, value) {
         if (property?.get) return evaluate(expression, frame, property.parentObject, property);
         if (!active.size) guard.reset(result.extended);
-        const context = createAPI({ PZ, owner: null, property: null, frame, time, base: value, read, baseAt,
+        const context = createAPI({ PZ, owner: null, property: null, frame, time, base: value, read, baseAt, sequence: options.sequence?.() || options.project?.sequence,
           methods: methods || PZ.expression.methods, wiggleMethods: options.wiggleMethods, controls: options.controls, world: options.world, extended: result.extended, needs: result.needs });
         const previous = guard.swapOverrides(context.overrides), pure = fn.zoidiumPure;
         try { return fn(frame, time, context.methods, custom, pure.Math, { ...guard, api: context.api, pure }); }

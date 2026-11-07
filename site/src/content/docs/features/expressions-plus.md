@@ -19,3 +19,9 @@ For shader noise, hash, color, or signed-distance helpers, enable Expressions+
 before using its [shader includes](/docs/reference/shader/#includes).
 
 Control reference: [sequence-controls](/docs/reference/sequence-controls/).
+
+## Frame rate
+
+`fps` returns the owning sequence frame rate, including at frame zero.
+`uniform float zFps;` exposes the same value to shaders when declared.
+Export frame rate overrides change frame sampling without changing `fps`, `zFps`, or clip time.

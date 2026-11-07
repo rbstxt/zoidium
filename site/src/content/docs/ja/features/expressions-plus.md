@@ -16,3 +16,9 @@ sidebar:
 シェーダーのノイズ、ハッシュ、カラー、符号付き距離のヘルパーを使う場合は、[シェーダーの include](/docs/ja/reference/shader/#include) を使う前に Expressions+ を有効にします。
 
 コントロールのリファレンス: [sequence-controls](/docs/ja/reference/sequence-controls/).
+
+## フレームレート
+
+`fps` は所有するシーケンスのフレームレートを返します。フレーム 0 でも同じ値です。
+`uniform float zFps;` を宣言すると、シェーダーで同じ値を使えます。
+Export のフレームレート変更はフレームのサンプリングを変更しますが、`fps`、`zFps`、クリップの Time は変更しません。

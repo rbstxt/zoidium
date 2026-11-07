@@ -86,6 +86,16 @@ module.exports = {
       "provider": "expressions-plus"
     },
     {
+      "id": "builtin.zFps",
+      "category": "builtin",
+      "name": "zFps",
+      "signature": "uniform float zFps;",
+      "description": "Expressions+ sequence frame rate. Export frame rate overrides do not change this value or clip time.",
+      "example": "uniform float zFps;",
+      "type": "float",
+      "provider": "expressions-plus"
+    },
+    {
       "id": "builtin.ctl_any",
       "category": "builtin",
       "name": "ctl_*",

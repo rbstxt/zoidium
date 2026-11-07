@@ -22,9 +22,10 @@ test('native shader hook preserves raw source and binds local time, frame and ab
  const amount={properties:{name:p('Amount')},get:f=>f};const point={properties:{name:p('Point')},get:()=>[1,2,3]};const errors=[];
  const PZ={sequence:Sequence,clip:Clip,effect:{shader:Shader}};
  installShaders({PZ,THREE,store:{list:()=>[amount,point]},engine:{read:(p,f)=>p.get(f)},patch:(h,k,f)=>{h[k]=f(h[k]);}});
- const raw='precision highp float;\n// #include <zoidium/noise>\nuniform float zTime;\nuniform float zFrame;\nuniform float ctl_Amount;\nuniform vec3 ctl_Point;\nvoid main(){gl_FragColor=vec4(zNoise(vec2(zTime)));}';
+ const raw='precision highp float;\n// #include <zoidium/noise>\nuniform float zTime;\nuniform float zFrame;\nuniform float zFps;\nuniform float ctl_Amount;\nuniform vec3 ctl_Point;\nvoid main(){gl_FragColor=vec4(zNoise(vec2(zTime)));}';
  const effect=Object.assign(new Shader(),{parent:clip,dirty:true,properties:{fragShader:p(raw)},pass:{uniforms:{},material:{}},onShaderError:{update:e=>errors.push(e)}});
  assert.equal(effect.update(30),30);assert.deepEqual(errors,[]);assert.equal(effect.properties.fragShader.get(),raw);assert.match(effect.pass.material.fragmentShader,/float zNoise/);
- assert.equal(effect.pass.uniforms.zTime.value,2);assert.equal(effect.pass.uniforms.zFrame.value,30);assert.equal(effect.pass.uniforms.ctl_Amount.value,40);assert.equal(effect.pass.uniforms.ctl_Point.value.toArray().join(','),'1,2,3');
+ assert.equal(effect.pass.uniforms.zFps.value,30);assert.equal(effect.pass.uniforms.zTime.value,2);assert.equal(effect.pass.uniforms.zFrame.value,30);assert.equal(effect.pass.uniforms.ctl_Amount.value,40);assert.equal(effect.pass.uniforms.ctl_Point.value.toArray().join(','),'1,2,3');
+ effect.update(7.5);assert.equal(effect.pass.uniforms.zFps.value,30);assert.equal(effect.pass.uniforms.zTime.value,.5);
  const plain='void main(){gl_FragColor=vec4(1.0);}';effect.properties.fragShader=p(plain);effect.dirty=true;effect.update(4);assert.equal(effect.pass.material.fragmentShader,plain);assert.deepEqual(Object.keys(effect.pass.uniforms),['tDiffuse']);
 });

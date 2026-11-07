@@ -63,7 +63,7 @@ starts a fresh stream. No stream state survives into the next frame.
 ## Values and navigation
 
 `frame` is CM3's property-local frame. `time` retains the owning clip's Time
-property, in seconds, including time remapping. `value` is the property's
+property, in seconds, including time remapping. `fps` is the owning sequence's frame rate, including at frame zero. An export frame rate override changes sampling, not `fps` or the meaning of `time`. `value` is the property's
 own value before its expression. Values and handles expose no project writes.
 
 `thisProperty` has `value`, `valueAtTime(seconds)`, `velocity`, `speed`,
@@ -231,7 +231,7 @@ operate on RGB and leave alpha to the shader author.
 
 Declare `uniform float zTime;` and `uniform float zFrame;` to receive the
 owning clip's Time in seconds and effect-local frame. Scalar `int` uniforms
-are also accepted and truncate toward zero. Declare `ctl_<Name>` as float,
+are also accepted and truncate toward zero. `uniform float zFps;` receives the sequence frame rate. Export frame rate overrides do not change `zFps`. These uniforms bind only when declared. Declare `ctl_<Name>` as float,
 int, vec2, vec3 or vec4 to bind a Sequence Control. Non-ASCII/space/punctuation
 characters in names become `_`; colliding normalized names report an error.
 The control's dimension must match. Color binds RGB as vec3 or opaque RGBA as vec4; Point 2D/3D bind
