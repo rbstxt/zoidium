@@ -5,7 +5,8 @@
     const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
     const meta = p => p.definition?.[FIELD] || {};
     const name = p => String(meta(p).name ?? p.definition?.zoidiumShader?.group ?? "").trim();
-    const isList = list => list instanceof PZ.objectList && list.parent?.customProperties === list;
+    // A list whose order drives evaluation cannot show a different display order.
+    const isList = list => list instanceof PZ.objectList && list.parent?.customProperties === list && !list.zoidiumOrderDrivesOutput;
     const members = (list, group) => Array.from(list).filter(p => name(p) === group);
     const locked = (list, group) => !!group && members(list, group).some(p => meta(p).locked === true);
     function blocks(list) {

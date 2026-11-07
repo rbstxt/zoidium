@@ -200,3 +200,12 @@ test("collapse is saved without history and survives unrelated undo during an op
   for (const data of copy(list)) { const p = PZ.property.create(data.type); restored.push(p); p.load(data); }
   assert.equal(api.meta(restored[0]).collapsed, false);
 });
+
+test("lists whose order drives output offer no grouping", () => {
+  const { api, list, editor } = host();
+  assert.equal(api.isList(list), true);
+  list.zoidiumOrderDrivesOutput = true;
+  assert.equal(api.isList(list), false);
+  assert.equal(api.setGroup(editor, list[0], "Group"), false);
+  assert.equal(api.name(list[0]), "");
+});

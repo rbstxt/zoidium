@@ -176,6 +176,8 @@ function createExpressObjectClass(PZ, definition) {
         if (itemClass && PZ.objectList && this.customProperties) {
           const scoped = new PZ.objectList(this, itemClass);
           scoped.name = "Custom properties";
+          // Effectors evaluate in list order, so the panel must show that order.
+          scoped.zoidiumOrderDrivesOutput = true;
           const at = this.children.indexOf(this.customProperties);
           try {
             if (at >= 0) this.children.splice(at, 1, scoped);
