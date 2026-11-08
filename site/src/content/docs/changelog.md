@@ -217,6 +217,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- The play button is back at the center of the playback toolbar on wide
+  panels. The quality and speed menus stay at the right edge.
 - Shader+: settings of one custom property, such as Visible when or its
   group, no longer spread to other properties or to Numbers added later,
   including in a new Shader. Grouping a property from the "+" list no longer
