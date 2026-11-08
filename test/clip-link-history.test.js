@@ -1,0 +1,117 @@
+"use strict";
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+const vm = require("node:vm");
+const { nativeHost, cache, core } = require("./expressions-plus-harness");
+
+function fixture() {
+  const { PZ, context } = nativeHost();
+  Object.assign(context, { Image: class {}, CSS: { supports: () => true },
+    window: { PZ, addEventListener() {} }, navigator: {} });
+  vm.runInContext(fs.readFileSync(path.join(cache, "ui-1.0.72.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(require.resolve("../plugins/core/object-history.js"), "utf8"), context);
+  // Use plain clip payloads so the test needs no media decoder or WebGL.
+  // The native track, clip-link, address, delete, and history logic stays intact.
+  class Clip extends PZ.clip {
+    constructor() { super(); this.link = null; }
+    load(data) { this.start = data.start; this.length = data.length; }
+    unload() {}
+    toJSON() { return { start: this.start, length: this.length, link: this.link, object: { type: 0 } }; }
+  }
+  PZ.clip.create = () => new Clip();
+  PZ.schedule.analyzeSequence = () => {};
+  const editor = {};
+  PZ.observable.defineObservableProp(editor, "project", "onProjectChanged");
+  editor.history = new PZ.ui.history(editor);
+  editor.project = new PZ.project();
+  const sequence = editor.project.sequence;
+  sequence.clipLinks = new PZ.clipLinks(sequence);
+  const tracks = Object.create(PZ.ui.timeline.tracks.prototype);
+  tracks.timeline = { sequence, editor };
+  tracks.sequence = sequence;
+  tracks.updateSequenceLength = () => {};
+  const operation = fn => { editor.history.startOperation(); fn(); editor.history.finishOperation(); };
+  const add = (type, trackIndex, link) => {
+    const list = type ? sequence.audioTracks : sequence.videoTracks;
+    if (!list[trackIndex]) list.push(PZ.track.create(type));
+    const clip = new Clip(); list[trackIndex].clips.push(clip); clip.load({ start: 0, length: 60 });
+    if (link !== undefined) clip.link = sequence.clipLinks.link(link, clip);
+    return clip;
+  };
+  const liveLinks = () => {
+    for (const link of Object.values(sequence.clipLinks.links)) {
+      assert.ok(link.clips.length > 1, "singleton links are removed");
+      for (const clip of link.clips) {
+        assert.equal(editor.project.addressLookup(clip.getAddress()), clip, "linked clips remain in the project");
+        assert.equal(clip.link, link);
+      }
+    }
+  };
+  return { PZ, context, editor, sequence, tracks, operation, add, liveLinks };
+}
+
+for (const type of [0, 1]) test(`deleting a linked ${type ? "audio" : "video"} track restores links through undo and redo`,
+  { skip: !fs.existsSync(core) }, () => {
+    const { PZ, editor, sequence, tracks, operation, add, liveLinks } = fixture();
+    add(type, 0, 0);
+    const survivor = add(1 - type, 0, 0);
+    const before = JSON.stringify(sequence);
+    operation(() => {
+      // This is the native track button's call path. It omits unlinkBeforeDeletion.
+      tracks.deleteClip({ type, oldTrackIdx: 0, oldIdx: 0 });
+      tracks.deleteTrack({ type, oldTrackIdx: 0 });
+    });
+    assert.equal(survivor.link, null);
+    liveLinks();
+    const deleted = JSON.stringify(sequence);
+    for (let cycle = 0; cycle < 3; cycle++) {
+      editor.history.undo(); liveLinks();
+      assert.equal(JSON.stringify(sequence), before);
+      editor.history.redo(); liveLinks();
+      assert.equal(JSON.stringify(sequence), deleted);
+    }
+    editor.history.undo();
+    const reopened = new PZ.project();
+    reopened.load({ assets: {}, media: [], sequence: JSON.parse(JSON.stringify(sequence)) });
+    const v = reopened.sequence.videoTracks[0].clips[0], a = reopened.sequence.audioTracks[0].clips[0];
+    assert.equal(v.link, a.link);
+    assert.equal(v.link.clips.length, 2);
+    for (const clip of v.link.clips) assert.equal(reopened.addressLookup(clip.getAddress()), clip);
+  });
+
+test("deleting a clip from a larger link keeps the other members linked", { skip: !fs.existsSync(core) }, () => {
+  const { editor, sequence, tracks, operation, add, liveLinks } = fixture();
+  add(0, 0, 0); const audio = add(1, 0, 0), other = add(0, 1, 0);
+  operation(() => tracks.deleteClip({ type: 0, oldTrackIdx: 0, oldIdx: 0 }));
+  liveLinks();
+  assert.equal(audio.link, other.link);
+  assert.equal(audio.link.clips.length, 2);
+  editor.history.undo(); liveLinks();
+  assert.equal(sequence.videoTracks[0].clips[0].link, audio.link);
+  assert.equal(audio.link.clips.length, 3);
+});
+
+test("callers that already unlink a clip do not add duplicate history commands", { skip: !fs.existsSync(core) }, () => {
+  const { editor, sequence, tracks, operation, add, liveLinks } = fixture();
+  add(0, 0, 0); add(1, 0, 0);
+  operation(() => {
+    const params = { type: 0, oldTrackIdx: 0, oldIdx: 0 };
+    tracks.unlinkBeforeDeletion(params);
+    tracks.deleteClip(params);
+  });
+  liveLinks();
+  editor.history.undo(); liveLinks();
+  assert.equal(sequence.videoTracks[0].clips[0].link.clips.length, 2);
+});
+
+test("unlinked clip deletion keeps the native history behavior", { skip: !fs.existsSync(core) }, () => {
+  const { editor, sequence, tracks, operation, add, liveLinks } = fixture();
+  add(0, 0); add(1, 0);
+  const before = JSON.stringify(sequence);
+  operation(() => tracks.deleteClip({ type: 0, oldTrackIdx: 0, oldIdx: 0 }));
+  assert.equal(sequence.videoTracks[0].clips.length, 0); liveLinks();
+  editor.history.undo(); liveLinks();
+  assert.equal(JSON.stringify(sequence), before);
+});
