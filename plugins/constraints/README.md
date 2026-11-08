@@ -30,7 +30,23 @@ dummy class.
 A selected constrained object has a dashed relationship line in the main 3D
 editing viewport, beside the native selection helpers. Output preview and
 export exclude that helper layer. Constraints cannot be disabled while a
-project still has a nonempty Track to field, including a missing target.
+project still has a nonempty Track to or Follow field, including a missing target.
+
+## Follow
+
+Follow copies a Group or object's transforms from the same scene or another scene layer in the same sequence.
+The native Follow picker displays track, scene, and object paths. Saved links use `zoidiumId`, including duplicate-tree remapping.
+World is the default space. Position, rotation, and scale default to On, with zero position and rotation offsets and a unit scale multiplier.
+Local space copies the target's local transform. Follow runs before Track To when both are set.
+
+Each target samples at the requested sequence time, minus its clip start, through the core temporal mapping API.
+An inactive clip samples its nearest endpoint. Muted tracks still supply transforms.
+The evaluator builds temporary transform trees from authored property values, orders Follow and Track To together, and publishes only the requested scene's constrained poses.
+It does not update another scene's materials, renderer, or live object poses. Generated copies and vertex deformations are outside this model.
+
+The native Delete command records a hidden local-pose fallback through the native property history API before removing a target.
+Missing links show **(Missing target)** and use that pose. A missing imported link without a fallback uses the authored pose.
+See the [Follow reference](../../site/src/content/docs/reference/constraints.md) for timing, spaces, and limits.
 
 ## Evaluation
 
@@ -78,8 +94,8 @@ They cannot reproduce the constrained shot. See
 owns storage and identities; `constraint-ui.js` supplies native property controls;
 `constraint-graph.js` orders dependencies; `track-to-evaluate.js` runs the scene
 pass; `track-to-math.js` contains the pure quaternion math;
-`constraint-overlay.js` owns the editor helper. Additional constraint types can
-share the storage, scene pass and dependency graph.
+`constraint-overlay.js` owns the editor helper. `follow-properties.js` defines Follow rows; `follow-scenes.js` maps sequence clocks;
+`follow-evaluate.js` samples and orders the transform graph and saves deletion poses.
 
 Rebuild with `node tools/build-plugin-bundles.js` after changing the manifest
 version or sources, then run `pnpm run verify`.

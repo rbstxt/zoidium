@@ -440,6 +440,8 @@
   function detectConstraintFeatures(value, found) {
     if (value.type !== undefined && typeof value.properties?.zoidiumTrackTo === "string" &&
         value.properties.zoidiumTrackTo.length > 0) found.add("track-to");
+    if (value.type !== undefined && typeof value.properties?.zoidiumFollow === "string" &&
+        value.properties.zoidiumFollow.length > 0) found.add("follow");
   }
 
   // A single work stack shares record dispatch and cycle tracking. Numeric

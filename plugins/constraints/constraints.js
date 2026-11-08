@@ -76,6 +76,7 @@ function install(context, teardown) {
   const { createPropertyStore } = require("./constraint-properties.js");
   const { createEvaluator } = require("./track-to-evaluate.js");
   const { createControls } = require("./constraint-ui.js");
+  const { createFollowEvaluator } = require("./follow-evaluate.js");
   const { installOverlay } = require("./constraint-overlay.js");
 
   let live = true;
@@ -96,6 +97,30 @@ function install(context, teardown) {
     store,
     report: (message, error) => (error ? console.warn(message, error) : console.warn(message)),
   });
+
+  const followEvaluator = createFollowEvaluator({ PZ, THREE, store, trackEvaluator: evaluator });
+  function refreshFollowTargets(project) {
+    project.forEachItemOfType(PZ.object3d, object => {
+      if (store.readFollow(object)) {
+        const property = object.properties[store.KEYS.follow];
+        property.onChanged?.update(property.get());
+      }
+    });
+  }
+  if (PZ.ui?.edit?.prototype?.deleteObject) {
+    patchMethod(PZ.ui.edit.prototype, "deleteObject", original => function deleteWithFollowPose(operation) {
+      const list = this.editor.project.addressLookup(operation.oldParentAddress);
+      if (live && list?.[operation.oldIdx]) followEvaluator.captureDeleted(list[operation.oldIdx], this.editor, this.propertyOps);
+      const result = original.apply(this, arguments);
+      if (live) refreshFollowTargets(this.editor.project);
+      return result;
+    }, teardown);
+    patchMethod(PZ.ui.edit.prototype, "createObject", original => function createWithFollowTargets() {
+      const result = original.apply(this, arguments);
+      if (live) refreshFollowTargets(this.editor.project);
+      return result;
+    }, teardown);
+  }
 
   // Each object created while the plugin is enabled loads, then receives its
   // constraint rows with the saved values from the same data.
@@ -150,7 +175,7 @@ function install(context, teardown) {
     const result = original.apply(this, arguments);
     if (live) {
       try {
-        evaluator.applyScene(this, time);
+        followEvaluator.applyScene(this, time);
       } catch (error) {
         console.warn("[Zoidium] Constraints: scene evaluation failed", error);
       }
@@ -165,14 +190,14 @@ function install(context, teardown) {
     patchMethod(motionBlurProto, "update", (original) => function updateMotionBlurWithConstraints(time) {
       const layer = this.layer;
       const scene = this.scene;
-      if (!live || !this.velocityBuffer || !scene || !layer || !evaluator.hasConstraints(layer)) {
+      if (!live || !this.velocityBuffer || !scene || !layer || !(evaluator.hasConstraints(layer) || followEvaluator.hasFollow(layer))) {
         return original.apply(this, arguments);
       }
       const ownDescriptor = Object.getOwnPropertyDescriptor(scene, "updateMatrixWorld");
       const inherited = scene.updateMatrixWorld;
       scene.updateMatrixWorld = function updateMatrixWorldWithConstraints() {
         const out = inherited.apply(this, arguments);
-        evaluator.applyScene(layer, time + 0.5);
+        followEvaluator.applyScene(layer, time + 0.5, 0.5);
         return out;
       };
       try {
@@ -184,7 +209,7 @@ function install(context, teardown) {
     }, teardown);
   }
 
-  const controls = createControls({ PZ, document: win.document, store, evaluator });
+  const controls = createControls({ PZ, document: win.document, store, evaluator: { ...evaluator, sequenceScenes: followEvaluator.sequenceScenes } });
   for (const unregister of controls.register(apis.propertyControls)) teardown.push(unregister);
 
   teardown.push(installOverlay({ PZ, THREE, store, evaluator }));
@@ -207,7 +232,7 @@ function install(context, teardown) {
         let used = false;
         try {
           project.forEachItemOfType(PZ.object3d, (object) => {
-            if (!used && store.isAttached(object) && store.readTarget(object)) used = true;
+            if (!used && store.isAttached(object) && (store.readTarget(object) || store.readFollow(object))) used = true;
           });
         } catch (_error) {
           used = false;
@@ -241,7 +266,7 @@ module.exports = {
     return Boolean(active?.runtime?.isInUse());
   },
   inUseReason() {
-    return "This project uses Track To constraints. Set every Track to row to None to disable Constraints.";
+    return "This project uses constraints. Set every Track to and Follow row to None to disable Constraints.";
   },
   PLUGIN_ID,
 };

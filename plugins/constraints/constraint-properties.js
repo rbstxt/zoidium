@@ -16,6 +16,7 @@
 // exactly as before. Older builds ignore the unknown property keys.
 
 const math = require("./track-to-math.js");
+const { FOLLOW_KEYS, FOLLOW_CONTROL, followDefinitions } = require("./follow-properties.js");
 
 const KEYS = Object.freeze({
   target: "zoidiumTrackTo",
@@ -23,11 +24,13 @@ const KEYS = Object.freeze({
   upAxis: "zoidiumUpAxis",
   influence: "zoidiumInfluence",
   id: "zoidiumId",
+  ...FOLLOW_KEYS,
 });
-const ROW_KEYS = [KEYS.target, KEYS.trackAxis, KEYS.upAxis, KEYS.influence];
+const ROW_KEYS = [KEYS.target, KEYS.trackAxis, KEYS.upAxis, KEYS.influence, ...Object.values(FOLLOW_KEYS)];
 const ALL_KEYS = ROW_KEYS.concat([KEYS.id]);
 const CONTROL_IDS = Object.freeze({
   target: "constraints/track-to",
+  follow: FOLLOW_CONTROL,
   trackAxis: "constraints/track-axis",
   upAxis: "constraints/up-axis",
 });
@@ -135,6 +138,7 @@ function createPropertyStore(options) {
         value: "",
       },
     };
+    Object.assign(definitions, followDefinitions(T, function () { handleChange(this, true); }));
     const entry = { definitions, defaults: {} };
     for (const key of ALL_KEYS) {
       const { changed: _changed, ...probeDefinition } = definitions[key];
@@ -157,6 +161,7 @@ function createPropertyStore(options) {
     if (targetChanged) {
       syncVisibility(object, true);
       onTargetChanged(object);
+      onStructureChanged(object);
     }
     onValueChanged(object);
   }
@@ -196,6 +201,11 @@ function createPropertyStore(options) {
 
   function readTarget(object) {
     const value = readStatic(object, KEYS.target, "");
+    return typeof value === "string" ? value : "";
+  }
+
+  function readFollow(object) {
+    const value = readStatic(object, KEYS.follow, "");
     return typeof value === "string" ? value : "";
   }
 
@@ -243,7 +253,8 @@ function createPropertyStore(options) {
     });
   }
 
-  // Track axis, up axis and influence are shown only while a target is set.
+  // Extra rows stay hidden until their constraint has a target. A missing
+  // target is still set, so its controls remain available for editing.
   function syncVisibility(object, notify) {
     const kind = classify(object);
     const hasTarget = readTarget(object) !== "";
@@ -253,6 +264,10 @@ function createPropertyStore(options) {
       [KEYS.upAxis]: hasTarget && kind === "rotation",
       [KEYS.influence]: hasTarget && kind !== "none",
     };
+    const hasFollow = readFollow(object) !== "";
+    for (const key of Object.values(FOLLOW_KEYS)) wanted[key] = hasFollow && kind === "rotation";
+    wanted[KEYS.follow] = kind === "rotation";
+    wanted[KEYS.fallback] = false;
     let changed = false;
     for (const key of ROW_KEYS) {
       const property = propertyOf(object, key);
@@ -306,6 +321,27 @@ function createPropertyStore(options) {
     return id;
   }
 
+  // Native addAll() publishes immediately. Existing Properties panels must
+  // see loaded values, final row order, and visibility in that notification.
+  function batchListUpdate(properties, action) {
+    const event = properties.onListChanged;
+    if (!event || typeof event.update !== "function") return action();
+    const descriptor = Object.getOwnPropertyDescriptor(event, "update");
+    const original = event.update;
+    let changed = false;
+    const deferred = function () { changed = true; };
+    event.update = deferred;
+    try {
+      return action();
+    } finally {
+      if (event.update === deferred) {
+        if (descriptor) Object.defineProperty(event, "update", descriptor);
+        else delete event.update;
+      }
+      if (changed) original.call(event);
+    }
+  }
+
   function attach(object, data) {
     if (!isObject3d(object) || attached.has(object)) return false;
     const kind = classify(object);
@@ -322,37 +358,39 @@ function createPropertyStore(options) {
       const wasSaved = Object.prototype.hasOwnProperty.call(data?.properties || {}, key);
       omitDefault(created[key], entry.defaults[key], wasSaved);
     }
-    loading.add(object);
-    try {
-      properties.addAll(created);
-      const saved = data && typeof data === "object" ? data.properties : null;
-      for (const key of ALL_KEYS) {
-        let value;
-        try {
-          value = saved ? saved[key] : undefined;
-        } catch (_error) {
-          value = undefined;
+    batchListUpdate(properties, () => {
+      loading.add(object);
+      try {
+        properties.addAll(created);
+        const saved = data && typeof data === "object" ? data.properties : null;
+        for (const key of ALL_KEYS) {
+          let value;
+          try {
+            value = saved ? saved[key] : undefined;
+          } catch (_error) {
+            value = undefined;
+          }
+          created[key].load(value);
         }
-        created[key].load(value);
+        // Native rows follow the enumerable property order. Move only the
+        // suffix after rotation/order, retaining the same property instances,
+        // parent links and watchers.
+        const keys = Object.keys(properties).filter((key) => !ALL_KEYS.includes(key));
+        const anchor = keys.includes("eulerOrder") ? "eulerOrder" : "rotation";
+        const index = keys.indexOf(anchor);
+        if (index >= 0) {
+          const suffix = keys.slice(index + 1).map((key) => [key, Object.getOwnPropertyDescriptor(properties, key)]);
+          const rows = ALL_KEYS.map((key) => [key, Object.getOwnPropertyDescriptor(properties, key)]);
+          for (const [key] of rows.concat(suffix)) delete properties[key];
+          for (const [key, descriptor] of rows) Object.defineProperty(properties, key, descriptor);
+          for (const [key, descriptor] of suffix) Object.defineProperty(properties, key, descriptor);
+        }
+        attached.add(object);
+        syncVisibility(object, false);
+      } finally {
+        loading.delete(object);
       }
-      // Native rows follow the enumerable property order. Move only the
-      // suffix after rotation/order, retaining the same property instances,
-      // parent links and watchers.
-      const keys = Object.keys(properties).filter((key) => !ALL_KEYS.includes(key));
-      const anchor = keys.includes("eulerOrder") ? "eulerOrder" : "rotation";
-      const index = keys.indexOf(anchor);
-      if (index >= 0) {
-        const suffix = keys.slice(index + 1).map((key) => [key, Object.getOwnPropertyDescriptor(properties, key)]);
-        const rows = ALL_KEYS.map((key) => [key, Object.getOwnPropertyDescriptor(properties, key)]);
-        for (const [key] of rows.concat(suffix)) delete properties[key];
-        for (const [key, descriptor] of rows) Object.defineProperty(properties, key, descriptor);
-        for (const [key, descriptor] of suffix) Object.defineProperty(properties, key, descriptor);
-      }
-      attached.add(object);
-      syncVisibility(object, false);
-    } finally {
-      loading.delete(object);
-    }
+    });
     const id = readId(object);
     if (id && idTakenElsewhere(object, id)) {
       const next = createUuid(cryptoApi);
@@ -380,15 +418,17 @@ function createPropertyStore(options) {
     batch = null;
     if (finished.remap.size === 0) return;
     for (const object of finished.objects) {
-      const target = readTarget(object);
-      if (target && finished.remap.has(target)) {
-        loading.add(object);
-        try {
-          setRaw(object, KEYS.target, finished.remap.get(target));
-        } finally {
-          loading.delete(object);
+      for (const key of [KEYS.target, KEYS.follow]) {
+        const target = readStatic(object, key, "");
+        if (target && finished.remap.has(target)) {
+          loading.add(object);
+          try {
+            setRaw(object, key, finished.remap.get(target));
+          } finally {
+            loading.delete(object);
+          }
+          onTargetChanged(object);
         }
-        onTargetChanged(object);
       }
     }
   }
@@ -430,6 +470,7 @@ function createPropertyStore(options) {
     endLoad,
     ensureId,
     readTarget,
+    readFollow,
     readId,
     readTrackAxis,
     readUpAxis,

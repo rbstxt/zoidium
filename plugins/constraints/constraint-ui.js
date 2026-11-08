@@ -100,16 +100,19 @@ function createControls(options) {
     PZ.ui.controls.editFinish.call(select, property);
   }
 
-  function createTargetControl(property) {
-    const { container, select } = makeSelect("Track to target");
+  function createTargetControl(property, follow = false) {
+    const { container, select } = makeSelect(follow ? "Follow target" : "Track to target");
+    const readTarget = follow ? store.readFollow : store.readTarget;
     let candidates = [];
     let signature = "";
 
     function refresh(force) {
       const object = property.parentObject;
       const scene = evaluator.sceneOf(object, PZ);
-      candidates = listTargets(scene, object);
-      const current = store.readTarget(object);
+      candidates = follow ? evaluator.sequenceScenes(scene).flatMap(entry =>
+        listTargets(entry.scene, object).map(candidate => ({ ...candidate,
+          label: `${entry.path} / ${objectLabel(entry.scene)} / ${candidate.label}` }))) : listTargets(scene, object);
+      const current = readTarget(object);
       const entries = [{ value: "", label: NONE_LABEL }];
       let selected = "";
       candidates.forEach((entry, index) => {
@@ -129,8 +132,8 @@ function createControls(options) {
       }
       if (force || !focused) select.value = selected;
       select.title = selected === "missing"
-        ? "The target is no longer in this scene; Track To is inactive"
-        : "Object that this object points at";
+        ? (follow ? "The target is missing; Follow keeps the saved deletion pose, or the authored pose if none was saved" : "The target is no longer in this scene; Track To is inactive")
+        : (follow ? "Object whose transforms this object copies at the same sequence time" : "Object that this object points at");
     }
 
     // CM3 refreshes static rows only when their own value changes. Rebuild
@@ -148,7 +151,7 @@ function createControls(options) {
       } else if (choice === "missing") {
         return refresh(true);
       }
-      if (value === store.readTarget(object)) return refresh(true);
+      if (value === readTarget(object)) return refresh(true);
       commit(select, property, value);
       refresh(true);
     };
@@ -208,7 +211,8 @@ function createControls(options) {
   function register(propertyControls) {
     const T = PZ.property.type;
     return [
-      propertyControls.register(store.CONTROL_IDS.target, { type: T.TEXT, create: createTargetControl }),
+      propertyControls.register(store.CONTROL_IDS.target, { type: T.TEXT, create: property => createTargetControl(property) }),
+      propertyControls.register(store.CONTROL_IDS.follow, { type: T.TEXT, create: property => createTargetControl(property, true) }),
       propertyControls.register(store.CONTROL_IDS.trackAxis, { type: T.OPTION, create: createTrackAxisControl }),
       propertyControls.register(store.CONTROL_IDS.upAxis, { type: T.OPTION, create: createUpAxisControl }),
     ];
