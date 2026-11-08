@@ -34,9 +34,14 @@ For still images, **Quality** has **very low**, **low**, **good**, **very good**
 
 **Resolution** offers 426×240, 640×360, 854×480, 1280×720, 1920×1080, 2560×1440, and 3840×2160 presets. Frame capture also retains the project resolution as a choice when it differs from these presets.
 
-**Aspect ratio** sets the output width-to-height ratio. The output keeps the resolution's longer edge and derives the other edge from the ratio, rounding each dimension to an even value. A portrait ratio makes the longer edge vertical. Odd MP4 dimensions gain a 1 px black edge.
+On **Device**, **Resolution** also offers **Custom**. **Output size (px)** accepts exact width and height, such as 3440×1440 or 2560×1080.
+Both dimensions must be even whole numbers from 2 to 8192 pixels. The output can contain at most 33,554,432 pixels.
+Invalid dimensions show a message and block **Start**. Encoder support also depends on the browser, format, and frame rate.
+The browser remembers the resolution choice, custom dimensions, aspect ratio, and aspect ratio mode across Device sessions. These preferences do not change saved projects.
 
-**Device** starts at 16:9. Frame capture starts at the project aspect ratio.
+**Aspect ratio** sets the output width-to-height ratio. The output keeps the resolution's longer edge and derives the other edge from the ratio, rounding each dimension to an even value. A portrait ratio makes the longer edge vertical. In **Custom**, width and height set the ratio. Editing **Aspect ratio** derives a new custom size with the same longer edge. Odd MP4 dimensions gain a 1 px black edge.
+
+**Device** starts at 1920×1080 and 16:9 when no resolution preference is stored. Frame capture starts at the project aspect ratio.
 
 | **Aspect ratio mode** | Result |
 | --- | --- |
