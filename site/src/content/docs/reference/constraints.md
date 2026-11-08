@@ -27,6 +27,9 @@ The dashed Track To relationship line is viewport-only. Track To targets do not 
 
 ## Follow properties
 
+With **Follow** set to **None**, only the target row appears. A set target, including a missing target, reveals the other Follow rows.
+Hiding rows preserves their values, keys, and expressions. Undo, redo, save, reopen, and duplicate retain those settings.
+
 | Control | Type | Options or default | Effect on output |
 | --- | --- | --- | --- |
 | **Follow** | Target picker | **None** | Copies a Group or object's transforms in the same sequence. |

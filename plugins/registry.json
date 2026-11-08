@@ -498,7 +498,7 @@
       "defaultEnabled": true,
       "manifest": "./plugins/constraints/manifest.json?v=5",
       "bundle": "./plugins/constraints/bundle.json?v=5",
-      "integrity": "sha256-Ed51UlrVJUn/lzqD0cb3tXRDG6TsYV9LcA3jw3fp9/Y=",
+      "integrity": "sha256-iYPVIqdTyl7msIiuhUf621N980DdY2iDKPZw6UfozCM=",
       "zoidiumOnly": true,
       "warning": "Projects with constraints require Zoidium. Other builds open the project with its authored transforms."
     },

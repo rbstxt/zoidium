@@ -75,3 +75,47 @@ test("native motion-blur sampling applies Follow at the half frame without recur
     assert.equal(sampled, 1.5); assert.equal(a.threeObj.position.x, 1);
   } finally { constraints.deactivate(); }
 });
+
+test("Follow visibility is display-only through native target history, duplicate, save, and reopen", { skip: !fs.existsSync(core) }, async () => {
+  const { PZ, editor, edit, a, set, operation } = fixture();
+  const extraKeys = ["zoidiumFollowSpace", "zoidiumFollowPosition", "zoidiumFollowRotation", "zoidiumFollowScale",
+    "zoidiumFollowPositionOffset", "zoidiumFollowRotationOffset", "zoidiumFollowScaleOffset"];
+  const flush = () => Promise.resolve();
+  function visible(object, active) {
+    assert.equal(object.properties.zoidiumFollow.visible !== false, true);
+    for (const key of extraKeys) assert.equal(object.properties[key].visible !== false, active, key);
+    assert.equal(object.properties.zoidiumFollowFallback.visible, false);
+  }
+  try {
+    visible(a, false);
+    const instances = extraKeys.map(key => a.properties[key]);
+    set(a.properties.zoidiumFollowSpace, 1);
+    set(a.properties.zoidiumFollowScale, 0);
+    a.properties.zoidiumFollowPositionOffset.load({ objects: [
+      { animated: true, keyframes: [{ frame: 0, value: 2, tween: 1 }, { frame: 10, value: 8, tween: 1 }] },
+      { expression: "value + frame" }, { keyframes: [{ frame: 0, value: 3, tween: 1 }] },
+    ] });
+    const preserved = () => JSON.stringify(extraKeys.map(key => a.properties[key]));
+    const savedValues = preserved();
+    let notifications = 0;
+    a.properties.onListChanged.watch(() => { notifications++; });
+    for (const value of ["missing-target", "", "missing-target", ""]) {
+      set(a.properties.zoidiumFollow, value); await flush();
+      visible(a, Boolean(value)); assert.equal(preserved(), savedValues);
+      assert.ok(instances.every((property, i) => property === a.properties[extraKeys[i]]));
+    }
+    assert.equal(notifications, 4, "one deferred list notification per completed target edit");
+    editor.history.undo(); await flush(); visible(a, true); assert.equal(preserved(), savedValues);
+    editor.history.redo(); await flush(); visible(a, false); assert.equal(preserved(), savedValues);
+    operation(() => edit.createObject({ newParentAddress: a.parent.getAddress(), baseType: PZ.object3d,
+      subType: 5, data: JSON.parse(JSON.stringify(a)) }));
+    const duplicate = a.parent[1]; visible(duplicate, false);
+    assert.equal(JSON.stringify(extraKeys.map(key => duplicate.properties[key])), savedValues);
+    const saved = JSON.parse(JSON.stringify(editor.project));
+    const reopened = new PZ.project(); reopened.load(saved); reopened.ui = { onChanged: new PZ.observable() }; editor.project = reopened;
+    const copy = reopened.sequence.videoTracks[0].clips[0].object.objects[0]; visible(copy, false);
+    assert.equal(JSON.stringify(extraKeys.map(key => copy.properties[key])), savedValues);
+    set(copy.properties.zoidiumFollow, "missing-target"); await flush(); visible(copy, true);
+    assert.equal(JSON.stringify(extraKeys.map(key => copy.properties[key])), savedValues);
+  } finally { constraints.deactivate(); }
+});

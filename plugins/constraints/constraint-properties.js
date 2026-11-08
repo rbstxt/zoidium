@@ -253,7 +253,8 @@ function createPropertyStore(options) {
     });
   }
 
-  // Track axis, up axis and influence are shown only while a target is set.
+  // Extra rows stay hidden until their constraint has a target. A missing
+  // target is still set, so its controls remain available for editing.
   function syncVisibility(object, notify) {
     const kind = classify(object);
     const hasTarget = readTarget(object) !== "";
@@ -320,6 +321,27 @@ function createPropertyStore(options) {
     return id;
   }
 
+  // Native addAll() publishes immediately. Existing Properties panels must
+  // see loaded values, final row order, and visibility in that notification.
+  function batchListUpdate(properties, action) {
+    const event = properties.onListChanged;
+    if (!event || typeof event.update !== "function") return action();
+    const descriptor = Object.getOwnPropertyDescriptor(event, "update");
+    const original = event.update;
+    let changed = false;
+    const deferred = function () { changed = true; };
+    event.update = deferred;
+    try {
+      return action();
+    } finally {
+      if (event.update === deferred) {
+        if (descriptor) Object.defineProperty(event, "update", descriptor);
+        else delete event.update;
+      }
+      if (changed) original.call(event);
+    }
+  }
+
   function attach(object, data) {
     if (!isObject3d(object) || attached.has(object)) return false;
     const kind = classify(object);
@@ -336,37 +358,39 @@ function createPropertyStore(options) {
       const wasSaved = Object.prototype.hasOwnProperty.call(data?.properties || {}, key);
       omitDefault(created[key], entry.defaults[key], wasSaved);
     }
-    loading.add(object);
-    try {
-      properties.addAll(created);
-      const saved = data && typeof data === "object" ? data.properties : null;
-      for (const key of ALL_KEYS) {
-        let value;
-        try {
-          value = saved ? saved[key] : undefined;
-        } catch (_error) {
-          value = undefined;
+    batchListUpdate(properties, () => {
+      loading.add(object);
+      try {
+        properties.addAll(created);
+        const saved = data && typeof data === "object" ? data.properties : null;
+        for (const key of ALL_KEYS) {
+          let value;
+          try {
+            value = saved ? saved[key] : undefined;
+          } catch (_error) {
+            value = undefined;
+          }
+          created[key].load(value);
         }
-        created[key].load(value);
+        // Native rows follow the enumerable property order. Move only the
+        // suffix after rotation/order, retaining the same property instances,
+        // parent links and watchers.
+        const keys = Object.keys(properties).filter((key) => !ALL_KEYS.includes(key));
+        const anchor = keys.includes("eulerOrder") ? "eulerOrder" : "rotation";
+        const index = keys.indexOf(anchor);
+        if (index >= 0) {
+          const suffix = keys.slice(index + 1).map((key) => [key, Object.getOwnPropertyDescriptor(properties, key)]);
+          const rows = ALL_KEYS.map((key) => [key, Object.getOwnPropertyDescriptor(properties, key)]);
+          for (const [key] of rows.concat(suffix)) delete properties[key];
+          for (const [key, descriptor] of rows) Object.defineProperty(properties, key, descriptor);
+          for (const [key, descriptor] of suffix) Object.defineProperty(properties, key, descriptor);
+        }
+        attached.add(object);
+        syncVisibility(object, false);
+      } finally {
+        loading.delete(object);
       }
-      // Native rows follow the enumerable property order. Move only the
-      // suffix after rotation/order, retaining the same property instances,
-      // parent links and watchers.
-      const keys = Object.keys(properties).filter((key) => !ALL_KEYS.includes(key));
-      const anchor = keys.includes("eulerOrder") ? "eulerOrder" : "rotation";
-      const index = keys.indexOf(anchor);
-      if (index >= 0) {
-        const suffix = keys.slice(index + 1).map((key) => [key, Object.getOwnPropertyDescriptor(properties, key)]);
-        const rows = ALL_KEYS.map((key) => [key, Object.getOwnPropertyDescriptor(properties, key)]);
-        for (const [key] of rows.concat(suffix)) delete properties[key];
-        for (const [key, descriptor] of rows) Object.defineProperty(properties, key, descriptor);
-        for (const [key, descriptor] of suffix) Object.defineProperty(properties, key, descriptor);
-      }
-      attached.add(object);
-      syncVisibility(object, false);
-    } finally {
-      loading.delete(object);
-    }
+    });
     const id = readId(object);
     if (id && idTakenElsewhere(object, id)) {
       const next = createUuid(cryptoApi);
