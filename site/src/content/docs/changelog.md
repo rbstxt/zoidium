@@ -196,6 +196,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- With ExpressText+ on, Shader+ slider, seed, and angle rows repeated their
+  slider or button thousands of times, which made selecting a shader slow.
+  Each row now has one control again.
 - Audio waveforms were blank for 44.1 kHz audio. They now draw.
 - Waveforms of long files slowly drifted from the sound, by over a second at
   five minutes. WAV peaks now land on the exact point and MP3 peaks within

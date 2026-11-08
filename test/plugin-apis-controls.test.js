@@ -120,3 +120,35 @@ test("custom update errors cannot stop subsequent rows, and later updates can re
     assert.equal(editbox.pz_update(42), "updated");
   } finally { unregister(); console.warn = warn; }
 });
+
+test("a custom control that builds on the native generator under another wrapper is created once", () => {
+  const controls = PZ.ui.controls, before = controls.generateTextInput;
+  let created = 0;
+  const unregister = apis.propertyControls.register("test/builds-on-native", {
+    type: PZ.property.type.TEXT,
+    create(property) {
+      created += 1;
+      // Like a control that asks for the native row and adds a button to it.
+      const native = controls.generateTextInput.__zoidiumOriginal || controls.generateTextInput;
+      const row = native(property);
+      return { kind: "custom", buttons: (row.buttons || 0) + 1 };
+    },
+  });
+  const patched = controls.generateTextInput;
+  // A later plugin wraps the generator without naming the native one.
+  controls.generateTextInput = function (property) { return patched.apply(this, arguments); };
+  try {
+    const row = controls.generateTextInput({
+      definition: { type: PZ.property.type.TEXT, zoidiumControl: "test/builds-on-native" },
+    });
+    assert.equal(created, 1);
+    assert.equal(row.kind, "custom");
+    assert.equal(row.buttons, 1);
+  } finally {
+    controls.generateTextInput = patched;
+    unregister();
+    assert.equal(controls.generateTextInput, patched);
+    assert.notEqual(before, undefined);
+  }
+});
+

@@ -95,7 +95,7 @@
 
   installKeyframeContainerTraversal();
 
-  var propertyControlRegistrations = Object.create(null);
+  var propertyControlRegistrations = Object.create(null), creatingControls = new Set(); // A nested call during create() returns the native row.
   var propertyControlPatches = Object.create(null);
 
   function propertyControlGenerator(PZ, type) {
@@ -171,13 +171,13 @@
           ? property.definition.zoidiumControl
           : null;
         var custom = controlId ? propertyControlRegistrations[controlId] : null;
-        if (custom && property.definition.type === custom.type) {
+        if (custom && property.definition.type === custom.type && !creatingControls.has(property)) {
           var report = function (error) {
             if (custom.reported.has(property)) return;
             custom.reported.add(property);
             console.warn("[Zoidium] Property control failed: " + controlId, error);
           };
-          try {
+          creatingControls.add(property); try {
             var result = custom.create.call(this, property, {
               PZ: global.PZ,
               THREE: global.THREE,
@@ -186,7 +186,7 @@
               window: global,
             });
             if (result) return ensureEditbox(result, report);
-          } catch (error) { report(error); }
+          } catch (error) { report(error); } finally { creatingControls.delete(property); }
         }
         return original.apply(this, arguments);
       };

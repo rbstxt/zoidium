@@ -17,6 +17,9 @@ function installEditorRows(PZ) {
       if (!disposed) wrap(property, element);
       return element;
     };
+    // Callers that need the native generator follow __zoidiumOriginal past
+    // every wrapper. Without it they would call back into this one.
+    replacement.__zoidiumOriginal = original.__zoidiumOriginal || original;
     controls[name] = replacement;
     patches.push({name, original, replacement});
   }

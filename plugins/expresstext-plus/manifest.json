@@ -3,7 +3,7 @@
   "id": "expresstext-plus",
   "name": "ExpressText+",
   "author": "DaviFX",
-  "version": "5",
+  "version": "6",
   "kind": "object",
   "description": "Tracked-letter text effector stack: its Custom properties + offers only Shake, Plain, Random, Formula, Delay, Spline, Orbit, Repeater, Twist, Wrap and Voronoi with letter fields and C4D-style animation.",
   "objectClassParent": {
@@ -51,94 +51,94 @@
   "modules": [
     {
       "id": "expresstext-runtime",
-      "source": "./plugins/expresstext-plus/expresstext.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext.js?v=6"
     }
   ],
   "resources": [
     {
       "id": "expresstext-constants",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-constants.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-constants.js?v=6"
     },
     {
       "id": "expresstext-select",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-select.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-select.js?v=6"
     },
     {
       "id": "expresstext-formula",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-formula.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-formula.js?v=6"
     },
     {
       "id": "expresstext-random",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-random.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-random.js?v=6"
     },
     {
       "id": "expresstext-eval",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-eval.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-eval.js?v=6"
     },
     {
       "id": "expresstext-effectors",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-effectors.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-effectors.js?v=6"
     },
     {
       "id": "expresstext-voronoi",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-voronoi.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-voronoi.js?v=6"
     },
     {
       "id": "expresstext-delay",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-delay.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-delay.js?v=6"
     },
     {
       "id": "expresstext-sections",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-sections.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-sections.js?v=6"
     },
     {
       "id": "expresstext-section-values",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-section-values.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-section-values.js?v=6"
     },
     {
       "id": "expresstext-properties",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-properties.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-properties.js?v=6"
     },
     {
       "id": "expresstext-layout",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-layout.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-layout.js?v=6"
     },
     {
       "id": "expresstext-render",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-render.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-render.js?v=6"
     },
     {
       "id": "expresstext-plugin",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-plugin.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-plugin.js?v=6"
     },
     {
       "id": "expresstext-delay-cache",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-delay-cache.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-delay-cache.js?v=6"
     },
     {
       "id": "expresstext-field-guides",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-field-guides.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-field-guides.js?v=6"
     },
     {
       "id": "expresstext-editor-rows",
       "type": "text",
-      "source": "./plugins/expresstext-plus/expresstext-editor-rows.js?v=5"
+      "source": "./plugins/expresstext-plus/expresstext-editor-rows.js?v=6"
     }
   ]
 }
