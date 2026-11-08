@@ -72,8 +72,11 @@
     }
     function setGroup(editor, p, group) {
       group = String(group).trim();
-      if (!canAssign(p, group)) return false;
-      return edit(editor, p.parent, state => assign(state[p.parent.indexOf(p)], group));
+      const properties = Array.isArray(p) ? [...new Set(p)] : [p], list = properties[0]?.parent;
+      if (!properties.length || properties.some(property => property.parent !== list || !canAssign(property, group))) return false;
+      return edit(editor, list, state => {
+        for (const property of properties) assign(state[list.indexOf(property)], group);
+      });
     }
     function settings(editor, list, group, next) {
       const label = String(next.name).trim();

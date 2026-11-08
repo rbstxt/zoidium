@@ -144,6 +144,9 @@
     });
   }
   function choose(view, anchor, property) {
+    const selected = Array.from(view.el.querySelectorAll(".selected"), row => row.pz_object)
+      .filter(p => p instanceof PZ.property && p.parent === property.parent);
+    const properties = selected.includes(property) ? selected : [property];
     const form = panel(anchor, "Property group"), input = form.field("Group", "text", api.name(property));
     const doc = anchor.ownerDocument, choices = doc.createElement("datalist");
     choices.id = "zpg-choices-" + Math.random().toString(36).slice(2);
@@ -153,9 +156,9 @@
     input.setAttribute("list", choices.id); input.after(choices);
     input.placeholder = "Empty for no group";
     form.finish(() => {
-      if (!api.canAssign(property, input.value.trim())) return "Unlock the group before moving its properties";
+      if (properties.some(p => p.parent !== property.parent || !api.canAssign(p, input.value.trim()))) return "Unlock the group before moving its properties";
       if (view.editor.history.operation !== null) return "Finish the current edit first";
-      api.setGroup(view.editor, property, input.value);
+      api.setGroup(view.editor, properties, input.value);
     });
   }
   function propertyMenu(view, row, property) {
