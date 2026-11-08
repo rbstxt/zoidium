@@ -25,6 +25,7 @@ It moves the selected property rows into a new named group in one undo step.
 At least one property must be selected. The group name must be unused.
 Groups are stored on their member properties, so an empty group has no header.
 The group remains when its properties are edited, saved, reopened, or duplicated.
+New properties start outside existing groups, even after another Shader is deleted.
 Locked groups block moves into or out of the group.
 
 The shared group system controls collapse, locks, and display order.
