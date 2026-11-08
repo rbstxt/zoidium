@@ -15,6 +15,11 @@
   ],
   "resources": [
     {
+      "id": "precomp_resources",
+      "type": "text",
+      "source": "./plugins/precomp-plus/comps-resources.js?v=19"
+    },
+    {
       "id": "precomp-engine",
       "type": "text",
       "source": "./plugins/precomp-plus/comps.js?v=19"

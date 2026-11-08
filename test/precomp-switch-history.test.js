@@ -180,3 +180,36 @@ test("parked audio tracks, clip links, track switches, and markers retain their 
   assert.equal(seq.properties.markers.keyframes[0], marker);
   assert.equal(seq.audioTracks[0].clips[0], audio);
 });
+
+test("parking releases native allocations and media without unloading history targets", () => {
+  const f = nativeEnvironment(), { engine, editor, project, PZ } = f;
+  const id = engine.newEmptyComp(editor).id, clip = f.clip("Retained identity");
+  const { THREE } = require("./helpers/editor-identity-host.cjs").host();
+  const geometry = new THREE.PlaneBufferGeometry(1, 1);
+  const texture = new THREE.Texture({ width: 2, height: 2 });
+  const material = new THREE.MeshBasicMaterial({ map: texture });
+  clip.object.composite.quad.geometry = geometry;
+  clip.object.composite.quad.material = material;
+  const disposed = [];
+  for (const value of [geometry, texture, material]) value.addEventListener("dispose", () => disposed.push(value));
+  clip.unload = () => { throw Error("Authored unload cannot run during parking"); };
+  const media = { paused: false, src: "blob:shared", buffered: true,
+    pause() { this.paused = true; }, removeAttribute(name) { assert.equal(name, "src"); this.src = null; },
+    load() { this.buffered = false; } };
+  const schedule = new PZ.schedule(2); schedule.el = media; schedule.playing = true;
+  project.sequence.videoSchedules.push(schedule);
+  const before = JSON.stringify(project), property = clip.properties.name;
+  engine.openComp(editor, id);
+  assert.equal(disposed.length, 3);
+  assert.equal(media.paused, true); assert.equal(media.src, null); assert.equal(media.buffered, false);
+  const version = texture.version;
+  editor.history.undo();
+  assert.equal(project.sequence.videoTracks[0].clips[0], clip);
+  assert.equal(clip.properties.name, property);
+  assert.equal(JSON.stringify(project), before);
+  assert.equal(texture.version, version + 1, "resume requests a fresh upload from the same CPU image");
+  assert.equal(clip.object.composite.quad.geometry, geometry);
+  editor.history.redo();
+  assert.equal(disposed.length, 6);
+  assert.equal(engine.activeName(editor), "Comp 1");
+});

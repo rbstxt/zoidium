@@ -123,6 +123,7 @@ function switchComp({ editor, id }) {
     }
   }
   const incoming = session.timelines.get(id);
+  require("./comps-resources.js").suspend(state, project.sequence);
   session.activeId = id;
   if (incoming) timeline.restoreSequence(editor, incoming);
   else {

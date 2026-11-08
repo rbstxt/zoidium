@@ -128,7 +128,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/precomp-plus/manifest.json?v=19",
       "bundle": "./plugins/precomp-plus/bundle.json?v=19",
-      "integrity": "sha256-vIb1jR3HSbEvOT3Mhlunuw4oCUYysrdm1IGDyUtLV5U="
+      "integrity": "sha256-5XKquQf7e+b54vz+54IBD6szEl7Mtfotucrllbguzzg="
     },
     {
       "id": "gif-support",

@@ -161,6 +161,7 @@ function detachTracks(seq) {
 }
 
 function restoreSequence(editor, state) {
+  require("./comps-resources.js").resume(state);
   const seq = editor.project.sequence;
   detachTracks(seq);
   const data = replacementData(seq, state.json);
