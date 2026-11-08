@@ -2,7 +2,7 @@
 const test = require("node:test"), assert = require("node:assert/strict");
 const fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
 const { createRequire } = require("node:module");
-const { nativeHost, cache } = require("./expressions-plus-harness");
+const { nativeHost, cache, core } = require("./expressions-plus-harness");
 const constraints = require("../plugins/constraints/constraints");
 
 function fixture() {
@@ -30,7 +30,7 @@ function fixture() {
   return { ...native, editor, edit, project, scenes, a, b, operation, set };
 }
 
-test("native Follow edits, target deletion, undo, redo, duplication and reopen keep the link and deletion pose", () => {
+test("native Follow edits, target deletion, undo, redo, duplication and reopen keep the link and deletion pose", { skip: !fs.existsSync(core) }, () => {
   const { PZ, editor, edit, scenes, a, b, operation, set } = fixture();
   try {
     set(b.properties.zoidiumId, "driver"); set(b.properties.position, [12, 4, 2]);
@@ -57,7 +57,7 @@ test("native Follow edits, target deletion, undo, redo, duplication and reopen k
   } finally { constraints.deactivate(); }
 });
 
-test("native motion-blur sampling applies Follow at the half frame without recursive matrix updates", () => {
+test("native motion-blur sampling applies Follow at the half frame without recursive matrix updates", { skip: !fs.existsSync(core) }, () => {
   const { THREE, scenes, a, b, set } = fixture();
   try {
     set(b.properties.zoidiumId, "driver"); set(a.properties.zoidiumFollow, "driver");
