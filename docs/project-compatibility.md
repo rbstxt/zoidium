@@ -174,6 +174,17 @@ Track to field retain their existing rendering. Camera+ sequence camera layers
 are outside the same-scene target contract. See the
 [Constraints guide](../plugins/constraints/README.md) for light conventions.
 
+## Follow constraints
+
+Follow adds `zoidiumFollow`, `zoidiumFollowSpace`, `zoidiumFollowPosition`, `zoidiumFollowRotation`, and `zoidiumFollowScale` to object properties.
+Offsets use the native dynamic vector format in `zoidiumFollowPositionOffset`, `zoidiumFollowRotationOffset`, and `zoidiumFollowScaleOffset`.
+`zoidiumFollowFallback` stores a JSON local pose only when a native Delete operation removes the target.
+A nonempty `zoidiumFollow` requires the `constraints` plugin with feature `follow`.
+
+Target UUIDs use the existing `zoidiumId` field. Duplicate-tree remapping applies to Follow and Track To links.
+Default fields remain absent on untouched objects. Older builds ignore Follow and render the authored pose.
+See the [Constraints reference](../site/src/content/docs/reference/constraints.md) for output and missing-target behavior.
+
 ## Editor themes
 
 Theme Editor preferences do not enter project files, object properties or
