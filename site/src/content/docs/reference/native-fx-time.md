@@ -57,6 +57,10 @@ Evaluates the layer input at an offset in project frames.
 Fractional offsets are retained.
 This is a clock operator. It does not blend two frames or interpolate recorded footage.
 
+On a plain layer, **Time Offset** also retimes every effect after it. Moving it within the list does not isolate later effects.
+For example, at 30 FPS, an offset of +15 makes a later Shader+ effect read `Time` 0.5 seconds ahead.
+On an **Adjustment** layer above the footage, **Time Offset** followed by the Shader+ effect offsets the footage while the shader keeps the output time.
+
 **Offset (frames)** reads its keys and its expression at the output frame, so the offset can change on every frame.
 An expression result that is not a finite number reads as 0, and the expression row shows the error.
 The no-argument `random()` needs a seed. Use `random(frame)`, or call `seedRandom(1)` first.

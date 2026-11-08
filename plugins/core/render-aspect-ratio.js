@@ -5,6 +5,32 @@
   const DEFAULT_ASPECT_RATIO_MODE = 0;
   const BLACK_FILL_MODE = "black fill";
   const PATCH_MARKER = "__zoidiumRenderAspectRatioPatch";
+  const RESOLUTION_STORAGE_KEY = "zoidium.export.device-resolution";
+
+  function validateCustomSize(size) {
+    if (!Array.isArray(size) || size.length !== 2 || size.some(value =>
+      !Number.isInteger(value) || value < 2 || value > 8192 || value % 2 !== 0)) {
+      return "Width and height must be even whole numbers from 2 to 8192 pixels.";
+    }
+    if (size[0] * size[1] > 33554432) {
+      return "The output must contain no more than 33,554,432 pixels. Reduce width or height.";
+    }
+    return "";
+  }
+
+  function rememberResolution(params, preset) {
+    try {
+      localStorage.setItem(RESOLUTION_STORAGE_KEY, JSON.stringify({
+        preset, customResolution: params.customResolution,
+        aspectRatio: params.aspectRatio, aspectRatioMode: params.aspectRatioMode,
+      }));
+    } catch (_error) { /* Export still works when browser storage is unavailable. */ }
+  }
+
+  function readResolution() {
+    try { return JSON.parse(localStorage.getItem(RESOLUTION_STORAGE_KEY)) || {}; }
+    catch (_error) { return {}; }
+  }
 
   function isFinitePositive(value) {
     return Number.isFinite(Number(value)) && Number(value) > 0;
@@ -82,14 +108,20 @@
       DEFAULT_ASPECT_RATIO,
     );
     const mode = normalizeAspectRatioMode(params.aspectRatioMode, "cover");
-    const outputSize = getOutputSize(params.width, params.height, aspectRatio);
+    const custom = params.resolutionMode === "custom";
+    if (custom) {
+      const error = validateCustomSize(params.customResolution);
+      if (error) throw new Error(error);
+    }
+    const outputSize = custom ? params.customResolution.slice()
+      : getOutputSize(params.width, params.height, aspectRatio);
 
     params.width = outputSize[0];
     params.height = outputSize[1];
-    params.aspectRatio = aspectRatio.slice();
+    params.aspectRatio = custom ? outputSize.slice() : aspectRatio.slice();
     params.aspectRatioMode = mode === "contain" ? 1 : DEFAULT_ASPECT_RATIO_MODE;
 
-    return { aspectRatio, mode, outputSize };
+    return { aspectRatio: params.aspectRatio.slice(), mode, outputSize };
   }
 
   function captureCamera(camera) {
@@ -494,7 +526,18 @@
         readPositiveInteger(widthInput.value, currentWidth),
         readPositiveInteger(heightInput.value, currentHeight),
       ];
+      if (owner.params.resolutionMode === "custom") {
+        const size = getOutputSize(owner.params.width, owner.params.height, owner.params.aspectRatio);
+        const error = validateCustomSize(size);
+        if (error) {
+          owner.__zoidiumResolutionControls?.showError(error);
+          update();
+          return;
+        }
+        owner.params.customResolution = size;
+      }
       syncExportParams(owner.params);
+      owner.__zoidiumResolutionControls?.update();
       update();
     }
 
@@ -503,6 +546,99 @@
     row.pz_update = update;
     update();
     return row;
+  }
+
+  function createCustomResolutionInput(owner, page, select, aspectRatioRow) {
+    const row = document.createElement("div");
+    row.classList.add("proprow", "noselect");
+    const title = document.createElement("span");
+    title.innerText = "Output size (px)";
+    row.appendChild(title);
+    const controls = row.appendChild(document.createElement("div"));
+    controls.style.display = "flex";
+    controls.style.alignItems = "center";
+    const inputs = ["Output width (px)", "Output height (px)"].map((label, index) => {
+      if (index) {
+        const separator = controls.appendChild(document.createElement("span"));
+        separator.innerText = "×";
+        separator.style.margin = "0 8px";
+      }
+      const input = controls.appendChild(document.createElement("input"));
+      input.classList.add("pz-inputbox");
+      input.type = "text";
+      input.inputMode = "numeric";
+      input.autocomplete = "off";
+      input.style.width = "90px";
+      input.setAttribute("aria-label", label);
+      return input;
+    });
+    const message = document.createElement("div");
+    message.classList.add("proprow");
+    message.setAttribute("role", "alert");
+    const start = Array.from(page.querySelectorAll("button, .pz-button"))
+      .find(button => button.textContent.trim() === "Start");
+    const customIndex = select.options.length;
+    const option = document.createElement("option");
+    option.text = "Custom";
+    option.value = String(customIndex);
+    select.appendChild(option);
+    const saved = readResolution();
+    owner.params.customResolution = validateCustomSize(saved.customResolution)
+      ? [1920, 1080] : saved.customResolution.slice();
+
+    function showError(error) {
+      message.textContent = error;
+      message.style.display = error ? "" : "none";
+      for (const input of inputs) input.setAttribute("aria-invalid", String(!!error));
+      if (start) {
+        start.disabled = !!error;
+        start.setAttribute("aria-disabled", String(!!error));
+      }
+    }
+    function update() {
+      const custom = owner.params.resolutionMode === "custom";
+      row.style.display = custom ? "" : "none";
+      inputs.forEach((input, index) => { input.value = String(owner.params.customResolution[index]); });
+      showError("");
+      aspectRatioRow.pz_update();
+      rememberResolution(owner.params, select.selectedIndex);
+    }
+    function commit() {
+      if (owner.params.resolutionMode !== "custom") return true;
+      const size = inputs.map(input => Number(input.value.trim()));
+      const error = validateCustomSize(size);
+      showError(error);
+      if (error) return false;
+      owner.params.customResolution = size;
+      syncExportParams(owner.params);
+      aspectRatioRow.pz_update();
+      rememberResolution(owner.params, select.selectedIndex);
+      return true;
+    }
+    inputs.forEach(input => { input.oninput = commit; input.onchange = commit; });
+    // CM3 uses a clickable div for Start, so disabled alone does not guard it.
+    start?.addEventListener("click", event => {
+      if (!commit()) { event.preventDefault(); event.stopImmediatePropagation(); }
+    }, true);
+    const originalChange = select.onchange;
+    select.onchange = event => {
+      if (select.selectedIndex === customIndex) {
+        owner.params.resolutionMode = "custom";
+      } else {
+        delete owner.params.resolutionMode;
+        originalChange?.call(select, event);
+      }
+      syncExportParams(owner.params);
+      update();
+    };
+    owner.__zoidiumResolutionControls = { update, showError };
+    if (Number.isInteger(saved.preset) && saved.preset >= 0 && saved.preset <= customIndex) {
+      owner.params.aspectRatio = normalizeAspectRatio(saved.aspectRatio);
+      owner.params.aspectRatioMode = normalizeAspectRatioMode(saved.aspectRatioMode) === "contain" ? 1 : 0;
+      select.selectedIndex = saved.preset;
+      select.onchange();
+    } else update();
+    return [row, message];
   }
 
   function installDeviceExportPatch() {
@@ -536,6 +672,7 @@
           },
           set(value) {
             owner.params.aspectRatioMode = value;
+            owner.__zoidiumResolutionControls?.update();
           },
         },
         this,
@@ -558,12 +695,30 @@
           page.appendChild(aspectRatioRow);
           page.appendChild(modeRow);
         }
+        if (resolutionSelect.options) {
+          const rows = createCustomResolutionInput(this, page, resolutionSelect, aspectRatioRow);
+          for (const row of rows) {
+            if (aspectRatioRow.parentElement) {
+              aspectRatioRow.parentElement.insertBefore(row, aspectRatioRow);
+            } else page.appendChild(row);
+          }
+        }
       } else {
         page.appendChild(aspectRatioRow);
         page.appendChild(modeRow);
       }
 
       return page;
+    };
+    const originalRender = prototype.render;
+    prototype.render = async function renderWithSizeDiagnostic() {
+      try { return await originalRender.apply(this, arguments); }
+      catch (error) {
+        if (this.params?.resolutionMode !== "custom") throw error;
+        throw new Error("Export at " + this.params.width + "×" + this.params.height +
+          " failed. Try a smaller Resolution or another Format. " + (error?.message || "The encoder rejected this size."),
+        { cause: error });
+      }
     };
     prototype.__zoidiumAspectRatioPatch = true;
   }
