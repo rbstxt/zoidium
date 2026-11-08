@@ -25,6 +25,8 @@ const PlayerPlus = (() => {
     speedSelect: null,
     speedChanged: null,
     toolbarObserver: null,
+    layoutObservers: [],
+    layoutFrame: 0,
     style: null,
     quality: 1,
     paused: false,
@@ -109,7 +111,7 @@ const PlayerPlus = (() => {
       }
 
       .zoidium-player-plus-toolbar > span {
-        width: 8px !important;
+        width: var(--zoidium-player-plus-space, 8px) !important;
       }
 
       .zoidium-player-plus-pause,
@@ -469,6 +471,67 @@ const PlayerPlus = (() => {
     updateSpeedSelect();
   }
 
+  // CM3 centers its toolbar as text, which keeps play in the middle. The
+  // flex layout keeps narrow toolbars scrollable, so the native separators on
+  // each side of the transport buttons take the free space instead.
+  // Widths for the separators before and after the transport buttons. The
+  // measurements include the separators' current widths, which are removed
+  // first. Without enough room, play moves as close to the center as fits.
+  function playSpaces({ width, right, before, after, playLeft, playWidth, padding = 5, base = 8 }) {
+    const extraBefore = before - base, extraAfter = after - base;
+    const slack = Math.max(0, width - padding - (right - extraBefore - extraAfter));
+    const center = playLeft - extraBefore + playWidth / 2;
+    const shift = Math.min(slack, Math.max(0, width / 2 - center));
+    return [base + shift, base + slack - shift];
+  }
+
+  function centerPlayButton() {
+    state.layoutFrame = 0;
+    const toolbar = state.toolbar, Node = state.window?.Node;
+    if (!toolbar?.isConnected || !Node) return;
+    const children = Array.from(toolbar.children);
+    const play = children.find(el => el.tagName === "BUTTON" && el.title === "play (space)");
+    const spans = children.filter(el => el.tagName === "SPAN");
+    const before = spans.filter(el => el.compareDocumentPosition(play) & Node.DOCUMENT_POSITION_FOLLOWING).pop();
+    const after = spans.find(el => play && play.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+    if (!play || !before || !after) return;
+    let right = 0;
+    for (const el of children) if (el.offsetParent) right = Math.max(right, el.offsetLeft + el.offsetWidth);
+    const widths = playSpaces({ width: toolbar.clientWidth, right, before: before.offsetWidth, after: after.offsetWidth,
+      playLeft: play.offsetLeft, playWidth: play.offsetWidth });
+    for (const [span, width] of [[before, widths[0]], [after, widths[1]]]) {
+      const value = width.toFixed(1) + "px";
+      if (span.style.getPropertyValue("--zoidium-player-plus-space") !== value) span.style.setProperty("--zoidium-player-plus-space", value);
+    }
+  }
+
+  function scheduleCentering() {
+    if (!state.layoutFrame && state.window) state.layoutFrame = state.window.requestAnimationFrame(centerPlayButton);
+  }
+
+  function watchToolbarLayout(toolbar) {
+    unwatchToolbarLayout();
+    const win = state.window;
+    if (!win?.MutationObserver || !win.Node) return;
+    if (win.ResizeObserver) {
+      const resize = new win.ResizeObserver(scheduleCentering);
+      resize.observe(toolbar);
+      state.layoutObservers.push(resize);
+    }
+    // Other plugins add, hide, and show toolbar buttons after Player+.
+    const mutations = new win.MutationObserver(scheduleCentering);
+    mutations.observe(toolbar, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "style", "class"] });
+    state.layoutObservers.push(mutations);
+    scheduleCentering();
+  }
+
+  function unwatchToolbarLayout() {
+    for (const observer of state.layoutObservers) observer.disconnect();
+    state.layoutObservers = [];
+    if (state.layoutFrame) state.window?.cancelAnimationFrame(state.layoutFrame);
+    state.layoutFrame = 0;
+  }
+
   function installControls(toolbar) {
     if (!toolbar) return;
     if (toolbar.dataset.zoidiumPlayerPlus === "true") {
@@ -485,6 +548,7 @@ const PlayerPlus = (() => {
         state.speedSelect = speedSelect;
         updateSpeedSelect();
         updatePauseButton();
+        watchToolbarLayout(toolbar);
         return;
       }
       delete toolbar.dataset.zoidiumPlayerPlus;
@@ -497,6 +561,7 @@ const PlayerPlus = (() => {
     createQualitySelect(toolbar);
     createSpeedSelect(toolbar);
     applyQualityToAllViewports();
+    watchToolbarLayout(toolbar);
   }
 
   function watchForToolbar() {
@@ -516,7 +581,9 @@ const PlayerPlus = (() => {
   }
 
   function removeControls() {
+    unwatchToolbarLayout();
     if (state.toolbar) {
+      for (const span of state.toolbar.querySelectorAll(":scope > span")) span.style.removeProperty("--zoidium-player-plus-space");
       state.toolbar.classList.remove("zoidium-player-plus-toolbar");
       delete state.toolbar.dataset.zoidiumPlayerPlus;
     }
@@ -578,7 +645,7 @@ const PlayerPlus = (() => {
     state.paused = false;
   }
 
-  return { activate, deactivate };
+  return { activate, deactivate, playSpaces };
 })();
 
 module.exports = PlayerPlus;
