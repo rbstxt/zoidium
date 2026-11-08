@@ -62,8 +62,17 @@ test("loading preserves valid members of a damaged group and leaves other valid 
   assert.equal(JSON.stringify(reloaded), JSON.stringify(project));
 });
 
-test("valid project loads and serialization match the unpatched native loader exactly", { skip: !fs.existsSync(core) }, () => {
-  const f = fixture(false), input = data({ 3: { clips: [audio, video, other] } });
+test("repairing a broken group leaves a separate valid group unchanged", { skip: !fs.existsSync(core) }, () => {
+  const { load } = fixture(), input = data({ 3: { clips: [[], audio] }, 9: { clips: [other, video] } });
+  const project = load(input), seq = project.sequence;
+  assert.deepEqual(copy(seq.clipLinks), { seed: 17, links: { 9: input.sequence.clipLinks.links[9] } });
+  assert.equal(seq.audioTracks[0].clips[0].link, null);
+  assert.equal(seq.videoTracks[0].clips[0].link, seq.videoTracks[1].clips[0].link);
+});
+
+for (const linked of [false, true]) test(`valid ${linked ? "linked" : "unlinked"} project loads and serialization match the unpatched native loader exactly`,
+  { skip: !fs.existsSync(core) }, () => {
+  const f = fixture(false), input = data(linked ? { 3: { clips: [audio, video, other] } } : {});
   const before = JSON.stringify(input), expected = JSON.stringify(f.load(input));
   f.install();
   const project = f.load(input);

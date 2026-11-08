@@ -122,3 +122,86 @@ test("unlinked clip deletion keeps the native history behavior", { skip: !fs.exi
   editor.history.undo(); liveLinks();
   assert.equal(JSON.stringify(sequence), before);
 });
+
+test("undoing linked media creation records only its native inverse operation", { skip: !fs.existsSync(core) }, () => {
+  const { editor, sequence, tracks, operation, add, liveLinks } = fixture();
+  // Empty native tracks already exist when media is added to the timeline.
+  add(0, 0); add(1, 0);
+  sequence.videoTracks[0].clips.splice(0, 1); sequence.audioTracks[0].clips.splice(0, 1);
+  operation(() => {
+    for (const type of [0, 1]) tracks.createClip({ type, newTrackIdx: 0, newIdx: 0,
+      start: 0, length: 60, data: { start: 0, length: 60, object: { type: 0 } } });
+    for (const type of [0, 1]) tracks.linkClip({ clip: [0, type + 1, 0, 0, 0], link: 0 });
+  });
+  const before = serialized(sequence);
+  assert.equal(editor.history.undoStack.stack[0].length, 4);
+  for (let cycle = 0; cycle < 3; cycle++) {
+    editor.history.undo();
+    assert.equal(sequence.videoTracks[0].clips.length, 0);
+    assert.equal(sequence.audioTracks[0].clips.length, 0);
+    assert.equal(editor.history.undoStack.length, 0);
+    assert.equal(editor.history.redoStack.length, 1);
+    assert.equal(editor.history.redoStack.stack[0].length, 4);
+    assert.equal(editor.history.operation, null);
+    editor.history.redo(); liveLinks();
+    assert.equal(serialized(sequence), before);
+    assert.equal(editor.history.undoStack.length, 1);
+    assert.equal(editor.history.undoStack.stack[0].length, 4);
+    assert.equal(editor.history.redoStack.length, 0);
+    assert.equal(editor.history.operation, null);
+  }
+});
+
+test("nested track deletion and its replay keep one operation without extra inverse commands", { skip: !fs.existsSync(core) }, () => {
+  const { editor, tracks, operation, add, liveLinks } = fixture();
+  add(0, 0, 0); add(1, 0, 0);
+  const remove = () => {
+    tracks.deleteClip({ type: 0, oldTrackIdx: 0, oldIdx: 0 });
+    tracks.deleteTrack({ type: 0, oldTrackIdx: 0 });
+  };
+  operation(() => { const active = editor.history.operation; remove(); assert.equal(editor.history.operation, active); });
+  for (let cycle = 0; cycle < 3; cycle++) {
+    assert.equal(editor.history.undoStack.length, 1);
+    assert.equal(editor.history.undoStack.stack[0].length, 4);
+    editor.history.undo(); liveLinks();
+    assert.equal(editor.history.redoStack.length, 1);
+    assert.equal(editor.history.redoStack.stack[0].length, 4);
+    editor.history.redo(); liveLinks();
+    assert.equal(editor.history.redoStack.length, 0);
+    assert.equal(editor.history.operation, null);
+  }
+});
+
+for (const nested of [false, true]) test(`asset removal of a linked clip joins ${nested ? "an existing" : "one new"} history operation`,
+  { skip: !fs.existsSync(core) }, async () => {
+    const { PZ, context, editor, sequence, tracks, add, liveLinks } = fixture();
+    const video = add(0, 0, 0); add(1, 0, 0);
+    video.properties = { media: { get: () => "footage" } };
+    const before = serialized(sequence), usage = {};
+    context.CM = editor;
+    context.ZoidiumAssetRegistryParts = { panelsOf: () => ({ tracks }) };
+    vm.runInContext(fs.readFileSync(require.resolve("../plugins/core/asset-registry-edits.js"), "utf8"), context);
+    const edits = context.ZoidiumAssetRegistryParts.createEdits({ PZ,
+      snapshot: () => ({ items: [{ id: "footage", source: "embedded", usages: [usage] }] }),
+      refresh() {}, adapters: new Map(), usageRecords: new WeakMap([[usage, { clip: video }]]) });
+    if (nested) editor.history.startOperation();
+    const active = editor.history.operation;
+    assert.equal((await edits.removeItems(["footage"])).ok, true);
+    if (nested) {
+      assert.equal(editor.history.operation, active);
+      assert.equal(editor.history.undoStack.length, 0);
+      editor.history.finishOperation();
+    }
+    const removed = serialized(sequence);
+    assert.equal(sequence.videoTracks[0].clips.length, 0); liveLinks();
+    for (let cycle = 0; cycle < 3; cycle++) {
+      assert.equal(editor.history.undoStack.length, 1);
+      assert.equal(editor.history.undoStack.stack[0].length, 3);
+      editor.history.undo(); liveLinks();
+      assert.equal(serialized(sequence), before);
+      assert.equal(editor.history.redoStack.stack[0].length, 3);
+      editor.history.redo(); liveLinks();
+      assert.equal(serialized(sequence), removed);
+      assert.equal(editor.history.operation, null);
+    }
+  });
