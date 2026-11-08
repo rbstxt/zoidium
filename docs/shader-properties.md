@@ -19,7 +19,9 @@ Apply without edits leaves the definition and current value unchanged.
 ## Numbers and vectors
 
 Slider is a NUMBER with a range bar. Angle stores radians and displays degrees.
-Toggle (an off/on menu) and Dropdown store NUMBER values. Their editors write integers and
+Toggle and Dropdown store NUMBER values. Toggle uses an off/on menu by default.
+Its Property settings also offers Display = Checkbox for one-click changes.
+Changing Display preserves the current value, animation, expressions, and shader output. Their editors write integers and
 new keys use Hold. Attaching these editors never rounds evaluated values or
 changes old key interpolation. Fractional expressions reach GLSL unchanged:
 
@@ -42,11 +44,51 @@ do not count. Static dropdown uses native OPTION storage and a compile-time
 straight RGBA vec4. Point (a vec2 with UV/pixel metadata) is no longer offered
 in the menu; saved Point properties keep loading and binding as vec2.
 
-Groups appear as collapsible headings in the native list. The tooltip
-appears on the row. "Visible when" picks another property of the effect and
-the values that show this row, for example Mode with `1; 2`. It is stored as
-`{"property":"Mode","values":[1,2]}`, uses the controller's native evaluated
-value and affects the editor only.
+## Reset behavior
+
+The native Properties reset on a Shader effect preserves the fragment shader code.
+It resets the other native properties, including Name and Enabled.
+The separate **Reset custom properties to defaults** button is on the Shader properties heading.
+It resets all custom controls in one undo step and preserves their definitions and groups.
+
+The custom reset clears keyframes and expressions and restores a static value at frame 0.
+This follows After Effects' Reset behavior instead of adding a key at the current frame.
+The reset uses `zoidiumShader.default` when present.
+Otherwise, it uses the property's definition value or its native default.
+Vector controls reset every component. Gradient, Curve, Palette, and Text restore their default JSON values.
+Undo restores the previous values, keyframes, and expression source together.
+
+## Groups and visibility
+
+Groups appear as collapsible headings in the native list. The tooltip appears on the row.
+The Shader properties **+** list includes **Group**, which search also finds.
+This action moves the selected rows into a new named group in one undo step.
+It requires at least one selected property and an unused group name.
+Locked groups prevent moves into or out of the group.
+
+**Visible when** selects another property in the same effect.
+**Has value** accepts exact values, comparisons, and inclusive numeric ranges.
+Semicolons join alternatives with OR.
+
+| Input | The row appears when the controller value is |
+| --- | --- |
+| `> 5.5` | Greater than 5.5 |
+| `>= 1` | At least 1 |
+| `< 0` | Less than 0 |
+| `<= 2` | At most 2 |
+| `!= 3` | Different from 3 |
+| `= 4` | Equal to 4 |
+| `1..5` | Between 1 and 5, including both endpoints |
+| `1; 2; > 5.5` | Equal to 1 or 2, or greater than 5.5 |
+
+Comparisons use the controller's native evaluated number, including animation and expressions.
+Invalid operators, nonnumeric comparison operands, and reversed ranges show an error before Apply saves changes.
+Existing exact-value conditions keep strict equality, including saved strings that contain operator characters.
+Visibility affects editor rows only. Hidden controls still reach the shader, Preview cache, and exports with their current values.
+
+Exact values retain the saved `{"property":"Mode","values":[1,2]}` format.
+New comparisons add a `conditions` array, such as `{"op":">","value":5.5}` or `{"op":"range","min":1,"max":5}`.
+The `values` and `conditions` arrays are alternatives. Any match shows the row.
 
 ## Keyframe data in shaders
 

@@ -1,7 +1,8 @@
 "use strict";
 const test = require("node:test"), assert = require("node:assert/strict");
 const { FakeElement } = require("./fake-dom");
-const { nativeHost } = require("./expressions-plus-harness");
+const fs = require("node:fs"), vm = require("node:vm");
+const { nativeHost, cache } = require("./expressions-plus-harness");
 const { installEditor } = require("../plugins/shader-plus/editor");
 class Element extends FakeElement {
   get value() { return this._value || ""; }
@@ -14,22 +15,32 @@ class Element extends FakeElement {
   after(node) { this.parentElement.insertBefore(node, this.parentElement.children[this.parentElement.children.indexOf(this) + 1]); }
 }
 function setup(definition) {
-  const { PZ } = nativeHost();
-  PZ.ui = { objectTypes: new Map([[PZ.property, []]]), edit: class {}, properties: class {} };
+  const { PZ, context: realm } = nativeHost();
+  try { vm.runInContext(fs.readFileSync(cache + "/ui-1.0.72.js", "utf8"), realm); }
+  catch (error) { if (error.message !== "Image is not defined") throw error; }
+  const History = PZ.ui.history;
+  PZ.ui = { ...PZ.ui, objectTypes: new Map([[PZ.property, []]]), edit: class {}, properties: class {} };
   let edits = 0;
   const editor = { project: { forEachItemOfType() {}, ui: { onChanged: { update() {} } } },
     history: { operation: null, startOperation() { edits++; }, pushCommand() {}, finishOperation() {}, discardOperation() {} } };
   const context = { PZ, editor, document: { createElement: tag => new Element(tag) }, window: { setInterval() {}, clearInterval() {} }, lifecycle: { onDispose() {} } };
+  editor.onProjectChanged = new PZ.observable();
+  editor.history = new History(editor); editor.history.projectChanged();
+  const start = editor.history.startOperation.bind(editor.history);
+  editor.history.startOperation = () => { edits++; start(); };
   const api = installEditor({ context, patch() {}, presetFont: () => null });
   const effect = Object.create(PZ.effect.shader.prototype); effect.customProperties = new PZ.objectList(effect, PZ.property);
   const p = PZ.property.create(definition); effect.customProperties.push(p); p.load(); p.properties.name.set("Value"); p.getAddress = () => [0];
+  editor.project.addressLookup = () => p;
   const parent = new Element("ul"), row = new Element("li"); row.append(new Element("div")); parent.append(row);
   api.settings(row, p);
   const panel = parent.lastElementChild;
   function all(node) { return [node, ...node.children.flatMap(all)]; }
   const find = label => all(panel).find(node => node.getAttribute("aria-label") === label);
-  const apply = () => { all(panel).find(node => node.textContent === "Apply").onclick(); assert.equal(all(panel).find(node => node.className === "zsp-settings-error").textContent, ""); };
-  return { PZ, p, api, find, apply, edits: () => edits };
+  const submit = () => all(panel).find(node => node.textContent === "Apply").onclick();
+  const error = () => all(panel).find(node => node.className === "zsp-settings-error").textContent;
+  const apply = () => { submit(); assert.equal(error(), ""); };
+  return { PZ, p, api, editor, find, apply, submit, error, edits: () => edits };
 }
 test("native numeric settings show Slider ranges and untouched Apply preserves the exact definition", () => {
   const { p, find, apply, edits } = setup({ custom: true, dynamic: true, type: 0, value: .375, decimals: 5 });
@@ -63,4 +74,40 @@ for (const definition of [
   assert.equal(edited.p.definition.zoidiumShader.kind, undefined);
   assert.equal(edited.p.definition.zoidiumControl, undefined);
   assert.equal(JSON.stringify(edited.p.get(0)), value);
+});
+
+const { KINDS } = require("../plugins/shader-plus/kinds");
+const { matches } = require("../plugins/shader-plus/visibility");
+test("Toggle display changes only metadata and survives undo, redo, reopen, and duplication", () => {
+  const { PZ, p, find, apply, editor } = setup(KINDS.checkbox.create());
+  p.keyframes[0].value = .375;
+  const keys = JSON.stringify(p.keyframes), before = JSON.stringify(p);
+  find("Display").value = "checkbox"; apply();
+  assert.equal(p.get(0), .375); assert.equal(JSON.stringify(p.keyframes), keys);
+  assert.equal(p.definition.zoidiumShader.display, "checkbox");
+  const after = JSON.stringify(p); editor.history.undo(); assert.equal(JSON.stringify(p), before);
+  editor.history.redo(); assert.equal(JSON.stringify(p), after);
+  for (let i = 0; i < 2; i++) { const data = JSON.parse(after), q = PZ.property.create(data.type); q.load(data); assert.equal(JSON.stringify(q), after); }
+});
+test("Visible when comparisons survive undo, redo, reopen, and duplication without changing values", () => {
+  const { PZ, p, find, apply, editor } = setup(KINDS.slider.create());
+  const before = JSON.stringify(p), value = p.get(0);
+  find("Visible when").value = "Controller"; find("Has value").value = "> 5.5; 1..5; != 3"; apply();
+  const when = p.definition.zoidiumShader.visibleWhen;
+  assert.equal(matches(when, 6), true); assert.equal(matches(when, 3), true); assert.equal(p.get(0), value);
+  const after = JSON.stringify(p); editor.history.undo(); assert.equal(JSON.stringify(p), before);
+  editor.history.redo(); assert.equal(JSON.stringify(p), after);
+  for (let i = 0; i < 2; i++) { const data = JSON.parse(after), q = PZ.property.create(data.type); q.load(data); assert.equal(JSON.stringify(q), after); }
+});
+test("invalid visibility input leaves the settings open and does not write history", () => {
+  const { p, find, submit, error, editor } = setup(KINDS.slider.create()), before = JSON.stringify(p);
+  find("Visible when").value = "Controller"; find("Has value").value = "> nope"; submit();
+  assert.match(error(), /Use a number/); assert.equal(JSON.stringify(p), before); assert.equal(editor.history.undoStack.length, 0);
+});
+test("editing unrelated settings retains legacy literal operator strings exactly", () => {
+  const definition = KINDS.slider.create(); definition.zoidiumShader.visibleWhen = { property: "Controller", values: ["> 5", "1..5", "3", 3] };
+  const { p, find, apply } = setup(definition);
+  find("Tooltip").value = "Help"; apply(); assert.deepEqual(p.definition.zoidiumShader.visibleWhen, definition.zoidiumShader.visibleWhen);
+  assert.equal(matches(p.definition.zoidiumShader.visibleWhen, "> 5"), true);
+  assert.equal(matches(p.definition.zoidiumShader.visibleWhen, 6), false);
 });

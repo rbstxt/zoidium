@@ -5,6 +5,10 @@ function installGroupMenu({ context, patch }) {
   let open;
   const close = () => { open?.remove(); open = null; };
   context.lifecycle.onDispose(close);
+  for (const method of ["objectsChanged", "unload", "unloadListItem"]) patch(PZ.ui.edit.prototype, method, original => function () {
+    if (open && this.el.contains(open)) close();
+    return original?.apply(this, arguments);
+  });
   patch(PZ.ui.edit.prototype, "generateAdd", original => function (list) {
     if (!(list?.parent instanceof PZ.effect.shader) || list.parent.customProperties !== list) return original.apply(this, arguments);
     const selected = Array.from(this.el.querySelectorAll(".selected"), row => row.pz_object).filter(p => p instanceof PZ.property && p.parent === list);

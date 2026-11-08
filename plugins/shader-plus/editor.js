@@ -139,6 +139,7 @@ function installEditor({ context, patch, presetFont }) {
     if (groups && !groups.canAssign(p, "")) groupField.disabled = true;
     input(common, "help", "Tooltip", meta.help);
     const others = (effect?.customProperties || []).filter(q => q !== p).map(q => q.properties.name.get());
+    if (meta.visibleWhen?.property && !others.includes(meta.visibleWhen.property)) others.push(meta.visibleWhen.property);
     const when = select(common, "when", "Visible when", [["", "Always"], ...others.map(n => [n, n])], meta.visibleWhen?.property || "");
     const values = input(common, "whenValues", "Has value", formatConditions(meta.visibleWhen));
     values.placeholder = "e.g. > 5.5; 1..5; != 3";
