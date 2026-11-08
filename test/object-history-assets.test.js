@@ -96,6 +96,7 @@ test("native clip delete and duplicate history restore shared assets before load
   PZ.schedule.analyzeSequence = () => {};
   const tracks = Object.create(PZ.ui.timeline.tracks.prototype);
   tracks.timeline = { sequence: project.sequence, editor };
+  tracks.sequence = project.sequence;
   tracks.updateSequenceLength = () => {};
   const check = () => track.clips[0].assets.forEach((asset, i) => {
     assert.equal(asset, assets[i]);
