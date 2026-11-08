@@ -23,6 +23,9 @@ The reset preserves property definitions, names, and groups.
 The **Shader properties** **+** list includes a searchable **Group** entry.
 It moves the selected property rows into a new named group in one undo step.
 At least one property must be selected. The group name must be unused.
+Groups are stored on their member properties, so an empty group has no header.
+The group remains when its properties are edited, saved, reopened, or duplicated.
+New properties start outside existing groups, even after another Shader is deleted.
 Locked groups block moves into or out of the group.
 
 The shared group system controls collapse, locks, and display order.
@@ -49,6 +52,17 @@ Semicolons join alternatives with OR.
 Comparisons use the controller's evaluated number, including animation and expressions.
 Invalid operands, operators, and reversed ranges show an error before Apply saves changes.
 Existing saved exact values retain strict equality, including strings with operator characters.
+
+An unreachable Toggle or Dropdown condition shows a warning in the settings panel.
+Apply still saves the condition and keeps the panel open.
+The warning checks known choices and saved key values.
+Expressions and interpolated animation can produce other values, so these controllers do not receive this warning.
+
+The **Show hidden** eye button on the **Shader properties** heading reveals rows hidden by **Visible when**.
+These rows appear dimmed and keep their settings menu available.
+The button does not expand collapsed groups.
+Show hidden is panel state. It is not saved in the project and creates no Undo step.
+Existing saved visibility conditions remain unchanged, including conditions inherited from older property definitions.
 
 Visibility affects editor rows only.
 Hidden properties still supply their current values to shaders, Preview cache frames, and exports.

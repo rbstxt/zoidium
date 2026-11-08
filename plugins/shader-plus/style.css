@@ -73,6 +73,9 @@
 .zsp-settings-options { resize: vertical; font: inherit; margin: 3px 0; display: block; }
 .zsp-settings-error { color: var(--zui-danger); font-size: var(--zui-font-size-compact); padding-top: 4px; }
 .zsp-settings-error:empty { display: none; }
+.zsp-settings-warning { color: var(--zui-text-muted); }
+.zsp-hidden-property { opacity: .5; }
+.zsp-show-hidden[aria-pressed=true] { color: var(--zui-accent); }
 .zsp-settings-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 8px 0; }
 .zsp-settings-button { font: inherit; font-size: var(--zui-font-size-small); color: var(--zui-button-text); background: var(--zui-button-bg); border: 1px solid transparent; padding: 3px 14px; cursor: pointer; }
 .zsp-settings-button:hover { border-color: var(--zui-button-hover-border); }

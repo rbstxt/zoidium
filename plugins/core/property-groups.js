@@ -1,6 +1,24 @@
 (function (global) {
   "use strict";
+  function ownDefinition(value) {
+    if (Array.isArray(value)) return value.map(ownDefinition);
+    if (!value || typeof value !== "object") return value;
+    const prototype = Object.getPrototypeOf(value);
+    // Definitions contain plain data plus native callbacks. Keep callbacks
+    // and class instances intact instead of passing them through JSON.
+    if (prototype && Object.getPrototypeOf(prototype)) return value;
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, ownDefinition(entry)]));
+  }
   function install(PZ) {
+    if (!PZ.property.create.zoidiumOwnsCustomDefinitions) {
+      const create = PZ.property.create;
+      PZ.property.create = function (definition) {
+        // The picker, list loader, duplicate, and history paths all use this
+        // factory. Native construction aliases type and definition to the copy.
+        return create.call(this, definition?.custom ? ownDefinition(definition) : definition);
+      };
+      PZ.property.create.zoidiumOwnsCustomDefinitions = true;
+    }
     const FIELD = "zoidiumPropertyGroup", locks = new WeakMap();
     const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
     const meta = p => p.definition?.[FIELD] || {};

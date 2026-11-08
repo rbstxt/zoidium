@@ -3,11 +3,12 @@ const { KINDS, ORDER, kindOf, items, MAX_TIME_SAMPLES } = require("./kinds.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 const NUMERIC = ["slider", "seed"], OPTIONS = ["dropdown", "staticDropdown"];
 const list = text => String(text).split(/[\n;]/).map(s => s.trim()).filter(Boolean);
-const { parseConditions, formatConditions, matches } = require("./visibility.js");
+const { parseConditions, formatConditions, matches, unreachable } = require("./visibility.js");
 const { installReset } = require("./reset.js");
 function installEditor({ context, patch, presetFont }) {
   const { PZ, editor: CM, document: doc, window: win } = context;
   const rows = new Set(), connectedRows = new WeakSet();
+  const rowViews = new WeakMap(), showHidden = new WeakMap(), buttons = new Set();
   const groups = PZ.zoidium?.propertyGroups;
   const { resetCustom } = installReset({ context, patch });
   require("./group-menu.js").installGroupMenu({ context, patch });
@@ -43,8 +44,9 @@ function installEditor({ context, patch, presetFont }) {
   function snapshot(p) { return { definition: historyDefinition(p.definition), name: p.properties.name.get() }; }
   function apply(p, state) {
     const collapsed = groups?.meta(p).collapsed;
-    for (const key of Object.keys(p.definition)) delete p.definition[key];
-    Object.assign(p.definition, clone(state.definition)); p.properties.name.set(state.name);
+    // Native picker entries can share their definition with existing rows.
+    // Both aliases must follow the owned copy: CM3 serializes `type`.
+    p.type = p.definition = clone(state.definition); p.properties.name.set(state.name);
     if (groups) {
       const meta = { ...p.definition.zoidiumPropertyGroup }; delete meta.collapsed;
       if (collapsed !== undefined) meta.collapsed = collapsed;
@@ -147,6 +149,16 @@ function installEditor({ context, patch, presetFont }) {
     const syncWhen = () => { values.closest(".zsp-settings-line").hidden = !when.value; };
     when.addEventListener("change", syncWhen); syncWhen();
     const error = doc.createElement("div"); error.className = "zsp-settings-error"; error.setAttribute("role", "status"); error.style.paddingLeft = indent + "px";
+    function warning() {
+      if (!when.value) return "";
+      const controller = effect?.customProperties.find(q => q.properties.name.get() === when.value);
+      try {
+        const condition = when.value === initialWhen && values.value === initialValues ? meta.visibleWhen : parseConditions(values.value);
+        return unreachable(condition, controller) ? "This condition cannot match the controller's choices. Use Show hidden to edit the property." : "";
+      } catch (_error) { return ""; }
+    }
+    const showWarning = () => { error.textContent = warning(); error.classList.toggle("zsp-settings-warning", !!error.textContent); };
+    when.addEventListener("change", showWarning); values.addEventListener("input", showWarning); showWarning();
     const actionsRow = doc.createElement("div"); actionsRow.className = "zsp-settings-actions";
     const cancel = doc.createElement("button"); cancel.type = "button"; cancel.textContent = "Cancel"; cancel.className = "zsp-settings-button";
     const ok = doc.createElement("button"); ok.type = "button"; ok.textContent = "Apply"; ok.className = "zsp-settings-button zsp-settings-primary";
@@ -212,8 +224,13 @@ function installEditor({ context, patch, presetFont }) {
         }
         if (Object.keys(next).length) definition.zoidiumShader = next;
         else delete definition.zoidiumShader;
+        const message = warning(), parent = row.parentElement;
         closeSettings(); edit(p, { definition, name });
-      } catch (e) { error.textContent = e.message; }
+        if (message) {
+          const currentRow = Array.from(parent?.children || []).find(child => child.pz_object === p);
+          if (currentRow) settings(currentRow, p);
+        }
+      } catch (e) { error.classList.remove("zsp-settings-warning"); error.textContent = e.message; }
     };
     panel.append(title, body, error, actionsRow);
     panel.addEventListener("keydown", e => {
@@ -249,10 +266,31 @@ function installEditor({ context, patch, presetFont }) {
     const row = original.apply(this, arguments), effect = effectOf(p);
     if (!effect || !this.options.showPropertyControls) return row;
     const view = this;
+    rowViews.set(row, view);
     row.classList.add("zsp-property");
     rows.add(new WeakRef(row));
     row.oncontextmenu = event => { event.preventDefault(); event.stopPropagation(); context.ui.openMenu({ owner: row, x: event.clientX, y: event.clientY, items: actions(view, row, p) }); };
     sync(); return row;
+  });
+  patch(PZ.ui.edit.prototype, "generateItemCommands", original => function (row, list) {
+    const result = original.apply(this, arguments);
+    if (list instanceof PZ.objectList && list.parent instanceof PZ.effect.shader && list.parent.customProperties === list && !this.options.hideAllListItemButtons) {
+      const button = this.generateButton("visible"), view = this;
+      button.title = "Show hidden"; button.setAttribute("aria-label", "Show hidden properties");
+      button.classList.add("zsp-show-hidden"); button.setAttribute("aria-pressed", String(!!showHidden.get(view)));
+      button.onclick = event => {
+        event.stopPropagation(); const value = !showHidden.get(view); showHidden.set(view, value);
+        for (const ref of buttons) {
+          const other = ref.deref(); if (!other) buttons.delete(ref);
+          else if (other.view === view) other.button.setAttribute("aria-pressed", String(value));
+        }
+        sync();
+      };
+      // The button owns this record; the registry must not retain its view.
+      button.zspVisibility = { view, button }; buttons.add(new WeakRef(button.zspVisibility));
+      row.children[1].prepend(button);
+    }
+    return result;
   });
   if (win.ZoidiumUI?.registerMenuExtension) context.lifecycle.onDispose(win.ZoidiumUI.registerMenuExtension({ id: "shader-plus/settings", items(options) {
     const row = options?.owner?.closest?.("li"), p = row?.pz_object;
@@ -270,13 +308,20 @@ function installEditor({ context, patch, presetFont }) {
       const meta = p.definition.zoidiumShader || {};
       const when = meta.visibleWhen, controller = when && effect.customProperties.find(q => q.properties.name.get() === when.property);
       const visible = !when || !!controller && matches(when, controller.get(CM.playback.currentFrame - p.frameOffset));
-      row.hidden = !visible;
+      const reveal = !visible && !!showHidden.get(rowViews.get(row));
+      row.hidden = !visible && !reveal;
+      row.classList.toggle("zsp-hidden-property", reveal);
       if (row.nextElementSibling?.tagName === "UL" && p.definition.group) row.nextElementSibling.hidden = row.hidden;
       if (meta.help) { row.title = meta.help; row.firstElementChild.title = meta.help; }
     }
   }
   const timer = win.setInterval(sync, 100);
-  context.lifecycle.onDispose(() => { win.clearInterval(timer); closeSettings(); for (const ref of rows) { const row = ref.deref(); if (!row) continue; row.hidden = false; row.parentElement?.querySelectorAll(".zsp-settings").forEach(el => el.remove()); } rows.clear(); });
+  context.lifecycle.onDispose(() => {
+    win.clearInterval(timer); closeSettings();
+    for (const ref of rows) { const row = ref.deref(); if (!row) continue; row.hidden = false; row.classList.remove("zsp-hidden-property"); row.parentElement?.querySelectorAll(".zsp-settings").forEach(el => el.remove()); }
+    for (const ref of buttons) ref.deref()?.button.remove();
+    rows.clear(); buttons.clear();
+  });
   // New keys created by the discrete editors use hold. Existing keys and
   // user-selected tweens keep their values, including history replay.
   for (const method of ["startEdit", "toggleKeyframe"]) patch(PZ.ui.properties.prototype, method, original => function discreteKey(p) {

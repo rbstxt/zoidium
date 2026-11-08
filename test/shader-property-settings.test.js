@@ -14,7 +14,7 @@ class Element extends FakeElement {
   insertBefore(child, ref) { child.parentElement?.removeChild(child); return super.insertBefore(child, ref); }
   after(node) { this.parentElement.insertBefore(node, this.parentElement.children[this.parentElement.children.indexOf(this) + 1]); }
 }
-function setup(definition) {
+function setup(definition, controllers = []) {
   const { PZ, context: realm } = nativeHost();
   try { vm.runInContext(fs.readFileSync(cache + "/ui-1.0.72.js", "utf8"), realm); }
   catch (error) { if (error.message !== "Image is not defined") throw error; }
@@ -33,12 +33,13 @@ function setup(definition) {
   const p = PZ.property.create(definition); effect.customProperties.push(p); p.load(); p.properties.name.set("Value"); p.getAddress = () => [0];
   editor.project.addressLookup = () => p;
   const parent = new Element("ul"), row = new Element("li"); row.append(new Element("div")); parent.append(row);
+  for (const record of controllers) { const q = PZ.property.create(record.definition); effect.customProperties.push(q); q.load(); q.properties.name.set(record.name); if (record.expression) q.expression = record.expression; }
   api.settings(row, p);
   const panel = parent.lastElementChild;
   function all(node) { return [node, ...node.children.flatMap(all)]; }
   const find = label => all(panel).find(node => node.getAttribute("aria-label") === label);
   const submit = () => all(panel).find(node => node.textContent === "Apply").onclick();
-  const error = () => all(panel).find(node => node.className === "zsp-settings-error").textContent;
+  const error = () => all(panel).find(node => node.classList.contains("zsp-settings-error")).textContent;
   const apply = () => { submit(); assert.equal(error(), ""); };
   return { PZ, p, api, editor, find, apply, submit, error, edits: () => edits };
 }
@@ -110,4 +111,38 @@ test("editing unrelated settings retains legacy literal operator strings exactly
   find("Tooltip").value = "Help"; apply(); assert.deepEqual(p.definition.zoidiumShader.visibleWhen, definition.zoidiumShader.visibleWhen);
   assert.equal(matches(p.definition.zoidiumShader.visibleWhen, "> 5"), true);
   assert.equal(matches(p.definition.zoidiumShader.visibleWhen, 6), false);
+});
+
+test("editing one native property leaves its shared template and peers unchanged", () => {
+  const template = { custom: true, dynamic: true, type: 0, value: .375 };
+  const { PZ, p, find, apply, editor } = setup(template);
+  const peer = PZ.property.create(template); peer.load();
+  const before = JSON.stringify(template), savedPeer = JSON.stringify(peer);
+  find("Visible when").value = "Controller"; find("Has value").value = "1"; apply();
+  assert.equal(JSON.stringify(template), before);
+  assert.equal(JSON.stringify(peer), savedPeer);
+  assert.equal(p.type, p.definition, "native serialization uses the edited owned definition");
+  assert.notEqual(p.definition, template);
+  const after = JSON.stringify(p);
+  editor.history.undo(); assert.equal(JSON.stringify(p.definition), before);
+  editor.history.redo(); assert.equal(JSON.stringify(p), after);
+  const next = PZ.property.create(template); next.load();
+  assert.equal(next.definition.zoidiumShader, undefined);
+});
+
+test("an unreachable menu condition warns and still saves in one reversible operation", () => {
+  const { PZ, p, find, submit, error, editor } = setup(KINDS.slider.create(), [{ name: "Mode", definition: KINDS.dropdown.create() }]);
+  const before = JSON.stringify(p), value = p.get(0);
+  find("Visible when").value = "Mode"; find("Has value").value = "3"; find("Has value").dispatch("input");
+  assert.match(error(), /cannot match/); submit();
+  assert.equal(editor.history.undoStack.length, 1); assert.equal(p.get(0), value);
+  assert.deepEqual(p.definition.zoidiumShader.visibleWhen, { property: "Mode", values: [3] });
+  const after = JSON.stringify(p); editor.history.undo(); assert.equal(JSON.stringify(p), before);
+  editor.history.redo(); assert.equal(JSON.stringify(p), after);
+  for (let i = 0; i < 2; i++) { const data = JSON.parse(after), q = PZ.property.create(data.type); q.load(data); assert.equal(JSON.stringify(q), after); }
+});
+test("a reachable menu condition saves without an unreachable warning", () => {
+  const { find, apply, error } = setup(KINDS.slider.create(), [{ name: "Mode", definition: KINDS.dropdown.create() }]);
+  find("Visible when").value = "Mode"; find("Has value").value = "2"; find("Has value").dispatch("input");
+  assert.equal(error(), ""); apply();
 });
