@@ -2,6 +2,44 @@
   "use strict";
 
   const PZ = global.PZ;
+  if (typeof PZ?.clipLinks === "function" && !PZ.clipLinks.__zoidiumValidClipLinks) {
+    const ClipLinks = PZ.clipLinks;
+    function loadClipLinks(sequence, data) {
+      let repaired = data;
+      if (data?.links) {
+        const members = new Set();
+        for (const track of [...sequence.videoTracks, ...sequence.audioTracks]) {
+          for (const clip of track.clips) members.add(clip);
+        }
+        const links = {};
+        let changed = false;
+        for (const [key, link] of Object.entries(data.links)) {
+          const clips = link.clips.filter(address => {
+            if (!Array.isArray(address)) return false;
+            // A deleted clip serializes as [], which resolves to the project.
+            // Missing tracks can also throw during the native address walk.
+            try { return members.has(sequence.parent.addressLookup(address)); }
+            catch { return false; }
+          });
+          if (clips.length > 1) {
+            links[key] = clips.length === link.clips.length ? link : { ...link, clips };
+          } else {
+            // Clip.load keeps nonzero serialized link keys until this
+            // constructor replaces them. Removed singletons need null too.
+            for (const address of clips) sequence.parent.addressLookup(address).link = null;
+          }
+          if (clips.length < 2 || clips.length !== link.clips.length) changed = true;
+        }
+        // Keep valid data and its member order intact. Loading must never use
+        // the timeline unlink commands, which record undo operations.
+        if (changed) repaired = { ...data, links };
+      }
+      return new ClipLinks(sequence, repaired);
+    }
+    loadClipLinks.prototype = ClipLinks.prototype;
+    loadClipLinks.__zoidiumValidClipLinks = true;
+    PZ.clipLinks = loadClipLinks;
+  }
   const tracks = PZ?.ui?.timeline?.tracks?.prototype;
   if (tracks?.deleteClip && !tracks.deleteClip.__zoidiumReleasesRenderLists) {
     const deleteClip = tracks.deleteClip;
