@@ -38,3 +38,7 @@ test("Group rejects an empty selection and locked source groups without partial 
   assert.match(form.querySelectorAll("div").find(d => d.getAttribute("role") === "status").textContent, /Unlock/);
   assert.equal(JSON.stringify(list), before); assert.equal(editor.history.undoStack.length, count);
 });
+test("rebuilding a view closes the inline Group form before native list teardown", () => {
+  const { rows, open, view } = setup(); rows[0].classList.add("selected"); const form = open();
+  assert.ok(form.parentElement); view.objectsChanged(); assert.equal(form.parentElement, null);
+});

@@ -13,7 +13,7 @@ function resetProperty(ops, property, value) {
   if (value !== undefined) ops.setValue({ property: property.getAddress(), frame: 0, value: d.type === T.OPTION ? String(value) : copy(value) });
 }
 function installReset({ context, patch }) {
-  const { PZ, editor: CM, document: doc } = context;
+  const { PZ, editor: CM } = context;
   const shaderProperties = list => list instanceof PZ.propertyList && list.parent instanceof PZ.effect.shader && list.parent.properties === list;
   patch(PZ.ui.properties.prototype, "resetAll", original => function (list) {
     if (!shaderProperties(list)) return original.apply(this, arguments);
@@ -35,9 +35,8 @@ function installReset({ context, patch }) {
   patch(PZ.ui.edit.prototype, "generateItemCommands", original => function (row, list) {
     const result = original.apply(this, arguments);
     if (list instanceof PZ.objectList && list.parent instanceof PZ.effect.shader && list.parent.customProperties === list && !this.options.hideAllListItemButtons) {
-      const button = doc.createElement("button"); button.className = "actionbutton";
+      const button = this.generateButton("reset");
       button.title = "Reset custom properties to defaults"; button.setAttribute("aria-label", button.title);
-      button.append(PZ.ui.generateIcon("reset"));
       button.onclick = event => { event.stopPropagation(); resetCustom(list.parent, this.propertyOps); };
       row.children[1].prepend(button);
     }

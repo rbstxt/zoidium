@@ -65,3 +65,14 @@ test("only the Shader Properties list excludes fragment source from native reset
   const other = new PZ.propertyList({ fragShader: { type: 11, value: "other" } }, new PZ.object()); other.load();
   ops.resetAll(other); assert.deepEqual(reset, [other.fragShader]);
 });
+test("vector-level expressions and component animations restore together on Undo", () => {
+  const { PZ, effect, editor, api } = host(), definition = KINDS.color4.create();
+  definition.zoidiumShader.default = [.1, .2, .3, .4];
+  const p = PZ.property.create(definition); effect.customProperties.push(p); p.load();
+  for (const child of p.objects) { child.animated = true; child.addKeyframe(new PZ.keyframe(.8, 12)); }
+  p.expression = new PZ.expression("[.9,.8,.7,.6]");
+  const before = JSON.stringify(p); api.resetCustom(effect);
+  assert.equal(!!p.expression, false); assert.deepEqual(copy(p.get(15)), definition.zoidiumShader.default);
+  editor.history.undo(); assert.equal(JSON.stringify(p), before);
+  editor.history.redo(); assert.deepEqual(copy(p.get(15)), definition.zoidiumShader.default);
+});
