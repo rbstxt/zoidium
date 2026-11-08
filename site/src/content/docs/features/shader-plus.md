@@ -29,3 +29,5 @@ With Expressions+ enabled, declare `uniform float zFps;` for the sequence frame 
 
 To organize controls into collapsible sections, follow
 [Organize custom properties into groups](/docs/how-to/organize-property-groups/).
+
+[Shader property settings](/docs/reference/shader-property-settings/) covers reset buttons, comparisons in Visible when, and Toggle display choices.

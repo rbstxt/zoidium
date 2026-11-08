@@ -25,3 +25,5 @@ Expressions+ を有効にして `uniform float zFps;` を宣言すると、シ�
 
 コントロールを折りたたみ可能なセクションに整理するには、
 [カスタムプロパティをグループに整理する](/docs/ja/how-to/organize-property-groups/)を参照してください。
+
+[Shader プロパティ設定](/docs/ja/reference/shader-property-settings/)では、リセットボタン、Visible when の比較、Toggle の表示方法を説明します。

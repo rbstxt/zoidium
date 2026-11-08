@@ -3,10 +3,14 @@ const { KINDS, ORDER, kindOf, items, MAX_TIME_SAMPLES } = require("./kinds.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 const NUMERIC = ["slider", "seed"], OPTIONS = ["dropdown", "staticDropdown"];
 const list = text => String(text).split(/[\n;]/).map(s => s.trim()).filter(Boolean);
+const { parseConditions, formatConditions, matches } = require("./visibility.js");
+const { installReset } = require("./reset.js");
 function installEditor({ context, patch, presetFont }) {
   const { PZ, editor: CM, document: doc, window: win } = context;
   const rows = new Set(), connectedRows = new WeakSet();
   const groups = PZ.zoidium?.propertyGroups;
+  const { resetCustom } = installReset({ context, patch });
+  require("./group-menu.js").installGroupMenu({ context, patch });
   let openPanel = null;
   function uniqueName(base) {
     const names = new Set();
@@ -115,6 +119,7 @@ function installEditor({ context, patch, presetFont }) {
         input(specific, "default", "Default (°)", same && Number.isFinite(meta.default) ? meta.default * 180 / Math.PI : "", "number");
       } else if (k === "checkbox") {
         select(specific, "default", "Default", [["0", "off"], ["1", "on"]], String(same ? meta.default ?? 0 : 0));
+        select(specific, "display", "Display", [["menu", "Off/on menu"], ["checkbox", "Checkbox"]], meta.display || "menu");
       } else if (OPTIONS.includes(k)) {
         const area = doc.createElement("textarea"); area.className = "pz-inputbox zsp-settings-options"; area.rows = 4; area.spellcheck = false;
         area.placeholder = "One option per line"; area.value = items(d).join("\n");
@@ -134,9 +139,11 @@ function installEditor({ context, patch, presetFont }) {
     if (groups && !groups.canAssign(p, "")) groupField.disabled = true;
     input(common, "help", "Tooltip", meta.help);
     const others = (effect?.customProperties || []).filter(q => q !== p).map(q => q.properties.name.get());
+    if (meta.visibleWhen?.property && !others.includes(meta.visibleWhen.property)) others.push(meta.visibleWhen.property);
     const when = select(common, "when", "Visible when", [["", "Always"], ...others.map(n => [n, n])], meta.visibleWhen?.property || "");
-    const values = input(common, "whenValues", "Has value", (meta.visibleWhen?.values || []).join("; "));
-    values.placeholder = "e.g. 1; 2";
+    const values = input(common, "whenValues", "Has value", formatConditions(meta.visibleWhen));
+    values.placeholder = "e.g. > 5.5; 1..5; != 3";
+    const initialWhen = when.value, initialValues = values.value;
     const syncWhen = () => { values.closest(".zsp-settings-line").hidden = !when.value; };
     when.addEventListener("change", syncWhen); syncWhen();
     const error = doc.createElement("div"); error.className = "zsp-settings-error"; error.setAttribute("role", "status"); error.style.paddingLeft = indent + "px";
@@ -164,7 +171,7 @@ function installEditor({ context, patch, presetFont }) {
         const next = { ...meta };
         if (changedKind) {
           next.kind = kind.value;
-          for (const key of ["default", "items", "space", "editor", "axis", "units"]) delete next[key];
+          for (const key of ["default", "items", "space", "editor", "axis", "units", "display"]) delete next[key];
         }
         if (NUMERIC.includes(kind.value)) {
           for (const key of ["min", "max", "step"]) { const n = number(key); if (n === undefined) delete definition[key]; else definition[key] = n; }
@@ -179,6 +186,7 @@ function installEditor({ context, patch, presetFont }) {
           const def = number("default"); if (def !== undefined) { next.default = def * Math.PI / 180; definition.value = next.default; }
         } else if (kind.value === "checkbox") {
           next.default = Number(fields.default.value) ? 1 : 0;
+          next.display = fields.display.value;
         } else if (OPTIONS.includes(kind.value)) {
           const labels = list(fields.items.value).slice(0, 32);
           if (!labels.length) throw new Error("Add at least one option");
@@ -193,9 +201,7 @@ function installEditor({ context, patch, presetFont }) {
         }
         for (const key of ["group", "help"]) { const v = fields[key].value.trim(); if (v) next[key] = v; else delete next[key]; }
         if (when.value) {
-          const allowed = list(values.value).map(v => Number.isFinite(Number(v)) ? Number(v) : v);
-          if (!allowed.length) throw new Error("Enter the values that show this property");
-          next.visibleWhen = { property: when.value, values: allowed };
+          if (when.value !== initialWhen || values.value !== initialValues) next.visibleWhen = { property: when.value, ...parseConditions(values.value) };
         } else delete next.visibleWhen;
         const name = fields.name.value.trim();
         if (!name) throw new Error("Enter a name");
@@ -263,8 +269,7 @@ function installEditor({ context, patch, presetFont }) {
       if (!effect) { rows.delete(ref); continue; }
       const meta = p.definition.zoidiumShader || {};
       const when = meta.visibleWhen, controller = when && effect.customProperties.find(q => q.properties.name.get() === when.property);
-      const frame = CM.playback.currentFrame - p.frameOffset;
-      const visible = !when || !!controller && when.values.includes(controller.get(frame));
+      const visible = !when || !!controller && matches(when, controller.get(CM.playback.currentFrame - p.frameOffset));
       row.hidden = !visible;
       if (row.nextElementSibling?.tagName === "UL" && p.definition.group) row.nextElementSibling.hidden = row.hidden;
       if (meta.help) { row.title = meta.help; row.firstElementChild.title = meta.help; }
@@ -280,6 +285,6 @@ function installEditor({ context, patch, presetFont }) {
     this.createKeyframe = function (record) { return create.call(this, { ...record, data: { ...record.data, tween: 0 } }); };
     try { return original.apply(this, arguments); } finally { this.createKeyframe = create; }
   });
-  return { settings, edit, effectOf, sync };
+  return { settings, edit, effectOf, sync, resetCustom };
 }
 module.exports = { installEditor };

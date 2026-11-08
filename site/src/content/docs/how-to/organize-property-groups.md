@@ -18,6 +18,18 @@ You can also drag a property onto an unlocked group heading or one of its rows.
 
 To remove a property from a group, open **Group…**, clear **Group**, and click **Apply**.
 
+## Create a Shader group from the + list
+
+1. Select the Shader property rows to move.
+2. Click **+** on the **Shader properties** heading.
+3. Search for `group`.
+4. Choose **Group**.
+5. Enter an unused group name in **Name**.
+6. Click **Apply**.
+
+Undo restores all selected rows in one step.
+If any selected row belongs to a locked group, unlock that group before moving the rows.
+
 ## Change group settings
 
 1. Click **Settings** beside the group name.
