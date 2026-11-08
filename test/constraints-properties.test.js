@@ -49,9 +49,9 @@ function setup() {
 }
 
 test("untouched constraints omit their fields and insert rows after rotation order", () => {
-  const { object } = setup();
+  const { object, store } = setup();
   const item = object();
-  assert.deepEqual(Object.keys(item.properties).slice(4, 9), Object.values(KEYS));
+  assert.deepEqual(Object.keys(item.properties).slice(4, 4 + store.ROW_KEYS.length + 1), [...store.ROW_KEYS, KEYS.id]);
   const json = JSON.parse(JSON.stringify(item.properties));
   for (const key of Object.values(KEYS)) assert.equal(Object.hasOwn(json, key), false);
   assert.equal(item.properties[KEYS.target].visible, true);

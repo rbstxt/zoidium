@@ -16,6 +16,7 @@
 // exactly as before. Older builds ignore the unknown property keys.
 
 const math = require("./track-to-math.js");
+const { FOLLOW_KEYS, FOLLOW_CONTROL, followDefinitions } = require("./follow-properties.js");
 
 const KEYS = Object.freeze({
   target: "zoidiumTrackTo",
@@ -23,11 +24,13 @@ const KEYS = Object.freeze({
   upAxis: "zoidiumUpAxis",
   influence: "zoidiumInfluence",
   id: "zoidiumId",
+  ...FOLLOW_KEYS,
 });
-const ROW_KEYS = [KEYS.target, KEYS.trackAxis, KEYS.upAxis, KEYS.influence];
+const ROW_KEYS = [KEYS.target, KEYS.trackAxis, KEYS.upAxis, KEYS.influence, ...Object.values(FOLLOW_KEYS)];
 const ALL_KEYS = ROW_KEYS.concat([KEYS.id]);
 const CONTROL_IDS = Object.freeze({
   target: "constraints/track-to",
+  follow: FOLLOW_CONTROL,
   trackAxis: "constraints/track-axis",
   upAxis: "constraints/up-axis",
 });
@@ -135,6 +138,7 @@ function createPropertyStore(options) {
         value: "",
       },
     };
+    Object.assign(definitions, followDefinitions(T, function () { handleChange(this, true); }));
     const entry = { definitions, defaults: {} };
     for (const key of ALL_KEYS) {
       const { changed: _changed, ...probeDefinition } = definitions[key];
@@ -157,6 +161,7 @@ function createPropertyStore(options) {
     if (targetChanged) {
       syncVisibility(object, true);
       onTargetChanged(object);
+      onStructureChanged(object);
     }
     onValueChanged(object);
   }
@@ -196,6 +201,11 @@ function createPropertyStore(options) {
 
   function readTarget(object) {
     const value = readStatic(object, KEYS.target, "");
+    return typeof value === "string" ? value : "";
+  }
+
+  function readFollow(object) {
+    const value = readStatic(object, KEYS.follow, "");
     return typeof value === "string" ? value : "";
   }
 
@@ -253,6 +263,10 @@ function createPropertyStore(options) {
       [KEYS.upAxis]: hasTarget && kind === "rotation",
       [KEYS.influence]: hasTarget && kind !== "none",
     };
+    const hasFollow = readFollow(object) !== "";
+    for (const key of Object.values(FOLLOW_KEYS)) wanted[key] = hasFollow && kind === "rotation";
+    wanted[KEYS.follow] = kind === "rotation";
+    wanted[KEYS.fallback] = false;
     let changed = false;
     for (const key of ROW_KEYS) {
       const property = propertyOf(object, key);
@@ -380,15 +394,17 @@ function createPropertyStore(options) {
     batch = null;
     if (finished.remap.size === 0) return;
     for (const object of finished.objects) {
-      const target = readTarget(object);
-      if (target && finished.remap.has(target)) {
-        loading.add(object);
-        try {
-          setRaw(object, KEYS.target, finished.remap.get(target));
-        } finally {
-          loading.delete(object);
+      for (const key of [KEYS.target, KEYS.follow]) {
+        const target = readStatic(object, key, "");
+        if (target && finished.remap.has(target)) {
+          loading.add(object);
+          try {
+            setRaw(object, key, finished.remap.get(target));
+          } finally {
+            loading.delete(object);
+          }
+          onTargetChanged(object);
         }
-        onTargetChanged(object);
       }
     }
   }
@@ -430,6 +446,7 @@ function createPropertyStore(options) {
     endLoad,
     ensureId,
     readTarget,
+    readFollow,
     readId,
     readTrackAxis,
     readUpAxis,
