@@ -111,3 +111,20 @@ test("editing unrelated settings retains legacy literal operator strings exactly
   assert.equal(matches(p.definition.zoidiumShader.visibleWhen, "> 5"), true);
   assert.equal(matches(p.definition.zoidiumShader.visibleWhen, 6), false);
 });
+
+test("editing one native property leaves its shared template and peers unchanged", () => {
+  const template = { custom: true, dynamic: true, type: 0, value: .375 };
+  const { PZ, p, find, apply, editor } = setup(template);
+  const peer = PZ.property.create(template); peer.load();
+  const before = JSON.stringify(template), savedPeer = JSON.stringify(peer);
+  find("Visible when").value = "Controller"; find("Has value").value = "1"; apply();
+  assert.equal(JSON.stringify(template), before);
+  assert.equal(JSON.stringify(peer), savedPeer);
+  assert.equal(p.type, p.definition, "native serialization uses the edited owned definition");
+  assert.notEqual(p.definition, template);
+  const after = JSON.stringify(p);
+  editor.history.undo(); assert.equal(JSON.stringify(p.definition), before);
+  editor.history.redo(); assert.equal(JSON.stringify(p), after);
+  const next = PZ.property.create(template); next.load();
+  assert.equal(next.definition.zoidiumShader, undefined);
+});

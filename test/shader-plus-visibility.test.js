@@ -21,3 +21,25 @@ test("legacy values retain exact native equality without interpreting strings", 
   for (const value of old.values) assert.equal(matches(old, value), true);
   for (const value of [4, 6, false, null, undefined]) assert.equal(matches(old, value), false);
 });
+
+const { unreachable } = require("../plugins/shader-plus/visibility");
+const { KINDS } = require("../plugins/shader-plus/kinds");
+function controller(kind, overrides = {}) {
+  return { definition: KINDS[kind].create(), keyframes: [{ value: 0 }], ...overrides };
+}
+test("finite controller choices warn about unreachable conditions without rejecting them", () => {
+  assert.equal(unreachable(parseConditions("3"), controller("dropdown")), true);
+  assert.equal(unreachable(parseConditions("2"), controller("dropdown")), false);
+  assert.equal(unreachable(parseConditions("> 5"), controller("checkbox")), true);
+  assert.equal(unreachable(parseConditions("1..5"), controller("checkbox")), false);
+  assert.equal(unreachable({ values: ["2"] }, controller("staticDropdown")), false);
+  assert.equal(unreachable({ values: [2] }, controller("staticDropdown")), true, "static options retain strict string equality");
+});
+test("visibility warnings preserve evaluated values and unknown controller ranges", () => {
+  const when = parseConditions("3");
+  assert.equal(unreachable(when, controller("dropdown", { expression: {} })), false);
+  assert.equal(unreachable(when, controller("dropdown", { interpolated: true })), false);
+  assert.equal(unreachable(when, controller("dropdown", { keyframes: [{ value: 3 }] })), false);
+  assert.equal(unreachable(when, controller("slider")), false);
+  assert.equal(unreachable(when, null), false);
+});
