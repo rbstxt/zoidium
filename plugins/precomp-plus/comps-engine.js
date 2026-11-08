@@ -363,11 +363,8 @@ function removeComp(editor, id) {
   if (usage.length) {
     return fail(compName(media) + " is used by " + describeUsage(usage) + ". Remove those clips before deleting it.");
   }
-  if (session.activeId === id) {
-    const left = openComp(editor, null);
-    if (!left.ok) return left;
-  }
   runOperation(editor, function () {
+    if (session.activeId === id) switchComp({ editor, id: null });
     cmdRemoveComp({ editor: editor, project: project, id: id });
   });
   notifyListeners();

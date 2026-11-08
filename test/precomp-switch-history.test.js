@@ -105,11 +105,10 @@ test("undoing deletion reopens its source with its original live objects", () =>
   const original = f.clip("Inside");
   assert.equal(f.engine.removeComp(f.editor, id).ok, true);
   assert.equal(f.engine.isEditing(f.project), false);
-  f.editor.history.undo(); // Restore the deleted media.
-  f.editor.history.undo(); // Reverse the switch to Main.
+  f.editor.history.undo(); // Restore the media before reopening its source.
   assert.equal(f.engine.activeName(f.editor), "Comp 1");
   assert.ok(f.project.sequence.videoTracks.some(track => track.clips.includes(original)));
-  f.editor.history.redo(); f.editor.history.redo();
+  f.editor.history.redo();
   assert.equal(f.project.media.length, 0);
   assert.equal(f.engine.isEditing(f.project), false);
 });
@@ -139,5 +138,21 @@ test("frame rate edits update parked compositions without replacing native comma
   assert.equal(inside.object.properties.position.objects[0].keyframes[0], sourceKey);
   editor.history.redo(); assert.equal(JSON.stringify(project), after);
   editor.history.redo();
+  assert.equal(project.sequence.videoTracks.at(-1).clips[0], inside);
+});
+
+test("a new edit after undoing a switch discards redo without touching the closed timeline", () => {
+  const f = nativeEnvironment(), { editor, project, engine, PZ } = f;
+  const main = f.clip("Main"), id = engine.newEmptyComp(editor).id;
+  engine.openComp(editor, id); const inside = f.clip("Inside");
+  engine.openComp(editor, null); editor.history.undo();
+  assert.ok(editor.history.redoStack.length);
+  editor.history.startOperation();
+  new PZ.ui.properties(editor).setValue({ property: inside.properties.name.getAddress(), value: "Branched" });
+  editor.history.finishOperation();
+  assert.equal(editor.history.redoStack.length, 0);
+  editor.history.redo();
+  assert.equal(inside.properties.name.get(), "Branched");
+  assert.equal(main.properties.name.get(), "Main");
   assert.equal(project.sequence.videoTracks.at(-1).clips[0], inside);
 });
