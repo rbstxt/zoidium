@@ -196,6 +196,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- After Pre-compose selection, or after switching compositions, clips that no
+  longer existed stayed selected. Their panels could not add objects or set
+  keys, and a failed add made Ctrl+Z do nothing. The selection now clears.
+- Group… with several custom properties selected now puts all of them in the
+  group, as one undo step.
 - With ExpressText+ on, Shader+ slider, seed, and angle rows repeated their
   slider or button thousands of times, which made selecting a shader slow.
   Each row now has one control again.
