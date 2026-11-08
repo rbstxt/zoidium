@@ -99,11 +99,26 @@ function install(context, teardown) {
   });
 
   const followEvaluator = createFollowEvaluator({ PZ, THREE, store, trackEvaluator: evaluator });
+  function refreshFollowTargets(project) {
+    project.forEachItemOfType(PZ.object3d, object => {
+      if (store.readFollow(object)) {
+        const property = object.properties[store.KEYS.follow];
+        property.onChanged?.update(property.get());
+      }
+    });
+  }
   if (PZ.ui?.edit?.prototype?.deleteObject) {
     patchMethod(PZ.ui.edit.prototype, "deleteObject", original => function deleteWithFollowPose(operation) {
       const list = this.editor.project.addressLookup(operation.oldParentAddress);
-      if (live && list?.[operation.oldIdx]) followEvaluator.captureDeleted(list[operation.oldIdx], this.editor);
-      return original.apply(this, arguments);
+      if (live && list?.[operation.oldIdx]) followEvaluator.captureDeleted(list[operation.oldIdx], this.editor, this.propertyOps);
+      const result = original.apply(this, arguments);
+      if (live) refreshFollowTargets(this.editor.project);
+      return result;
+    }, teardown);
+    patchMethod(PZ.ui.edit.prototype, "createObject", original => function createWithFollowTargets() {
+      const result = original.apply(this, arguments);
+      if (live) refreshFollowTargets(this.editor.project);
+      return result;
     }, teardown);
   }
 

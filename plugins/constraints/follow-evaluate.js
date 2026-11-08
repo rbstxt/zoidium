@@ -27,14 +27,16 @@ function createFollowEvaluator({ PZ, THREE, store, trackEvaluator, report = cons
     const matrix = new THREE.Matrix4();
     if (local) matrix.copy(target.threeObj.matrix);
     else matrix.copy(target.threeObj.matrixWorld);
-    matrix.decompose(position, rotation, scale);
     const p = read(host, store.KEYS.positionOffset, frame, [0, 0, 0]);
     const r = read(host, store.KEYS.rotationOffset, frame, [0, 0, 0]);
     const s = read(host, store.KEYS.scaleOffset, frame, [1, 1, 1]);
-    position.add(new THREE.Vector3(...p));
-    rotation.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(...r, three.rotation.order)));
-    scale.multiply(new THREE.Vector3(...s));
-    matrix.compose(position, rotation, scale);
+    if (r.some(value => value !== 0)) {
+      matrix.decompose(position, rotation, scale);
+      rotation.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(...r, three.rotation.order)));
+      matrix.compose(position, rotation, scale);
+    }
+    matrix.elements[12] += p[0]; matrix.elements[13] += p[1]; matrix.elements[14] += p[2];
+    matrix.scale(new THREE.Vector3(...s));
     if (!local && three.parent) {
       if (Math.abs(three.parent.matrixWorld.determinant()) < 1e-12) return;
       matrix.premultiply(new THREE.Matrix4().getInverse(three.parent.matrixWorld));
@@ -66,7 +68,8 @@ function createFollowEvaluator({ PZ, THREE, store, trackEvaluator, report = cons
     const nodes = [], byHost = new Map(), byId = new Map();
     function add(host, parent, entry, time) {
       if (!host.threeObj) return;
-      const three = new THREE.Object3D();
+      const nativeCamera = PZ.object3d.camera && host instanceof PZ.object3d.camera;
+      const three = nativeCamera ? host.threeObj.clone(false) : new THREE.Object3D();
       const node = { host, scene: entry.scene, frame: time, parent, threeObj: three, objects: [], properties: host.properties };
       nodes.push(node); byHost.set(host, node); parent.objects.push(node); parent.threeObj.add(three);
       const id = store.readId(host);
@@ -74,6 +77,13 @@ function createFollowEvaluator({ PZ, THREE, store, trackEvaluator, report = cons
       three.position.fromArray(read(host, "position", time, [0, 0, 0]));
       three.rotation.set(...read(host, "rotation", time, [0, 0, 0]), read(host, "eulerOrder", time, host.threeObj.rotation.order));
       three.scale.fromArray(read(host, "scale", time, [1, 1, 1]));
+      if (nativeCamera) {
+        // Camera shake writes only to this detached camera. The live target
+        // can belong to a scene that has never rendered at the requested time.
+        const shadow = Object.create(host);
+        shadow.threeObj = three;
+        host.update.call(shadow, time);
+      }
       if (store.classify(host) === "light") {
         three.target = new THREE.Object3D();
         three.target.position.fromArray(read(host, "target", time, [0, 0, 0]));
@@ -131,11 +141,11 @@ function createFollowEvaluator({ PZ, THREE, store, trackEvaluator, report = cons
       three.position.copy(pose.position); three.quaternion.copy(pose.quaternion); three.scale.copy(pose.scale);
       if (three.target && pose.target) three.target.position.copy(pose.target.position);
     }
-    scene.threeObj.updateMatrixWorld(true);
+    for (const host of scene.objects || []) host.threeObj?.updateMatrixWorld(true);
     return true;
   }
 
-  function captureDeleted(deleted, editor) {
+  function captureDeleted(deleted, editor, propertyOps = editor.properties) {
     const ids = new Set();
     function walk(host) {
       const id = store.readId(host);
@@ -151,7 +161,7 @@ function createFollowEvaluator({ PZ, THREE, store, trackEvaluator, report = cons
       const three = host.threeObj;
       if (!three) return;
       const value = JSON.stringify({ p: three.position.toArray(), q: three.quaternion.toArray(), s: three.scale.toArray() });
-      editor.properties.setValue({ property: host.properties[store.KEYS.fallback].getAddress(), value });
+      propertyOps.setValue({ property: host.properties[store.KEYS.fallback].getAddress(), value });
     });
   }
 

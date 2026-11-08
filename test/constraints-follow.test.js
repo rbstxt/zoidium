@@ -7,6 +7,7 @@ const { createFollowEvaluator } = require("../plugins/constraints/follow-evaluat
 
 function fixture() {
   const { PZ, THREE, context } = nativeHost();
+  context.DOMAIN = "";
   context.fetch = async () => ({ text: async () => "" });
   const store = createPropertyStore({ PZ });
   const project = new PZ.project();
@@ -96,4 +97,61 @@ test("Follow uses sequence output time during remapped and half-frame samples", 
   scenes[0].update(70); follow.applyScene(scenes[0], 70);
   close(a.threeObj.position.toArray(), [20, 0, 0]);
   follow.applyScene(scenes[0], 70.5, 0.5); close(a.threeObj.position.toArray(), [20.5, 0, 0]);
+});
+
+test("Follow evaluates a constrained target first and Track To wins rotation after Follow", () => {
+  const { PZ, THREE, a, b, store, scenes, set, link, update } = fixture();
+  const c = new PZ.object3d.group(); scenes[1].objects.push(c); c.load({ objects: [] }); store.attach(c);
+  set(c, "position", [10, 4, 0]); set(c, "rotation", [0, Math.PI / 3, 0]); set(c, "scale", [3, 2, 1]);
+  link(b, c); link(a, b);
+  update(0, 20); close(a.threeObj.position.toArray(), [10, 4, 0]); close(a.threeObj.scale.toArray(), [3, 2, 1]);
+  close(a.threeObj.quaternion.toArray(), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 3, 0)).toArray());
+  // A same-scene aim is applied after the cross-scene pose copy.
+  const aim = new PZ.object3d.group(); scenes[0].objects.push(aim); aim.load({ objects: [] }); store.attach(aim);
+  set(aim, "position", [10, 4, 10]); set(a, store.KEYS.target, store.ensureId(aim));
+  update(0, 20); close(a.threeObj.quaternion.toArray(), [0, 0, 0, 1]); close(a.threeObj.position.toArray(), [10, 4, 0]);
+  // The negative control proves the rotation is caused by Track To.
+  set(a, store.KEYS.target, ""); update(0, 20);
+  assert.ok(Math.abs(a.threeObj.quaternion.y) > 0.4);
+});
+
+test("Follow retains a serialized deletion pose regardless of frame order and safely ignores corrupt fallback data", () => {
+  const { a, b, store, scenes, set, link, update, follow } = fixture();
+  set(b, "position", [12, 2, 0]); link(a, b); update(0, 20);
+  const commands = [];
+  follow.captureDeleted(b, { project: a.parentProject, properties: {
+    setValue(command) { commands.push(command); a.parentProject.addressLookup(command.property).set(command.value); },
+  } });
+  assert.equal(commands.length, 1);
+  scenes[1].objects.splice(0, 1);
+  for (const frame of [37, 0, 11, 37]) { update(0, frame); close(a.threeObj.position.toArray(), [12, 2, 0]); }
+  const saved = JSON.parse(JSON.stringify(a));
+  const copy = new a.constructor(); a.parent.push(copy); copy.load(saved); store.attach(copy, saved);
+  update(0, 6); close(copy.threeObj.position.toArray(), [12, 2, 0]);
+  set(a, store.KEYS.fallback, "invalid"); update(0, 8); close(a.threeObj.position.toArray(), [0, 0, 0]);
+});
+
+test("Follow samples native camera shake on a detached camera at target time", () => {
+  const { PZ, a, scenes, store, set, link, update } = fixture();
+  const camera = new PZ.object3d.camera(); scenes[1].objects.push(camera); camera.load({ type: 6, objectType: 1 }); store.attach(camera);
+  set(camera, "position", [5, 2, 30]); set(camera, "shakeAmplitude", 4); set(camera, "shakeSpeed", 1);
+  link(a, camera);
+  camera.update(20);
+  const expectedP = camera.threeObj.position.toArray(), expectedQ = camera.threeObj.quaternion.toArray();
+  camera.threeObj.position.set(999, 999, 999);
+  for (const frame of [30, 40, 30]) {
+    update(0, frame);
+    if (frame === 30) { close(a.threeObj.position.toArray(), expectedP); close(a.threeObj.quaternion.toArray(), expectedQ); }
+    close(camera.threeObj.position.toArray(), [999, 999, 999]);
+  }
+});
+
+test("world Follow preserves a rotated target under the same nonuniform parent before local decomposition", () => {
+  const { PZ, a, b, scenes, store, set, link, update } = fixture();
+  const parent = new PZ.object3d.group(); scenes[0].objects.push(parent); parent.load({ objects: [] }); store.attach(parent);
+  scenes[0].objects.splice(0, 1); scenes[1].objects.splice(0, 1); parent.objects.push(a, b);
+  set(parent, "position", [5, 8, 2]); set(parent, "scale", [2, 3, 1]); set(parent, "rotation", [0.3, 0.5, 0.1]);
+  set(b, "rotation", [0.7, 0.2, 0.3]); set(b, "position", [4, 1, 2]); set(b, "scale", [3, 2, 1]);
+  link(a, b); update(0, 20);
+  close(a.threeObj.matrixWorld.toArray(), b.threeObj.matrixWorld.toArray());
 });
