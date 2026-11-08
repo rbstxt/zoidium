@@ -10,6 +10,10 @@ each line describes one visible change.
 
 ### Added
 
+- Shader properties has a Show hidden button (an eye) on its heading. It
+  shows, dimmed, the properties that Visible when currently hides, so you can
+  open their settings. A condition that can never match a Toggle or Dropdown
+  shows a warning when applied, but is still saved.
 - Device render has a Custom resolution with exact width and height, so you
   can export sizes such as 3440×1440 or 2560×1080. Export settings are now
   remembered between exports.
@@ -213,6 +217,14 @@ each line describes one visible change.
 
 ### Fixed
 
+- Shader+: settings of one custom property, such as Visible when or its
+  group, no longer spread to other properties or to Numbers added later,
+  including in a new Shader. Grouping a property from the "+" list no longer
+  makes the group disappear.
+- Timeline: after deleting a track with linked video or audio clips, the
+  remaining clips can be selected and dragged again, and lasso boxes no longer
+  stay on screen. Undo restores the clips and their links. Projects saved in
+  this state are repaired when opened.
 - After Pre-compose selection, or after switching compositions, clips that no
   longer existed stayed selected. Their panels could not add objects or set
   keys, and a failed add made Ctrl+Z do nothing. The selection now clears.
