@@ -77,6 +77,6 @@ function host() {
   vm.runInContext(fs.readFileSync("plugins/core/property-groups-ui.js", "utf8"), context);
   const flush = () => { while (tasks.length) tasks.shift()(); };
   const panel = (objects = list) => { const view = new Edit(editor); view.enabled = true; view.objects = objects; view.objectsChanged(); return view; };
-  return { PZ, api, editor, list, root, panel, flush, tasks, doc };
+  return { PZ, api, editor, list, root, panel, flush, tasks, doc, window: context.window };
 }
 module.exports = { host, document };

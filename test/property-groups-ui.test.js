@@ -2,6 +2,34 @@
 const test = require("node:test"), assert = require("node:assert/strict");
 const { host, document } = require("./property-groups-ui-harness");
 const headings = view => view.el.querySelectorAll(".zpg-toggle").map(el => el.textContent);
+test("Group menu assigns selected rows from the same list in one reversible edit", () => {
+  const { PZ, api, editor, list, panel, flush, window } = host(), view = panel(); flush();
+  let menu;
+  window.ZoidiumUI = { openMenu: options => { menu = options; } };
+  const rows = view.el.querySelectorAll("li").filter(row => row.pz_object instanceof PZ.property);
+  rows[0].classList.add("selected"); rows[1].classList.add("selected");
+  // A selected row from another custom-property list must stay untouched.
+  const other = new PZ.objectList(list.parent, PZ.property), foreign = PZ.property.create({ custom: true, type: 0, value: 3 });
+  other.push(foreign); foreign.load();
+  const foreignRow = view.generateListItem(view.list, foreign); foreignRow.classList.add("selected");
+  const before = JSON.stringify(list);
+  rows[0].oncontextmenu({ preventDefault() {}, stopPropagation() {} });
+  menu.items.find(item => item.label === "Group…").action();
+  const form = view.el.querySelector(".zpg-settings");
+  form.querySelector("input").value = "Controls";
+  form.querySelectorAll("button").find(button => button.textContent === "Apply").onclick(); flush();
+  assert.equal(api.name(list[0]), "Controls"); assert.equal(api.name(list[1]), "Controls");
+  assert.equal(api.name(list[2]), ""); assert.equal(api.name(foreign), "");
+  assert.equal(editor.history.undoStack.length, 1);
+  editor.history.undo(); flush(); assert.equal(JSON.stringify(list), before);
+  editor.history.redo(); flush(); assert.equal(api.members(list, "Controls").length, 2);
+  // Right-clicking an unselected row retains the single-row action.
+  rows[2].oncontextmenu({ preventDefault() {}, stopPropagation() {} });
+  menu.items.find(item => item.label === "Group…").action();
+  const single = view.el.querySelector(".zpg-settings"); single.querySelector("input").value = "Other";
+  single.querySelectorAll("button").find(button => button.textContent === "Apply").onclick();
+  assert.equal(api.name(list[2]), "Other"); assert.equal(api.members(list, "Controls").length, 2);
+});
 test("panel generation batches grouped work and leaves ungrouped DOM untouched", () => {
   const { api, editor, list, panel, flush, tasks } = host();
   // Display-order remnants must not activate the organized drag or render path.

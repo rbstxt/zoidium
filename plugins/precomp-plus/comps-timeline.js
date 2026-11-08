@@ -51,11 +51,18 @@ function findTimelineTracks(editor) {
   return null;
 }
 
+function clearSelection(tracks) {
+  tracks.deselectClips();
+  // Native deselectClips only removes CSS classes. The shared observable
+  // list also drives Edit, Objects, Effects, and the viewport.
+  tracks.selection.splice(0, tracks.selection.length);
+}
+
 function refreshTimeline(editor) {
   const tracks = findTimelineTracks(editor);
   if (tracks) {
     try {
-      tracks.deselectClips();
+      clearSelection(tracks);
       tracks.redraw();
       tracks.zoom();
     } catch (error) {
@@ -179,6 +186,7 @@ function rememberTimelineTracks(tracks) {
 module.exports = {
   findTimelineTracks: findTimelineTracks,
   refreshTimeline: refreshTimeline,
+  clearSelection: clearSelection,
   applySequence: applySequence,
   clearHistory: clearHistory,
   runOperation: runOperation,

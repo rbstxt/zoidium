@@ -18,6 +18,18 @@ function host() {
   return { ...native, api, root, owner, list, editor };
 }
 const copy = value => JSON.parse(JSON.stringify(value));
+test("bulk group assignment rejects locked properties and mixed lists without partial edits", () => {
+  const { PZ, api, list, editor, owner } = host();
+  api.setGroup(editor, list[1], "Locked"); api.settings(editor, list, "Locked", { name: "Locked", locked: true });
+  const before = JSON.stringify(list), count = editor.history.undoStack.length;
+  assert.equal(api.setGroup(editor, [list[0], list[1]], "Controls"), false);
+  assert.equal(api.setGroup(editor, [list[0], list[2]], "Locked"), false);
+  const other = new PZ.objectList(owner, PZ.property), foreign = PZ.property.create({ custom: true, type: 0, value: 1 });
+  other.push(foreign); foreign.load();
+  assert.equal(api.setGroup(editor, [list[0], foreign], "Controls"), false);
+  assert.equal(api.setGroup(editor, [], "Controls"), false);
+  assert.equal(JSON.stringify(list), before); assert.equal(editor.history.undoStack.length, count);
+});
 test("custom-property groups are one undo step and round-trip without changing names, values, or native order", () => {
   const { PZ, api, list, editor, owner } = host();
   const before = JSON.stringify(list), names = Array.from(list, p => p.properties.name.get());
