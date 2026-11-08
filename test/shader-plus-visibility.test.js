@@ -38,7 +38,7 @@ test("finite controller choices warn about unreachable conditions without reject
 test("visibility warnings preserve evaluated values and unknown controller ranges", () => {
   const when = parseConditions("3");
   assert.equal(unreachable(when, controller("dropdown", { expression: {} })), false);
-  assert.equal(unreachable(when, controller("dropdown", { interpolated: true })), false);
+  assert.equal(unreachable(when, controller("dropdown", { animated: true, interpolated: true, keyframes: [{ value: 0, tween: 1 }, { value: 4, tween: 1 }] })), false);
   assert.equal(unreachable(when, controller("dropdown", { keyframes: [{ value: 3 }] })), false);
   assert.equal(unreachable(when, controller("slider")), false);
   assert.equal(unreachable(when, null), false);
