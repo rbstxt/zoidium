@@ -6,6 +6,10 @@
   if (tracks?.deleteClip && !tracks.deleteClip.__zoidiumReleasesRenderLists) {
     const deleteClip = tracks.deleteClip;
     const wrapped = function deleteClipAndReleaseRenderLists() {
+      // Track deletion calls deleteClip directly, unlike Delete and Cut.
+      // Unlink before removal so selection never follows a detached clip.
+      // The native helper records inverses that restore the link on undo.
+      if (typeof this.unlinkBeforeDeletion === "function") this.unlinkBeforeDeletion(arguments[0]);
       const result = deleteClip.apply(this, arguments);
       // r91 keeps render lists and a separate light/shadow state per scene
       // and camera pair. Either cache can retain an entire deleted scene.

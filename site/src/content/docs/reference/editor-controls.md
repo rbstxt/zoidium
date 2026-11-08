@@ -6,6 +6,10 @@ sidebar:
 ---
 These controls change editing and preview behavior. Easing+ and Motion Paths edit the project's animation. Player+ preferences affect the local viewport.
 
+## Linked timeline clips
+
+Deleting a track removes its clips from their links. Clips on other tracks remain selectable and draggable. Undo restores the deleted track, its clips, and their links. Redo removes them again.
+
 
 ## Easing+ coordinates
 

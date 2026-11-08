@@ -6,6 +6,13 @@ const test = require("node:test");
 const vm = require("node:vm");
 const { nativeHost, cache, core } = require("./expressions-plus-harness");
 
+function serialized(sequence) {
+  const data = JSON.parse(JSON.stringify(sequence));
+  // Native history restores link members in inverse order. Membership is a set.
+  for (const link of Object.values(data.clipLinks.links)) link.clips.sort();
+  return JSON.stringify(data);
+}
+
 function fixture() {
   const { PZ, context } = nativeHost();
   Object.assign(context, { Image: class {}, CSS: { supports: () => true },
@@ -57,7 +64,7 @@ for (const type of [0, 1]) test(`deleting a linked ${type ? "audio" : "video"} t
     const { PZ, editor, sequence, tracks, operation, add, liveLinks } = fixture();
     add(type, 0, 0);
     const survivor = add(1 - type, 0, 0);
-    const before = JSON.stringify(sequence);
+    const before = serialized(sequence);
     operation(() => {
       // This is the native track button's call path. It omits unlinkBeforeDeletion.
       tracks.deleteClip({ type, oldTrackIdx: 0, oldIdx: 0 });
@@ -65,12 +72,12 @@ for (const type of [0, 1]) test(`deleting a linked ${type ? "audio" : "video"} t
     });
     assert.equal(survivor.link, null);
     liveLinks();
-    const deleted = JSON.stringify(sequence);
+    const deleted = serialized(sequence);
     for (let cycle = 0; cycle < 3; cycle++) {
       editor.history.undo(); liveLinks();
-      assert.equal(JSON.stringify(sequence), before);
+      assert.equal(serialized(sequence), before);
       editor.history.redo(); liveLinks();
-      assert.equal(JSON.stringify(sequence), deleted);
+      assert.equal(serialized(sequence), deleted);
     }
     editor.history.undo();
     const reopened = new PZ.project();
