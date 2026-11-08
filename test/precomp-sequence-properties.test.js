@@ -110,7 +110,7 @@ test("a failing outgoing clip cannot stop the remaining cleanup or sequence repl
 });
 
 
-test("native undo and redo cannot replay pre-switch edits and work for new edits", () => {
+test("destructive sequence replacement explicitly clears stale commands before new edits", () => {
   const f = nativeFixture(), p = f.seq.properties.motionBlurSamples;
   const history = f.editor.history = new f.PZ.ui.history(f.editor); history.projectChanged();
   function exchange({ value }) {

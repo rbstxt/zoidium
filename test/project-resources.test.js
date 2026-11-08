@@ -262,3 +262,15 @@ test("deferred URLs are released even if the retired graph is collected before e
   await h.tick();
   assert.deepEqual(h.urls.revoked, ["blob:old"]);
 });
+
+test("project replacement releases GPU resources owned by parked composition timelines", async () => {
+  const h = setup(), active = geometry(), parked = geometry(), old = h.project({ gpu: active });
+  old.__zoidiumPrecompTimelines = [{ videoTracks: [{ clips: [{ object: { gpu: parked } }] }] }];
+  h.open(old);
+  await h.tick();
+  assert.equal(parked.disposed, 0, "closed authored timelines remain available to Undo");
+  h.open(h.project());
+  await h.tick();
+  assert.equal(active.disposed, 1);
+  assert.equal(parked.disposed, 1);
+});

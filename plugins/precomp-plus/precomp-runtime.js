@@ -299,7 +299,7 @@ function openCompsWindow() {
     }
     body.appendChild(kit.controls.buttonRow(actionsFor(current)).element);
     body.appendChild(kit.controls.note(
-      "Undo is cleared when you switch between Main and a composition. Return to Main before exporting. Export is blocked while a composition is open."
+      "Each composition switch is an Undo step. Undo returns to the previous timeline before undoing its edits. Return to Main before exporting. Export is blocked while a composition is open."
     ).element);
   }
 

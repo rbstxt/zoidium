@@ -364,14 +364,14 @@ test("saving while a composition is open writes Main and the live composition", 
   assert.equal(again.data[0].clips.length, 3, "edits made in the composition are kept");
 });
 
-test("switching compositions and back to Main keeps undo history empty", () => {
+test("switching compositions and back to Main records undo steps", () => {
   const env = createEnvironment();
   const { A, B } = makeABSelection(env);
   env.tracks.selectedClips = [A, B];
   const { id } = env.engine.precompose(env.editor, "Intro");
   assert.ok(env.editor.history.undoStack.length > 0);
   env.engine.openComp(env.editor, id);
-  assert.equal(env.editor.history.undoStack.length, 0);
+  assert.equal(env.editor.history.undoStack.length, 2);
   assert.equal(env.engine.activeName(env.editor), "Intro");
   env.engine.openComp(env.editor, null);
   assert.equal(env.engine.activeName(env.editor), null);

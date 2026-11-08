@@ -16,7 +16,7 @@ Precomp+ stores compositions as project media with their own video and audio tra
 | **Delete** | Refuses deletion while Main or another composition still references the source. |
 | **New composition** | Creates an empty source. It does not place a clip on Main. |
 
-Opening a different composition or returning to Main clears Undo and Redo. Closing the window alone does not switch the timeline.
+Opening a different composition or returning to Main adds one Undo step. Undo returns to the previous timeline before undoing its edits. Redo restores edits and switches in their original order. Opening the current timeline again adds no step. Closing the window alone does not switch the timeline.
 
 ## Selection and timing
 

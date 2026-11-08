@@ -76,8 +76,7 @@ function refreshTimeline(editor) {
   }
 }
 
-function applySequence(editor, json) {
-  const seq = editor.project.sequence;
+function replacementData(seq, json) {
   // CM3 appends keys, even defaults for omitted properties. Supply preserved
   // keys for partial/older JSON before clearing lists the loader will refill.
   const data = clone(json), keyLists = [];
@@ -107,15 +106,20 @@ function applySequence(editor, json) {
     return incoming;
   }
   data.properties = replacement(seq.properties, data.properties);
-  // These tracks are replaced by freshly loaded clips. Release the old
-  // layers and media while their project parent chain is still attached.
+  for (const keys of keyLists) keys.splice(0, keys.length);
+  return data;
+}
+
+function applySequence(editor, json) {
+  const seq = editor.project.sequence;
+  const data = replacementData(seq, json);
+  // Release outgoing resources while their project ancestry is attached.
   for (const track of [...seq.videoTracks, ...seq.audioTracks]) {
     for (const clip of track.clips) {
       try { clip.unload(); }
       catch (error) { console.error("[Precomp+] outgoing clip unload failed:", error); }
     }
   }
-  for (const keys of keyLists) keys.splice(0, keys.length);
   seq.videoTracks.splice(0, seq.videoTracks.length);
   seq.audioTracks.splice(0, seq.audioTracks.length);
   seq.load(data);
@@ -130,8 +134,76 @@ function applySequence(editor, json) {
   refreshTimeline(editor);
 }
 
-// Undo entries refer to clip objects that are replaced by a switch, so the
-// stacks are cleared whenever the live sequence changes meaning.
+// The sequence and property lists stay attached to the native UI. Park the
+// actual tracks and keys, so history closures keep their original objects.
+function visitKeyProperties(node, visit, path = []) {
+  if (!node || typeof node !== "object") return;
+  if (node.keyframes) visit(node, path);
+  else if (node.objects) node.objects.forEach((child, index) => visitKeyProperties(child, visit, path.concat("objects", index)));
+  else if (typeof node[Symbol.iterator] === "function") {
+    for (const key of Object.keys(node)) visitKeyProperties(node[key], visit, path.concat(key));
+  }
+}
+
+function captureSequence(seq) {
+  const keys = [];
+  visitKeyProperties(seq.properties, (property, path) => keys.push({ property, path, keys: Array.from(property.keyframes) }));
+  return { json: clone(seq), videoTracks: Array.from(seq.videoTracks),
+    audioTracks: Array.from(seq.audioTracks), clipLinks: seq.clipLinks, keys };
+}
+
+function detachTracks(seq) {
+  for (const list of [seq.videoTracks, seq.audioTracks]) {
+    const tracks = list.splice(0, list.length);
+    // Keep asset ownership available while this authored timeline is parked.
+    for (const track of tracks) track.parent = list;
+  }
+}
+
+function restoreSequence(editor, state) {
+  require("./comps-resources.js").resume(state);
+  const seq = editor.project.sequence;
+  detachTracks(seq);
+  const data = replacementData(seq, state.json);
+  seq.properties.load(data.properties);
+  for (const entry of state.keys) {
+    entry.property.keyframes.splice(0, entry.property.keyframes.length, ...entry.keys);
+  }
+  seq.videoTracks.push(...state.videoTracks);
+  seq.audioTracks.push(...state.audioTracks);
+  seq.clipLinks = state.clipLinks;
+  seq.length = state.json.length;
+  PZ.schedule.analyzeSequence(seq);
+  refreshTimeline(editor);
+}
+
+// Timing commands change stored timelines as JSON. Apply those changes to
+// parked objects in place before they can be reopened by a history switch.
+function updateSequenceTiming(state, json) {
+  function update(node, data) {
+    if (!node || data === undefined || data === null) return;
+    if (node.keyframes && data.keyframes) {
+      data.keyframes.forEach((key, index) => node.keyframes[index].load(key));
+    } else if (typeof data !== "object") {
+      if (typeof node.set === "function") node.set(data);
+    } else {
+      for (const key of Object.keys(data)) {
+        if (["start", "length", "offset"].includes(key) && typeof data[key] === "number") node[key] = data[key];
+        else if (key !== "type") update(node[key], data[key]);
+      }
+    }
+  }
+  for (const type of ["videoTracks", "audioTracks"]) update(state[type], json[type] || []);
+  for (const entry of state.keys) {
+    let data = json.properties;
+    for (const key of entry.path) data = data?.[key];
+    if (data?.keyframes) data.keyframes.forEach((key, index) => entry.keys[index].load(key));
+  }
+  state.json = clone(json);
+}
+
+// Explicit history reset for destructive sequence replacement. Composition
+// navigation preserves live objects and records a switch instead.
 function clearHistory(editor) {
   const history = editor.history;
   if (!history) return;
@@ -188,6 +260,10 @@ module.exports = {
   refreshTimeline: refreshTimeline,
   clearSelection: clearSelection,
   applySequence: applySequence,
+  captureSequence,
+  detachTracks,
+  restoreSequence,
+  updateSequenceTiming,
   clearHistory: clearHistory,
   runOperation: runOperation,
   cmdInsertComp: cmdInsertComp,
