@@ -492,15 +492,15 @@
       "name": "Constraints",
       "author": "Zoidium",
       "version": "5",
-      "tagline": "Track To for objects, cameras and lights",
-      "description": "Adds Blender-style object constraints to native 3D objects. Track To points an object, the scene camera or a spot/directional light at another object of the same 3D Scene, every frame, without changing its rotation keyframes.",
+      "tagline": "Track To and Follow for 3D objects",
+      "description": "Adds object constraints to native 3D objects. Track To aims at a target in the same scene. Follow copies position, rotation, and scale from an object in the same scene or another scene layer in the same sequence.",
       "category": "scene",
       "defaultEnabled": true,
       "manifest": "./plugins/constraints/manifest.json?v=5",
       "bundle": "./plugins/constraints/bundle.json?v=5",
       "integrity": "sha256-Ed51UlrVJUn/lzqD0cb3tXRDG6TsYV9LcA3jw3fp9/Y=",
       "zoidiumOnly": true,
-      "warning": "Track To projects require Zoidium. Other builds open the project with the unconstrained rotation."
+      "warning": "Projects with constraints require Zoidium. Other builds open the project with its authored transforms."
     },
     {
       "id": "node-effect",
