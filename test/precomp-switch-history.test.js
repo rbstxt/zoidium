@@ -156,3 +156,27 @@ test("a new edit after undoing a switch discards redo without touching the close
   assert.equal(main.properties.name.get(), "Main");
   assert.equal(project.sequence.videoTracks.at(-1).clips[0], inside);
 });
+
+test("parked audio tracks, clip links, track switches, and markers retain their native objects", () => {
+  const f = nativeEnvironment(), { PZ, project, editor, engine } = f;
+  const main = f.clip("Video"), seq = project.sequence;
+  const track = new PZ.track.audio(), audio = new PZ.clip.audio();
+  seq.audioTracks.push(track); track.clips.push(audio);
+  audio.start = 0; audio.length = 60; audio.properties.load(); audio.object.properties.load();
+  seq.clipLinks = new PZ.clipLinks(seq, null);
+  main.link = seq.clipLinks.link(0, main); audio.link = seq.clipLinks.link(0, audio);
+  seq.videoTracks[0].enabled = false; seq.videoTracks[0].track3d = true;
+  const marker = new PZ.keyframe("Cue", 24, 0);
+  seq.properties.markers.keyframes.push(marker);
+  const links = seq.clipLinks, id = engine.newEmptyComp(editor).id;
+  const before = JSON.stringify(project);
+  engine.openComp(editor, id); engine.openComp(editor, null);
+  assert.equal(JSON.stringify(project), before);
+  assert.equal(seq.audioTracks[0], track); assert.equal(track.clips[0], audio);
+  assert.equal(seq.clipLinks, links); assert.equal(main.link, audio.link);
+  assert.equal(seq.properties.markers.keyframes[0], marker);
+  assert.equal(seq.videoTracks[0].enabled, false); assert.equal(seq.videoTracks[0].track3d, true);
+  editor.history.undo(); editor.history.undo();
+  assert.equal(seq.properties.markers.keyframes[0], marker);
+  assert.equal(seq.audioTracks[0].clips[0], audio);
+});
