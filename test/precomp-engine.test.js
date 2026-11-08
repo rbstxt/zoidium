@@ -269,6 +269,31 @@ test("pre-compose is one undo step that restores Main", () => {
   assert.equal(env.project.media.length, 0, "composition removed by undo");
 });
 
+test("pre-compose clears selected clip references before the editor can reuse detached layers", () => {
+  const env = createEnvironment(), { A, B } = makeABSelection(env);
+  env.tracks.selectedClips = [A, B];
+  const project = env.editor.project, sequence = project.sequence, history = env.editor.history;
+  assert.equal(env.engine.precompose(env.editor, "Intro").ok, true);
+  assert.equal(env.tracks.selection.length, 0);
+  assert.equal(env.editor.project, project); assert.equal(project.sequence, sequence); assert.equal(env.editor.history, history);
+  history.undo();
+  assert.deepEqual(trackNames(sequence.videoTracks[0]), ["A", "B"]);
+  assert.equal(project.media.length, 0);
+});
+
+test("opening and leaving a composition clears the observable selection instead of retaining unloaded clips", () => {
+  const env = createEnvironment(), { A, B } = makeABSelection(env);
+  env.tracks.selectedClips = [A, B];
+  const { id } = env.engine.precompose(env.editor, "Intro");
+  const selection = env.tracks.selection, mainClip = env.project.sequence.videoTracks[0].clips[0];
+  selection.push(mainClip);
+  assert.equal(env.engine.openComp(env.editor, id).ok, true);
+  assert.equal(env.tracks.selection, selection); assert.equal(selection.length, 0);
+  selection.push(env.project.sequence.videoTracks[0].clips[0]);
+  assert.equal(env.engine.openComp(env.editor, null).ok, true);
+  assert.equal(selection.length, 0);
+});
+
 test("pre-compose refuses when unselected clips overlap the selection on a track", () => {
   const env = createEnvironment();
   const { A, B } = makeABSelection(env);

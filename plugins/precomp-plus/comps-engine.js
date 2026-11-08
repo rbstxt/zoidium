@@ -202,6 +202,7 @@ function precompose(editor, rawName) {
       });
     }
   });
+  timeline.clearSelection(tracks);
   notifyListeners();
   return result(true, "", {
     id: id,
