@@ -64,7 +64,16 @@ function installControls({ PZ, doc, register, editor }) {
     box.pz_update = frame => { if (select.ownerDocument.activeElement !== select) select.selectedIndex = discreteValue(kind, property.get(frameOf(box, frame)), property.definition); };
     return box;
   }
-  register("shader-plus/checkbox", PZ.property.type.NUMBER, property => optionRow(property, "checkbox", () => ["off", "on"]));
+  register("shader-plus/checkbox", PZ.property.type.NUMBER, property => {
+    if (property.definition.zoidiumShader?.display !== "checkbox") return optionRow(property, "checkbox", () => ["off", "on"]);
+    const box = editbox(), input = element("input", "zsp-checkbox", { type: "checkbox", "aria-label": property.properties.name.get() || "Toggle" });
+    input.disabled = readOnly(property);
+    input.onclick = event => event.stopPropagation();
+    input.onchange = () => { commit(input, property, input.checked ? 1 : 0); box.pz_update(); };
+    box.append(input);
+    box.pz_update = frame => { input.checked = discreteValue("checkbox", property.get(frameOf(box, frame)), property.definition) === 1; };
+    return box;
+  });
   register("shader-plus/dropdown", PZ.property.type.NUMBER, property => optionRow(property, "dropdown", () => items(property.definition)));
 
   register("shader-plus/slider", PZ.property.type.NUMBER, property => {
