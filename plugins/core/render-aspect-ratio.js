@@ -474,6 +474,7 @@
   function createDeviceAspectRatioInput(owner) {
     const row = document.createElement("div");
     row.classList.add("proprow", "noselect");
+    row.style.gridTemplateColumns = "minmax(0, 1fr)";
 
     const title = document.createElement("span");
     title.innerText = "Aspect ratio";
@@ -482,6 +483,7 @@
     const controls = document.createElement("div");
     controls.style.display = "flex";
     controls.style.alignItems = "center";
+    controls.style.marginTop = "4px";
 
     const widthInput = document.createElement("input");
     widthInput.classList.add("pz-inputbox");
@@ -490,6 +492,7 @@
     widthInput.autocomplete = "off";
     widthInput.setAttribute("aria-label", "Aspect ratio width");
     widthInput.style.width = "90px";
+    widthInput.style.minWidth = "0";
 
     const separator = document.createElement("span");
     separator.innerText = ":";
@@ -502,6 +505,7 @@
     heightInput.autocomplete = "off";
     heightInput.setAttribute("aria-label", "Aspect ratio height");
     heightInput.style.width = "90px";
+    heightInput.style.minWidth = "0";
 
     controls.appendChild(widthInput);
     controls.appendChild(separator);
@@ -530,6 +534,7 @@
         const size = getOutputSize(owner.params.width, owner.params.height, owner.params.aspectRatio);
         const error = validateCustomSize(size);
         if (error) {
+          owner.params.aspectRatio = owner.params.customResolution.slice();
           owner.__zoidiumResolutionControls?.showError(error);
           update();
           return;
@@ -551,12 +556,14 @@
   function createCustomResolutionInput(owner, page, select, aspectRatioRow) {
     const row = document.createElement("div");
     row.classList.add("proprow", "noselect");
+    row.style.gridTemplateColumns = "minmax(0, 1fr)";
     const title = document.createElement("span");
     title.innerText = "Output size (px)";
     row.appendChild(title);
     const controls = row.appendChild(document.createElement("div"));
     controls.style.display = "flex";
     controls.style.alignItems = "center";
+    controls.style.marginTop = "4px";
     const inputs = ["Output width (px)", "Output height (px)"].map((label, index) => {
       if (index) {
         const separator = controls.appendChild(document.createElement("span"));
@@ -569,11 +576,13 @@
       input.inputMode = "numeric";
       input.autocomplete = "off";
       input.style.width = "90px";
+      input.style.minWidth = "0";
       input.setAttribute("aria-label", label);
       return input;
     });
     const message = document.createElement("div");
     message.classList.add("proprow");
+    message.style.gridTemplateColumns = "minmax(0, 1fr)";
     message.setAttribute("role", "alert");
     const start = Array.from(page.querySelectorAll("button, .pz-button"))
       .find(button => button.textContent.trim() === "Start");
@@ -616,7 +625,7 @@
       return true;
     }
     inputs.forEach(input => { input.oninput = commit; input.onchange = commit; });
-    // CM3 uses a clickable div for Start, so disabled alone does not guard it.
+    // Validate again before the native Start handler unwatches the sequence.
     start?.addEventListener("click", event => {
       if (!commit()) { event.preventDefault(); event.stopImmediatePropagation(); }
     }, true);
@@ -697,6 +706,7 @@
         }
         if (resolutionSelect.options) {
           const rows = createCustomResolutionInput(this, page, resolutionSelect, aspectRatioRow);
+          modeRow.pz_update?.();
           for (const row of rows) {
             if (aspectRatioRow.parentElement) {
               aspectRatioRow.parentElement.insertBefore(row, aspectRatioRow);
