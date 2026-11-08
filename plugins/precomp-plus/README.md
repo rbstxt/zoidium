@@ -26,8 +26,9 @@ Right-click a timeline clip for Rename layer, Reveal source in Project,
 Pre-compose selected (opens the Pre-compose dialog), Open source composition,
 Duplicate, Split at playhead and Delete. Each editing item is one undo step.
 
-Pre-compose is undoable as one step. Undo is cleared when you switch between
-Main and a composition, because undo entries refer to the live clips.
+Pre-compose is undoable as one step. Each switch between Main and a
+composition is another undo step. Undo returns to the previous timeline before
+undoing its edits. Redo restores edits and switches in their original order.
 
 ## Audio
 

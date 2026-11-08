@@ -324,6 +324,13 @@ function createPZ() {
       }
       this.operation = null;
     }
+    redo() {
+      if (!this.redoStack.length || this.operation !== null) return;
+      const entry = this.redoStack.pop();
+      this.startOperation();
+      for (let i = entry.length - 1; i >= 0; i--) entry[i].fn(entry[i].params);
+      this.finishOperation(false);
+    }
     undo() {
       if (!this.undoStack.length || this.operation !== null) return;
       const entry = this.undoStack.pop();

@@ -73,10 +73,22 @@ function mainLength(project, session) {
   return (session.mainJSON && session.mainJSON.length) || 1;
 }
 
+// Keep the source document's key order when live serialization adds no fields.
+// This also makes navigation and an Undo/Redo round trip byte-identical.
+function preserveOrder(previous, current) {
+  if (!current || typeof current !== "object") return current;
+  if (Array.isArray(current)) return current.map((value, index) => preserveOrder(previous?.[index], value));
+  const output = {};
+  for (const key of new Set([...Object.keys(previous || {}), ...Object.keys(current)])) {
+    if (Object.prototype.hasOwnProperty.call(current, key)) output[key] = preserveOrder(previous?.[key], current[key]);
+  }
+  return output;
+}
+
 function commitActive(project, session) {
   const media = session.activeId === null ? null : findComp(project, session.activeId);
   if (!media) return;
-  media.data = liveTracks(project.sequence);
+  media.data = preserveOrder(media.data, liveTracks(project.sequence));
   media.comp = cloneCompRef({ id: media.comp.id, compSource: media.comp.compSource, clipLinks: project.sequence.clipLinks });
 }
 
@@ -104,7 +116,9 @@ function newCompId(project) {
 // Davidium origin: the names of the clips a pre-compose moved) is optional
 // and only kept for source lookup of older projects.
 function cloneCompRef(comp) {
-  const ref = { id: comp.id, clipLinks: clone(comp.clipLinks) };
+  const links = comp.clipLinks;
+  const empty = links && links.seed === 0 && Object.keys(links.links || {}).length === 0;
+  const ref = { id: comp.id, clipLinks: empty ? null : clone(links) };
   if (comp && comp.compSource !== undefined) ref.compSource = clone(comp.compSource);
   return ref;
 }
@@ -265,6 +279,7 @@ module.exports = {
   mainTracks: mainTracks,
   mainLength: mainLength,
   commitActive: commitActive,
+  preserveOrder,
   sequenceFor: sequenceFor,
   newCompId: newCompId,
   cloneCompRef: cloneCompRef,

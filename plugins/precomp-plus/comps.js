@@ -169,11 +169,9 @@ function install() {
               return;
             }
             if (session.activeId === media.comp.id) {
-              const operation = this.editor.history.operation;
-              const left = openComp(this.editor, null);
-              // The Media panel already started a native history operation.
-              // openComp clears history, so retain this deletion's operation.
-              this.editor.history.operation = operation;
+              // Deletion and leaving the source share the native operation.
+              // Its inverse restores the media before reopening that source.
+              const left = engine.leaveForDeletion(this.editor);
               if (!left.ok) {
                 notifyHost("Cannot open the composition.", left.message);
                 return;

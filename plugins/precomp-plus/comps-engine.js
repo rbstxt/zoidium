@@ -37,7 +37,6 @@ const applyTrackSwitches = model.applyTrackSwitches;
 const findTimelineTracks = timeline.findTimelineTracks;
 const refreshTimeline = timeline.refreshTimeline;
 const applySequence = timeline.applySequence;
-const clearHistory = timeline.clearHistory;
 const runOperation = timeline.runOperation;
 const cmdInsertComp = timeline.cmdInsertComp;
 const cmdRemoveComp = timeline.cmdRemoveComp;
@@ -60,7 +59,10 @@ function notifyListeners() {
 function sessionOf(project) {
   let session = sessions.get(project);
   if (!session) {
-    session = { activeId: null, mainJSON: null };
+    session = { activeId: null, mainJSON: null, timelines: new Map() };
+    // The project resource collector must also see parked authored timelines.
+    // Project.toJSON ignores this runtime-only ownership list.
+    project.__zoidiumPrecompTimelines = [];
     sessions.set(project, session);
   }
   return session;
@@ -74,25 +76,67 @@ function openComp(editor, id) {
   const target = wantsMain ? null : findComp(project, id);
   if (!wantsMain && !target) return fail("That composition no longer exists.");
 
-  if (!target) {
-    if (session.activeId === null) return result(true);
-    if (!session.mainJSON) return fail("Main could not be restored. Reopen the project.");
-    commitActive(project, session);
-    applySequence(editor, session.mainJSON);
-    session.activeId = null;
-    session.mainJSON = null;
-  } else {
-    if (session.activeId === target.comp.id) return result(true);
-    if (session.activeId === null) {
-      session.mainJSON = clone(project.sequence);
-    } else {
-      commitActive(project, session);
+  const nextId = target ? target.comp.id : null;
+  if (session.activeId === nextId) return result(true);
+  if (editor.history.operation !== null) return fail("Finish the current edit before switching compositions.");
+  runOperation(editor, function () {
+    switchComp({ editor, id: nextId });
+  });
+  return result(true);
+}
+
+function invalidateRenderCopies(node) {
+  if (node.compId) {
+    for (const track of [...(node.nested || []), ...(node.nestedAudio || [])]) {
+      for (const clip of track.clips) clip.unload();
     }
-    applySequence(editor, sequenceFor(project, target));
-    session.activeId = target.comp.id;
+    node.nested = null;
+    node.nestedAudio = null;
+    node.activeClips.length = 0;
+    node.objects.length = 0;
+    return;
   }
-  clearHistory(editor);
+  if (Array.isArray(node)) node.forEach(invalidateRenderCopies);
+  else for (const child of node.children || []) invalidateRenderCopies(child);
+}
+
+function switchComp({ editor, id }) {
+  const project = editor.project, session = sessionOf(project);
+  const previous = session.activeId;
+  PZ.zoidium?.projectResources?.observeGraph(project);
+  const outgoing = timeline.captureSequence(project.sequence);
+  const prior = session.timelines.get(previous);
+  // Update the same state object. History entries and the resource collector
+  // own it until the project is replaced.
+  const state = prior || {};
+  Object.assign(state, outgoing);
+  session.timelines.set(previous, state);
+  if (!prior) project.__zoidiumPrecompTimelines.push(state);
+  if (previous === null) session.mainJSON = outgoing.json;
+  else commitActive(project, session);
+
+  // Authored tracks survive a switch; nested render instances must reflect
+  // the newly committed source when a containing timeline is drawn again.
+  for (const parked of session.timelines.values()) {
+    for (const track of parked.videoTracks) {
+      for (const clip of track.clips) invalidateRenderCopies(clip.object);
+    }
+  }
+  const incoming = session.timelines.get(id);
+  session.activeId = id;
+  if (incoming) timeline.restoreSequence(editor, incoming);
+  else {
+    const target = findComp(project, id);
+    timeline.detachTracks(project.sequence);
+    applySequence(editor, sequenceFor(project, target));
+  }
+  if (id === null) session.mainJSON = null;
+  editor.history.pushCommand(switchComp, { editor, id: previous });
   notifyListeners();
+}
+
+function leaveForDeletion(editor) {
+  switchComp({ editor, id: null });
   return result(true);
 }
 
@@ -702,7 +746,7 @@ function activeProjectJSON(project, json) {
     const media = Array.isArray(json.media) ? json.media.map(function (item) {
       if (!isCompMedia(item) || item.comp.id !== session.activeId) return item;
       const entry = item.toJSON();
-      entry.data = liveTracks(project.sequence);
+      entry.data = model.preserveOrder(item.data, liveTracks(project.sequence));
       entry.comp = cloneCompRef({ id: item.comp.id, compSource: item.comp.compSource, clipLinks: project.sequence.clipLinks });
       entry.isComp = true;
       entry.compLength = lengthOf(entry.data);
@@ -728,29 +772,23 @@ function timingState(project) {
 function restoreTimingState(project, roots) {
   const session = sessionOf(project);
   for (const root of roots) {
-    if (root.id === MAIN_ID) session.mainJSON = clone(root.data);
+    const id = root.id === MAIN_ID ? null : root.id;
+    if (id === null) session.mainJSON = clone(root.data);
     else {
-      const media = findComp(project, root.id);
+      const media = findComp(project, id);
       if (media) media.data = clone(root.data);
     }
-  }
-  function invalidate(node) {
-    if (node.compId) {
-      // These are render instances, never authored timeline objects. Release
-      // media and GPU resources before rebuilding them at the new rate.
-      for (const track of [...(node.nested || []), ...(node.nestedAudio || [])]) {
-        for (const clip of track.clips) clip.unload();
-      }
-      node.nested = null;
-      node.nestedAudio = null;
-      node.activeClips.length = 0;
-      node.objects.length = 0;
-      return;
+    const parked = session.timelines.get(id);
+    if (parked && id !== session.activeId) {
+      const data = id === null ? root.data : {
+        ...parked.json, properties: { ...parked.json.properties, rate: project.sequence.properties.rate.get() },
+        videoTracks: root.data.filter(track => track.type !== 1),
+        audioTracks: root.data.filter(track => track.type === 1), length: lengthOf(root.data),
+      };
+      timeline.updateSequenceTiming(parked, data);
     }
-    if (Array.isArray(node)) node.forEach(invalidate);
-    else for (const child of node.children || []) invalidate(child);
   }
-  invalidate(project.sequence);
+  invalidateRenderCopies(project.sequence);
   notifyListeners();
 }
 
@@ -786,6 +824,7 @@ module.exports = {
   entries: entries,
   referenceSources: referenceSources,
   openComp: openComp,
+  leaveForDeletion,
   openSourceOfClip: openSourceOfClip,
   newEmptyComp: newEmptyComp,
   precompose: precompose,
