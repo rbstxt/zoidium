@@ -7,6 +7,19 @@ each line describes one visible change.
 
 ### Added
 
+- Device render has a Custom resolution with exact width and height, so you
+  can export sizes such as 3440×1440 or 2560×1080. Export settings are now
+  remembered between exports.
+- Constraints has Follow: a group or object can copy the position, rotation,
+  and scale of a group or object in another scene layer, with per-channel
+  switches, offsets, and World or Local space.
+- Shader+ custom properties have a reset button that returns them to their
+  Default values, removing keys and expressions, as one undo step.
+- The Shader properties "+" list has Group, which moves the selected
+  properties into a new group.
+- Visible when accepts comparisons such as `> 5.5`, `>= 1`, `!= 3`, and
+  ranges such as `1..5`.
+- A Toggle can display as a one-click checkbox.
 - Custom properties can be organized into named, collapsible groups, using
   Group… on a property's menu. A group's Settings has its name and a Lock that
   stops its rows being dragged. 3D groups have a Lock button in the Objects
@@ -86,6 +99,10 @@ each line describes one visible change.
 
 ### Changed
 
+- Undo and redo now work across composition switches. Switching is an undo
+  step, so a pre-compose can be undone after opening the composition. Parked
+  compositions release their GPU memory and media.
+- The reset button on a Shader effect's Properties keeps the shader code.
 - Undoing a change to the number of lights no longer recompiles shaders the
   scene already used, so going back and forth between light setups does not
   freeze the editor. The first time a new light setup is drawn still compiles.
@@ -333,6 +350,8 @@ each line describes one visible change.
 
 ### Docs
 
+- Time Offset on a plain layer also retimes the effects after it. The
+  reference now says so.
 - New documentation site served alongside the editor, with a Japanese
   locale.
 - Native FX reference: index, image filters, time, keying, generators,
