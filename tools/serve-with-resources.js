@@ -373,7 +373,10 @@ async function main() {
   // serve-handler opens one file per request. Under a page-load burst that
   // fan-out can exhaust file handles; retry EMFILE/ENFILE with backoff and
   // report 503 instead of crashing. Reads are re-entrant for GET requests.
+  // Every stream it opens is closed with the response (see
+  // createRequestStreams): its 304 path otherwise leaks one handle each.
   const serveFromRoot = async (request, response, publicRoot, headers) => {
+    const methods = { createReadStream: devLive.createRequestStreams(response) };
     for (let attempt = 0; ; attempt += 1) {
       try {
         await handler(request, response, {
@@ -383,7 +386,7 @@ async function main() {
           headers,
           public: publicRoot,
           rewrites: [{ source: "/", destination: "/index.html" }],
-        });
+        }, methods);
         return;
       } catch (error) {
         const retryable = error && (error.code === "EMFILE" || error.code === "ENFILE");
