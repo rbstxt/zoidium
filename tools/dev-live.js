@@ -648,6 +648,40 @@ function createRequestGate({ maxConcurrent = 64 } = {}) {  const limit = Math.ma
   };
 }
 
+// serve-handler opens a read stream before it checks If-None-Match, then
+// answers 304 without piping or closing it, and a piped stream stays open
+// when the client disconnects mid-response. Each leaks one file handle; the
+// browser revalidates icons on every reload, so a long session reaches the
+// process limit and the next stream's EMFILE crashes the server (a stream
+// error with no listener). This factory closes every stream a request opened
+// once its response closes, and ends a piped response when its stream fails.
+function createRequestStreams(response, { open = fs.createReadStream } = {}) {
+  const streams = new Set();
+  const piped = new WeakSet();
+  response.on("pipe", (source) => piped.add(source));
+  response.once("close", () => {
+    for (const stream of streams) stream.destroy();
+    streams.clear();
+  });
+  return function createReadStream(file, options) {
+    const stream = open(file, options);
+    streams.add(stream);
+    stream.once("close", () => streams.delete(stream));
+    stream.on("error", () => {
+      // serve-handler's ETag hash attaches its own listener and rejects; an
+      // unpiped stream's late error is harmless once tracked.
+      if (!piped.has(stream)) return;
+      try {
+        if (!response.destroyed) response.destroy();
+      } catch (_ignored) {
+        // Destroy is best effort.
+      }
+    });
+    if (response.destroyed) stream.destroy();
+    return stream;
+  };
+}
+
 // Buffered responses are abort-safe by construction: no open stream is left
 // behind when the client disconnects. Returns false when nothing was sent.
 function sendBytes(request, response, { status = 200, contentType = "application/octet-stream", bytes = "", cacheControl = "no-cache" } = {}) {
@@ -682,6 +716,7 @@ module.exports = {
   createLivePresets,
   createRecursiveWatcher,
   createRequestGate,
+  createRequestStreams,
   diffSnapshots,
   isRetryableFsError,
   sendBytes,
