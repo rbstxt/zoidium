@@ -21,6 +21,7 @@ Apply without edits leaves the definition and current value unchanged.
 Slider is a NUMBER with a range bar. Angle stores radians and displays degrees.
 Toggle and Dropdown store NUMBER values. Toggle uses an off/on menu by default.
 Its Property settings also offers Display = Checkbox for one-click changes.
+The Checkbox display follows the editor theme.
 Changing Display preserves the current value, animation, expressions, and shader output. Their editors write integers and
 new keys use Hold. Attaching these editors never rounds evaluated values or
 changes old key interpolation. Fractional expressions reach GLSL unchanged:
@@ -43,6 +44,14 @@ do not count. Static dropdown uses native OPTION storage and a compile-time
 `#define Mode index`. Seed adds a randomize button. Color + alpha is a
 straight RGBA vec4. Point (a vec2 with UV/pixel metadata) is no longer offered
 in the menu; saved Point properties keep loading and binding as vec2.
+
+Slider, Seed, Time sample, and Angle settings show Decimals. Time sample
+settings also show Minimum, Maximum, and Step. Minimum and Maximum clamp the
+row editor. Step is the drag multiplier and the arrow-key increment. Decimals
+sets the displayed decimal places, from 0 to 100. Converting another kind to
+Time sample starts unbounded with the units step, so a stale Slider range
+cannot clamp the offset; type explicit bounds to keep them. Row ranges never
+change saved values or shader output by themselves.
 
 ## Reset behavior
 

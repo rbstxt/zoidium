@@ -5,7 +5,7 @@ Shader+ の **Time sample** プロパティを使うと、現在の Custom Shade
 1. **Shader properties** を開き、**+** をクリックして **ZOIDIUM > Time sample** を選択します。
 2. プロパティの名前を `Past` に変更します。
 3. 1 フレーム前を読み取るには、オフセットを `-1` に設定します。
-4. 秒を使う場合は、プロパティを右クリックして **Property settings…** を開き、**Offset units** で **Seconds** を選択します。
+4. 秒を使う場合は、プロパティを右クリックして **Property settings…** を開き、**Offset units** で **Seconds** を選択します。同じパネルで、オフセットの行に **Minimum**、**Maximum**、**Step**、**Decimals** を設定できます。
 5. シェーダーでプロパティをテクスチャとして宣言します。
 
 ```glsl

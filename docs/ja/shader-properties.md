@@ -14,6 +14,7 @@ Shader+ の種類メタデータがないネイティブ数値は、Slider の�
 
 Slider は範囲バー付きの NUMBER です。Angle はラジアンを保存し、度数法で表示します。Toggle と Dropdown は NUMBER 値を保存します。Toggle の既定の表示は off/on メニューです。
 Property settings の Display = Checkbox を選ぶと、1 回のクリックで切り替えられます。
+Checkbox の表示はエディターのテーマに従います。
 Display を変更しても、現在の値、アニメーション、式、シェーダー出力は変わりません。そのエディターは整数を書き込みます。新しいキーは Hold を使います。これらのエディターを接続しても、評価値を丸めたり、古いキーの補間を変更したりしません。小数の式は GLSL にそのまま届きます:
 
 ```glsl
@@ -27,6 +28,8 @@ uniform float Enabled;
 `uniform int` と `uniform bool` も動作します。Three r91 は、アクティブな GLSL uniform 型から GL セッターを選択します。整数 uniform は GL の整数変換を使います。シェーダーが小数値を必要とする場合は float uniform を使います。
 
 Dropdown 項目は、名前を変更してもインデックスを保持します。`Mode_Linear` は、include 展開後のシェーダーがそのトークンを参照する場合にだけ定数として出力されます。コメントは対象外です。Static dropdown はネイティブの OPTION ストレージを使い、コンパイル時の `#define Mode index` を使います。Seed はランダム化ボタンを追加します。Color + alpha はストレート RGBA vec4 です。Point(UV/画素メタデータ付き vec2)はメニューに表示されなくなりました。保存済みの Point プロパティは引き続き読み込み、vec2 としてバインドします。
+
+Slider、Seed、Time sample、Angle の設定には Decimals を表示します。Time sample の設定には、Minimum、Maximum、Step も表示します。Minimum と Maximum は行エディターの値を制限します。Step はドラッグの倍率と矢印キーの増分です。Decimals は表示する小数点以下の桁数を 0 から 100 で指定します。他の種類から Time sample に変換すると、範囲の指定なしで単位の Step から始まります。古い Slider の範囲がオフセットを制限しません。範囲を付けるには値を入力します。行の範囲を指定しても、保存された値とシェーダー出力は変わりません。
 
 ## リセットの動作
 
