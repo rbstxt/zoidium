@@ -114,10 +114,19 @@ function installEditor({ context, patch, presetFont }) {
       const k = kind.value, same = k === current;
       if (NUMERIC.includes(k)) {
         input(specific, "min", "Minimum", d.min, "number"); input(specific, "max", "Maximum", d.max, "number");
-        input(specific, "step", "Step", d.step, "number"); input(specific, "default", "Default", same ? meta.default ?? d.value : "", "number");
+        input(specific, "step", "Step", d.step, "number"); input(specific, "decimals", "Decimals", same ? d.decimals : KINDS[k].create().decimals, "number");
+        input(specific, "default", "Default", same ? meta.default ?? d.value : "", "number");
       } else if (k === "timeSample") {
         select(specific, "units", "Offset units", [["frames", "Frames"], ["seconds", "Seconds"]], meta.units || "frames");
+        // A converted property starts unbounded with the units step, so a
+        // stale slider range cannot clamp the offset. Explicit values are
+        // kept, including min/max/step added by hand to the saved JSON.
+        input(specific, "min", "Minimum", same ? d.min : "", "number");
+        input(specific, "max", "Maximum", same ? d.max : "", "number");
+        input(specific, "step", "Step", same ? d.step : "", "number");
+        input(specific, "decimals", "Decimals", same ? d.decimals : KINDS.timeSample.create().decimals, "number");
       } else if (k === "angle") {
+        input(specific, "decimals", "Decimals", same ? d.decimals : KINDS.angle.create().decimals, "number");
         input(specific, "default", "Default (°)", same && Number.isFinite(meta.default) ? meta.default * 180 / Math.PI : "", "number");
       } else if (k === "checkbox") {
         select(specific, "default", "Default", [["0", "off"], ["1", "on"]], String(same ? meta.default ?? 0 : 0));
@@ -169,6 +178,12 @@ function installEditor({ context, patch, presetFont }) {
       if (!text) return undefined;
       const n = Number(text); if (!Number.isFinite(n)) throw new Error("Use finite numbers"); return n;
     }
+    function readDecimals(definition) {
+      const decimals = number("decimals");
+      if (decimals === undefined) delete definition.decimals;
+      else if (!Number.isInteger(decimals) || decimals < 0 || decimals > 100) throw new Error("Use 0 to 100 decimals");
+      else definition.decimals = decimals;
+    }
     const fieldState = () => JSON.stringify(Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.value])));
     const initialFields = fieldState();
     ok.onclick = () => {
@@ -188,13 +203,23 @@ function installEditor({ context, patch, presetFont }) {
         if (NUMERIC.includes(kind.value)) {
           for (const key of ["min", "max", "step"]) { const n = number(key); if (n === undefined) delete definition[key]; else definition[key] = n; }
           if (definition.min > definition.max || definition.step <= 0) throw new Error("Use an ordered range and a positive step");
+          readDecimals(definition);
           const def = number("default"); if (def !== undefined) { next.default = def; definition.value = def; }
         } else if (kind.value === "timeSample") {
           if (current !== "timeSample" && effect.customProperties.filter(q => kindOf(q) === "timeSample").length >= MAX_TIME_SAMPLES) throw new Error("Shader+ supports at most four Time sample properties per effect");
           next.units = fields.units.value;
-          if (current !== "timeSample") { delete definition.min; delete definition.max; }
-          definition.step = next.units === "seconds" ? 0.01 : 1;
+          // Blank keeps the conversion behaviour: converted offsets start
+          // unbounded (commit ac2348085: a stale slider range would clamp
+          // them) with the units step. Explicit values are kept, including
+          // min/max/step added by hand to the saved JSON.
+          for (const key of ["min", "max"]) { const n = number(key); if (n === undefined) delete definition[key]; else definition[key] = n; }
+          const step = number("step");
+          if (step === undefined) definition.step = next.units === "seconds" ? 0.01 : 1;
+          else definition.step = step;
+          if (definition.min > definition.max || definition.step <= 0) throw new Error("Use an ordered range and a positive step");
+          readDecimals(definition);
         } else if (kind.value === "angle") {
+          readDecimals(definition);
           const def = number("default"); if (def !== undefined) { next.default = def * Math.PI / 180; definition.value = next.default; }
         } else if (kind.value === "checkbox") {
           next.default = Number(fields.default.value) ? 1 : 0;
