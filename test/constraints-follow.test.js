@@ -175,3 +175,13 @@ test("animated Follow offsets survive a native save and reopen at every sampled 
     close(reopened.threeObj.matrixWorld.toArray(), a.threeObj.matrixWorld.toArray());
   }
 });
+
+test("live duplicate data does not mark omitted constraint defaults as saved", { skip: !fs.existsSync(core) }, () => {
+  const { a, store } = fixture();
+  const duplicate = new a.constructor();
+  a.parent.push(duplicate);
+  duplicate.load(JSON.parse(JSON.stringify(a)));
+  store.attach(duplicate, a);
+  const properties = JSON.parse(JSON.stringify(duplicate)).properties;
+  for (const key of Object.values(store.KEYS)) assert.equal(Object.hasOwn(properties, key), false, key);
+});
