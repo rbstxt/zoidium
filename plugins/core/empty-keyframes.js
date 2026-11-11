@@ -37,7 +37,10 @@
     // History passes a deleted live group to load. Its child groups have a
     // read-only animated getter, but CM3's legacy loader writes to it.
     // Use the same data that the project's JSON serializer would save.
-    if (data instanceof Group) data = JSON.parse(JSON.stringify(data));
+    if (data instanceof Group) {
+      var json = JSON.stringify(data);
+      data = json === undefined ? undefined : JSON.parse(json);
+    }
     return originalLoad.call(this, data);
   };
   prototype.__zoidiumGroupHistoryRepair = true;
