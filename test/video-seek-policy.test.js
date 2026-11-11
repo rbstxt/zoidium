@@ -235,3 +235,185 @@ test("a late timing result cannot correct a replacement media source", async () 
   assert.equal(isReady(el, pending.media), false);
   assert.equal(isReady(el, next), true);
 });
+
+function u16(value) {
+  const out = Buffer.alloc(2);
+  out.writeUInt16BE(value, 0);
+  return out;
+}
+function u32(value) {
+  const out = Buffer.alloc(4);
+  out.writeUInt32BE(value >>> 0, 0);
+  return out;
+}
+function u64(value) {
+  const out = Buffer.alloc(8);
+  out.writeBigUInt64BE(BigInt(value), 0);
+  return out;
+}
+function mp4box(type, ...parts) {
+  const body = Buffer.concat(parts.map(part => (Buffer.isBuffer(part) ? part : Buffer.from(part))));
+  return Buffer.concat([Buffer.concat([u32(8 + body.length), Buffer.from(type, "ascii")]), body]);
+}
+function mdhd(timescale, version = 0) {
+  const body = version === 0
+    ? Buffer.concat([Buffer.alloc(4), u32(0), u32(0), u32(timescale), u32(timescale * 120), Buffer.from([85, 196, 0, 0])])
+    : Buffer.concat([Buffer.from([1, 0, 0, 0]), Buffer.alloc(16), u32(timescale), Buffer.alloc(8), Buffer.from([85, 196, 0, 0])]);
+  return mp4box("mdhd", body);
+}
+function hdlr(handler = "vide") {
+  return mp4box("hdlr", Buffer.alloc(4), u32(0), Buffer.from(handler, "ascii"), Buffer.alloc(12), Buffer.from("VideoHandler", "ascii"));
+}
+function stts(entries) {
+  return mp4box("stts", Buffer.alloc(4), u32(entries.length),
+    ...entries.map(([count, delta]) => Buffer.concat([u32(count), u32(delta)])));
+}
+function elst(entries, version = 0) {
+  const head = Buffer.concat([Buffer.from([version, 0, 0, 0]), u32(entries.length)]);
+  const body = entries.map(([segment, mediaTime, rate = 1]) => (version === 0
+    ? Buffer.concat([u32(segment), u32(mediaTime), u16(rate), u16(0)])
+    : Buffer.concat([u64(segment), u64(mediaTime), u16(rate), u16(0)])));
+  return mp4box("elst", head, ...body);
+}
+function videoTrak({ timescale = 90000, entries = [[300, 3000]], handler = "vide", edit = null, mdhdVersion = 0 } = {}) {
+  const mdia = mp4box("mdia", mdhd(timescale, mdhdVersion), hdlr(handler), mp4box("minf", mp4box("stbl", stts(entries))));
+  return mp4box("trak", ...(edit ? [mp4box("edts", edit)] : []), mdia);
+}
+function mp4File({ traks, moovFirst = true, mdatSize = 0, moovLarge = false } = {}) {
+  const ftyp = mp4box("ftyp", Buffer.from("isom", "ascii"), u32(512), Buffer.from("isomiso2", "ascii"));
+  let moov = mp4box("moov", ...traks);
+  if (moovLarge) {
+    const body = moov.subarray(8);
+    moov = Buffer.concat([u32(1), Buffer.from("moov", "ascii"), u64(16 + body.length), body]);
+  }
+  const mdat = mp4box("mdat", Buffer.alloc(mdatSize));
+  return Buffer.concat(moovFirst ? [ftyp, moov, mdat] : [ftyp, mdat, moov]);
+}
+
+test("MP4 timing comes from the first video track at any moov position", () => {
+  for (const moovFirst of [true, false]) {
+    const timing = readTiming(mp4File({ traks: [videoTrak({ timescale: 12288, entries: [[48, 512]] })], moovFirst }));
+    assert.equal(timing.quantum, 1 / 12288);
+    assert.equal(timing.period, 1 / 24);
+  }
+  const large = readTiming(mp4File({ traks: [videoTrak({ timescale: 12288, entries: [[48, 512]] })], moovLarge: true }));
+  assert.equal(large.period, 1 / 24);
+  assert.equal(large.quantum, 1 / 12288);
+  const audioFirst = readTiming(mp4File({ traks: [
+    videoTrak({ timescale: 48000, entries: [[96, 1024]], handler: "soun" }),
+    videoTrak({ timescale: 90000, entries: [[300, 3000]] }),
+  ] }));
+  assert.equal(audioFirst.period, 1 / 30);
+  assert.equal(audioFirst.quantum, 1 / 90000);
+  const v1 = readTiming(mp4File({ traks: [videoTrak({ timescale: 90000, entries: [[300, 3000]], mdhdVersion: 1 })] }));
+  assert.equal(v1.period, 1 / 30);
+});
+
+test("MP4 timing covers 23.976, 24, 25, 29.97, 30 and 60 fps timescales", () => {
+  const cases = [
+    [24000 / 1001, 24000, 1001],
+    [24, 12288, 512],
+    [24, 30000, 1250],
+    [25, 90000, 3600],
+    [25, 25000, 1000],
+    [30000 / 1001, 30000, 1001],
+    [30, 600, 20],
+    [30, 90000, 3000],
+    [60, 90000, 1500],
+    [60, 15360, 256],
+  ];
+  for (const [rate, timescale, delta] of cases) {
+    const timing = readTiming(mp4File({ traks: [videoTrak({ timescale, entries: [[240, delta]] })] }));
+    assert.equal(timing.quantum, 1 / timescale, `${rate} fps quantum`);
+    assert.ok(Math.abs(timing.period - 1 / rate) < 1e-12, `${rate} fps period`);
+  }
+});
+
+test("MP4 variable rates and non-video tracks keep uncorrected seeks", () => {
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ timescale: 90000, entries: [[100, 3000], [100, 3001]] })] })), null);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ timescale: 90000, entries: [[100, 0]] })] })), null);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ timescale: 0, entries: [[100, 3000]] })] })), null);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ timescale: 48000, entries: [[96, 1024]], handler: "soun" })] })), null);
+  assert.equal(readTiming(mp4box("ftyp", Buffer.from("isom", "ascii"), u32(512))), null);
+  assert.equal(readTiming(new Uint8Array(0)), null);
+});
+
+test("MP4 edit lists shift or preserve nominal boundaries", () => {
+  const base = { timescale: 24000, entries: [[240, 1000]] };
+  assert.equal(readTiming(mp4File({ traks: [videoTrak(base)] })).period, 1 / 24);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([]) })] })).period, 1 / 24);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[24000, 0]]) })] })).period, 1 / 24);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[12000, 0], [12000, 0]]) })] })).period, 1 / 24);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[24000, 0]], 1) })] })).period, 1 / 24);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[2000, 0xFFFFFFFF]]) })] })), null);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[2000, 480]]) })] })), null);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[24000, 0, 2]]) })] })), null);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[24000, 480]], 1) })] })), null);
+});
+
+test("truncated MP4 input returns null without throwing", () => {
+  const full = mp4File({ traks: [videoTrak({ timescale: 90000, entries: [[300, 3000]] })], moovFirst: false, mdatSize: 1024 });
+  assert.ok(readTiming(full));
+  for (let size = 0; size < 64; size++) assert.doesNotThrow(() => assert.equal(readTiming(full.slice(0, size)), null));
+  for (const size of [full.length - 20, full.length - 8, full.length - 1]) {
+    assert.equal(readTiming(full.slice(0, size)), null);
+  }
+});
+
+test("MP4 boundary requests gain a sub-frame bias while fractional requests do not", () => {
+  const timing = readTiming(mp4File({ traks: [videoTrak({ timescale: 24000, entries: [[240, 1000]] })] }));
+  assert.equal(timing.period, 1 / 24);
+  const bias = target(1, 10, timing) - 1;
+  assert.ok(bias > 1e-6 && bias < 0.0005);
+  const pts = Array.from({ length: 241 }, (_, i) => i / 24);
+  for (const i of [1, 13, 106, 240]) {
+    const corrected = target(i / 24, 30, timing);
+    assert.ok(Math.abs(corrected - i / 24 - bias) < 1e-12);
+    assert.equal(index(pts, corrected), i);
+  }
+  assert.equal(target(0, 10, timing), 0);
+  assert.equal(target(106.5 / 24, 10, timing), 106.5 / 24);
+  assert.equal(target(106 / 24 - 0.0002, 10, timing), 106 / 24 - 0.0002);
+});
+
+test("MP4 bias exceeds decoder precision for common timescales", () => {
+  const cases = [
+    [600, 0.0005],
+    [12288, 0.0000406901],
+    [15360, 0.00003255208],
+    [24000, 0.00002083333],
+    [30000, 0.00001666667],
+    [90000, 0.000005555556],
+  ];
+  for (const [timescale, expected] of cases) {
+    const timing = readTiming(mp4File({ traks: [videoTrak({ timescale, entries: [[240, timescale / 24]] })] }));
+    const bias = target(1 / 24, 10, timing) - 1 / 24;
+    assert.ok(Math.abs(bias - expected) < 1e-9, `timescale ${timescale}`);
+    assert.ok(bias > 1e-6, `timescale ${timescale} stays above one microsecond`);
+  }
+});
+
+test("timingFor finds a moov beyond the header window with small reads", async () => {
+  const file = mp4File({ traks: [videoTrak({ timescale: 90000, entries: [[300, 3000]] })], moovFirst: false, mdatSize: 300 * 1024 });
+  assert.ok(file.length > 256 * 1024);
+  const blob = new Blob([file]);
+  const reads = [];
+  const tracked = { size: blob.size,
+    arrayBuffer: () => blob.arrayBuffer(),
+    slice: (start, end) => {
+      reads.push([start, end]);
+      const part = blob.slice(start, end);
+      return { arrayBuffer: () => part.arrayBuffer() };
+    } };
+  const el = video(), media = { file: tracked };
+  await ensure(el, media);
+  const boundary = 106 / 30;
+  el.currentTime = boundary;
+  assert.ok(el.currentTime > boundary);
+  const large = reads.filter(([start, end]) => end - start > 16);
+  assert.equal(large.length, 2);
+  assert.deepEqual(large[0], [0, 256 * 1024]);
+  assert.ok(large[1][0] >= 256 * 1024);
+  assert.ok(large[1][1] - large[1][0] <= 16 * 1024 * 1024);
+  assert.ok(reads.length <= 8);
+});
