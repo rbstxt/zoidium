@@ -355,7 +355,11 @@ function createPropertyStore(options) {
       // The host preserves unknown saved properties before these rows attach.
       // Write an explicit default for previously saved keys so clearing a
       // constraint cannot resurrect that preserved value on the next save.
-      const wasSaved = Object.prototype.hasOwnProperty.call(data?.properties || {}, key);
+      let wasSaved = Object.prototype.hasOwnProperty.call(data?.properties || {}, key);
+      if (wasSaved) {
+        try { wasSaved = JSON.stringify(data.properties[key]) !== undefined; }
+        catch (_error) { /* Preserve values that cannot be serialized. */ }
+      }
       omitDefault(created[key], entry.defaults[key], wasSaved);
     }
     batchListUpdate(properties, () => {

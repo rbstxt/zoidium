@@ -3,61 +3,61 @@
   "id": "constraints",
   "name": "Constraints",
   "author": "Zoidium",
-  "version": "5",
+  "version": "6",
   "kind": "extension",
   "description": "Track To aims at objects in the same scene. Follow copies object transforms within a scene or across scene layers in the same sequence.",
   "category": "scene",
   "modules": [
     {
       "id": "constraints",
-      "source": "./plugins/constraints/constraints.js?v=5"
+      "source": "./plugins/constraints/constraints.js?v=6"
     }
   ],
   "resources": [
     {
       "id": "track-to-math",
       "type": "text",
-      "source": "./plugins/constraints/track-to-math.js?v=5"
+      "source": "./plugins/constraints/track-to-math.js?v=6"
     },
     {
       "id": "constraint-graph",
       "type": "text",
-      "source": "./plugins/constraints/constraint-graph.js?v=5"
+      "source": "./plugins/constraints/constraint-graph.js?v=6"
     },
     {
       "id": "constraint-properties",
       "type": "text",
-      "source": "./plugins/constraints/constraint-properties.js?v=5"
+      "source": "./plugins/constraints/constraint-properties.js?v=6"
     },
     {
       "id": "track-to-evaluate",
       "type": "text",
-      "source": "./plugins/constraints/track-to-evaluate.js?v=5"
+      "source": "./plugins/constraints/track-to-evaluate.js?v=6"
     },
     {
       "id": "constraint-ui",
       "type": "text",
-      "source": "./plugins/constraints/constraint-ui.js?v=5"
+      "source": "./plugins/constraints/constraint-ui.js?v=6"
     },
     {
       "id": "constraint-overlay",
       "type": "text",
-      "source": "./plugins/constraints/constraint-overlay.js?v=5"
+      "source": "./plugins/constraints/constraint-overlay.js?v=6"
     },
     {
       "id": "follow-properties",
       "type": "text",
-      "source": "./plugins/constraints/follow-properties.js?v=5"
+      "source": "./plugins/constraints/follow-properties.js?v=6"
     },
     {
       "id": "follow-scenes",
       "type": "text",
-      "source": "./plugins/constraints/follow-scenes.js?v=5"
+      "source": "./plugins/constraints/follow-scenes.js?v=6"
     },
     {
       "id": "follow-evaluate",
       "type": "text",
-      "source": "./plugins/constraints/follow-evaluate.js?v=5"
+      "source": "./plugins/constraints/follow-evaluate.js?v=6"
     }
   ]
 }

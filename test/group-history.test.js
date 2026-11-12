@@ -41,3 +41,11 @@ test("plain legacy data still reaches the original loader", () => {
   assert.equal(fresh.objects[0].animated, false);
   assert.equal(fresh.objects[0].keyframes[0].value, 3);
 });
+
+test("a live group omitted by its default serializer loads as missing data", () => {
+  const old = new Group([new Keyframes(7)]);
+  old.toJSON = () => undefined;
+  const fresh = new Group([new Keyframes(0)]);
+  assert.doesNotThrow(() => fresh.load(old));
+  assert.equal(fresh.objects[0].keyframes[0].value, 0);
+});
