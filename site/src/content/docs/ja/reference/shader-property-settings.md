@@ -76,3 +76,22 @@ Toggle の既定の表示は **Off/on menu** です。
 Display を変更しても、値、キー、式、シェーダー出力は変わりません。
 既存の小数値と補間は、そのままシェーダーに渡されます。
 アニメーション中の式は、ネイティブメニューと同じく読み取り専用です。
+Checkbox の表示は、どちらの状態でもエディターのテーマに従います。
+
+## Minimum、Maximum、Step、Decimals
+
+Slider、Seed、Time sample、Angle の設定には **Decimals** を表示します。
+Time sample の設定には、**Minimum**、**Maximum**、**Step** も表示します。
+Toggle と Dropdown の設定には、これらの項目を表示しません。
+
+**Minimum** と **Maximum** は、行エディターの値を制限します。
+**Step** は、ドラッグの倍率と矢印キーの増分です。
+**Decimals** は、表示する小数点以下の桁数を 0 から 100 で指定します。
+これらの項目は、行の編集方法だけを変えます。
+保存された値とシェーダー出力は変わりません。
+
+他の種類から Time sample に変換すると、範囲の指定なしで単位の Step から始まります。
+古い Slider の範囲が残るとオフセットが制限されるため、変換時にはこれらの項目を空にします。
+Time sample に範囲を付けるには、Apply の前に値を入力します。
+**Minimum** または **Maximum** が空の場合、制限を外します。
+**Step** が空の場合、単位の既定値に戻ります。Frames は 1、Seconds は 0.01 です。

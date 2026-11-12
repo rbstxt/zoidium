@@ -19,6 +19,15 @@
 .zsp-range:hover::-webkit-slider-thumb { background: var(--zui-text-bright); }
 .zsp-range:disabled { opacity: .5; cursor: default; }
 
+/* Toggle checkbox: a theme-drawn box instead of the browser-default white
+   square and blue tick. The input stays a real checkbox, so keyboard focus,
+   the focus ring, and click behaviour are unchanged. */
+.zsp-checkbox { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 15px; height: 15px; margin: 0; padding: 0; border: 1px solid var(--zui-border-filter); border-radius: 2px; background: var(--zui-bg-input); cursor: pointer; position: relative; }
+.zsp-checkbox:checked { background: var(--zui-accent); border-color: var(--zui-accent); }
+.zsp-checkbox:checked::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--zui-text-bright); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.zsp-checkbox:focus-visible { outline: 2px solid var(--zui-value); outline-offset: 1px; }
+.zsp-checkbox:disabled { opacity: .5; cursor: default; }
+
 /* CM3 icon buttons (Seed, Palette). */
 .zsp-icon { flex: 0 0 auto; padding: 2px 3px; }
 .zsp-icon svg { width: 17px; height: 17px; fill: #ccc; display: block; }

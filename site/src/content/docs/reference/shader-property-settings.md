@@ -76,3 +76,22 @@ Both displays write the same NUMBER values, 0 and 1. New keys use Hold.
 Changing Display preserves values, keys, expressions, and shader output.
 Existing fractional values and interpolation reach the shader unchanged.
 An animated expression remains read-only, as with the native menu.
+The Checkbox display follows the editor theme in both states.
+
+## Minimum, Maximum, Step, and Decimals
+
+Slider, Seed, Time sample, and Angle settings show **Decimals**.
+Time sample settings also show **Minimum**, **Maximum**, and **Step**.
+Toggle and Dropdown settings show none of these fields.
+
+**Minimum** and **Maximum** clamp the row editor.
+**Step** is the drag multiplier and the arrow-key increment.
+**Decimals** sets the displayed decimal places, from 0 to 100.
+These fields change row editing only.
+Saved values and shader output stay unchanged.
+
+Converting another kind to Time sample starts unbounded with the units step.
+A stale Slider range would clamp the offset, so the dialog clears these fields on conversion.
+To bound a Time sample, type explicit values before Apply.
+A blank **Minimum** or **Maximum** removes the bound.
+A blank **Step** restores the units default: 1 for Frames, 0.01 for Seconds.
