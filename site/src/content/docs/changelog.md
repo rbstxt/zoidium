@@ -219,6 +219,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Exports and scrubbing of H.264 MP4 video show the intended source frame.
+  At frame boundaries they often showed the previous frame, so exports
+  repeated and skipped frames. Exports of affected projects change: each
+  output frame now uses the correct video frame.
 - Alt-dragging a Scene or Camera clip, or a layer with Track To or Follow,
   makes a working duplicate. It was left as a ghost that could not be
   selected, and duplicates no longer save unused constraint settings.
