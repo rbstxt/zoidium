@@ -124,71 +124,146 @@
     if (body + 12 > end || body + 12 > bytes.length) return "";
     return ascii(bytes, body + 8, 4);
   }
-  // Collects the distinct sample deltas of a constant-rate track, or null
-  // for variable rates and malformed tables. Today's behaviour is kept for
-  // variable rates: no correction.
-  function readSttsDeltas(bytes, body, end) {
+  // Collects the single sample delta of a constant-rate track with its total
+  // sample count, or null for variable rates and malformed tables. Variable
+  // rates keep today's behaviour: no correction.
+  function readSttsGrid(bytes, body, end) {
     if (body + 8 > end || body + 8 > bytes.length) return null;
     const count = u32be(bytes, body + 4);
     if (count < 1 || body + 8 + count * 8 > end || body + 8 + count * 8 > bytes.length) return null;
-    const distinct = [];
+    let delta = 0, total = 0;
     for (let i = 0; i < count; i++) {
-      const delta = u32be(bytes, body + 8 + i * 8 + 4);
-      if (delta < 1) return null;
-      if (!distinct.includes(delta)) {
-        if (distinct.length > 1) return null;
-        distinct.push(delta);
-      }
+      const run = u32be(bytes, body + 8 + i * 8), step = u32be(bytes, body + 8 + i * 8 + 4);
+      if (run < 1 || step < 1) return null;
+      if (!delta) delta = step;
+      else if (step !== delta) return null;
+      total += run;
+      if (total > 1e9) return null;
     }
-    return distinct;
+    return { delta, total };
   }
-  // An edit list with a non-zero media time (including the empty-edit marker
-  // of all-bits-set) shifts the nominal frame boundaries, and a rate other
-  // than 1 stretches them. Either case keeps today's uncorrected seeks.
-  function hasShiftedEdit(bytes, body, end) {
-    if (body + 8 > end || body + 8 > bytes.length) return true;
+  // Composition offsets per sample run: [count, offset] with signed v1
+  // offsets. Returns null for malformed or versioned-out tables.
+  function readCttsRuns(bytes, body, end) {
+    if (body + 8 > end || body + 8 > bytes.length) return null;
+    const version = bytes[body], count = u32be(bytes, body + 4);
+    if (version !== 0 && version !== 1) return null;
+    if (body + 8 + count * 8 > end || body + 8 + count * 8 > bytes.length) return null;
+    const runs = [];
+    for (let i = 0; i < count; i++) {
+      const run = u32be(bytes, body + 8 + i * 8);
+      let offset = u32be(bytes, body + 8 + i * 8 + 4);
+      if (run < 1) return null;
+      if (version === 1 && offset >= 0x80000000) offset -= 4294967296;
+      runs.push([run, offset]);
+    }
+    return runs;
+  }
+  function tickMod(value, delta) {
+    return ((value % delta) + delta) % delta;
+  }
+  // The presentation grid over the first samples: PTS is DTS plus the ctts
+  // offset. The prefix covers at least two GOP-ish windows (1024 samples),
+  // or the whole table when it is smaller. Returns the sample delta with the
+  // smallest composition timestamp, or null when offsets leave the delta
+  // grid or the tables disagree.
+  const GRID_PREFIX_SAMPLES = 1024;
+  function readPresentationGrid(bytes, stts, ctts) {
+    const grid = stts && readSttsGrid(bytes, stts.body, stts.end);
+    if (!grid) return null;
+    if (!ctts) return { delta: grid.delta, minCts: 0 };
+    const runs = readCttsRuns(bytes, ctts.body, ctts.end);
+    if (!runs) return null;
+    if (!runs.length) return { delta: grid.delta, minCts: 0 };
+    let covered = 0;
+    for (const [run] of runs) {
+      covered += run;
+      if (covered > 1e9) return null;
+    }
+    if (covered !== grid.total) return null;
+    let remaining = Math.min(grid.total, GRID_PREFIX_SAMPLES), dts = 0, minCts = Infinity;
+    const prefix = [];
+    for (const [run, offset] of runs) {
+      if (remaining <= 0) break;
+      const take = Math.min(run, remaining);
+      prefix.push([dts, offset]);
+      if (dts + offset < minCts) minCts = dts + offset;
+      dts += run * grid.delta;
+      remaining -= take;
+    }
+    for (const [start, offset] of prefix) {
+      if (tickMod(start + offset - minCts, grid.delta) !== 0) return null;
+    }
+    return { delta: grid.delta, minCts };
+  }
+  // Reads the first edit-list entry's media time in media ticks. Absent and
+  // empty lists mean zero. A single non-zero entry is returned for the phase
+  // check; empty edits, several non-trivial entries, non-unit rates, and
+  // malformed lists keep uncorrected seeks.
+  function readEditMediaTime(bytes, body, end) {
+    if (body + 8 > end || body + 8 > bytes.length) return null;
     const version = bytes[body], count = u32be(bytes, body + 4);
     const entrySize = version === 0 ? 12 : version === 1 ? 20 : 0;
-    if (!entrySize || body + 8 + count * entrySize > end || body + 8 + count * entrySize > bytes.length) return true;
+    if (!entrySize || body + 8 + count * entrySize > end || body + 8 + count * entrySize > bytes.length) return null;
+    if (!count) return { mediaTime: 0 };
+    let mediaTime = 0;
     for (let i = 0; i < count; i++) {
       const at = body + 8 + i * entrySize;
+      let media = 0;
       if (version === 0) {
-        if (u32be(bytes, at + 4) !== 0) return true;
-        if (bytes[at + 8] * 256 + bytes[at + 9] !== 1 || bytes[at + 10] * 256 + bytes[at + 11] !== 0) return true;
+        media = u32be(bytes, at + 4);
+        if (media === 0xFFFFFFFF) return null;
       } else {
-        if (u32be(bytes, at + 8) !== 0 || u32be(bytes, at + 12) !== 0) return true;
-        if (bytes[at + 16] * 256 + bytes[at + 17] !== 1 || bytes[at + 18] * 256 + bytes[at + 19] !== 0) return true;
+        const high = u32be(bytes, at + 8), low = u32be(bytes, at + 12);
+        if (high === 0xFFFFFFFF && low === 0xFFFFFFFF) return null;
+        if (high > 0x1FFFFF) return null;
+        media = high * 4294967296 + low;
       }
+      const integer = version === 0 ? at + 8 : at + 16;
+      if (bytes[integer] * 256 + bytes[integer + 1] !== 1 || bytes[integer + 2] * 256 + bytes[integer + 3] !== 0) return null;
+      if (count > 1) {
+        if (media !== 0) return null;
+      } else mediaTime = media;
     }
-    return false;
+    return { mediaTime };
   }
   function readVideoTrack(bytes, start, end) {
-    let mdia = null, edit = null;
+    let mdia = null, editBox = null;
     eachBox(bytes, start, end, (type, body, boxEnd) => {
       if (type === "mdia") mdia = { body, end: boxEnd };
       else if (type === "edts") eachBox(bytes, body, boxEnd, (innerType, innerBody, innerEnd) => {
-        if (innerType === "elst") { edit = { body: innerBody, end: innerEnd }; return true; }
+        if (innerType === "elst") { editBox = { body: innerBody, end: innerEnd }; return true; }
         return false;
       });
       return false;
     });
     if (!mdia) return null;
-    let timescale = 0, handler = "", deltas = null;
+    let timescale = 0, handler = "", stts = null, ctts = null;
     eachBox(bytes, mdia.body, mdia.end, (type, body, boxEnd) => {
       if (type === "mdhd") timescale = readMdhdTimescale(bytes, body, boxEnd);
       else if (type === "hdlr") handler = readHandler(bytes, body, boxEnd);
       else if (type === "minf") eachBox(bytes, body, boxEnd, (innerType, innerBody, innerEnd) => {
         if (innerType === "stbl") eachBox(bytes, innerBody, innerEnd, (tableType, tableBody, tableEnd) => {
-          if (tableType === "stts") { deltas = readSttsDeltas(bytes, tableBody, tableEnd); return true; }
+          if (tableType === "stts") stts = { body: tableBody, end: tableEnd };
+          else if (tableType === "ctts") ctts = { body: tableBody, end: tableEnd };
           return false;
         });
-        return deltas !== null;
+        return false;
       });
       return false;
     });
-    if (handler !== "vide" || !(timescale > 0) || !deltas || deltas.length !== 1) return null;
-    if (edit && hasShiftedEdit(bytes, edit.body, edit.end)) return null;
-    const delta = deltas[0];
+    if (handler !== "vide" || !(timescale > 0)) return null;
+    const grid = readPresentationGrid(bytes, stts, ctts);
+    if (!grid) return null;
+    const edit = !editBox ? { mediaTime: 0 } : readEditMediaTime(bytes, editBox.body, editBox.end);
+    if (!edit) return null;
+    // The nominal boundaries stay at n * period only when the presentation
+    // grid (earliest composition timestamp minus the edit-list media time)
+    // lands on a whole multiple of the sample delta. Anything else keeps
+    // uncorrected seeks: shifting the grid cannot be done safely without
+    // knowing the caller's intended frame mapping.
+    if (tickMod(grid.minCts - edit.mediaTime, grid.delta) !== 0) return null;
+    const delta = grid.delta;
     // Sample deltas are integral ticks. Recover conventional rational rates
     // only when they match the grid to within one nanosecond, mirroring the
     // WebM branch. Anything coarser keeps the exact tick grid, which simply
@@ -198,7 +273,7 @@
       const rate = Math.round(timescale / delta * denominator) / denominator;
       if (rate > 0 && Math.abs(timescale / rate - delta) <= timescale * 1e-9) { period = 1 / rate; break; }
     }
-    return { period, quantum: 1 / timescale };
+    return { period, quantum: 1 / timescale, phase: (grid.minCts - edit.mediaTime) / timescale };
   }
   function readMp4Timing(bytes) {
     try {
