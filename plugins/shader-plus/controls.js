@@ -5,6 +5,7 @@
 // inputs, option menus and icon buttons wherever one exists.
 const { KINDS, MAX_PALETTE, discreteValue, items } = require("./kinds.js");
 const { parseJSON, parseText } = require("./bake.js");
+const { snapValue } = require("./snap.js");
 
 function installControls({ PZ, doc, register, editor }) {
   const C = PZ.ui.controls;
@@ -86,7 +87,14 @@ function installControls({ PZ, doc, register, editor }) {
     const fill = value => range.style.setProperty("--zsp-fill", (max > min ? Math.min(1, Math.max(0, (value - min) / (max - min))) * 100 : 0) + "%");
     const start = () => { if (!editing) { editing = true; begin(range, property); } };
     range.addEventListener("pointerdown", event => { event.stopPropagation(); start(); });
-    range.addEventListener("input", () => { start(); fill(Number(range.value)); property.set(Number(range.value) * scale, box.pz_frame); });
+    range.addEventListener("input", () => {
+      start();
+      // Snap is display units, like Step: the range commits through
+      // property.set directly, bypassing the snapped native number input.
+      const unsnapped = Number(range.value), snapped = snapValue(unsnapped, property.definition);
+      if (snapped !== unsnapped) range.value = String(snapped);
+      fill(snapped); property.set(snapped * scale, box.pz_frame);
+    });
     range.addEventListener("change", () => { if (editing) { editing = false; finish(range, property); } });
     box.append(range);
     const update = box.pz_update;
@@ -99,7 +107,7 @@ function installControls({ PZ, doc, register, editor }) {
     box.classList.add("zsp-inline-row");
     const button = iconButton("random", "Randomize seed");
     button.disabled = readOnly(property);
-    button.onclick = event => { event.stopPropagation(); commit(button, property, Math.floor(Math.random() * 100000)); };
+    button.onclick = event => { event.stopPropagation(); commit(button, property, snapValue(Math.floor(Math.random() * 100000), property.definition)); };
     box.append(button);
     return box;
   });

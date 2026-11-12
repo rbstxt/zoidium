@@ -20,6 +20,17 @@ function activate(context) {
   const register = (id, type, create) => disposers.push(context.apis.propertyControls.register(id, { type, create }));
   const controls = require("./controls.js").installControls({ PZ, doc, editor, register });
   require("./angle-control.js").registerAngle({ PZ, doc, register, commit: controls.commit });
+  // Snap for native number rows. CM3's Time sample rows are bare native rows
+  // that Shader+ never creates, so the opt-in check wraps generateInput
+  // itself: definitions without an active snap take the original path
+  // bit-for-bit, and only Shader+ kinds listed in snap.js are eligible. The
+  // PZ.ui.input prototype is never touched; the created instance alone gets
+  // an own-property set override for the duration of its row creation.
+  const snap = require("./snap.js");
+  patch(PZ.ui.controls, "generateInput", original => function generateInputWithSnap(property) {
+    if (snap.isSnapActive(property?.definition)) return snap.createWithSnap(PZ, property, () => original.call(this, property));
+    return original.call(this, property);
+  });
   require("./texture-controls.js").installTextureControls({ PZ, doc, curves, register, commit: controls.commit });
   const runtime = require("./runtime.js").installRuntime({ PZ, THREE: win.THREE, doc, patch, curves, editor, presetFont, pipeline: context.apis.shaderPipeline, onDispose: fn => disposers.push(fn) });
   disposers.push(() => runtime.disposeAll());

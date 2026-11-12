@@ -1,5 +1,6 @@
 "use strict";
 const { KINDS, ORDER, kindOf, items, MAX_TIME_SAMPLES } = require("./kinds.js");
+const { SNAP_KINDS } = require("./snap.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 const NUMERIC = ["slider", "seed"], OPTIONS = ["dropdown", "staticDropdown"];
 const list = text => String(text).split(/[\n;]/).map(s => s.trim()).filter(Boolean);
@@ -114,7 +115,8 @@ function installEditor({ context, patch, presetFont }) {
       const k = kind.value, same = k === current;
       if (NUMERIC.includes(k)) {
         input(specific, "min", "Minimum", d.min, "number"); input(specific, "max", "Maximum", d.max, "number");
-        input(specific, "step", "Step", d.step, "number"); input(specific, "decimals", "Decimals", same ? d.decimals : KINDS[k].create().decimals, "number");
+        input(specific, "step", "Step", d.step, "number"); input(specific, "snap", "Snap", d.snap, "number");
+        input(specific, "decimals", "Decimals", same ? d.decimals : KINDS[k].create().decimals, "number");
         input(specific, "default", "Default", same ? meta.default ?? d.value : "", "number");
       } else if (k === "timeSample") {
         select(specific, "units", "Offset units", [["frames", "Frames"], ["seconds", "Seconds"]], meta.units || "frames");
@@ -124,9 +126,11 @@ function installEditor({ context, patch, presetFont }) {
         input(specific, "min", "Minimum", same ? d.min : "", "number");
         input(specific, "max", "Maximum", same ? d.max : "", "number");
         input(specific, "step", "Step", same ? d.step : "", "number");
+        input(specific, "snap", "Snap", same ? d.snap : "", "number");
         input(specific, "decimals", "Decimals", same ? d.decimals : KINDS.timeSample.create().decimals, "number");
       } else if (k === "angle") {
         input(specific, "decimals", "Decimals", same ? d.decimals : KINDS.angle.create().decimals, "number");
+        input(specific, "snap", "Snap", same ? d.snap : "", "number");
         input(specific, "default", "Default (°)", same && Number.isFinite(meta.default) ? meta.default * 180 / Math.PI : "", "number");
       } else if (k === "checkbox") {
         select(specific, "default", "Default", [["0", "off"], ["1", "on"]], String(same ? meta.default ?? 0 : 0));
@@ -184,6 +188,14 @@ function installEditor({ context, patch, presetFont }) {
       else if (!Number.isInteger(decimals) || decimals < 0 || decimals > 100) throw new Error("Use 0 to 100 decimals");
       else definition.decimals = decimals;
     }
+    // Blank or 0 is off: the field stays absent from the definition, which
+    // keeps current behaviour bit-for-bit.
+    function readSnap(definition) {
+      const snap = number("snap");
+      if (snap === undefined || snap === 0) delete definition.snap;
+      else if (snap < 0) throw new Error("Use a positive snap or leave it blank");
+      else definition.snap = snap;
+    }
     const fieldState = () => JSON.stringify(Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.value])));
     const initialFields = fieldState();
     ok.onclick = () => {
@@ -195,6 +207,9 @@ function installEditor({ context, patch, presetFont }) {
         if (changedKind) for (const key of ["zoidiumControl", "scaleFactor", "decimals"]) {
           delete definition[key]; if (target?.[key] !== undefined) definition[key] = target[key];
         }
+        // A grid from another kind is meaningless on Toggle, Dropdown and the
+        // other non-snapping kinds; snap-supporting targets read the field.
+        if (changedKind && !SNAP_KINDS.includes(kind.value)) delete definition.snap;
         const next = { ...meta };
         if (changedKind) {
           next.kind = kind.value;
@@ -203,6 +218,7 @@ function installEditor({ context, patch, presetFont }) {
         if (NUMERIC.includes(kind.value)) {
           for (const key of ["min", "max", "step"]) { const n = number(key); if (n === undefined) delete definition[key]; else definition[key] = n; }
           if (definition.min > definition.max || definition.step <= 0) throw new Error("Use an ordered range and a positive step");
+          readSnap(definition);
           readDecimals(definition);
           const def = number("default"); if (def !== undefined) { next.default = def; definition.value = def; }
         } else if (kind.value === "timeSample") {
@@ -217,8 +233,10 @@ function installEditor({ context, patch, presetFont }) {
           if (step === undefined) definition.step = next.units === "seconds" ? 0.01 : 1;
           else definition.step = step;
           if (definition.min > definition.max || definition.step <= 0) throw new Error("Use an ordered range and a positive step");
+          readSnap(definition);
           readDecimals(definition);
         } else if (kind.value === "angle") {
+          readSnap(definition);
           readDecimals(definition);
           const def = number("default"); if (def !== undefined) { next.default = def * Math.PI / 180; definition.value = next.default; }
         } else if (kind.value === "checkbox") {
@@ -245,7 +263,12 @@ function installEditor({ context, patch, presetFont }) {
         const group = fields.group.value.trim();
         if (groups && group !== groups.name(p)) {
           if (!groups.canAssign(p, group)) throw new Error("Unlock the group before moving its properties");
+          // The group condition belongs to the group: take the target group's one (or none).
+          const peer = group && (effect?.customProperties || []).find(q => q !== p && groups.name(q) === group);
+          const peerWhen = peer?.definition?.zoidiumPropertyGroup?.visibleWhen;
           definition.zoidiumPropertyGroup = { ...definition.zoidiumPropertyGroup, name: group };
+          if (peerWhen) definition.zoidiumPropertyGroup.visibleWhen = clone(peerWhen);
+          else delete definition.zoidiumPropertyGroup.visibleWhen;
         }
         if (Object.keys(next).length) definition.zoidiumShader = next;
         else delete definition.zoidiumShader;
@@ -266,6 +289,87 @@ function installEditor({ context, patch, presetFont }) {
     row.after(panel); openPanel = { row, p, panel }; fields.name.focus(); fields.name.select();
   }
 
+  // Group Visible when for Shader+ property groups. The condition lives on
+  // the group metadata of every member, so it is saved with the project,
+  // survives JSON copy/paste, and undoes/redoes in one step through the
+  // shared group history. Controllers are ungrouped properties of the same
+  // effect, so a hidden group cannot hide its own controller.
+  function groupSettings(row, p) {
+    if (!groups) return;
+    closeSettings();
+    const group = groups.name(p);
+    if (!group) return;
+    const effect = effectOf(p), list = p.parent;
+    const members = groups.members(list, group);
+    if (!members.length) return;
+    const current = groups.meta(members[0]).visibleWhen;
+    const panel = doc.createElement("div"); panel.className = "zsp-settings"; panel.setAttribute("role", "group"); panel.setAttribute("aria-label", "Group settings");
+    const indent = (parseInt(row.firstElementChild?.style?.paddingLeft, 10) || 0) + 15;
+    const title = doc.createElement("div"); title.className = "zsp-settings-title"; title.style.paddingLeft = indent + "px"; title.textContent = "Group settings: " + group;
+    const body = doc.createElement("div"); panel.append(title, body);
+    const names = (effect?.customProperties || []).filter(q => !groups.name(q)).map(q => q.properties.name.get());
+    if (current?.property && !names.includes(current.property)) names.push(current.property);
+    const whenRow = doc.createElement("div"); whenRow.className = "zsp-settings-line"; whenRow.style.gridTemplateColumns = row.style.gridTemplateColumns;
+    const whenName = doc.createElement("span"); whenName.textContent = "Visible when"; whenName.title = "Visible when"; whenName.style.paddingLeft = indent + "px";
+    const whenCell = doc.createElement("div"); whenCell.className = "editbox";
+    const when = doc.createElement("select"); when.className = "pz-inputbox";
+    for (const [v, text] of [["", "Always"], ...names.map(n => [n, n])]) { const option = doc.createElement("option"); option.value = v; option.textContent = text; when.append(option); }
+    when.value = current?.property || ""; if (when.selectedIndex < 0) when.selectedIndex = 0;
+    when.setAttribute("aria-label", "Visible when"); whenCell.append(when); whenRow.append(whenName, whenCell); body.append(whenRow);
+    const valuesRow = doc.createElement("div"); valuesRow.className = "zsp-settings-line"; valuesRow.style.gridTemplateColumns = row.style.gridTemplateColumns;
+    const valuesName = doc.createElement("span"); valuesName.textContent = "Has value"; valuesName.title = "Has value"; valuesName.style.paddingLeft = indent + "px";
+    const valuesCell = doc.createElement("div"); valuesCell.className = "editbox";
+    const values = doc.createElement("input"); values.className = "pz-inputbox"; values.type = "text";
+    values.value = formatConditions(current); values.placeholder = "e.g. > 5.5; 1..5; != 3";
+    values.setAttribute("aria-label", "Has value"); valuesCell.append(values); valuesRow.append(valuesName, valuesCell); body.append(valuesRow);
+    const initialWhen = when.value, initialValues = values.value;
+    const syncWhen = () => { valuesRow.hidden = !when.value; };
+    when.addEventListener("change", syncWhen); syncWhen();
+    const error = doc.createElement("div"); error.className = "zsp-settings-error"; error.setAttribute("role", "status"); error.style.paddingLeft = indent + "px";
+    function warning() {
+      if (!when.value) return "";
+      const controller = effect?.customProperties.find(q => q.properties.name.get() === when.value);
+      try {
+        const condition = when.value === initialWhen && values.value === initialValues ? current : parseConditions(values.value);
+        return unreachable(condition, controller) ? "This condition cannot match the controller's choices. Use Show hidden to edit the group." : "";
+      } catch (_error) { return ""; }
+    }
+    const showWarning = () => { error.textContent = warning(); error.classList.toggle("zsp-settings-warning", !!error.textContent); };
+    when.addEventListener("change", showWarning); values.addEventListener("input", showWarning); showWarning();
+    const actionsRow = doc.createElement("div"); actionsRow.className = "zsp-settings-actions";
+    const cancel = doc.createElement("button"); cancel.type = "button"; cancel.textContent = "Cancel"; cancel.className = "zsp-settings-button";
+    const ok = doc.createElement("button"); ok.type = "button"; ok.textContent = "Apply"; ok.className = "zsp-settings-button zsp-settings-primary";
+    actionsRow.append(cancel, ok); panel.append(error, actionsRow);
+    cancel.onclick = closeSettings;
+    ok.onclick = () => {
+      try {
+        let next;
+        if (when.value) {
+          if (when.value === initialWhen && values.value === initialValues) { closeSettings(); return; }
+          next = { property: when.value, ...parseConditions(values.value) };
+        } else if (!current) { closeSettings(); return; }
+        const changed = groups.edit(CM, list, state => {
+          for (const member of members) {
+            const record = state[list.indexOf(member)];
+            record.meta = { ...record.meta };
+            if (next) record.meta.visibleWhen = next;
+            else delete record.meta.visibleWhen;
+          }
+        });
+        void changed;
+        // The shared group edit already refreshes the panel; visibility is
+        // UI only and never touches uniforms or shader output.
+        closeSettings();
+      } catch (e) { error.classList.remove("zsp-settings-warning"); error.textContent = e.message; }
+    };
+    panel.addEventListener("keydown", e => {
+      e.stopPropagation();
+      if (e.key === "Escape") { e.preventDefault(); closeSettings(); }
+      else if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); ok.click(); }
+    });
+    row.after(panel); openPanel = { row, p, panel }; values.focus?.(); values.select?.();
+  }
+
   function duplicate(view, p) {
     const address = p.getAddress(), data = clone(p);
     data.properties = { ...data.properties, name: uniqueName(p.properties.name.get()) };
@@ -284,6 +388,7 @@ function installEditor({ context, patch, presetFont }) {
       { label: "Delete", action: () => remove(view, p) },
       { separator: true },
       ...(groups?.propertyMenu?.(view, row, p) || []),
+      ...(groups && groups.name(p) ? [{ label: "Group settings…", action: () => groupSettings(row, p) }] : []),
       { label: "Property settings…", action: () => settings(row, p) },
     ];
   }
@@ -321,8 +426,18 @@ function installEditor({ context, patch, presetFont }) {
     const row = options?.owner?.closest?.("li"), p = row?.pz_object;
     return effectOf(p) && !options.items?.some(i => i.label === "Property settings…") ? [{ label: "Property settings…", action: () => settings(row, p) }] : [];
   } }));
+  // A property row shows only when its own condition passes AND its group's
+  // condition passes. A hidden group also hides its heading. The Show hidden
+  // toggle reveals hidden groups as well as hidden properties.
+  function groupMemberPasses(member, effect, frame) {
+    const condition = groups.meta(member).visibleWhen;
+    if (!condition) return true;
+    const owner = effect.customProperties.find(item => item.properties.name.get() === condition.property);
+    return !!owner && matches(condition, owner.get(frame));
+  }
   function sync() {
     if (openPanel && (!openPanel.row.isConnected || !effectOf(openPanel.p))) closeSettings();
+    const lists = new Set(), views = new Map();
     for (const ref of rows) {
       const row = ref.deref();
       if (!row) { rows.delete(ref); continue; }
@@ -330,14 +445,32 @@ function installEditor({ context, patch, presetFont }) {
       connectedRows.add(row);
       const p = row.pz_object, effect = effectOf(p);
       if (!effect) { rows.delete(ref); continue; }
+      const frame = CM.playback.currentFrame - p.frameOffset;
       const meta = p.definition.zoidiumShader || {};
       const when = meta.visibleWhen, controller = when && effect.customProperties.find(q => q.properties.name.get() === when.property);
-      const visible = !when || !!controller && matches(when, controller.get(CM.playback.currentFrame - p.frameOffset));
+      const own = !when || !!controller && matches(when, controller.get(frame));
+      const group = groups ? groups.name(p) : "";
+      const groupOk = !group || groups.members(p.parent, group).every(q => groupMemberPasses(q, effect, frame));
+      const visible = own && groupOk;
       const reveal = !visible && !!showHidden.get(rowViews.get(row));
       row.hidden = !visible && !reveal;
       row.classList.toggle("zsp-hidden-property", reveal);
+      if (group) {
+        lists.add(row.parentElement);
+        if (!views.has(row.parentElement)) views.set(row.parentElement, rowViews.get(row));
+      }
       if (row.nextElementSibling?.tagName === "UL" && p.definition.group) row.nextElementSibling.hidden = row.hidden;
       if (meta.help) { row.title = meta.help; row.firstElementChild.title = meta.help; }
+    }
+    for (const parent of lists) {
+      if (!parent) continue;
+      for (const child of parent.children) {
+        if (!child.classList?.contains("zpg-heading") || !child.zpg?.name) continue;
+        const peers = groups.members(child.zpg.list, child.zpg.name), first = peers[0], owner = first && effectOf(first);
+        const hidden = !owner || !peers.every(q => groupMemberPasses(q, owner, CM.playback.currentFrame - first.frameOffset));
+        const reveal = hidden && !!showHidden.get(views.get(parent));
+        child.style.display = !hidden || reveal ? "" : "none";
+      }
     }
   }
   const timer = win.setInterval(sync, 100);
@@ -355,6 +488,6 @@ function installEditor({ context, patch, presetFont }) {
     this.createKeyframe = function (record) { return create.call(this, { ...record, data: { ...record.data, tween: 0 } }); };
     try { return original.apply(this, arguments); } finally { this.createKeyframe = create; }
   });
-  return { settings, edit, effectOf, sync, resetCustom };
+  return { settings, groupSettings, edit, effectOf, sync, resetCustom };
 }
 module.exports = { installEditor };
