@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "6e6b5bc2ff09281b3db7ee8e4d87f722c25f97697e99e5de850227d9d58a424c",
+  "fingerprint": "cccc9d46c7cfc844d0393303a787e52babc13df7d9b2516fe17961d6f8074d8f",
   "plugins": {
     "native-fx": {
       "version": "39",
@@ -143,9 +143,47 @@
         "zero-offset",
         "time-sample-full"
       ]
+    },
+    "camera-plus": {
+      "version": "21",
+      "cases": [
+        "scene-camera-animation",
+        "shared-camera-animation",
+        "scene-camera-animation-full"
+      ]
+    },
+    "layer-input": {
+      "version": "16",
+      "cases": [
+        "animated-source",
+        "nested-source",
+        "displacement-track",
+        "time-displacement-track",
+        "material-track",
+        "effect-image",
+        "displacement-image",
+        "time-displacement-image",
+        "material-image",
+        "shader-source",
+        "shader-masks",
+        "shader-effects-masks",
+        "animated-source-full"
+      ]
     }
   },
-  "excluded": {}
+  "excluded": {
+    "expressions-plus": {
+      "version": "19",
+      "cases": [
+        "seeded-time-fps",
+        "mutable-realm",
+        "seeded-time-fps-full"
+      ],
+      "failed": [
+        "mutable-realm"
+      ]
+    }
+  }
 };
   global.ZoidiumOutputFrameApprovals = receipt;
   if (typeof module === "object" && module.exports) module.exports = receipt;

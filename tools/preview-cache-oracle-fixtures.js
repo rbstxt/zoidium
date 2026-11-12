@@ -126,8 +126,89 @@ function fixtures() {
   }
   for (const type of [7, 8, 9]) add("effector-plus", "legacy-type-" + type,
     project([{ type, objects: [box()], properties: { angle: scalar(0.2, 1.1), amount: scalar(2, 8) }, repeaterProperties: {} }]));
+  const camera = { type: "zoidium:camera-plus/camera", properties: {
+    position: vector([-8, 0, 80], [8, 4, 80]), rotation: vector([0, 0, 0]),
+  } };
+  add("camera-plus", "scene-camera-animation", project([camera, box()]), { cameraCheck: "scene" });
+  const sharedCamera = project();
+  sharedCamera.sequence.videoTracks[0].track3d = true;
+  sharedCamera.sequence.videoTracks.push({ type: 0, clips: [{ start: 0, length: 60,
+    properties: {}, object: { type: 9, objects: [copy(camera)], effects: [] } }] });
+  add("camera-plus", "shared-camera-animation", sharedCamera, { cameraCheck: "shared" });
+
+  const source = project();
+  source.sequence.videoTracks[0].clips[0].object.objects[1].material.properties.color = vector([0.1, 0.8, 0.3]);
+  source.sequence.videoTracks[0].clips[0].object.objects[1].properties.position = vector([-35, 12, 0], [-5, 18, 0]);
+  source.sequence.videoTracks[0]._zoidiumLayerInputId = "oracle-source";
+  source.sequence.videoTracks.push({ type: 0, _zoidiumLayerInputId: "oracle-consumer", clips: [{
+    start: 0, length: 60, properties: {}, object: { type: 4, properties: { background: [0.2, 0.05, 0.1] },
+      objects: [{ type: 6, objectType: 1 }, box()], effects: [{ type: "layerinput",
+      properties: { source: "track:id:oracle-source", opacity: scalar(0.7) } }] },
+  }] });
+  add("layer-input", "animated-source", source, { sourceEdit: true });
+  const nested = copy(source);
+  nested.media.push({ properties: { name: "Oracle nested" }, assets: [], data: [copy(nested.sequence.videoTracks[0])],
+    comp: { id: "oracle-nested", clipLinks: null } });
+  nested.sequence.videoTracks[0].clips[0].object = { type: 2, compId: "oracle-nested", offset: 0,
+    properties: {}, effects: [], objects: [] };
+  add("layer-input", "nested-source", nested, { nestedEdit: true });
+  const displacement = copy(source);
+  displacement.sequence.videoTracks[0].clips[0].object.properties.background = [1, 1, 1];
+  const detail = displacement.sequence.videoTracks[1].clips[0].object.objects;
+  for (let i = 0; i < 8; i++) {
+    const stripe = box();
+    stripe.properties.geometryProperties.box_size = [3, 36, 10];
+    stripe.properties.position = vector([-35 + i * 10, 0, 0]);
+    detail.push(stripe);
+  }
+  displacement.sequence.videoTracks[1].clips[0].object.effects = [{ type: "layerinputdisplacement",
+    properties: { source: "track:id:oracle-source", amount: scalar(0.7), wrap: 1 } }];
+  add("layer-input", "displacement-track", displacement, { sourceEdit: true });
+  const timeDisplacement = copy(source);
+  timeDisplacement.sequence.videoTracks[1].clips[0].object.effects = [{ type: "timedisplacement",
+    properties: { source: "track:id:oracle-source", maxTime: scalar(0.5), resolution: scalar(4) } }];
+  add("layer-input", "time-displacement-track", timeDisplacement, { sourceEdit: true });
+  const material = copy(source);
+  const consumerScene = material.sequence.videoTracks[1].clips[0].object;
+  consumerScene.effects = [];
+  consumerScene.objects[1].material = { type: "layersource", properties: { source: "track:id:oracle-source" } };
+  add("layer-input", "material-track", material, { sourceEdit: "material" });
+  for (const [name, base, kind] of [
+    ["effect-image", source, "effect"], ["displacement-image", displacement, "effect"],
+    ["time-displacement-image", timeDisplacement, "effect"], ["material-image", material, "material"],
+  ]) {
+    const data = copy(base);
+    for (const id of ["oracle-image-a", "oracle-image-b"]) {
+      data.assets[id] = { sha256: id, source: 1, filename: id + ".png" };
+    }
+    const scene = data.sequence.videoTracks[1].clips[0].object;
+    const consumer = kind === "material" ? scene.objects[1].material : scene.effects[0];
+    consumer.properties.source = "image";
+    consumer.properties.sourceImage = "oracle-image-a";
+    add("layer-input", name, data, { imageEdit: kind });
+  }
+  for (const mode of ["source", "masks", "effects-masks"]) {
+    const shader = copy(source);
+    shader.sequence.videoTracks[1].clips[0].object.effects = [{ type: 1,
+      properties: { fragShader: "precision highp float; uniform sampler2D Input; varying vec2 vUvScaled; void main(){gl_FragColor=texture2D(Input,vUvScaled);}" },
+      customProperties: [{ type: { custom: true, type: 9, value: "", items: [],
+        _zoidiumLayerSource: true, _zoidiumShaderLayerSource: true, _zoidiumLayerInputMode: mode },
+      properties: { name: "Input" }, value: "track:id:oracle-source" }] }];
+    add("layer-input", "shader-" + mode, shader, { sourceEdit: "shader", sourceMode: mode });
+  }
+
+  const expr = project();
+  expr.sequence.videoTracks[0].clips[0].object.objects[1].properties.position.objects[0] = {
+    ...scalar(0), expression: "seedRandom(42); value + random() * 10 + time * fps",
+  };
+  add("expressions-plus", "seeded-time-fps", expr);
+  const stateful = copy(expr);
+  stateful.sequence.videoTracks[0].clips[0].object.objects[1].properties.position.objects[0].expression =
+    "Math.counter = (Math.counter || 0) + 1; Math.counter";
+  add("expressions-plus", "mutable-realm", stateful);
   for (const fixture of result) {
     fixture.requiredPlugin = fixture.plugin === "effector-plus" ? "repeater" : fixture.plugin;
+    if (fixture.name === "time-displacement-image") fixture.requiredPlugin = "native-fx";
     if (fixture.plugin === "ccfx-shader-pack" || fixture.name === "legacy-slider") fixture.requiredPlugin = null;
     fixture.prefetch = !fixture.liveOnly && (fixture.name === result.find(item => item.plugin === fixture.plugin)?.name ||
       /echo|smartmotionblur|timedisplacement|ccwidetime|timedifference|Shake|Delay|Particular|Form|Plexus/.test(fixture.name));
@@ -154,6 +235,19 @@ async function compareFixture(fixture) {
   const mismatches = cache.debug.keyMismatches;
   const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   let videoBlob = null, pluginError = null;
+  const imageBlobs = {};
+  if (fixture.imageEdit) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 64; canvas.height = 64;
+    const context = canvas.getContext("2d");
+    for (const [id, inverse] of [["oracle-image-a", false], ["oracle-image-b", true]]) {
+      for (let y = 0; y < 64; y += 8) for (let x = 0; x < 64; x += 8) {
+        context.fillStyle = ((x + y) / 8 % 2 === 0) !== inverse ? "#ffffff" : "#101020";
+        context.fillRect(x, y, 8, 8);
+      }
+      imageBlobs[id] = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    }
+  }
   if (fixture.bundleFailure) {
     const manager = globalThis.ZoidiumPluginManagerInternals;
     const state = manager.pluginStates.get(fixture.bundleFailure);
@@ -194,10 +288,16 @@ async function compareFixture(fixture) {
     const project = new globalThis.PZ.project();
     const data = JSON.parse(JSON.stringify(fixture.data));
     if (videoBlob) data.assets["oracle-video"].file = videoBlob;
+    for (const [id, blob] of Object.entries(imageBlobs)) data.assets[id].file = blob;
     project.load(data);
     editor.project = project;
     await project._zoidiumPluginActivationPending;
     await resources(editor.project.sequence);
+    if (fixture.imageEdit) {
+      const scene = project.sequence.videoTracks[1].clips[0].object;
+      const consumer = fixture.imageEdit === "material" ? scene.objects[1].material : scene.effects[0];
+      await consumer._zoidiumSourceImage?.loading;
+    }
     await document.fonts.ready;
     cache.debug.prefetchDisabled = true;
     cache.clear();
@@ -305,6 +405,133 @@ async function compareFixture(fixture) {
   for (const frame of frames) {
     equal(references.get(frame), await draw(frame, false), "history vs fresh " + frame);
     checks.push("history-" + frame);
+  }
+  if (fixture.cameraCheck) {
+    const tracks = editor.project.sequence.videoTracks;
+    const scene = tracks[0].clips[0].object;
+    const camera = fixture.cameraCheck === "scene" ? scene.objects[1] : tracks[1].clips[0].object.objects[0];
+    if (scene.pass.camera !== camera.threeObj) throw new Error("Fixture did not select Camera+");
+    checks.push("camera-selected");
+  }
+  if (fixture.sourceEdit && !fixture.full) {
+    const tracks = editor.project.sequence.videoTracks;
+    const scene = tracks.find(track => track._zoidiumLayerInputId === "oracle-consumer").clips[0].object;
+    const effect = fixture.sourceEdit === "material" ? scene.objects[1].material : scene.effects[0];
+    const sourceProperty = fixture.sourceEdit === "shader" ? effect.customProperties[0] : undefined;
+    if (fixture.sourceMode && PZ.layerInput.getSourceMode(effect, sourceProperty) !== fixture.sourceMode) throw new Error("Shader source mode was not restored");
+    if (PZ.layerInput.getSourceToken(effect, sourceProperty) !== "track:id:oracle-source") throw new Error("Layer source was not resolved");
+    const before = await draw(11, false);
+    const toggle = fixture.sourceEdit === "material" ? effect.properties.opacity : effect.properties.enabled;
+    toggle.set(0, 11);
+    const withoutSource = await draw(11, false);
+    let contributed = false;
+    try { equal(before, withoutSource, "source contribution control"); } catch (_error) { contributed = true; }
+    if (!contributed) throw new Error("Layer source did not change pixels");
+    toggle.set(1, 11);
+    const sourceBox = tracks.find(track => track._zoidiumLayerInputId === "oracle-source").clips[0].object.objects[1];
+    async function checkEdit(label, edit) {
+      const original = await draw(11, true);
+      await replay(11);
+      edit();
+      document.dispatchEvent(new Event("input", { bubbles: true }));
+      const edited = await draw(11, false);
+      let changed = false;
+      try { equal(original, edited, label + " control"); } catch (_error) { changed = true; }
+      if (!changed) throw new Error(label + " did not change pixels");
+      equal(edited, await draw(11, true), label + " vs cached");
+      equal(edited, await replay(11), label + " replay");
+      const data = fixture.data;
+      try {
+        fixture.data = JSON.parse(JSON.stringify(editor.project));
+        await load();
+        equal(edited, await draw(11, false), label + " vs fresh project");
+      } finally { fixture.data = data; }
+      checks.push(label + "-invalidation");
+    }
+    await checkEdit("source-property", () => sourceBox.material.properties.color.set([0.8, 0.1, 0.9], 11));
+    const currentSource = editor.project.sequence.videoTracks.find(track => track._zoidiumLayerInputId === "oracle-source");
+    const position = currentSource.clips[0].object.objects[1].properties.position.objects[0];
+    await checkEdit("source-keyframe", () => {
+      const keys = JSON.stringify(position.keyframes);
+      position.set(40, 11);
+      if (JSON.stringify(position.keyframes) === keys) throw new Error("Source keyframes did not change");
+    });
+    await load();
+  }
+  if (fixture.imageEdit && !fixture.full) {
+    const scene = editor.project.sequence.videoTracks[1].clips[0].object;
+    const consumer = fixture.imageEdit === "material" ? scene.objects[1].material : scene.effects[0];
+    if (consumer.properties.source.get() !== "image") throw new Error("Image source was not restored");
+    const before = await draw(11, false);
+    const toggle = fixture.imageEdit === "material" ? consumer.properties.opacity : consumer.properties.enabled;
+    toggle.set(0, 11);
+    const disabled = await draw(11, false);
+    let changed = false;
+    try { equal(before, disabled, "image contribution"); } catch (_error) { changed = true; }
+    if (!changed) throw new Error("Image source did not change pixels");
+    toggle.set(1, 11);
+    const retained = await draw(11, true);
+    await replay(11);
+    consumer.properties.sourceImage.set("oracle-image-b");
+    await consumer._zoidiumSourceImage?.loading;
+    document.dispatchEvent(new Event("input", { bubbles: true }));
+    const edited = await draw(11, false);
+    changed = false;
+    try { equal(retained, edited, "image swap"); } catch (_error) { changed = true; }
+    if (!changed) throw new Error("Image swap did not change pixels");
+    equal(edited, await draw(11, true), "image swap vs cached");
+    equal(edited, await replay(11), "image swap replay");
+    const data = fixture.data;
+    try {
+      fixture.data = JSON.parse(JSON.stringify(editor.project));
+      await load();
+      equal(edited, await draw(11, false), "image swap vs fresh project");
+    } finally { fixture.data = data; }
+    checks.push("image-swap-invalidation");
+    await load();
+  }
+  if (fixture.nestedEdit && !fixture.full) {
+    const scene = editor.project.sequence.videoTracks[1].clips[0].object;
+    const effect = scene.effects[0];
+    if (PZ.layerInput.getSourceToken(effect) !== "track:id:oracle-source") throw new Error("Nested source was not resolved");
+    const before = await draw(11, false);
+    effect.properties.enabled.set(0, 11);
+    const disabled = await draw(11, false);
+    let changed = false;
+    try { equal(before, disabled, "nested contribution"); } catch (_error) { changed = true; }
+    if (!changed) throw new Error("Nested source did not change pixels");
+    effect.properties.enabled.set(1, 11);
+    for (const kind of ["property", "keyframe"]) {
+      const retained = await draw(11, true);
+      await replay(11);
+      const opened = PZ.precomp.openComp(editor, "oracle-nested");
+      if (!opened.ok) throw new Error("Could not open nested composition: " + opened.message);
+      await resources(editor.project.sequence);
+      const box = editor.project.sequence.videoTracks[0].clips[0].object.objects[1];
+      if (kind === "property") box.material.properties.color.set([0.8, 0.1, 0.9], 11);
+      else {
+        const position = box.properties.position.objects[0], keys = JSON.stringify(position.keyframes);
+        position.set(40, 11);
+        if (JSON.stringify(position.keyframes) === keys) throw new Error("Nested keyframes did not change");
+      }
+      const closed = PZ.precomp.openComp(editor, "main");
+      if (!closed.ok) throw new Error("Could not return to main: " + closed.message);
+      document.dispatchEvent(new Event("input", { bubbles: true }));
+      const edited = await draw(11, false);
+      changed = false;
+      try { equal(retained, edited, "nested edit"); } catch (_error) { changed = true; }
+      if (!changed) throw new Error("Nested " + kind + " edit did not change pixels");
+      equal(edited, await draw(11, true), "nested " + kind + " vs cached");
+      equal(edited, await replay(11), "nested " + kind + " replay");
+      const data = fixture.data;
+      try {
+        fixture.data = JSON.parse(JSON.stringify(editor.project));
+        await load();
+        equal(edited, await draw(11, false), "nested " + kind + " vs fresh project");
+      } finally { fixture.data = data; }
+      checks.push("nested-" + kind + "-invalidation");
+    }
+    await load();
   }
   let prefetch = "not selected", prefetchFrame = null, privateVideos = 0;
   if (fixture.prefetch && !fixture.full) {
