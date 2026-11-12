@@ -683,7 +683,7 @@
     ownedPatch(proto, "load", function (original) { return function (data) {
       var retained = {};
       Object.keys(data || {}).forEach(function (key) {
-        if (!["type", "clips", "__proto__", "constructor", "prototype"].includes(key)) retained[key] = JSON.parse(JSON.stringify(data[key]));
+        if (!["type", "clips", "__proto__", "constructor", "prototype"].includes(key)) { var json = JSON.stringify(data[key]); if (json !== undefined) retained[key] = JSON.parse(json); } // stringify-once: values JSON drops to undefined (undefined, functions, toJSON() returning undefined) would make JSON.parse throw; such fields stay absent
       });
       retainedTrackFields.set(this, retained);
       var track = this;

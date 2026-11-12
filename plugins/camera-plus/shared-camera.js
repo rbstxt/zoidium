@@ -66,7 +66,11 @@ parts.shared = function (options) {
       } else {
         const index = item.layer.effects.indexOf(item.effect);
         if (index >= 0) {
-          item.data = typeof item.effect.toJSON === "function" ? JSON.parse(JSON.stringify(item.effect)) : { type: "transform" };
+          // A live effect whose serializer returns undefined stringifies to
+          // undefined, which JSON.parse throws on; keep the absent-effect
+          // default instead.
+          const json = typeof item.effect.toJSON === "function" ? JSON.stringify(item.effect) : undefined;
+          item.data = json === undefined ? { type: "transform" } : JSON.parse(json);
           trackedMaterials.delete(item.effect.pass?.quad?.material);
           item.effect.unload();
           item.layer.effects.splice(index, 1);
