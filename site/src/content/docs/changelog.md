@@ -148,6 +148,9 @@ each line describes one visible change.
 
 ### Changed
 
+- Projects that use Camera+ or Layer Input can now use the Preview cache.
+  Cached frames match a fresh render exactly. Projects with Expressions+
+  are still drawn live.
 - Undo and redo now work across composition switches. Switching is an undo
   step, so a pre-compose can be undone after opening the composition. Parked
   compositions release their GPU memory and media.
