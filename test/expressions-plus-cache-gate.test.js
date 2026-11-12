@@ -111,6 +111,29 @@ test("tainted locals and shared receivers disable caching", () => {
   ]) assert.equal(sharedMutation(source), false, source);
 });
 
+test("retargeted mutators and pattern member targets disable caching", () => {
+  for (const source of [
+    "[].push.call(methods.arr, 1); 0",
+    "[].push.apply(methods.arr, [1]); 0",
+    "let a = [9]; a.push.call(methods.arr, 1); 0",
+    "const f = [].push.bind(methods.arr); 0",
+    "[].splice.call(methods.arr, 0, 1); 0",
+    "[].sort.call(methods.arr); 0",
+    "[].push.call(); 0",
+    "[methods.c] = [(methods.c || 0) + 1]; methods.c",
+    "({x: methods.c} = {x: 1}); methods.c",
+    "[...methods.rest] = [1]; 0",
+    "for (methods.c of [1]) {} 0",
+    "for (methods.c in {a: 1}) {} 0",
+  ]) assert.equal(sharedMutation(source), true, source);
+  for (const source of [
+    "let a = [1]; [].push.call(a, 2); a.length",
+    "let a = [1], b = [2]; [a[0], b[0]] = [b[0], a[0]]; a[0]",
+    "let o = {}; ({x: o.x} = {x: 1}); o.x",
+    "let t = 0; for (const v of [1, 2]) t += v; t",
+  ]) assert.equal(sharedMutation(source), false, source);
+});
+
 test("eligibility results are cached per expression source text", () => {
   let compilations = 0, methodNames = ["wiggle"];
   const isSharedMutation = createSharedMutationCache(() => methodNames,

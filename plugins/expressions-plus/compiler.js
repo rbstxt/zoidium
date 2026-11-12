@@ -239,15 +239,16 @@ function detectSharedMutation(tree) {
       return;
     }
     if (INVOKE_KEYS.has(key)) {
-      // `push.call(list, item)` mutates through an alias. A mutating method
-      // reached this way is checked against its own receiver; any other
-      // `.call`/`.apply`/`.bind` target cannot be proven safe.
+      // `[].push.call(list, item)` mutates `list`, the first argument, not
+      // the object the method was read from: a mutating method reached this
+      // way is checked against the retargeted receiver (missing = not fresh).
+      // Any other `.call`/`.apply`/`.bind` target cannot be proven safe.
       const inner = unwrapChain(member.object);
       if (inner && inner.type === "MemberExpression") {
         const innerKey = staticKey(inner);
         if (innerKey !== null && SHARED_MUTATORS.has(innerKey)) {
-          const innerReceiver = captureReceiver(inner.object);
-          checks.push(() => { if (!capturedFresh(innerReceiver)) flag(); });
+          const thisTarget = captureArgument(firstArgument);
+          checks.push(() => { if (!capturedFresh(thisTarget)) flag(); });
           return;
         }
       }
@@ -269,6 +270,21 @@ function detectSharedMutation(tree) {
       // be proven read-only, but this branch is unreachable while bare
       // `Object`/`Reflect` are compile-time ReferenceErrors.
       else if (key === null) checks.push(flag);
+    }
+  }
+  // Destructuring and for-in/of targets can write members directly:
+  // `[methods.c] = [1]`, `({x: methods.c} = o)`, `for (methods.c of list)`.
+  function checkPatternTargets(pattern) {
+    const target = unwrapChain(pattern);
+    if (!target || typeof target.type !== "string") return;
+    if (target.type === "MemberExpression") {
+      const receiver = captureReceiver(target.object);
+      checks.push(() => { if (!capturedFresh(receiver)) flag(); });
+    } else if (target.type === "AssignmentPattern") checkPatternTargets(target.left);
+    else if (target.type === "RestElement") checkPatternTargets(target.argument);
+    else if (target.type === "ArrayPattern") target.elements.forEach(checkPatternTargets);
+    else if (target.type === "ObjectPattern") {
+      target.properties.forEach(p => checkPatternTargets(p.type === "RestElement" ? p.argument : p.value));
     }
   }
   function scanPatternDefaults(pattern) {
@@ -336,6 +352,7 @@ function detectSharedMutation(tree) {
         // `for (target of ...)` binds per-iteration values that cannot be
         // proven fresh; `for (init; ...)` may also write its target.
         if (node.left) {
+          checkPatternTargets(node.left);
           if (node.left.type === "Identifier") recordAssignment(current(), node.left, null, true);
           else { scanPatternDefaults(node.left); for (const name of names(node.left)) recordAssignment(current(), { type: "Identifier", name }, null, true); }
           scan(node.left);
@@ -370,6 +387,7 @@ function detectSharedMutation(tree) {
         const receiver = target.type === "MemberExpression" ? captureReceiver(target.object) : { fresh: false };
         checks.push(() => { if (!capturedFresh(receiver)) flag(); });
       } else {
+        checkPatternTargets(node.left);
         scanPatternDefaults(node.left);
         for (const name of names(node.left)) recordAssignment(current(), { type: "Identifier", name }, node.right);
       }
