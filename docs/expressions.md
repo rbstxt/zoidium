@@ -141,6 +141,17 @@ Alternating guarded evaluation with a test-only guard bypass measured a
 0.6 ms median guard cost per 1,000 properties (bypass median 2.9 ms). This is a measurement, not a deadline enforced
 by the evaluator. Loops and property navigation add work to that budget.
 
+## Preview cache
+
+An expression that may keep values between frames keeps its project on live
+previews: finished-frame caching stays off while live rendering and export are
+unchanged. A member write, `delete`, or known mutating-method call on anything
+but a provably fresh local counts, as does any read or write of `__proto__`,
+`constructor` or `prototype`. A local counts as provably fresh only when every
+value assigned to it is an array, object or function literal. Ordinary
+expressions — wiggle, seeded random, property reads, vector math, and local
+arrays built from literals — stay cacheable.
+
 ## Sequence Controls
 
 Open Sequence and expand Controls. The + button adds Slider, Angle, Checkbox,
