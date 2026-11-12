@@ -136,9 +136,21 @@
     return pending;
   }
 
-  function settle(PZ, viewport, schedule, frame, fallback = false) {
+  // A switched project must not receive a late redraw, and a removed layer's
+  // schedule must not be touched; the other waiters for the frame still redraw.
+  function sequenceOf(viewport) {
+    try {
+      return viewport.editor.project.sequence;
+    } catch (_error) {
+      return undefined;
+    }
+  }
+
+  function settle(PZ, viewport, schedule, frame, fallback = false, sequence = null) {
     const wasPending = Boolean(schedule[PENDING_KEY]);
     cancelPending(schedule);
+    if (sequence && sequenceOf(viewport) !== sequence) return;
+    const removed = Boolean(sequence) && !(sequence.videoSchedules || []).includes(schedule);
     if (fallback || !wasPending) {
       // The bounded fallback (or an untracked error) presents the available
       // frame: later ticks at this target must draw live, not re-arm the gate.
@@ -152,7 +164,7 @@
       } catch (_error) { /* A stale flag only costs one extra redraw. */ }
     }
     try {
-      if (schedule.texture) schedule.texture.needsUpdate = true;
+      if (schedule.texture && !removed) schedule.texture.needsUpdate = true;
     } catch (_error) { /* The redraw still presents the settled frame. */ }
     // A newer request supersedes this one: only the current frame redraws,
     // and only once every plain schedule for it has settled.
@@ -183,6 +195,7 @@
       delete schedule[EXPIRED_KEY];
     } catch (_error) { /* A stale flag only costs one extra redraw. */ }
     const video = schedule.el;
+    const sequence = sequenceOf(viewport) || null;
     const pending = { video, target, frame, timer: null, rvfcId: null };
     pending.onSeeked = () => {
       // A queued completion from an older seek cannot settle the new target.
@@ -193,28 +206,28 @@
           pending.rvfcId = video.requestVideoFrameCallback(() => {
             pending.rvfcId = null;
             if (schedule[PENDING_KEY] !== pending) return;
-            settle(PZ, viewport, schedule, frame);
+            settle(PZ, viewport, schedule, frame, false, sequence);
           });
           return;
         } catch (_error) { /* Fall through to the immediate settle. */ }
       }
-      settle(PZ, viewport, schedule, frame);
+      settle(PZ, viewport, schedule, frame, false, sequence);
     };
     pending.onError = () => {
       if (schedule[PENDING_KEY] !== pending) return;
-      settle(PZ, viewport, schedule, frame, true);
+      settle(PZ, viewport, schedule, frame, true, sequence);
     };
     try {
       video.addEventListener("seeked", pending.onSeeked);
       video.addEventListener("error", pending.onError);
     } catch (_error) {
-      settle(PZ, viewport, schedule, frame, true);
+      settle(PZ, viewport, schedule, frame, true, sequence);
       return;
     }
     try {
-      pending.timer = setTimeout(() => settle(PZ, viewport, schedule, frame, true), api.timeoutMs);
+      pending.timer = setTimeout(() => settle(PZ, viewport, schedule, frame, true, sequence), api.timeoutMs);
     } catch (_error) {
-      settle(PZ, viewport, schedule, frame, true);
+      settle(PZ, viewport, schedule, frame, true, sequence);
       return;
     }
     schedule[PENDING_KEY] = pending;

@@ -204,3 +204,52 @@ test("an rVFC confirmation settles before the timeout", async () => {
   assert.equal(host.viewport.renders, 1);
   api.timeoutMs = 1500;
 });
+
+test("one element feeding three schedules redraws once when its seek settles", () => {
+  api.timeoutMs = 50;
+  const element = new FakeElement();
+  element.requestVideoFrameCallback = undefined;
+  const schedules = [makeSchedule(element), makeSchedule(element), makeSchedule(element)];
+  const host = makeHost(schedules, { frame: 10, speed: 0 });
+  installFor(host);
+
+  element.requestSeek(10 / 30);
+  host.viewport._render();
+  assert.equal(host.viewport.renders, 0);
+  element.completeSeek();
+  assert.equal(host.viewport.renders, 1, "the three waiters coalesce into one redraw");
+  for (const schedule of schedules) assert.equal(schedule.texture.needsUpdate, true);
+  api.timeoutMs = 1500;
+});
+
+test("a project switch drops the late redraw", async () => {
+  api.timeoutMs = 20;
+  const element = new FakeElement();
+  const schedule = makeSchedule(element);
+  const host = makeHost([schedule], { frame: 10, speed: 0 });
+  installFor(host);
+
+  element.requestSeek(10 / 30);
+  host.viewport._render();
+  host.viewport.editor.project = { sequence: { videoSchedules: [] } };
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.equal(host.viewport.renders, 0, "the timeout does not draw into the new project");
+  assert.equal(schedule.texture.needsUpdate, false);
+  api.timeoutMs = 1500;
+});
+
+test("a removed layer's waiter leaves its texture alone but still redraws the frame", async () => {
+  api.timeoutMs = 20;
+  const element = new FakeElement();
+  const schedule = makeSchedule(element);
+  const host = makeHost([schedule], { frame: 10, speed: 0 });
+  installFor(host);
+
+  element.requestSeek(10 / 30);
+  host.viewport._render();
+  host.viewport.editor.project.sequence.videoSchedules = [];
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.equal(schedule.texture.needsUpdate, false);
+  assert.equal(host.viewport.renders, 1, "the remaining layers present the frame");
+  api.timeoutMs = 1500;
+});
