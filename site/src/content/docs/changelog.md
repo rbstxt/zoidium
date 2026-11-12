@@ -10,6 +10,12 @@ each line describes one visible change.
 
 ### Added
 
+- Shader properties: Slider, Seed, Angle, and Time sample have a Snap
+  setting. Dragging, arrow keys, and typed values land on multiples of Snap,
+  for example 0.00, 0.50, 1.00. Leave it blank to keep the current behavior.
+- Shader properties: a property group has Visible when, under Group
+  settings… on a grouped row's menu. A row shows only when its own condition
+  and its group's condition both pass.
 - Shader properties: Time sample has Minimum, Maximum, Step, and Decimals in
   its settings, and Slider, Seed, and Angle have Decimals.
 - Shader properties has a Show hidden button (an eye) on its heading. It
@@ -219,6 +225,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- While paused, scrubbing or stepping through a video layer no longer shows
+  the previous video frame for a moment before the requested one.
+- During playback, layers with a Time sample or another effect that reads
+  other times update steadily instead of stopping on one frame while the next
+  is prepared. Paused frames and exports are unchanged.
 - Exports and scrubbing of H.264 MP4 video show the intended source frame.
   At frame boundaries they often showed the previous frame, so exports
   repeated and skipped frames. Exports of affected projects change: each

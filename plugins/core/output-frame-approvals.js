@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "b334aa290ce4035887119b2302f57a7e4ea8e8bf9cc2ae242058ae6cd1c227b6",
+  "fingerprint": "4713b1eba82d9eb79ef38a737c5b77d29ea636462848c3714c2e2bd263c82501",
   "plugins": {
     "native-fx": {
       "version": "39",
@@ -131,7 +131,7 @@
       ]
     },
     "shader-plus": {
-      "version": "28",
+      "version": "29",
       "cases": [
         "time-sample",
         "time-sample-adjustment",
