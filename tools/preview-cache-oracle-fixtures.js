@@ -126,6 +126,35 @@ function fixtures() {
   }
   for (const type of [7, 8, 9]) add("effector-plus", "legacy-type-" + type,
     project([{ type, objects: [box()], properties: { angle: scalar(0.2, 1.1), amount: scalar(2, 8) }, repeaterProperties: {} }]));
+  const camera = { type: "zoidium:camera-plus/camera", properties: {
+    position: vector([-8, 0, 80], [8, 4, 80]), rotation: vector([0, 0, 0]),
+  } };
+  add("camera-plus", "scene-camera-animation", project([camera, box()]), { cameraCheck: "scene" });
+  const sharedCamera = project();
+  sharedCamera.sequence.videoTracks[0].track3d = true;
+  sharedCamera.sequence.videoTracks.push({ type: 0, clips: [{ start: 0, length: 60,
+    properties: {}, object: { type: 9, objects: [copy(camera)], effects: [] } }] });
+  add("camera-plus", "shared-camera-animation", sharedCamera, { cameraCheck: "shared" });
+
+  const source = project();
+  source.sequence.videoTracks[0]._zoidiumLayerInputId = "oracle-source";
+  source.sequence.videoTracks.push({ type: 0, _zoidiumLayerInputId: "oracle-consumer", clips: [{
+    start: 0, length: 60, properties: {}, object: { type: 4, properties: { background: [0.2, 0.05, 0.1] },
+      objects: [{ type: 6, objectType: 1 }, box()], effects: [{ type: "layerinput",
+      properties: { source: "track:id:oracle-source", opacity: scalar(0.7) } }] },
+  }] });
+  source.sequence.videoTracks.reverse();
+  add("layer-input", "animated-source", source, { sourceEdit: true });
+
+  const expr = project();
+  expr.sequence.videoTracks[0].clips[0].object.objects[1].properties.position.objects[0] = {
+    ...scalar(0), expression: "seedRandom(42); value + random() * 10 + time * fps",
+  };
+  add("expressions-plus", "seeded-time-fps", expr);
+  const stateful = copy(expr);
+  stateful.sequence.videoTracks[0].clips[0].object.objects[1].properties.position.objects[0].expression =
+    "Math.counter = (Math.counter || 0) + 1; Math.counter";
+  add("expressions-plus", "mutable-realm", stateful);
   for (const fixture of result) {
     fixture.requiredPlugin = fixture.plugin === "effector-plus" ? "repeater" : fixture.plugin;
     if (fixture.plugin === "ccfx-shader-pack" || fixture.name === "legacy-slider") fixture.requiredPlugin = null;
@@ -305,6 +334,36 @@ async function compareFixture(fixture) {
   for (const frame of frames) {
     equal(references.get(frame), await draw(frame, false), "history vs fresh " + frame);
     checks.push("history-" + frame);
+  }
+  if (fixture.cameraCheck) {
+    const tracks = editor.project.sequence.videoTracks;
+    const scene = tracks[0].clips[0].object;
+    const camera = fixture.cameraCheck === "scene" ? scene.objects[1] : tracks[1].clips[0].object.objects[0];
+    if (scene.pass.camera !== camera.threeObj) throw new Error("Fixture did not select Camera+");
+    checks.push("camera-selected");
+  }
+  if (fixture.sourceEdit && !fixture.full) {
+    const tracks = editor.project.sequence.videoTracks;
+    const effect = tracks[0].clips[0].object.effects[0];
+    if (PZ.layerInput.getSourceToken(effect) !== "track:id:oracle-source") throw new Error("Layer source was not resolved");
+    const before = await draw(11, false);
+    effect.properties.enabled.set(0, 11);
+    const withoutSource = await draw(11, false);
+    let contributed = false;
+    try { equal(before, withoutSource, "source contribution control"); } catch (_error) { contributed = true; }
+    if (!contributed) throw new Error("Layer source did not change pixels");
+    effect.properties.enabled.set(1, 11);
+    const position = tracks[1].clips[0].object.objects[1].properties.position.objects[0];
+    position.set(40, 11);
+    document.dispatchEvent(new Event("input", { bubbles: true }));
+    const edited = await draw(11, false);
+    let changed = false;
+    try { equal(before, edited, "source edit control"); } catch (_error) { changed = true; }
+    if (!changed) throw new Error("Source edit did not change pixels");
+    equal(edited, await draw(11, true), "edited source vs cached");
+    equal(edited, await replay(11), "edited source replay");
+    checks.push("source-edit-invalidation");
+    await load();
   }
   let prefetch = "not selected", prefetchFrame = null, privateVideos = 0;
   if (fixture.prefetch && !fixture.full) {
