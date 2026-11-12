@@ -137,13 +137,14 @@ function fixtures() {
   add("camera-plus", "shared-camera-animation", sharedCamera, { cameraCheck: "shared" });
 
   const source = project();
+  source.sequence.videoTracks[0].clips[0].object.objects[1].material.properties.color = vector([0.1, 0.8, 0.3]);
+  source.sequence.videoTracks[0].clips[0].object.objects[1].properties.position = vector([-35, 12, 0], [-5, 18, 0]);
   source.sequence.videoTracks[0]._zoidiumLayerInputId = "oracle-source";
   source.sequence.videoTracks.push({ type: 0, _zoidiumLayerInputId: "oracle-consumer", clips: [{
     start: 0, length: 60, properties: {}, object: { type: 4, properties: { background: [0.2, 0.05, 0.1] },
       objects: [{ type: 6, objectType: 1 }, box()], effects: [{ type: "layerinput",
       properties: { source: "track:id:oracle-source", opacity: scalar(0.7) } }] },
   }] });
-  source.sequence.videoTracks.reverse();
   add("layer-input", "animated-source", source, { sourceEdit: true });
 
   const expr = project();
@@ -344,7 +345,7 @@ async function compareFixture(fixture) {
   }
   if (fixture.sourceEdit && !fixture.full) {
     const tracks = editor.project.sequence.videoTracks;
-    const effect = tracks[0].clips[0].object.effects[0];
+    const effect = tracks.find(track => track._zoidiumLayerInputId === "oracle-consumer").clips[0].object.effects[0];
     if (PZ.layerInput.getSourceToken(effect) !== "track:id:oracle-source") throw new Error("Layer source was not resolved");
     const before = await draw(11, false);
     effect.properties.enabled.set(0, 11);
@@ -353,16 +354,34 @@ async function compareFixture(fixture) {
     try { equal(before, withoutSource, "source contribution control"); } catch (_error) { contributed = true; }
     if (!contributed) throw new Error("Layer source did not change pixels");
     effect.properties.enabled.set(1, 11);
-    const position = tracks[1].clips[0].object.objects[1].properties.position.objects[0];
-    position.set(40, 11);
-    document.dispatchEvent(new Event("input", { bubbles: true }));
-    const edited = await draw(11, false);
-    let changed = false;
-    try { equal(before, edited, "source edit control"); } catch (_error) { changed = true; }
-    if (!changed) throw new Error("Source edit did not change pixels");
-    equal(edited, await draw(11, true), "edited source vs cached");
-    equal(edited, await replay(11), "edited source replay");
-    checks.push("source-edit-invalidation");
+    const sourceBox = tracks.find(track => track._zoidiumLayerInputId === "oracle-source").clips[0].object.objects[1];
+    async function checkEdit(label, edit) {
+      const original = await draw(11, true);
+      await replay(11);
+      edit();
+      document.dispatchEvent(new Event("input", { bubbles: true }));
+      const edited = await draw(11, false);
+      let changed = false;
+      try { equal(original, edited, label + " control"); } catch (_error) { changed = true; }
+      if (!changed) throw new Error(label + " did not change pixels");
+      equal(edited, await draw(11, true), label + " vs cached");
+      equal(edited, await replay(11), label + " replay");
+      const data = fixture.data;
+      try {
+        fixture.data = JSON.parse(JSON.stringify(editor.project));
+        await load();
+        equal(edited, await draw(11, false), label + " vs fresh project");
+      } finally { fixture.data = data; }
+      checks.push(label + "-invalidation");
+    }
+    await checkEdit("source-property", () => sourceBox.material.properties.color.set([0.8, 0.1, 0.9], 11));
+    const currentSource = editor.project.sequence.videoTracks.find(track => track._zoidiumLayerInputId === "oracle-source");
+    const position = currentSource.clips[0].object.objects[1].properties.position.objects[0];
+    await checkEdit("source-keyframe", () => {
+      const keys = JSON.stringify(position.keyframes);
+      position.set(40, 11);
+      if (JSON.stringify(position.keyframes) === keys) throw new Error("Source keyframes did not change");
+    });
     await load();
   }
   let prefetch = "not selected", prefetchFrame = null, privateVideos = 0;
