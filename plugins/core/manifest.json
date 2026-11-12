@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "132",
+  "version": "133",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -261,6 +261,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "paused-video-seek",
+      "source": "./plugins/core/paused-video-seek.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "project-resources",
       "source": "./plugins/core/project-resources.js",
       "phase": "pre-init"
@@ -429,27 +434,27 @@
   "modules": [
     {
       "id": "single-graph-window",
-      "source": "./plugins/core/single-graph-window.js?v=132"
+      "source": "./plugins/core/single-graph-window.js?v=133"
     },
     {
       "id": "font-load",
-      "source": "./plugins/core/font-load.js?v=132"
+      "source": "./plugins/core/font-load.js?v=133"
     },
     {
       "id": "keyframe-row-reveal",
-      "source": "./plugins/core/keyframe-row-reveal.js?v=132"
+      "source": "./plugins/core/keyframe-row-reveal.js?v=133"
     },
     {
       "id": "video-texture-alpha",
-      "source": "./plugins/core/video-texture-alpha.js?v=132"
+      "source": "./plugins/core/video-texture-alpha.js?v=133"
     },
     {
       "id": "video-decode-hint",
-      "source": "./plugins/core/video-decode-hint.js?v=132"
+      "source": "./plugins/core/video-decode-hint.js?v=133"
     },
     {
       "id": "output-frame-cache",
-      "source": "./plugins/core/output-frame-cache.js?v=132"
+      "source": "./plugins/core/output-frame-cache.js?v=133"
     }
   ]
 }

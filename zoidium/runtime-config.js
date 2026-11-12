@@ -8,7 +8,7 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 272,
+    assetVersion: 273,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
     registryUrl: "./plugins/registry.json?v=229",
@@ -81,6 +81,7 @@
       "./plugins/core/output-frame-video.js",
       "./plugins/core/output-frame-capture.js",
       "./plugins/core/output-frame-cache.js",
+      "./plugins/core/paused-video-seek.js",
       "./plugins/core/project-resources.js",
       "./plugins/core/shader-program-cache.js",
       // Keeps the editor's main preview reachable as editor.mainViewport. It
