@@ -55,12 +55,13 @@ test("a nested batch reuses fixed anchors and invalidates them when project inpu
   assert.equal(h.decoded.length, 2, "an edited input invalidates the batch cache");
 });
 
-test("preview displays a completed sampled frame even after playback advances and reuses unchanged redraws", async () => {
+test("preview skips a stale completion and chains to the current playhead", async () => {
   const h = host(false);
   h.viewport._render();
   h.viewport.editor.playback.currentFrame = 31;
-  await new Promise(setImmediate);
-  assert.equal(h.root.frames.at(-1), 30, "completed frame shown without waiting for a stationary playhead");
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(h.root.frames.at(-1), 31, "chained preparation draws the current playhead, not the stale completion");
+  assert.equal(h.root.frames.filter(frame => frame === 30).length, 1, "the stale completion never draws");
   h.viewport._render();
   await new Promise(setImmediate);
   assert.equal(h.root.frames.at(-1), 31);
