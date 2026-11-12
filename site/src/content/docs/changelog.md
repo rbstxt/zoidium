@@ -225,6 +225,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Shape+ SVG import accepts files from Inkscape, Illustrator, Figma, and
+  Scratch that include comments, editor metadata, titles, or an empty defs
+  section. These parts are ignored; the imported shapes are unchanged.
 - While paused, scrubbing or stepping through a video layer no longer shows
   the previous video frame for a moment before the requested one.
 - During playback, layers with a Time sample or another effect that reads
