@@ -97,6 +97,7 @@ Toggle and Dropdown settings show none of these fields.
 The grid starts at **Minimum** when it is set, else at 0.
 Half-way values round away from zero.
 A blank **Snap** or 0 removes the field and keeps native behavior.
+Arrow keys move by **Step** and then snap, so a **Step** below **Snap** can leave the value on its grid line.
 These fields change row editing only.
 Saved values and keyframes never change without a row edit.
 A snapped edit commits the grid value and keys it like any other edit.
