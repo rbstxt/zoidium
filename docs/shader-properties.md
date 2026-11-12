@@ -107,7 +107,10 @@ Group settings…. The controller list contains only ungrouped properties of
 the same effect. The condition is stored on every member, so save, reopen,
 duplication, Undo, and Redo keep it. A row shows only when its own condition
 and its group condition both pass. A hidden group hides its heading and all
-its children. Show hidden reveals hidden groups too.
+its children. Show hidden reveals hidden groups too. Moving a property into a
+group gives it that group's condition; moving it out removes the condition. If
+the controller property is missing, for example after it is deleted or
+renamed, the group stays hidden until Show hidden is on.
 
 ## Keyframe data in shaders
 

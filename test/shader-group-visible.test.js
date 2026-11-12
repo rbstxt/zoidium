@@ -137,3 +137,27 @@ test("the context menu offers Group settings only for grouped rows", () => {
   byName("Level").oncontextmenu({ preventDefault() {}, stopPropagation() {}, clientX: 0, clientY: 0 });
   assert.deepEqual(menus.map(menu => menu.items.some(item => item.label === "Group settings…")), [true, false]);
 });
+
+test("moving a property between groups takes the target group's condition, or none", () => {
+  const { api, installed, doc, openGroupSettings, find, submit, b, c, list } = setup();
+  const panel = openGroupSettings("Amount");
+  find(panel, "Visible when").value = "Level";
+  find(panel, "Visible when").dispatch("change", {});
+  find(panel, "Has value").value = "> 5"; submit(panel);
+  const condition = api.meta(b).visibleWhen;
+  assert.ok(condition);
+  const moveTo = (p, group) => {
+    const parent = doc.createElement("ul"), row = doc.createElement("li");
+    row.append(doc.createElement("div")); parent.append(row);
+    installed.settings(row, p);
+    const settings = parent.lastElementChild;
+    find(settings, "Group").value = group;
+    submit(settings);
+  };
+  moveTo(c, "");
+  assert.equal(c.definition.zoidiumPropertyGroup?.visibleWhen, undefined, "ungrouping drops the old group's condition");
+  assert.deepEqual(api.meta(b).visibleWhen, condition, "the remaining member keeps it");
+  moveTo(c, "Controls");
+  assert.deepEqual(c.definition.zoidiumPropertyGroup.visibleWhen, condition, "rejoining adopts the group's condition");
+  assert.ok(Array.from(list).includes(c));
+});

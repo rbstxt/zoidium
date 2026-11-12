@@ -69,6 +69,8 @@ The controller list contains only ungrouped properties of the same effect.
 The condition is stored on every member property, so save, reopen, duplication, Undo, and Redo keep it.
 A row shows only when its own condition and its group condition both pass.
 A hidden group hides its heading and all its children.
+Moving a property into a group gives it that group's condition. Moving it out of a group removes the condition.
+If the controller property is missing, for example after it is deleted or renamed, the group stays hidden until Show hidden is on.
 
 Visibility affects editor rows only.
 Hidden properties still supply their current values to shaders, Preview cache frames, and exports.

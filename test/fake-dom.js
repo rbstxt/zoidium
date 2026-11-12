@@ -90,6 +90,9 @@ class FakeElement {
   get firstElementChild() {
     return this.children.length ? this.children[0] : null;
   }
+  get lastElementChild() {
+    return this.children.length ? this.children[this.children.length - 1] : null;
+  }
   appendChild(child) {
     this.children.push(child);
     child.parentElement = this;

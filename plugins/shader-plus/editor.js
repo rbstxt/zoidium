@@ -263,7 +263,12 @@ function installEditor({ context, patch, presetFont }) {
         const group = fields.group.value.trim();
         if (groups && group !== groups.name(p)) {
           if (!groups.canAssign(p, group)) throw new Error("Unlock the group before moving its properties");
+          // The group condition belongs to the group: take the target group's one (or none).
+          const peer = group && (effect?.customProperties || []).find(q => q !== p && groups.name(q) === group);
+          const peerWhen = peer?.definition?.zoidiumPropertyGroup?.visibleWhen;
           definition.zoidiumPropertyGroup = { ...definition.zoidiumPropertyGroup, name: group };
+          if (peerWhen) definition.zoidiumPropertyGroup.visibleWhen = clone(peerWhen);
+          else delete definition.zoidiumPropertyGroup.visibleWhen;
         }
         if (Object.keys(next).length) definition.zoidiumShader = next;
         else delete definition.zoidiumShader;
