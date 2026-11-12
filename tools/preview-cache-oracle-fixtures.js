@@ -146,6 +146,29 @@ function fixtures() {
       properties: { source: "track:id:oracle-source", opacity: scalar(0.7) } }] },
   }] });
   add("layer-input", "animated-source", source, { sourceEdit: true });
+  const displacement = copy(source);
+  displacement.sequence.videoTracks[0].clips[0].object.properties.background = [0.8, 0.3, 0.1];
+  displacement.sequence.videoTracks[1].clips[0].object.effects = [{ type: "layerinputdisplacement",
+    properties: { source: "track:id:oracle-source", amount: scalar(0.3), wrap: 0 } }];
+  add("layer-input", "displacement-track", displacement, { sourceEdit: true });
+  const timeDisplacement = copy(source);
+  timeDisplacement.sequence.videoTracks[1].clips[0].object.effects = [{ type: "timedisplacement",
+    properties: { source: "track:id:oracle-source", maxTime: scalar(0.5), resolution: scalar(4) } }];
+  add("layer-input", "time-displacement-track", timeDisplacement, { sourceEdit: true });
+  const material = copy(source);
+  const consumerScene = material.sequence.videoTracks[1].clips[0].object;
+  consumerScene.effects = [];
+  consumerScene.objects[1].material = { type: "layersource", properties: { source: "track:id:oracle-source" } };
+  add("layer-input", "material-track", material, { sourceEdit: "material" });
+  for (const mode of ["source", "masks", "effects-masks"]) {
+    const shader = copy(source);
+    shader.sequence.videoTracks[1].clips[0].object.effects = [{ type: 1,
+      properties: { fragShader: "precision highp float; uniform sampler2D Input; varying vec2 vUvScaled; void main(){gl_FragColor=texture2D(Input,vUvScaled);}" },
+      customProperties: [{ type: { custom: true, type: 9, value: "", items: [],
+        _zoidiumLayerSource: true, _zoidiumShaderLayerSource: true, _zoidiumLayerInputMode: mode },
+      properties: { name: "Input" }, value: "track:id:oracle-source" }] }];
+    add("layer-input", "shader-" + mode, shader, { sourceEdit: "shader", sourceMode: mode });
+  }
 
   const expr = project();
   expr.sequence.videoTracks[0].clips[0].object.objects[1].properties.position.objects[0] = {
@@ -345,15 +368,19 @@ async function compareFixture(fixture) {
   }
   if (fixture.sourceEdit && !fixture.full) {
     const tracks = editor.project.sequence.videoTracks;
-    const effect = tracks.find(track => track._zoidiumLayerInputId === "oracle-consumer").clips[0].object.effects[0];
-    if (PZ.layerInput.getSourceToken(effect) !== "track:id:oracle-source") throw new Error("Layer source was not resolved");
+    const scene = tracks.find(track => track._zoidiumLayerInputId === "oracle-consumer").clips[0].object;
+    const effect = fixture.sourceEdit === "material" ? scene.objects[1].material : scene.effects[0];
+    const sourceProperty = fixture.sourceEdit === "shader" ? effect.customProperties[0] : undefined;
+    if (fixture.sourceMode && PZ.layerInput.getSourceMode(effect, sourceProperty) !== fixture.sourceMode) throw new Error("Shader source mode was not restored");
+    if (PZ.layerInput.getSourceToken(effect, sourceProperty) !== "track:id:oracle-source") throw new Error("Layer source was not resolved");
     const before = await draw(11, false);
-    effect.properties.enabled.set(0, 11);
+    const toggle = fixture.sourceEdit === "material" ? effect.properties.opacity : effect.properties.enabled;
+    toggle.set(0, 11);
     const withoutSource = await draw(11, false);
     let contributed = false;
     try { equal(before, withoutSource, "source contribution control"); } catch (_error) { contributed = true; }
     if (!contributed) throw new Error("Layer source did not change pixels");
-    effect.properties.enabled.set(1, 11);
+    toggle.set(1, 11);
     const sourceBox = tracks.find(track => track._zoidiumLayerInputId === "oracle-source").clips[0].object.objects[1];
     async function checkEdit(label, edit) {
       const original = await draw(11, true);
