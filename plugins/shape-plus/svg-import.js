@@ -213,23 +213,53 @@ function shapePath(tag, a) {
   }
   throw Error("Unsupported SVG element: " + tag);
 }
+function stripComments(text) {
+  let result = "",
+    from = 0;
+  for (;;) {
+    const start = text.indexOf("<!--", from);
+    if (start < 0) return result + text.slice(from);
+    const end = text.indexOf("-->", start + 4);
+    if (end < 0) throw Error("Unterminated SVG comment");
+    result += text.slice(from, start) + " ";
+    from = end + 3;
+  }
+}
+const skippedElements = new Set(["defs", "metadata", "title", "desc"]);
+function localTag(tag) {
+  return tag.startsWith("svg:") ? tag.slice(4) : tag;
+}
+function ignoredAttribute(key) {
+  const i = key.indexOf(":");
+  if (i < 0 || key.slice(0, i).toLowerCase() === "xlink") return false;
+  const local = key.slice(i + 1);
+  return !(/^on/i.test(local) || /(?:href|src)$/i.test(local));
+}
+function skippedTag(tag) {
+  const local = localTag(tag);
+  return local.includes(":") || skippedElements.has(local);
+}
 function parseXML(text) {
+  text = stripComments(text);
   if (/<!|<\?(?!xml\s)/i.test(text))
     throw Error("SVG declarations and entities are not supported");
   const root = { tag: "root", attributes: {}, children: [] },
     stack = [root];
   let count = 0,
-    end = 0;
+    end = 0,
+    skipped = 0;
   for (const match of text.matchAll(/<[^>]*>/g)) {
-    if (text.slice(end, match.index).trim())
+    if (text.slice(end, match.index).trim() && !skipped)
       throw Error("SVG text content is not supported");
     end = match.index + match[0].length;
     const token = match[0];
     if (/^<\?xml\s[^?]*\?>$/.test(token)) continue;
     const close = /^<\/([\w:-]+)\s*>$/.exec(token);
     if (close) {
-      if (stack.length === 1 || stack.pop().tag !== close[1])
+      const popped = stack.length === 1 ? null : stack.pop();
+      if (!popped || popped.tag !== localTag(close[1]))
         throw Error("Malformed SVG nesting");
+      if (skippedTag(popped.tag)) skipped--;
       continue;
     }
     const open = /^<([\w:-]+)([\s\S]*?)(\/?)>$/.exec(token);
@@ -257,9 +287,13 @@ function parseXML(text) {
       attrEnd = attr.index + attr[0].length;
     }
     if (open[2].slice(attrEnd).trim()) throw Error("Malformed SVG attributes");
-    const node = { tag: open[1], attributes, children: [] };
+    const tag = localTag(open[1]),
+      node = { tag, attributes, children: [] };
     stack.at(-1).children.push(node);
-    if (!open[3]) stack.push(node);
+    if (!open[3]) {
+      if (skippedTag(tag)) skipped++;
+      stack.push(node);
+    }
   }
   if (
     stack.length !== 1 ||
@@ -290,6 +324,7 @@ function importSVG(text, nextId) {
     ];
   const root = parseXML(text.trim());
   function visit(node, inherited = {}) {
+    if (skippedTag(node.tag)) return [];
     const a = node.attributes,
       s = style(a, inherited),
       opacity = Number(s.opacity ?? 1);
@@ -313,8 +348,10 @@ function importSVG(text, nextId) {
       "ry",
       "points",
     ]);
-    for (const key of Object.keys(a))
+    for (const key of Object.keys(a)) {
+      if (ignoredAttribute(key)) continue;
       if (!allowed.has(key)) throw Error("Unsupported SVG attribute: " + key);
+    }
     if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1)
       throw Error("Invalid SVG opacity");
     if (s.display === "none" || s.visibility === "hidden") return [];
