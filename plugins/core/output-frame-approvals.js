@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "1a6d4bd4e5d372aa460fd02d9e9ae7b8c5e4b0b8a05527375ea365191def842c",
+  "fingerprint": "cccc9d46c7cfc844d0393303a787e52babc13df7d9b2516fe17961d6f8074d8f",
   "plugins": {
     "native-fx": {
       "version": "39",
@@ -151,19 +151,27 @@
         "shared-camera-animation",
         "scene-camera-animation-full"
       ]
-    }
-  },
-  "excluded": {
+    },
     "layer-input": {
       "version": "16",
       "cases": [
         "animated-source",
+        "nested-source",
+        "displacement-track",
+        "time-displacement-track",
+        "material-track",
+        "effect-image",
+        "displacement-image",
+        "time-displacement-image",
+        "material-image",
+        "shader-source",
+        "shader-masks",
+        "shader-effects-masks",
         "animated-source-full"
-      ],
-      "failed": [
-        "animated-source"
       ]
-    },
+    }
+  },
+  "excluded": {
     "expressions-plus": {
       "version": "19",
       "cases": [

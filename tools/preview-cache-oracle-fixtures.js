@@ -146,10 +146,23 @@ function fixtures() {
       properties: { source: "track:id:oracle-source", opacity: scalar(0.7) } }] },
   }] });
   add("layer-input", "animated-source", source, { sourceEdit: true });
+  const nested = copy(source);
+  nested.media.push({ properties: { name: "Oracle nested" }, assets: [], data: [copy(nested.sequence.videoTracks[0])],
+    comp: { id: "oracle-nested", clipLinks: null } });
+  nested.sequence.videoTracks[0].clips[0].object = { type: 2, compId: "oracle-nested", offset: 0,
+    properties: {}, effects: [], objects: [] };
+  add("layer-input", "nested-source", nested, { nestedEdit: true });
   const displacement = copy(source);
-  displacement.sequence.videoTracks[0].clips[0].object.properties.background = [0.8, 0.3, 0.1];
+  displacement.sequence.videoTracks[0].clips[0].object.properties.background = [1, 1, 1];
+  const detail = displacement.sequence.videoTracks[1].clips[0].object.objects;
+  for (let i = 0; i < 8; i++) {
+    const stripe = box();
+    stripe.properties.geometryProperties.box_size = [3, 36, 10];
+    stripe.properties.position = vector([-35 + i * 10, 0, 0]);
+    detail.push(stripe);
+  }
   displacement.sequence.videoTracks[1].clips[0].object.effects = [{ type: "layerinputdisplacement",
-    properties: { source: "track:id:oracle-source", amount: scalar(0.3), wrap: 0 } }];
+    properties: { source: "track:id:oracle-source", amount: scalar(0.7), wrap: 1 } }];
   add("layer-input", "displacement-track", displacement, { sourceEdit: true });
   const timeDisplacement = copy(source);
   timeDisplacement.sequence.videoTracks[1].clips[0].object.effects = [{ type: "timedisplacement",
@@ -160,6 +173,20 @@ function fixtures() {
   consumerScene.effects = [];
   consumerScene.objects[1].material = { type: "layersource", properties: { source: "track:id:oracle-source" } };
   add("layer-input", "material-track", material, { sourceEdit: "material" });
+  for (const [name, base, kind] of [
+    ["effect-image", source, "effect"], ["displacement-image", displacement, "effect"],
+    ["time-displacement-image", timeDisplacement, "effect"], ["material-image", material, "material"],
+  ]) {
+    const data = copy(base);
+    for (const id of ["oracle-image-a", "oracle-image-b"]) {
+      data.assets[id] = { sha256: id, source: 1, filename: id + ".png" };
+    }
+    const scene = data.sequence.videoTracks[1].clips[0].object;
+    const consumer = kind === "material" ? scene.objects[1].material : scene.effects[0];
+    consumer.properties.source = "image";
+    consumer.properties.sourceImage = "oracle-image-a";
+    add("layer-input", name, data, { imageEdit: kind });
+  }
   for (const mode of ["source", "masks", "effects-masks"]) {
     const shader = copy(source);
     shader.sequence.videoTracks[1].clips[0].object.effects = [{ type: 1,
@@ -181,6 +208,7 @@ function fixtures() {
   add("expressions-plus", "mutable-realm", stateful);
   for (const fixture of result) {
     fixture.requiredPlugin = fixture.plugin === "effector-plus" ? "repeater" : fixture.plugin;
+    if (fixture.name === "time-displacement-image") fixture.requiredPlugin = "native-fx";
     if (fixture.plugin === "ccfx-shader-pack" || fixture.name === "legacy-slider") fixture.requiredPlugin = null;
     fixture.prefetch = !fixture.liveOnly && (fixture.name === result.find(item => item.plugin === fixture.plugin)?.name ||
       /echo|smartmotionblur|timedisplacement|ccwidetime|timedifference|Shake|Delay|Particular|Form|Plexus/.test(fixture.name));
@@ -207,6 +235,19 @@ async function compareFixture(fixture) {
   const mismatches = cache.debug.keyMismatches;
   const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   let videoBlob = null, pluginError = null;
+  const imageBlobs = {};
+  if (fixture.imageEdit) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 64; canvas.height = 64;
+    const context = canvas.getContext("2d");
+    for (const [id, inverse] of [["oracle-image-a", false], ["oracle-image-b", true]]) {
+      for (let y = 0; y < 64; y += 8) for (let x = 0; x < 64; x += 8) {
+        context.fillStyle = ((x + y) / 8 % 2 === 0) !== inverse ? "#ffffff" : "#101020";
+        context.fillRect(x, y, 8, 8);
+      }
+      imageBlobs[id] = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    }
+  }
   if (fixture.bundleFailure) {
     const manager = globalThis.ZoidiumPluginManagerInternals;
     const state = manager.pluginStates.get(fixture.bundleFailure);
@@ -247,10 +288,16 @@ async function compareFixture(fixture) {
     const project = new globalThis.PZ.project();
     const data = JSON.parse(JSON.stringify(fixture.data));
     if (videoBlob) data.assets["oracle-video"].file = videoBlob;
+    for (const [id, blob] of Object.entries(imageBlobs)) data.assets[id].file = blob;
     project.load(data);
     editor.project = project;
     await project._zoidiumPluginActivationPending;
     await resources(editor.project.sequence);
+    if (fixture.imageEdit) {
+      const scene = project.sequence.videoTracks[1].clips[0].object;
+      const consumer = fixture.imageEdit === "material" ? scene.objects[1].material : scene.effects[0];
+      await consumer._zoidiumSourceImage?.loading;
+    }
     await document.fonts.ready;
     cache.debug.prefetchDisabled = true;
     cache.clear();
@@ -409,6 +456,81 @@ async function compareFixture(fixture) {
       position.set(40, 11);
       if (JSON.stringify(position.keyframes) === keys) throw new Error("Source keyframes did not change");
     });
+    await load();
+  }
+  if (fixture.imageEdit && !fixture.full) {
+    const scene = editor.project.sequence.videoTracks[1].clips[0].object;
+    const consumer = fixture.imageEdit === "material" ? scene.objects[1].material : scene.effects[0];
+    if (consumer.properties.source.get() !== "image") throw new Error("Image source was not restored");
+    const before = await draw(11, false);
+    const toggle = fixture.imageEdit === "material" ? consumer.properties.opacity : consumer.properties.enabled;
+    toggle.set(0, 11);
+    const disabled = await draw(11, false);
+    let changed = false;
+    try { equal(before, disabled, "image contribution"); } catch (_error) { changed = true; }
+    if (!changed) throw new Error("Image source did not change pixels");
+    toggle.set(1, 11);
+    const retained = await draw(11, true);
+    await replay(11);
+    consumer.properties.sourceImage.set("oracle-image-b");
+    await consumer._zoidiumSourceImage?.loading;
+    document.dispatchEvent(new Event("input", { bubbles: true }));
+    const edited = await draw(11, false);
+    changed = false;
+    try { equal(retained, edited, "image swap"); } catch (_error) { changed = true; }
+    if (!changed) throw new Error("Image swap did not change pixels");
+    equal(edited, await draw(11, true), "image swap vs cached");
+    equal(edited, await replay(11), "image swap replay");
+    const data = fixture.data;
+    try {
+      fixture.data = JSON.parse(JSON.stringify(editor.project));
+      await load();
+      equal(edited, await draw(11, false), "image swap vs fresh project");
+    } finally { fixture.data = data; }
+    checks.push("image-swap-invalidation");
+    await load();
+  }
+  if (fixture.nestedEdit && !fixture.full) {
+    const scene = editor.project.sequence.videoTracks[1].clips[0].object;
+    const effect = scene.effects[0];
+    if (PZ.layerInput.getSourceToken(effect) !== "track:id:oracle-source") throw new Error("Nested source was not resolved");
+    const before = await draw(11, false);
+    effect.properties.enabled.set(0, 11);
+    const disabled = await draw(11, false);
+    let changed = false;
+    try { equal(before, disabled, "nested contribution"); } catch (_error) { changed = true; }
+    if (!changed) throw new Error("Nested source did not change pixels");
+    effect.properties.enabled.set(1, 11);
+    for (const kind of ["property", "keyframe"]) {
+      const retained = await draw(11, true);
+      await replay(11);
+      const opened = PZ.precomp.openComp(editor, "oracle-nested");
+      if (!opened.ok) throw new Error("Could not open nested composition: " + opened.message);
+      await resources(editor.project.sequence);
+      const box = editor.project.sequence.videoTracks[0].clips[0].object.objects[1];
+      if (kind === "property") box.material.properties.color.set([0.8, 0.1, 0.9], 11);
+      else {
+        const position = box.properties.position.objects[0], keys = JSON.stringify(position.keyframes);
+        position.set(40, 11);
+        if (JSON.stringify(position.keyframes) === keys) throw new Error("Nested keyframes did not change");
+      }
+      const closed = PZ.precomp.openComp(editor, "main");
+      if (!closed.ok) throw new Error("Could not return to main: " + closed.message);
+      document.dispatchEvent(new Event("input", { bubbles: true }));
+      const edited = await draw(11, false);
+      changed = false;
+      try { equal(retained, edited, "nested edit"); } catch (_error) { changed = true; }
+      if (!changed) throw new Error("Nested " + kind + " edit did not change pixels");
+      equal(edited, await draw(11, true), "nested " + kind + " vs cached");
+      equal(edited, await replay(11), "nested " + kind + " replay");
+      const data = fixture.data;
+      try {
+        fixture.data = JSON.parse(JSON.stringify(editor.project));
+        await load();
+        equal(edited, await draw(11, false), "nested " + kind + " vs fresh project");
+      } finally { fixture.data = data; }
+      checks.push("nested-" + kind + "-invalidation");
+    }
     await load();
   }
   let prefetch = "not selected", prefetchFrame = null, privateVideos = 0;

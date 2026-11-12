@@ -80,6 +80,10 @@ async function main() {
   execFileSync(process.execPath, [path.join(approvals.root, "tools/build-plugin-bundles.js"), "--check"], { stdio: "inherit" });
   const current = approvals.versions();
   const candidates = Object.fromEntries(Object.entries(current).map(([id, version]) => [id, { version }]));
+  // The nested Layer Input fixture exercises Precomp+ under a temporary gate.
+  // It does not add Precomp+ to the generated approval receipt.
+  candidates["precomp-plus"] = { version: String(JSON.parse(fs.readFileSync(
+    path.join(approvals.root, "plugins/precomp-plus/manifest.json"), "utf8")).version) };
   const report = { schemaVersion: 1, fingerprint: approvals.fingerprint(), plugins: {}, excluded: {}, cases: [], failures: [] };
   const all = fixtures();
   let matrix = all.filter(fixture => !filter || (fixture.plugin + "/" + fixture.name).includes(filter));
