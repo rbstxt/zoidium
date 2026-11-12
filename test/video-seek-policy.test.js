@@ -275,9 +275,17 @@ function elst(entries, version = 0) {
     : Buffer.concat([u64(segment), u64(mediaTime), u16(rate), u16(0)])));
   return mp4box("elst", head, ...body);
 }
-function videoTrak({ timescale = 90000, entries = [[300, 3000]], handler = "vide", edit = null, mdhdVersion = 0 } = {}) {
-  const mdia = mp4box("mdia", mdhd(timescale, mdhdVersion), hdlr(handler), mp4box("minf", mp4box("stbl", stts(entries))));
+function videoTrak({ timescale = 90000, entries = [[300, 3000]], handler = "vide", edit = null, mdhdVersion = 0, composition = null } = {}) {
+  const stbl = composition
+    ? mp4box("stbl", stts(entries), composition)
+    : mp4box("stbl", stts(entries));
+  const mdia = mp4box("mdia", mdhd(timescale, mdhdVersion), hdlr(handler), mp4box("minf", stbl));
   return mp4box("trak", ...(edit ? [mp4box("edts", edit)] : []), mdia);
+}
+function ctts(entries, version = 0) {
+  const head = Buffer.concat([Buffer.from([version, 0, 0, 0]), u32(entries.length)]);
+  const body = entries.map(([count, offset]) => Buffer.concat([u32(count), u32(offset)]));
+  return mp4box("ctts", head, ...body);
 }
 function mp4File({ traks, moovFirst = true, mdatSize = 0, moovLarge = false } = {}) {
   const ftyp = mp4box("ftyp", Buffer.from("isom", "ascii"), u32(512), Buffer.from("isomiso2", "ascii"));
@@ -416,4 +424,49 @@ test("timingFor finds a moov beyond the header window with small reads", async (
   assert.ok(large[1][0] >= 256 * 1024);
   assert.ok(large[1][1] - large[1][0] <= 16 * 1024 * 1024);
   assert.ok(reads.length <= 8);
+});
+
+test("B-frame composition offsets with a matching edit list keep the grid", () => {
+  const bframe = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 1024]]), composition: ctts([[48, 1024]]) };
+  const timing = readTiming(mp4File({ traks: [videoTrak(bframe)] }));
+  assert.equal(timing.period, 1 / 24);
+  assert.equal(timing.quantum, 1 / 12288);
+  assert.equal(timing.phase, 0);
+  const reorder = { timescale: 12288, entries: [[4, 512]], edit: elst([[2000, 1024]]), composition: ctts([[2, 1024], [2, 0]]) };
+  const reordered = readTiming(mp4File({ traks: [videoTrak(reorder)] }));
+  assert.equal(reordered.period, 1 / 24);
+  assert.equal(reordered.phase, 0);
+  const signed = { timescale: 12288, entries: [[4, 512]], edit: null, composition: ctts([[1, -512], [3, 0]], 1) };
+  const negative = readTiming(mp4File({ traks: [videoTrak(signed)] }));
+  assert.equal(negative.period, 1 / 24);
+  assert.equal(negative.phase, -512 / 12288);
+  const offset = { timescale: 12288, entries: [[48, 512]], edit: null, composition: ctts([[48, 1024]]) };
+  const shifted = readTiming(mp4File({ traks: [videoTrak(offset)] }));
+  assert.equal(shifted.period, 1 / 24);
+  assert.equal(shifted.phase, 1024 / 12288);
+});
+
+test("mismatched composition and edit phases keep uncorrected seeks", () => {
+  const fraction = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 1024]]), composition: ctts([[48, 768]]) };
+  assert.equal(readTiming(mp4File({ traks: [videoTrak(fraction)] })), null);
+  const drift = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 256]]), composition: ctts([[48, 1024]]) };
+  assert.equal(readTiming(mp4File({ traks: [videoTrak(drift)] })), null);
+  const offgrid = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 1024]]), composition: ctts([[24, 1024], [24, 100]]) };
+  assert.equal(readTiming(mp4File({ traks: [videoTrak(offgrid)] })), null);
+  const counts = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 1024]]), composition: ctts([[47, 1024]]) };
+  assert.equal(readTiming(mp4File({ traks: [videoTrak(counts)] })), null);
+  const versioned = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 1024]]), composition: ctts([[48, 1024]], 2) };
+  assert.equal(readTiming(mp4File({ traks: [videoTrak(versioned)] })), null);
+  const empty = { timescale: 24000, entries: [[240, 1000]], edit: elst([[24000, 18446744073709551615n]], 1) };
+  assert.equal(readTiming(mp4File({ traks: [videoTrak(empty)] })), null);
+  const multi = { timescale: 24000, entries: [[240, 1000]], edit: elst([[12000, 0], [12000, 1000]]) };
+  assert.equal(readTiming(mp4File({ traks: [videoTrak(multi)] })), null);
+});
+
+test("a user-style file with no ctts and a zero shift still applies", () => {
+  const timing = readTiming(mp4File({ traks: [videoTrak({ timescale: 24000, entries: [[240, 1000]], edit: elst([[288000, 0]]) })] }));
+  assert.equal(timing.period, 1 / 24);
+  assert.equal(timing.phase, 0);
+  const bias = target(16 / 24, 10, timing) - 16 / 24;
+  assert.ok(bias > 1e-6 && bias < 0.0005);
 });
