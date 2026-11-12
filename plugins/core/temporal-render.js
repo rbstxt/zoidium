@@ -402,6 +402,194 @@
 
   function rejoinNow() { return host?.performance?.now?.() ?? Date.now(); }
 
+  // Latest-wins preview scheduling (pure decision helper, unit-tested).
+  // A completed preparation draws only when it is still useful:
+  // - paused (or any non-playing viewport): the exact requested frame only,
+  //   so a scrub or a post-stall completion never leaves a stale frame up;
+  // - playing: the completion must move the display forward. A discontinuous
+  //   backward jump of the playhead (loop wrap, scrub-back during playback)
+  //   re-baselines, because every correct draw then differs from what is shown.
+  function shouldDrawPreviewFrame(options) {
+    const playing = options?.playing === true;
+    const frame = finiteNumber(options?.frame, NaN);
+    const liveFrame = finiteNumber(options?.liveFrame, NaN);
+    if (!Number.isFinite(frame) || !Number.isFinite(liveFrame)) {
+      return { draw: false, rebaselined: false };
+    }
+    if (!playing) return { draw: liveFrame === frame, rebaselined: false };
+    const seen = Number.isFinite(options?.liveSeen) ? options.liveSeen : liveFrame;
+    if (liveFrame < seen - 1) return { draw: true, rebaselined: true };
+    const drawn = options?.drawnFrame;
+    return {
+      draw: drawn === undefined || drawn === null || frame >= drawn,
+      rebaselined: false,
+    };
+  }
+
+  // Scan the sequence for sampler effects needing a temporal preview and
+  // build the preview key. Returns null when the frame needs no temporal
+  // preview (plain viewport path). Ticks and the preview worker share this
+  // so every preparation targets the current playhead (latest-wins).
+  function collectPreviewRequest(state, viewport, sequence, frame) {
+    const effects = [];
+    function visit(layer, clip, localFrame) {
+      const sourceFrame = state.mapLayerFrame(layer, localFrame)?.sourceFrame ?? localFrame;
+      for (const effect of layer.effects || []) {
+        if (!effect._zoidiumFrameSampler || effect._zoidiumFrameSampler.preflight) continue;
+        const controlFrame = getAdjustmentEffectFrame(layer, effect, sourceFrame);
+        const request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
+        const tapCount = Array.isArray(request?.frames) ? request.frames.length : Number(request?.count);
+        if (request && request.enabled !== false && tapCount > 0) {
+          effects.push({ effect, clip, layer, sourceFrame });
+        }
+      }
+      if (layer.nestedTracks) {
+        const childFrame = sourceFrame + finiteNumber(layer.offset, 0);
+        layer.setCompTime?.(childFrame);
+        for (const track of layer.nestedTracks()) {
+          if (track.enabled === false) continue;
+          const child = track.getCurrentClip?.(childFrame);
+          if (child) visit(child.object, child, childFrame - child.start);
+        }
+      } else if (layer instanceof PZ.layer.composite) {
+        for (const child of layer.objects || []) visit(child, clip, sourceFrame);
+      }
+    }
+    for (const track of sequence?.videoTracks || []) {
+      if (track.enabled === false) continue;
+      const clip = track.getCurrentClip?.(frame);
+      if (clip) visit(clip.object, clip, frame - clip.start);
+    }
+    // Clock operators on video also require an exact paused decoder. The
+    // native playback element can still be seeking when the viewport draws.
+    const temporalVideo = (sequence?.videoSchedules || []).some(schedule => {
+      const nested = layers.findNestedScheduleItem(schedule, frame);
+      if (nested) return Math.abs(nested.item.clip.origin + nested.source - frame) > EPSILON;
+      const item = findScheduleItemAtFrame(schedule, frame)?.item;
+      const clip = item?.clip;
+      if (clip?.path) return false;
+      const mapped = item?.media && clip?.object &&
+        getTemporalLayerFrame(clip.object, frame - clip.start, sequence);
+      return mapped && Math.abs(mapped.sourceFrame - mapped.localFrame) > EPSILON;
+    });
+    if (effects.length === 0 && !temporalVideo) return null;
+    // One bounded preparation per viewport. The serialization includes
+    // clip timing, effect order, expressions, keys and sequence settings.
+    const key = JSON.stringify([frame, frameSamplerInputKey(sequence, viewport.compositor),
+      effects.map(({ effect }) => frameSamplerIdentity(effect))]);
+    return { frame, key, effects, temporalVideo };
+  }
+
+  async function preparePreviewRequest(state, viewport, sequence, runtime, generation, request) {
+    const { frame, key, effects } = request;
+    const preparedContent = new Set();
+    async function prepareContent(layer, inputFrame) {
+      if (preparedContent.has(layer)) return;
+      preparedContent.add(layer);
+      await layer.loadShaders;
+      if (layer.image) await layer.image.loading;
+      if (layer.nestedTracks) {
+        const childFrame = inputFrame + finiteNumber(layer.offset, 0);
+        layer.setCompTime?.(childFrame);
+        for (const track of layer.nestedTracks()) {
+          if (track.enabled === false) continue;
+          const child = track.getCurrentClip?.(childFrame);
+          if (!child) continue;
+          const local = childFrame - child.start;
+          await prepareContent(child.object, state.mapLayerFrame(child.object, local)?.sourceFrame ?? local);
+        }
+      } else if (layer instanceof PZ.layer.composite) {
+        for (const child of layer.objects || []) {
+          await prepareContent(child, state.mapLayerFrame(child, inputFrame)?.sourceFrame ?? inputFrame);
+        }
+      } else {
+        for (const object of layer.objects || []) {
+          await object.loading;
+          await object.prepare?.(inputFrame, { sequence });
+        }
+      }
+    }
+    for (const { effect, layer, sourceFrame } of effects) {
+      // Nested samplers need the same asynchronous resource settlement
+      // as top-level samplers. Read explicit clocks without an extra
+      // content update before each capture and sequence draw.
+      const trackIndex = layers.findFrameSamplerStage(sequence, effect, frame)?.trackIndex ?? 0;
+      if (layers.isAdjustmentLayer(layer)) {
+        for (const track of sequence.videoTracks.slice(0, trackIndex)) {
+          if (track.enabled === false) continue;
+          const clip = track.getCurrentClip?.(frame);
+          if (!clip) continue;
+          const local = frame - clip.start;
+          await prepareContent(clip.object, state.mapLayerFrame(clip.object, local)?.sourceFrame ?? local);
+        }
+      }
+      await prepareContent(layer, sourceFrame);
+      await effect.prepare(sourceFrame,
+        { sequence, frameSamplerRoot: viewport.compositor });
+    }
+    runtime.previewMedia = await prepareLowerSchedules(sequence,
+      { layer: null, trackIndex: 0 }, frame, { sequence }, runtime, true);
+    if (runtime.disposed || generation !== (runtime.previewGeneration || 0) || runtime.previewNeutral || key !== JSON.stringify([frame,
+      frameSamplerInputKey(sequence, viewport.compositor),
+      effects.map(({ effect }) => frameSamplerIdentity(effect))])) return false;
+    runtime.previewKey = key;
+    // Draw the completion only while it is still useful. Paused viewports
+    // show the exact requested frame; during playback a preparation that
+    // fell far behind (or crossed a loop wrap) is skipped so the display
+    // never jumps backward, and the worker immediately prepares the
+    // current playhead instead. The cache stores only drawn pixels.
+    const liveFrame = finiteNumber(viewport.editor?.playback?.currentFrame, frame);
+    const decision = shouldDrawPreviewFrame({
+      playing: (viewport.editor?.playback?.speed ?? 0) !== 0,
+      frame,
+      liveFrame,
+      drawnFrame: runtime.previewDrawnFrame,
+      liveSeen: runtime.previewLiveFrame,
+    });
+    if (decision.rebaselined) runtime.previewDrawnFrame = undefined;
+    runtime.previewLiveFrame = liveFrame;
+    if (decision.draw) {
+      renderPreparedPreview(viewport, runtime, frame);
+      runtime.previewDrawnFrame = frame;
+      host?.ZoidiumFrameCache?.capturePreview?.(viewport, frame);
+    }
+    return true;
+  }
+
+  // Latest-wins preview worker: at most one preparation in flight; ticks
+  // that arrive while it runs leave their request queued and the worker
+  // continues with the newest one instead of waiting for the next tick.
+  // Resolving false stops the worker (invalidated, failed, or caught up)
+  // and hands control back to ticks.
+  function runPreviewQueue(state, viewport, sequence, runtime, first) {
+    const generation = runtime.previewGeneration || 0;
+    let active = first;
+    (async () => {
+      for (;;) {
+        let completed = false;
+        try {
+          completed = await preparePreviewRequest(state, viewport, sequence, runtime, generation, active);
+        } catch (error) {
+          console.error("[Zoidium] temporal preview preparation failed:", error);
+        }
+        if (!completed) return;
+        const queued = runtime.previewQueued;
+        runtime.previewQueued = null;
+        const liveFrame = finiteNumber(viewport.editor?.playback?.currentFrame, active.frame);
+        const next = (queued && queued.key !== runtime.previewKey)
+          ? queued
+          : collectPreviewRequest(state, viewport, sequence, liveFrame);
+        if (!next || next.key === runtime.previewKey) return;
+        active = next;
+      }
+    })().catch((error) => {
+      console.error("[Zoidium] temporal preview preparation failed:", error);
+    }).finally(() => {
+      runtime.previewPending = false;
+      viewport.lastFrame = -1;
+    });
+  }
+
   function installPlaybackPatch(state) {
     const prototype = PZ.ui?.playback?.prototype;
     if (!prototype || prototype[PLAYBACK_SCHEDULE_MARKER]) return;
@@ -480,125 +668,21 @@
       if (!this.renderMode || !this.layer) {
         const sequence = this.compositor?._sequence;
         const frame = finiteNumber(this.editor?.playback?.currentFrame, 0);
-        const effects = [];
-        function visit(layer, clip, localFrame) {
-          const sourceFrame = state.mapLayerFrame(layer, localFrame)?.sourceFrame ?? localFrame;
-          for (const effect of layer.effects || []) {
-            if (!effect._zoidiumFrameSampler || effect._zoidiumFrameSampler.preflight) continue;
-            const controlFrame = getAdjustmentEffectFrame(layer, effect, sourceFrame);
-            const request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
-            const tapCount = Array.isArray(request?.frames) ? request.frames.length : Number(request?.count);
-            if (request && request.enabled !== false && tapCount > 0) {
-              effects.push({ effect, clip, layer, sourceFrame });
-            }
-          }
-          if (layer.nestedTracks) {
-            const childFrame = sourceFrame + finiteNumber(layer.offset, 0);
-            layer.setCompTime?.(childFrame);
-            for (const track of layer.nestedTracks()) {
-              if (track.enabled === false) continue;
-              const child = track.getCurrentClip?.(childFrame);
-              if (child) visit(child.object, child, childFrame - child.start);
-            }
-          } else if (layer instanceof PZ.layer.composite) {
-            for (const child of layer.objects || []) visit(child, clip, sourceFrame);
-          }
-        }
-        for (const track of sequence?.videoTracks || []) {
-          if (track.enabled === false) continue;
-          const clip = track.getCurrentClip?.(frame);
-          if (clip) visit(clip.object, clip, frame - clip.start);
-        }
-        // Clock operators on video also require an exact paused decoder. The
-        // native playback element can still be seeking when the viewport draws.
-        const temporalVideo = (sequence?.videoSchedules || []).some(schedule => {
-          const nested = layers.findNestedScheduleItem(schedule, frame);
-          if (nested) return Math.abs(nested.item.clip.origin + nested.source - frame) > EPSILON;
-          const item = findScheduleItemAtFrame(schedule, frame)?.item;
-          const clip = item?.clip;
-          if (clip?.path) return false;
-          const mapped = item?.media && clip?.object &&
-            getTemporalLayerFrame(clip.object, frame - clip.start, sequence);
-          return mapped && Math.abs(mapped.sourceFrame - mapped.localFrame) > EPSILON;
-        });
-        if (effects.length > 0 || temporalVideo) {
-          // One bounded preparation per viewport. The serialization includes
-          // clip timing, effect order, expressions, keys and sequence settings.
-          const key = JSON.stringify([frame, frameSamplerInputKey(sequence, this.compositor),
-            effects.map(({ effect }) => frameSamplerIdentity(effect))]);
+        const request = collectPreviewRequest(state, this, sequence, frame);
+        if (request) {
           const runtime = getFrameSamplerRuntime(state, this.compositor);
           runtime.previewNeutral = false;
-          // Preparation temporarily updates effect uniforms and decoder textures.
-          // Even a previously prepared frame must wait until that work finishes.
-          if (runtime.previewPending) return;
-          if (runtime.previewKey !== key) {
-            if (!runtime.previewPending) {
-              runtime.previewPending = true;
-              const viewport = this;
-              const generation = runtime.previewGeneration || 0;
-              (async () => {
-                const preparedContent = new Set();
-                async function prepareContent(layer, inputFrame) {
-                  if (preparedContent.has(layer)) return;
-                  preparedContent.add(layer);
-                  await layer.loadShaders;
-                  if (layer.image) await layer.image.loading;
-                  if (layer.nestedTracks) {
-                    const childFrame = inputFrame + finiteNumber(layer.offset, 0);
-                    layer.setCompTime?.(childFrame);
-                    for (const track of layer.nestedTracks()) {
-                      if (track.enabled === false) continue;
-                      const child = track.getCurrentClip?.(childFrame);
-                      if (!child) continue;
-                      const local = childFrame - child.start;
-                      await prepareContent(child.object, state.mapLayerFrame(child.object, local)?.sourceFrame ?? local);
-                    }
-                  } else if (layer instanceof PZ.layer.composite) {
-                    for (const child of layer.objects || []) {
-                      await prepareContent(child, state.mapLayerFrame(child, inputFrame)?.sourceFrame ?? inputFrame);
-                    }
-                  } else {
-                    for (const object of layer.objects || []) {
-                      await object.loading;
-                      await object.prepare?.(inputFrame, { sequence });
-                    }
-                  }
-                }
-                for (const { effect, layer, sourceFrame } of effects) {
-                  // Nested samplers need the same asynchronous resource settlement
-                  // as top-level samplers. Read explicit clocks without an extra
-                  // content update before each capture and sequence draw.
-                  const trackIndex = layers.findFrameSamplerStage(sequence, effect, frame)?.trackIndex ?? 0;
-                  if (layers.isAdjustmentLayer(layer)) {
-                    for (const track of sequence.videoTracks.slice(0, trackIndex)) {
-                      if (track.enabled === false) continue;
-                      const clip = track.getCurrentClip?.(frame);
-                      if (!clip) continue;
-                      const local = frame - clip.start;
-                      await prepareContent(clip.object, state.mapLayerFrame(clip.object, local)?.sourceFrame ?? local);
-                    }
-                  }
-                  await prepareContent(layer, sourceFrame);
-                  await effect.prepare(sourceFrame,
-                    { sequence, frameSamplerRoot: viewport.compositor });
-                }
-                runtime.previewMedia = await prepareLowerSchedules(sequence,
-                  { layer: null, trackIndex: 0 }, frame, { sequence }, runtime, true);
-                if (runtime.disposed || generation !== (runtime.previewGeneration || 0) || runtime.previewNeutral || key !== JSON.stringify([frame,
-                  frameSamplerInputKey(sequence, viewport.compositor),
-                  effects.map(({ effect }) => frameSamplerIdentity(effect))])) return;
-                runtime.previewKey = key;
-                // Show each completed frame during playback. Waiting for the
-                // moving playhead to equal it would starve the preview forever.
-                renderPreparedPreview(viewport, runtime, frame);
-                host?.ZoidiumFrameCache?.capturePreview?.(viewport, frame);
-              })().catch((error) => {
-                console.error("[Zoidium] temporal preview preparation failed:", error);
-              }).finally(() => {
-                runtime.previewPending = false;
-                viewport.lastFrame = -1;
-              });
-            }
+          // Preparation temporarily updates effect uniforms and decoder
+          // textures. Ticks while one runs queue the newest request; the
+          // worker continues with it instead of restarting discarded work.
+          if (runtime.previewPending) {
+            runtime.previewQueued = request;
+            return;
+          }
+          if (runtime.previewKey !== request.key) {
+            runtime.previewPending = true;
+            runtime.previewQueued = null;
+            runPreviewQueue(state, this, sequence, runtime, request);
             return;
           }
           return renderPreparedPreview(this, runtime, frame);
@@ -608,6 +692,9 @@
           if (!runtime.previewNeutral) runtime.previewGeneration = (runtime.previewGeneration || 0) + 1;
           runtime.previewNeutral = true;
           runtime.previewKey = null;
+          runtime.previewQueued = null;
+          runtime.previewDrawnFrame = undefined;
+          runtime.previewLiveFrame = undefined;
         }
         for (const schedule of sequence?.videoSchedules || []) {
           if (!schedule.__zoidiumTemporalRejoin) continue;
@@ -704,6 +791,7 @@
       quantizeFrame,
       quantizeLocalFrame,
       readFpsProp,
+      shouldDrawPreviewFrame,
     };
     return;
   }
