@@ -10,6 +10,8 @@ each line describes one visible change.
 
 ### Added
 
+- Shader properties: Time sample has Minimum, Maximum, Step, and Decimals in
+  its settings, and Slider, Seed, and Angle have Decimals.
 - Shader properties has a Show hidden button (an eye) on its heading. It
   shows, dimmed, the properties that Visible when currently hides, so you can
   open their settings. A condition that can never match a Toggle or Dropdown
@@ -217,6 +219,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- Alt-dragging a Scene or Camera clip, or a layer with Track To or Follow,
+  makes a working duplicate. It was left as a ghost that could not be
+  selected, and duplicates no longer save unused constraint settings.
+- Shader+: the Toggle checkbox follows the theme colors instead of a white
+  box.
 - The play button is back at the center of the playback toolbar on wide
   panels. The quality and speed menus stay at the right edge.
 - Shader+: settings of one custom property, such as Visible when or its
