@@ -41,6 +41,433 @@ function hoist(node, scope) {
   }
 }
 
+// Preview-cache eligibility: `sharedMutation` is true when the expression
+// might mutate state that outlives one evaluation (shared realm objects such
+// as Math or Array.prototype, the host methods object, or reachable
+// prototypes). Evaluation is unchanged; the preview cache only stays off for
+// projects containing such an expression, because a retained frame could hide
+// later evaluation state. The analysis is intentionally conservative: an
+// unknown shape disables caching, while a missed mutation would serve stale
+// frames.
+//
+// A local binding counts as provably fresh only when every value assigned to
+// it (its declaration and every later write) is an array, object or function
+// literal. `new`, calls and host values are not provable, and a local that is
+// ever assigned a non-literal is not fresh. A member write, `delete` or known
+// mutating-method call whose receiver is not a provably fresh local flags the
+// expression, as does any computed dynamic call on such a receiver and any
+// read or write of `__proto__`, `constructor` or `prototype`.
+const SHARED_MUTATORS = new Set(("push pop shift unshift splice sort reverse fill copyWithin " +
+  "set add delete clear assign defineProperty defineProperties setPrototypeOf freeze seal " +
+  "preventExtensions __defineGetter__ __defineSetter__").split(" "));
+const OBJECT_TARGET_MUTATORS = new Set("assign defineProperty defineProperties setPrototypeOf freeze seal preventExtensions".split(" "));
+const REFLECT_TARGET_MUTATORS = new Set("set deleteProperty defineProperty setPrototypeOf preventExtensions".split(" "));
+const PROTOTYPE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const INVOKE_KEYS = new Set(["call", "apply", "bind"]);
+
+function isFreshLiteral(node) {
+  return !!node && (node.type === "ArrayExpression" || node.type === "ObjectExpression" ||
+    node.type === "FunctionExpression" || node.type === "ArrowFunctionExpression" ||
+    node.type === "FunctionDeclaration");
+}
+
+function unwrapChain(node) {
+  while (node && node.type === "ChainExpression") node = node.expression;
+  return node;
+}
+
+function memberRoot(node) {
+  let current = unwrapChain(node);
+  while (current && current.type === "MemberExpression") current = unwrapChain(current.object);
+  return current;
+}
+
+// The statically known property name, or null for a computed dynamic key.
+// Reads through a dynamic key (such as `a[i]`) stay eligible; writes and
+// calls through one need a provably fresh receiver.
+function staticKey(member) {
+  if (!member.computed && member.property.type === "Identifier") return member.property.name;
+  if (member.computed && member.property.type === "Literal" &&
+    (typeof member.property.value === "string" || typeof member.property.value === "number")) {
+    return String(member.property.value);
+  }
+  return null;
+}
+
+function detectSharedMutation(tree) {
+  const scopes = [{ bindings: new Map(), functionBoundary: true }];
+  const current = () => scopes[scopes.length - 1];
+  const functionScope = () => scopes.findLast(scope => scope.functionBoundary);
+  const captureScope = () => scopes.slice();
+  const lookupIn = (chain, name) => {
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const record = chain[i].bindings.get(name);
+      if (record) return record;
+    }
+    return null;
+  };
+  // A literal is deeply fresh when every value reachable through it is a
+  // primitive, a nested literal or a provably fresh local: mutating any part
+  // of it then dies with the evaluation. Host values, call results and
+  // getters make it shared. Undeclared names are compile-time ReferenceErrors;
+  // analysis results for them are discarded with the failed compilation.
+  function bindingFresh(record, chain, seen) {
+    if (!record || record.tainted || !record.inits.length) return false;
+    if (seen.has(record)) return false;
+    seen.add(record);
+    try { return record.inits.every(init => literalFresh(init, chain, seen)); }
+    finally { seen.delete(record); }
+  }
+  function literalFresh(node, chain, seen) {
+    if (!node) return false;
+    if (node.type === "ArrayExpression") {
+      return (node.elements || []).every(element =>
+        !!element && valueFresh(element.type === "SpreadElement" ? element.argument : element, chain, seen));
+    }
+    if (node.type === "ObjectExpression") {
+      return (node.properties || []).every(property => {
+        if (!property) return false;
+        if (property.type === "SpreadElement") return valueFresh(property.argument, chain, seen);
+        // A getter can hand out shared state on every read.
+        if (property.kind !== "init") return false;
+        return valueFresh(property.value, chain, seen);
+      });
+    }
+    return node.type === "FunctionExpression" || node.type === "ArrowFunctionExpression" ||
+      node.type === "FunctionDeclaration";
+  }
+  function valueFresh(node, chain, seen) {
+    if (!node) return false;
+    switch (node.type) {
+      case "Literal":
+      case "TemplateLiteral":
+      case "UnaryExpression":
+      case "BinaryExpression":
+        return true;
+      case "ArrayExpression":
+      case "ObjectExpression":
+      case "FunctionExpression":
+      case "ArrowFunctionExpression":
+      case "FunctionDeclaration":
+        return literalFresh(node, chain, seen);
+      case "ConditionalExpression":
+        return valueFresh(node.consequent, chain, seen) && valueFresh(node.alternate, chain, seen);
+      case "SequenceExpression": {
+        const expressions = node.expressions || [];
+        return expressions.length > 0 && valueFresh(expressions[expressions.length - 1], chain, seen);
+      }
+      case "AssignmentExpression":
+        return node.operator === "=" && valueFresh(node.right, chain, seen);
+      case "Identifier": {
+        const record = lookupIn(chain, node.name);
+        if (!record || seen.has(record)) return false;
+        return bindingFresh(record, chain, seen);
+      }
+      default:
+        return false;
+    }
+  }
+  const checks = [];
+  let flagged = false;
+  const flag = () => { flagged = true; };
+  const lookupLive = name => lookupIn(scopes, name);
+  // Receivers are captured with their scope chain while it is active; the
+  // deferred checks below read final freshness after the whole tree is
+  // scanned, so a later reassignment from shared state still revokes a use.
+  const captureReceiver = node => {
+    const root = memberRoot(node);
+    if (!root) return { fresh: false };
+    if (root.type === "Identifier" || isFreshLiteral(root)) return { root, chain: captureScope() };
+    // A primitive root carries no shared mutable state: member writes on it
+    // throw deterministically and `delete null?.x` short-circuits to true.
+    if (root.type === "Literal" || root.type === "TemplateLiteral") return { fresh: true };
+    return { fresh: false };
+  };
+  const capturedFresh = captured => {
+    if (captured.fresh === true) return true;
+    if (captured.fresh === false || !captured.root) return false;
+    if (captured.root.type === "Identifier") {
+      const record = lookupIn(captured.chain, captured.root.name);
+      return bindingFresh(record, captured.chain, new Set());
+    }
+    return literalFresh(captured.root, captured.chain, new Set());
+  };
+  const captureArgument = captureReceiver;
+  function recordAssignment(scope, pattern, init, tainted = false) {
+    const chain = captureScope();
+    for (const name of names(pattern)) {
+      let entry = scope.bindings.get(name);
+      if (!entry) { entry = { sawLiteral: false, tainted: false, inits: [] }; scope.bindings.set(name, entry); }
+      if (init && isFreshLiteral(init)) { entry.sawLiteral = true; entry.inits.push(init); }
+      else if (init || tainted) entry.tainted = true;
+    }
+    // A destructuring default applies when the source omits the value, so a
+    // shared default taints every name bound beside it.
+    if (init && pattern && typeof pattern.type === "string") {
+      const defaults = [];
+      const collect = node => {
+        if (!node || typeof node.type !== "string") return;
+        if (node.type === "AssignmentPattern") { defaults.push(node.right); collect(node.left); }
+        else if (node.type === "RestElement") collect(node.argument);
+        else if (node.type === "ArrayPattern") node.elements.forEach(collect);
+        else if (node.type === "ObjectPattern") {
+          node.properties.forEach(p => {
+            if (p.type === "RestElement") collect(p.argument);
+            else collect(p.value);
+          });
+        }
+      };
+      collect(pattern);
+      if (defaults.some(right => !valueFresh(right, chain, new Set()))) {
+        for (const name of names(pattern)) scope.bindings.get(name).tainted = true;
+      }
+    }
+  }
+  function checkMemberCall(member, firstArgument) {
+    const key = staticKey(member);
+    // A prototype read on the callee already reaches shared realm state
+    // (`f.constructor()`), even before the call itself is classified.
+    if (key !== null && PROTOTYPE_KEYS.has(key)) flag();
+    if (key === null) {
+      const receiver = captureReceiver(member.object);
+      checks.push(() => { if (!capturedFresh(receiver)) flag(); });
+      return;
+    }
+    if (SHARED_MUTATORS.has(key)) {
+      const receiver = captureReceiver(member.object);
+      checks.push(() => { if (!capturedFresh(receiver)) flag(); });
+      return;
+    }
+    if (INVOKE_KEYS.has(key)) {
+      // `[].push.call(list, item)` mutates `list`, the first argument, not
+      // the object the method was read from: a mutating method reached this
+      // way is checked against the retargeted receiver (missing = not fresh).
+      // Any other `.call`/`.apply`/`.bind` target cannot be proven safe.
+      const inner = unwrapChain(member.object);
+      if (inner && inner.type === "MemberExpression") {
+        const innerKey = staticKey(inner);
+        if (innerKey !== null && SHARED_MUTATORS.has(innerKey)) {
+          const thisTarget = captureArgument(firstArgument);
+          checks.push(() => { if (!capturedFresh(thisTarget)) flag(); });
+          return;
+        }
+      }
+      const target = captureArgument(inner);
+      checks.push(() => { if (!capturedFresh(target)) flag(); });
+      return;
+    }
+    if ((member.object.type === "Identifier" && (member.object.name === "Object" || member.object.name === "Reflect") &&
+      !lookupLive(member.object.name))) {
+      // Bare `Object`/`Reflect` are compile-time ReferenceErrors today, so
+      // this only guards a future pure binding or a native host of the same
+      // shape: mutating statics flag unless their target is provably fresh.
+      const targets = member.object.name === "Object" ? OBJECT_TARGET_MUTATORS : REFLECT_TARGET_MUTATORS;
+      if (targets.has(key)) {
+        const target = captureArgument(firstArgument);
+        checks.push(() => { if (!capturedFresh(target)) flag(); });
+      }
+      // Any other known static only reads. An unknown computed static cannot
+      // be proven read-only, but this branch is unreachable while bare
+      // `Object`/`Reflect` are compile-time ReferenceErrors.
+      else if (key === null) checks.push(flag);
+    }
+  }
+  // Destructuring and for-in/of targets can write members directly:
+  // `[methods.c] = [1]`, `({x: methods.c} = o)`, `for (methods.c of list)`.
+  function checkPatternTargets(pattern) {
+    const target = unwrapChain(pattern);
+    if (!target || typeof target.type !== "string") return;
+    if (target.type === "MemberExpression") {
+      const receiver = captureReceiver(target.object);
+      checks.push(() => { if (!capturedFresh(receiver)) flag(); });
+    } else if (target.type === "AssignmentPattern") checkPatternTargets(target.left);
+    else if (target.type === "RestElement") checkPatternTargets(target.argument);
+    else if (target.type === "ArrayPattern") target.elements.forEach(checkPatternTargets);
+    else if (target.type === "ObjectPattern") {
+      target.properties.forEach(p => checkPatternTargets(p.type === "RestElement" ? p.argument : p.value));
+    }
+  }
+  function scanPatternDefaults(pattern) {
+    if (!pattern || typeof pattern.type !== "string") return;
+    if (pattern.type === "AssignmentPattern") { scan(pattern.right); scanPatternDefaults(pattern.left); }
+    else if (pattern.type === "RestElement") scanPatternDefaults(pattern.argument);
+    else if (pattern.type === "ArrayPattern") pattern.elements.forEach(scanPatternDefaults);
+    else if (pattern.type === "ObjectPattern") {
+      pattern.properties.forEach(p => {
+        if (p.type === "RestElement") scanPatternDefaults(p.argument);
+        else { if (p.computed) scan(p.key); scanPatternDefaults(p.value); }
+      });
+    }
+  }
+  function scanChildren(node) {
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) value.forEach(item => { if (item && typeof item.type === "string") scan(item); });
+      else if (value && typeof value.type === "string") scan(value);
+    }
+  }
+  function scan(node) {
+    if (!node || typeof node.type !== "string") return;
+    if (node.type === "Identifier" || node.type === "Literal") return;
+    if (node.type === "Program" || node.type === "BlockStatement" || node.type === "StaticBlock") {
+      scopes.push({ bindings: new Map(), functionBoundary: node.type === "Program" });
+      for (const statement of node.body || []) scan(statement);
+      scopes.pop();
+      return;
+    }
+    if (node.type === "SwitchStatement") {
+      scan(node.discriminant);
+      scopes.push({ bindings: new Map(), functionBoundary: false });
+      for (const clause of node.cases || []) (clause.consequent || []).forEach(scan);
+      scopes.pop();
+      return;
+    }
+    if (/Function/.test(node.type)) {
+      (node.params || []).forEach(scanPatternDefaults);
+      scopes.push({ bindings: new Map(), functionBoundary: true });
+      if (node.id) recordAssignment(current(), node.id, node);
+      for (const param of node.params || []) recordAssignment(current(), param, null, true);
+      if (node.body) scan(node.body);
+      scopes.pop();
+      return;
+    }
+    if (node.type === "VariableDeclaration") {
+      const scope = node.kind === "var" ? functionScope() : current();
+      for (const declarator of node.declarations || []) {
+        scanPatternDefaults(declarator.id);
+        recordAssignment(scope, declarator.id, declarator.init);
+        scan(declarator.init);
+      }
+      return;
+    }
+    if (node.type === "ForStatement" || node.type === "ForInStatement" || node.type === "ForOfStatement") {
+      scopes.push({ bindings: new Map(), functionBoundary: false });
+      if (node.init?.type === "VariableDeclaration") {
+        const scope = node.init.kind === "var" ? functionScope() : current();
+        for (const declarator of node.init.declarations || []) {
+          scanPatternDefaults(declarator.id);
+          recordAssignment(scope, declarator.id, declarator.init);
+          scan(declarator.init);
+        }
+      } else {
+        // `for (target of ...)` binds per-iteration values that cannot be
+        // proven fresh; `for (init; ...)` may also write its target.
+        if (node.left) {
+          checkPatternTargets(node.left);
+          if (node.left.type === "Identifier") recordAssignment(current(), node.left, null, true);
+          else { scanPatternDefaults(node.left); for (const name of names(node.left)) recordAssignment(current(), { type: "Identifier", name }, null, true); }
+          scan(node.left);
+        }
+        scan(node.init);
+      }
+      scan(node.right);
+      scan(node.test);
+      scan(node.update);
+      scan(node.body);
+      scopes.pop();
+      return;
+    }
+    if (node.type === "CatchClause") {
+      scanPatternDefaults(node.param);
+      scopes.push({ bindings: new Map(), functionBoundary: false });
+      if (node.param) recordAssignment(current(), node.param, null, true);
+      scan(node.body);
+      scopes.pop();
+      return;
+    }
+    if (node.type === "LabeledStatement") { scan(node.body); return; }
+    if (node.type === "AssignmentExpression") {
+      if (node.left.type === "Identifier") {
+        const record = lookupLive(node.left.name);
+        if (record) {
+          if (isFreshLiteral(node.right)) { record.sawLiteral = true; record.inits.push(node.right); }
+          else record.tainted = true;
+        } else recordAssignment(current(), node.left, node.right);
+      } else if (node.left.type === "MemberExpression" || node.left.type === "ChainExpression") {
+        const target = unwrapChain(node.left);
+        const receiver = target.type === "MemberExpression" ? captureReceiver(target.object) : { fresh: false };
+        checks.push(() => { if (!capturedFresh(receiver)) flag(); });
+      } else {
+        checkPatternTargets(node.left);
+        scanPatternDefaults(node.left);
+        for (const name of names(node.left)) recordAssignment(current(), { type: "Identifier", name }, node.right);
+      }
+      scan(node.left.type === "Identifier" ? null : node.left);
+      scan(node.right);
+      return;
+    }
+    if (node.type === "UpdateExpression") {
+      const target = unwrapChain(node.argument);
+      if (target.type === "MemberExpression") {
+        const receiver = captureReceiver(target.object);
+        checks.push(() => { if (!capturedFresh(receiver)) flag(); });
+        scan(target.object);
+        if (target.computed) scan(target.property);
+      } else scan(node.argument);
+      return;
+    }
+    if (node.type === "UnaryExpression" && node.operator === "delete") {
+      const target = unwrapChain(node.argument);
+      if (target.type === "MemberExpression") {
+        const receiver = captureReceiver(target.object);
+        checks.push(() => { if (!capturedFresh(receiver)) flag(); });
+        scan(target.object);
+        if (target.computed) scan(target.property);
+      } else scan(node.argument);
+      return;
+    }
+    if (node.type === "CallExpression" || node.type === "TaggedTemplateExpression") {
+      const callee = node.type === "CallExpression" ? unwrapChain(node.callee) : unwrapChain(node.tag);
+      if (callee && callee.type === "MemberExpression") {
+        const firstArgument = node.type === "CallExpression" ? (node.arguments || [])[0] : null;
+        checkMemberCall(callee, firstArgument);
+        scan(callee.object);
+        if (callee.computed) scan(callee.property);
+      } else scan(node.type === "CallExpression" ? node.callee : node.tag);
+      (node.arguments || []).forEach(scan);
+      if (node.quasi) scan(node.quasi);
+      return;
+    }
+    if (node.type === "MemberExpression") {
+      const key = staticKey(node);
+      if (key !== null && PROTOTYPE_KEYS.has(key)) flag();
+      scan(node.object);
+      if (node.computed) scan(node.property);
+      return;
+    }
+    if (node.type === "ChainExpression") { scan(node.expression); return; }
+    if (/Pattern$/.test(node.type)) { scanPatternDefaults(node); return; }
+    if (node.type === "Property") {
+      if (node.computed) scan(node.key);
+      scan(node.value);
+      return;
+    }
+    scanChildren(node);
+  }
+  scan(tree);
+  for (const check of checks) check();
+  return flagged;
+}
+
+// Bounded per-source cache for preview-cache eligibility. `getMethodNames`
+// returns the current host method names; when they change, earlier results
+// are dropped because name resolution may have changed with them. Sources
+// that no longer compile fail closed.
+function createSharedMutationCache(getMethodNames, compileFn = compile) {
+  const cache = new Map();
+  let stamp = "";
+  return function isSharedMutation(source) {
+    const methods = getMethodNames(), key = methods.join("\0");
+    if (key !== stamp) { cache.clear(); stamp = key; }
+    if (cache.has(source)) return cache.get(source);
+    let flagged = true;
+    try { flagged = !!compileFn(source, methods).needs.sharedMutation; }
+    catch (_error) { flagged = true; }
+    if (cache.size >= 512) cache.delete(cache.keys().next().value);
+    cache.set(source, flagged);
+    return flagged;
+  };
+}
+
 // Extend the same ESTree/astring pipeline as CM3. Only identifier resolution,
 // function/loop budgets and dynamic invocation differ from ordinary generation.
 function compile(source, methodNames = [], mathNames = Object.getOwnPropertyNames(Math)) {
@@ -196,10 +623,14 @@ function compile(source, methodNames = [], mathNames = Object.getOwnPropertyName
     }
     return node;
   }
+  // The eligibility walk reads the author's own names (`methods.counter`,
+  // bare `sin`, `value`); the rewrite below replaces them with realm and
+  // helper handles, so it must run on the unvisited tree.
+  const sharedMutation = detectSharedMutation(tree);
   visit(tree, [root]);
   const last = tree.body.at(-1);
   if (last?.type === "ExpressionStatement") tree.body[tree.body.length - 1] = { type: "ReturnStatement", argument: last.expression };
-  return { code: astring.generate(tree), extended, needs: { full: extended, methods: allMethods ? null : Array.from(usedMethods) } };
+  return { code: astring.generate(tree), extended, needs: { full: extended, methods: allMethods ? null : Array.from(usedMethods), sharedMutation } };
 }
 
 function sandboxFunction(doc, code) {
@@ -217,4 +648,4 @@ function sandboxFunction(doc, code) {
   return fn;
 }
 
-module.exports = { compile, sandboxFunction, API_NAMES, PURE_NAMES };
+module.exports = { compile, createSharedMutationCache, sandboxFunction, API_NAMES, PURE_NAMES };

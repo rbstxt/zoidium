@@ -1,5 +1,23 @@
 "use strict";
 let runtime = null;
+const previewCacheBlockReason = "An expression may keep values between frames, so this project is not cached";
+// Preview-cache eligibility: an expression that may keep values between
+// frames (see compiler.js `sharedMutation`) keeps its project on live
+// previews. Live rendering and export are unchanged. The walk covers every
+// assigned expression, compiling sources on demand so one that never
+// evaluated cannot slip through the key builder.
+function createPreviewCacheBlocker({ dynamicType, isSharedMutation }) {
+  return function previewCacheBlocker(project) {
+    let blocked = false;
+    try {
+      project?.forEachItemOfType?.(dynamicType, property => {
+        if (blocked || !property?.expression || typeof property.expression.source !== "string") return;
+        if (isSharedMutation(property.expression.source)) blocked = true;
+      });
+    } catch (_error) { blocked = true; }
+    return blocked ? previewCacheBlockReason : null;
+  };
+}
 function activate(context) {
   const { PZ, document: doc, window: win } = context;
   const require = context.apis.modules.createRequire(context.getAsset, { root: "./plugins/expressions-plus/" });
@@ -47,12 +65,23 @@ function activate(context) {
     update(); return el;
   });
   const api = { engine, controls: store, controlsUI, shaders, requires: source => engine.requiresSource(source) };
+  const previewCacheBlocker = createPreviewCacheBlocker({ dynamicType: PZ.property.dynamic,
+    isSharedMutation: source => engine.isSharedMutation(source) });
+  PZ.zoidium = PZ.zoidium || {};
+  const blockers = PZ.zoidium.previewCacheBlockers || (PZ.zoidium.previewCacheBlockers = []);
+  if (!blockers.includes(previewCacheBlocker)) blockers.push(previewCacheBlocker);
+  disposers.push(() => {
+    const index = blockers.indexOf(previewCacheBlocker);
+    if (index >= 0) blockers.splice(index, 1);
+  });
   win.ZoidiumExpressions = api;
   disposers.push(() => { if (win.ZoidiumExpressions === api) delete win.ZoidiumExpressions; });
   runtime = { context, engine, store, shaders };
 }
 module.exports = {
   activate,
+  createPreviewCacheBlocker,
+  previewCacheBlockReason,
   isInUse() {
     let used = false;
     if (runtime?.context.editor?.sequence && runtime.store.list(runtime.context.editor.sequence).length) return true;

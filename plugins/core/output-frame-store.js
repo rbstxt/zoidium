@@ -180,6 +180,18 @@
       onReject("Community content is not verified for preview caching");
       return null;
     }
+    // Plugin-owned eligibility checks beyond the version allowlist above. An
+    // expression that may keep values between frames is one: live rendering
+    // and export stay exactly as usual, only the preview cache stays off.
+    for (const blocker of global.PZ?.zoidium?.previewCacheBlockers || []) {
+      let reason = null;
+      try { reason = blocker(viewport.editor.project); }
+      catch (_error) { reason = "Project state could not be validated"; }
+      if (reason) {
+        onReject(reason);
+        return null;
+      }
+    }
     for (const requirement of approvedPlugins ? content.plugins || [] : []) {
       const current = plugins.find(plugin => plugin.id === requirement.id);
       if (!current?.enabled || approvedPlugins.get(requirement.id) !== String(current.version)) {

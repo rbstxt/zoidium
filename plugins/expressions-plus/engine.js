@@ -1,5 +1,5 @@
 "use strict";
-const { compile, sandboxFunction } = require("./compiler.js");
+const { compile, createSharedMutationCache, sandboxFunction } = require("./compiler.js");
 const { createCallGuard } = require("./call-guard.js");
 const { createAPI, copy, ancestor } = require("./api.js");
 
@@ -11,6 +11,11 @@ function installEngine(options) {
   const sourceKinds = new Map();
   let methodStamp = "";
   const guard = createCallGuard(options.stepLimit);
+  // Preview-cache eligibility per expression source text. Compiling on demand
+  // (with a bounded cache) keeps expressions that never evaluated from
+  // slipping through the key builder. A source that no longer compiles fails
+  // closed: it cannot be proven stateless.
+  const isSharedMutation = createSharedMutationCache(() => Object.keys(PZ.expression.methods));
   function report(expression, property, error) {
     const message = error ? "Expression error: " + String(error.message || error) : null;
     expression.error = message;
@@ -155,7 +160,7 @@ function installEngine(options) {
   options.project?.forEachItemOfType?.(PZ.property.dynamic, prepare);
   return { baseAt, read, prepare, error: p => errors.get(p) || p?.expression?.error || null,
     isExtended: expression => !!compiled.get(expression)?.extended,
-    compile, guard,
+    isSharedMutation, compile, guard,
     requiresSource(source) {
       const methods = Object.keys(PZ.expression.methods), stamp = methods.join("\0");
       if (stamp !== methodStamp) { sourceKinds.clear(); methodStamp = stamp; }
