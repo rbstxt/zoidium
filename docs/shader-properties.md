@@ -45,13 +45,16 @@ do not count. Static dropdown uses native OPTION storage and a compile-time
 straight RGBA vec4. Point (a vec2 with UV/pixel metadata) is no longer offered
 in the menu; saved Point properties keep loading and binding as vec2.
 
-Slider, Seed, Time sample, and Angle settings show Decimals. Time sample
+Slider, Seed, Time sample, and Angle settings show Decimals and Snap. Time sample
 settings also show Minimum, Maximum, and Step. Minimum and Maximum clamp the
 row editor. Step is the drag multiplier and the arrow-key increment. Decimals
-sets the displayed decimal places, from 0 to 100. Converting another kind to
+sets the displayed decimal places, from 0 to 100. Snap rounds committed row
+edits to multiples of Snap. The grid starts at Minimum when it is set, else
+at 0, and half-way values round away from zero. A blank Snap or 0 removes the
+field. Snap acts only on new edits. Converting another kind to
 Time sample starts unbounded with the units step, so a stale Slider range
-cannot clamp the offset; type explicit bounds to keep them. Row ranges never
-change saved values or shader output by themselves.
+cannot clamp the offset; type explicit bounds to keep them. Row ranges and
+snap never change saved values, keyframes, or shader output without a row edit.
 
 ## Reset behavior
 
@@ -98,6 +101,13 @@ Visibility affects editor rows only. Hidden controls still reach the shader, Pre
 Exact values retain the saved `{"property":"Mode","values":[1,2]}` format.
 New comparisons add a `conditions` array, such as `{"op":">","value":5.5}` or `{"op":"range","min":1,"max":5}`.
 The `values` and `conditions` arrays are alternatives. Any match shows the row.
+
+A group carries the same condition: right-click a grouped row and choose
+Group settings…. The controller list contains only ungrouped properties of
+the same effect. The condition is stored on every member, so save, reopen,
+duplication, Undo, and Redo keep it. A row shows only when its own condition
+and its group condition both pass. A hidden group hides its heading and all
+its children. Show hidden reveals hidden groups too.
 
 ## Keyframe data in shaders
 

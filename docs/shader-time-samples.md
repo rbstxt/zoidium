@@ -5,7 +5,7 @@ Use Shader+ **Time sample** properties to read the input before the current Cust
 1. Open **Shader properties**, click **+**, and select **ZOIDIUM > Time sample**.
 2. Rename the property to `Past`.
 3. Set the offset to `-1` to read one frame earlier.
-4. To use seconds, right-click the property, open **Property settings…**, and select **Seconds** in **Offset units**. The same panel offers **Minimum**, **Maximum**, **Step**, and **Decimals** for the offset row.
+4. To use seconds, right-click the property, open **Property settings…**, and select **Seconds** in **Offset units**. The same panel offers **Minimum**, **Maximum**, **Step**, **Decimals**, and **Snap** for the offset row.
 5. Declare the property as a texture in the shader.
 
 ```glsl

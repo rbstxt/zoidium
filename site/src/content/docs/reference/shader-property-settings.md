@@ -58,11 +58,17 @@ Apply still saves the condition and keeps the panel open.
 The warning checks known choices and saved key values.
 Expressions and interpolated animation can produce other values, so these controllers do not receive this warning.
 
-The **Show hidden** eye button on the **Shader properties** heading reveals rows hidden by **Visible when**.
+The **Show hidden** eye button on the **Shader properties** heading reveals rows and groups hidden by **Visible when**.
 These rows appear dimmed and keep their settings menu available.
 The button does not expand collapsed groups.
 Show hidden is panel state. It is not saved in the project and creates no Undo step.
 Existing saved visibility conditions remain unchanged, including conditions inherited from older property definitions.
+
+A group carries the same condition. Right-click a grouped row and choose **Group settings…**.
+The controller list contains only ungrouped properties of the same effect.
+The condition is stored on every member property, so save, reopen, duplication, Undo, and Redo keep it.
+A row shows only when its own condition and its group condition both pass.
+A hidden group hides its heading and all its children.
 
 Visibility affects editor rows only.
 Hidden properties still supply their current values to shaders, Preview cache frames, and exports.
@@ -78,17 +84,22 @@ Existing fractional values and interpolation reach the shader unchanged.
 An animated expression remains read-only, as with the native menu.
 The Checkbox display follows the editor theme in both states.
 
-## Minimum, Maximum, Step, and Decimals
+## Minimum, Maximum, Step, Decimals, and Snap
 
-Slider, Seed, Time sample, and Angle settings show **Decimals**.
+Slider, Seed, Time sample, and Angle settings show **Decimals** and **Snap**.
 Time sample settings also show **Minimum**, **Maximum**, and **Step**.
 Toggle and Dropdown settings show none of these fields.
 
 **Minimum** and **Maximum** clamp the row editor.
 **Step** is the drag multiplier and the arrow-key increment.
 **Decimals** sets the displayed decimal places, from 0 to 100.
+**Snap** rounds committed row edits to multiples of **Snap**.
+The grid starts at **Minimum** when it is set, else at 0.
+Half-way values round away from zero.
+A blank **Snap** or 0 removes the field and keeps native behavior.
 These fields change row editing only.
-Saved values and shader output stay unchanged.
+Saved values and keyframes never change without a row edit.
+A snapped edit commits the grid value and keys it like any other edit.
 
 Converting another kind to Time sample starts unbounded with the units step.
 A stale Slider range would clamp the offset, so the dialog clears these fields on conversion.
