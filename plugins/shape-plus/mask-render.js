@@ -10,10 +10,26 @@
 //
 // Coverage rasterizes in mask space (sequence pixels, top-left, y down) from
 // the path geometry evaluated at the layer's own update frame, which a small
-// update wrapper stashes per layer. The update frame already follows any
-// time remapping the host applied, so masks track the rendered content.
+// update wrapper stashes per layer. Under temporal remapping (time remap,
+// frame samplers) the stashed frame is the local frame while the rendered
+// content follows the source frame, so evaluation prefers the temporal
+// sequence mapping when present. Coverage itself renders on the GPU
+// (mask-gpu.js: triangulated fill, exact box-feather, AE combine) and is
+// cached by signature; the CPU raster remains as the test reference and the
+// fallback for extreme feather radii.
+//
+// Orientation: mask row 0 (top) reaches texture v = 1 (the CPU upload sets
+// flipY, the GPU camera maps y = 0 to NDC +1), and displayed-top fragments
+// sample v = 1, so a mask drawn over the top half of the viewport masks the
+// displayed top. Automated top-vs-bottom readbacks pin this; see toUV.
+//
+// Layer Input captures only see layer masks in the default "Effects &
+// Masks" stage: a "Masks"- or "Source"-stage capture on another wrapper
+// order must not gain (or keep) layer masks. The stage rides on the capture
+// compositor, so this guard is independent of plugin install order.
 const { FIELD, FRAME_KEY, evaluateMask, samplePoints } = require("./mask-model.js");
 const { rasterizeCoverage } = require("./mask-raster.js");
+const { sharedGpu, scaleEvaluated, signatureOf } = require("./mask-gpu.js");
 
 // Long-side cap for the coverage texture. Feather stays smooth through the
 // linear sampler; hard edges lose sub-pixel crispness above the cap only.
@@ -21,6 +37,15 @@ const MAX_COVERAGE_SIDE = 2048;
 
 function maskable(PZ, layer) {
   return !!layer && (layer instanceof PZ.layer.scene || layer instanceof PZ.layer.adjustment);
+}
+
+// The frame the layer content is evaluated at: the temporal sequence
+// mapping's source frame when the host remapped this update (time remap,
+// frame samplers), else the update wrapper's stashed frame.
+function maskFrameFor(layer) {
+  const mapping = layer ? layer.__zoidiumTemporalSequenceMapping : null;
+  if (mapping && typeof mapping.sourceFrame === "number" && Number.isFinite(mapping.sourceFrame)) return mapping.sourceFrame;
+  return layer ? layer[FRAME_KEY] : undefined;
 }
 
 function coverageSize(resolution) {
@@ -52,6 +77,7 @@ function evaluateMasks(Content, masks, frame) {
 
 function installMaskRender({ PZ, THREE, Content, onDispose }) {
   const runtimes = new WeakMap();
+  const renderers = new Set();
   const warned = new Set();
   function warnOnce(layer, message) {
     const key = (layer || "global") + ": " + message;
@@ -62,6 +88,7 @@ function installMaskRender({ PZ, THREE, Content, onDispose }) {
 
   function runtimeFor(compositor) {
     let runtime = runtimes.get(compositor);
+    if (compositor && compositor.renderer) renderers.add(compositor.renderer);
     if (!runtime) {
       const material = new THREE.ShaderMaterial({
         uniforms: {
@@ -97,8 +124,11 @@ function installMaskRender({ PZ, THREE, Content, onDispose }) {
     return runtime;
   }
 
-  function coverageTexture(runtime, layer, evaluated, size) {
-    const signature = JSON.stringify([evaluated, size.width, size.height]);
+  // CPU fallback: the test reference raster, uploaded with mask row 0
+  // (top) at v = 1, the same orientation the GPU camera renders. Used when
+  // the feather exceeds the GPU loop bound, when a probe forces the CPU,
+  // or when the GPU render throws. Cached by signature per layer.
+  function cpuCoverageTexture(runtime, layer, scaled, size, signature) {
     let entry = runtime.layers.get(layer);
     if (!entry) {
       entry = { signature: null, texture: null };
@@ -112,7 +142,7 @@ function installMaskRender({ PZ, THREE, Content, onDispose }) {
       }
     }
     if (entry.signature !== signature) {
-      const { data } = rasterizeCoverage(evaluated, size.width, size.height);
+      const { data } = rasterizeCoverage(scaled, size.width, size.height);
       const rgba = new Uint8Array(data.length * 4);
       for (let i = 0; i < data.length; i++) {
         rgba[i * 4] = 255;
@@ -125,6 +155,8 @@ function installMaskRender({ PZ, THREE, Content, onDispose }) {
       texture.minFilter = texture.magFilter = THREE.LinearFilter;
       texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
       texture.generateMipmaps = false;
+      // Row 0 is the top of mask space; v = 1 samples the top.
+      texture.flipY = true;
       texture.needsUpdate = true;
       entry.texture = texture;
       entry.signature = signature;
@@ -141,7 +173,16 @@ function installMaskRender({ PZ, THREE, Content, onDispose }) {
     if (!Array.isArray(masks) || !masks.length) {
       return;
     }
-    const frame = layer[FRAME_KEY];
+    // Layer Input stage policy (install-order independent): layer masks
+    // belong to the default "Effects & Masks" stage only. "effects-masks"
+    // is DEFAULT_SOURCE_MODE in plugins/layer-input/layer-input-state.js;
+    // any other stage skips here so "Masks" and "Source" captures match
+    // regardless of which plugin wrapped renderEffects last.
+    const stage = compositor ? compositor.__zoidiumLayerInputMode : null;
+    if (stage && stage !== "effects-masks") {
+      return;
+    }
+    const frame = maskFrameFor(layer);
     if (typeof frame !== "number" || !Number.isFinite(frame)) {
       return;
     }
@@ -162,9 +203,16 @@ function installMaskRender({ PZ, THREE, Content, onDispose }) {
       return;
     }
     const size = coverageSize(resolution);
-    const scaled = evaluated.map(mask => ({ ...mask, feather: mask.feather * size.scale }));
+    const scaled = scaleEvaluated(evaluated, size.scale);
+    const signature = signatureOf(scaled, size.width, size.height);
     const runtime = runtimeFor(compositor);
-    const coverage = coverageTexture(runtime, layer, scaled, size);
+    let coverage = null;
+    try {
+      coverage = sharedGpu(THREE).coverageTexture(compositor.renderer, scaled, size.width, size.height, signature);
+    } catch (_error) {
+      coverage = null;
+    }
+    if (!coverage) coverage = cpuCoverageTexture(runtime, layer, scaled, size, signature);
     const readBuffer = compositor.readBuffer, writeBuffer = compositor.writeBuffer;
     const width = readBuffer.width, height = readBuffer.height;
     const s = Math.min(Math.max(1, Math.round(uvScale.x * width)), width);
@@ -227,6 +275,9 @@ function installMaskRender({ PZ, THREE, Content, onDispose }) {
           runtime.material.dispose();
           runtimes.delete(this);
         }
+        try {
+          if (this && this.renderer && THREE && THREE.WebGLRenderTarget) sharedGpu(THREE).disposeRenderer(this.renderer);
+        } catch (_error) { /* GPU teardown is best effort. */ }
         return original.apply(this, arguments);
       }
       unloadWithMaskRuntime.__zoidiumLayerMask = true;
@@ -242,9 +293,20 @@ function installMaskRender({ PZ, THREE, Content, onDispose }) {
         /* Another plugin already restored its own wrapper. */
       }
     }
+    try {
+      if (THREE && THREE.WebGLRenderTarget) {
+        const gpu = sharedGpu(THREE);
+        for (const renderer of renderers) {
+          try {
+            gpu.disposeRenderer(renderer);
+          } catch (_error) { /* GPU teardown is best effort. */ }
+        }
+      }
+    } catch (_error) { /* GPU teardown is best effort. */ }
+    renderers.clear();
   });
 
-  return { applyMasks, evaluateMasks, coverageSize, samplePoints };
+  return { applyMasks, evaluateMasks, coverageSize, samplePoints, maskFrameFor };
 }
 
-module.exports = { installMaskRender, coverageSize, evaluateMasks, maskable, MAX_COVERAGE_SIDE };
+module.exports = { installMaskRender, coverageSize, evaluateMasks, maskable, maskFrameFor, MAX_COVERAGE_SIDE };

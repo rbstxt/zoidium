@@ -9,6 +9,7 @@
 // rendering, so cyclic references cannot occur by construction.
 const { FIELD, validateMasks, samplePoints, toUV, evaluateMask, parseReference, formatReference, MAX_POINTS } = require("./mask-model.js");
 const { rasterizeCoverage } = require("./mask-raster.js");
+const { sharedGpu, scaleEvaluated, signatureOf } = require("./mask-gpu.js");
 const { primitivePath } = require("./primitives.js");
 
 // Long-side cap for shader coverage rasters. Linear filtering keeps feather
@@ -29,7 +30,8 @@ function coverageSize(resolution) {
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)), scale };
 }
 
-function installMaskApi({ PZ, Content, onDispose }) {
+function installMaskApi({ PZ, THREE, Content, onDispose }) {
+  const gpu = THREE ? sharedGpu(THREE) : null;
   function layerResolution(layer) {
     try {
       const resolution = layer?.properties?.resolution?.get?.();
@@ -103,32 +105,72 @@ function installMaskApi({ PZ, Content, onDispose }) {
       } catch (_error) {
         return null;
       }
+      // Shape+ paths author in centered, y-up layer units; mask space is
+      // top-left, y down. Convert about the source resolution so a centered
+      // path lands centered and a top-starting path samples near the top.
+      // The Shape+ layer's own transform is not applied: paths sample in
+      // layer-local coordinates (a documented limitation).
+      const halfWidth = resolution[0] / 2, halfHeight = resolution[1] / 2;
+      evaluated = {
+        ...evaluated,
+        vertices: evaluated.vertices.map(vertex => ({
+          point: [vertex.point[0] + halfWidth, halfHeight - vertex.point[1]],
+          in: [vertex.in[0], -vertex.in[1]],
+          out: [vertex.out[0], -vertex.out[1]],
+        })),
+      };
       name = evaluated.name;
     } else {
       return null;
     }
+    // Geometry only: no raster here. Evaluation (interpolation, flatten,
+    // arc-length sampling) is sub-millisecond; the caller rebuilds the
+    // coverage texture only when the signature changes, so a static path
+    // costs ~0 per frame on both the layer and the shader paths.
     const size = coverageSize(resolution);
-    const scale = size.scale;
-    const scaled = {
-      ...evaluated,
-      vertices: evaluated.vertices.map(v => ({ point: [v.point[0] * scale, v.point[1] * scale], in: [v.in[0] * scale, v.in[1] * scale], out: [v.out[0] * scale, v.out[1] * scale] })),
-      feather: (evaluated.feather || 0) * scale,
-    };
-    let coverage;
-    try {
-      coverage = rasterizeCoverage([scaled], size.width, size.height);
-    } catch (_error) {
-      return null;
-    }
+    const scaled = scaleEvaluated([{ ...evaluated, enabled: true }], size.scale);
     const sampled = samplePoints(evaluated, MAX_POINTS);
-    const signature = JSON.stringify([ref.source, ref.mask || ref.path, size.width, size.height,
-      sampled.length.toFixed(3), sampled.points.map(p => [Math.round(p[0] * 1000) / 1000, Math.round(p[1] * 1000) / 1000])]);
+    const signature = signatureOf(scaled, size.width, size.height);
     return {
       name: typeof name === "string" ? name : "",
       width: resolution[0], height: resolution[1],
       points: sampled.points, length: sampled.length, closed: sampled.closed,
-      coverage, signature,
+      evaluated: scaled, size: { width: size.width, height: size.height }, signature,
     };
+  }
+  // CPU coverage for one reference: the test reference and the fallback
+  // behind coverageTexture. Returns { data, width, height } in mask space
+  // (row 0 is the top), exactly what rasterizeCoverage produces.
+  function coverageData(evaluated) {
+    return rasterizeCoverage(evaluated.evaluated, evaluated.size.width, evaluated.size.height);
+  }
+  // The shared cached GPU coverage both the layer composite and the
+  // Shader+ Path property bind. Falls back to a CPU upload (same pixels,
+  // uncached) for extreme feather radii, forced-CPU probes, or GL errors.
+  function coverageTexture(renderer, evaluated) {
+    const scaled = evaluated.evaluated, size = evaluated.size;
+    const signature = evaluated.signature;
+    if (renderer && gpu) {
+      const texture = gpu.coverageTexture(renderer, scaled, size.width, size.height, signature);
+      if (texture) return texture;
+    }
+    if (!THREE) throw Error("Path coverage needs the Three.js runtime");
+    const { data } = rasterizeCoverage(scaled, size.width, size.height);
+    const rgba = new Uint8Array(data.length * 4);
+    for (let i = 0; i < data.length; i++) {
+      rgba[i * 4] = 255;
+      rgba[i * 4 + 1] = 255;
+      rgba[i * 4 + 2] = 255;
+      rgba[i * 4 + 3] = data[i];
+    }
+    const texture = new THREE.DataTexture(rgba, size.width, size.height, THREE.RGBAFormat, THREE.UnsignedByteType);
+    texture.minFilter = texture.magFilter = THREE.LinearFilter;
+    texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.generateMipmaps = false;
+    // Row 0 is the top of mask space; v = 1 samples the top.
+    texture.flipY = true;
+    texture.needsUpdate = true;
+    return texture;
   }
   function listSources(project) {
     const sources = [];
@@ -162,7 +204,13 @@ function installMaskApi({ PZ, Content, onDispose }) {
     });
     return sources;
   }
-  const apiValue = { evaluateReference, listSources, toUV, toSourceFrame, parseReference, formatReference, coverageSize, MAX_POINTS, FIELD };
+  function coverageStats() {
+    return gpu ? gpu.stats() : { hits: 0, misses: 0, cpuFallbacks: 0, lastBuildMs: 0 };
+  }
+  function setForceCpu(value) {
+    if (gpu) gpu.setForceCpu(value);
+  }
+  const apiValue = { evaluateReference, listSources, toUV, toSourceFrame, parseReference, formatReference, coverageSize, coverageData, coverageTexture, coverageStats, setForceCpu, MAX_POINTS, FIELD };
   if (PZ.zoidium) PZ.zoidium.layerMask = apiValue;
   onDispose(() => {
     if (PZ.zoidium && PZ.zoidium.layerMask === apiValue) delete PZ.zoidium.layerMask;

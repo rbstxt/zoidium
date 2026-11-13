@@ -29,9 +29,15 @@ function installPathSampling({ PZ, THREE, patch, pipeline, onDispose, editor, re
       return null;
     }
   }
+  // Float point textures need OES_texture_float on this WebGL1 runtime;
+  // without it the points fall back to 8-bit with a one-time warning.
   function floatSupported() {
-    const gl = renderer()?.extensions;
-    return !!(gl && gl.get && gl.get("OES_texture_float"));
+    try {
+      const gl = renderer()?.extensions;
+      return !!(gl && gl.get && gl.get("OES_texture_float"));
+    } catch (_error) {
+      return false;
+    }
   }
   function emptyCoverage() {
     const texture = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
@@ -44,7 +50,7 @@ function installPathSampling({ PZ, THREE, patch, pipeline, onDispose, editor, re
   function entryFor(effect, property) {
     let entry = entries.get(property);
     if (!entry) {
-      entry = { key: null, effect, warned: new Set(), coverage: emptyCoverage(), points: null, length: 0, count: 0, useFloat: true };
+      entry = { key: null, effect, coverage: emptyCoverage(), points: null, length: 0, count: 0, useFloat: true };
       entries.set(property, entry);
       live.add(property);
     }
@@ -83,18 +89,25 @@ function installPathSampling({ PZ, THREE, patch, pipeline, onDispose, editor, re
     }
   }
   // The caller's frame is the effect owner's clip-local frame; map it onto
-  // the source clip through shared project time.
+  // the source clip through shared project time. A retimed source layer
+  // carries its render frame on __zoidiumTemporalSequenceMapping while the
+  // host evaluates it; prefer that mapping when present, exactly like the
+  // layer-mask composite does. Otherwise project-time mapping keeps parity
+  // with Layer Input time samples.
   function sourceFrame(effect, ref, frame) {
     const api = layerMask();
     if (!api || ref == null || ref.clip == null) return frame;
     const project = projectOf(effect);
+    if (!project) return frame;
     let sourceClip = null, shaderClip = null;
     try {
-      const found = project?.addressLookup?.(ref.clip);
+      const found = project.addressLookup?.(ref.clip);
       sourceClip = found && found.object ? found : null;
     } catch (_error) {
       sourceClip = null;
     }
+    const mapped = sourceClip && sourceClip.object ? sourceClip.object.__zoidiumTemporalSequenceMapping : null;
+    if (mapped && typeof mapped.sourceFrame === "number" && Number.isFinite(mapped.sourceFrame)) return mapped.sourceFrame;
     try {
       shaderClip = clipOf(effect.parentLayer);
     } catch (_error) {
@@ -105,6 +118,7 @@ function installPathSampling({ PZ, THREE, patch, pipeline, onDispose, editor, re
   }
   function refresh(effect, property, frame) {
     const entry = entryFor(effect, property);
+    const useFloat = floatSupported();
     const api = layerMask();
     const fail = message => {
       if (entry.key !== "missing:" + message) {
@@ -113,6 +127,7 @@ function installPathSampling({ PZ, THREE, patch, pipeline, onDispose, editor, re
         entry.coverage = emptyCoverage();
         if (entry.points) entry.points.dispose();
         entry.points = pointsTexture(false);
+        entry.useFloat = false;
         entry.length = 0;
         entry.count = 0;
       }
@@ -139,63 +154,59 @@ function installPathSampling({ PZ, THREE, patch, pipeline, onDispose, editor, re
       const label = ref.source === "mask" ? "Mask " + (ref.mask || "?") : "Path " + (ref.path || "?");
       return fail(label + " is missing or deleted");
     }
-    const uv = api.toUV(evaluated.points, evaluated.width, evaluated.height);
-    const key = evaluated.signature;
-    const useFloat = floatSupported();
+    // Static paths reuse the cached textures: evaluation above is only
+    // interpolation and sampling (sub-millisecond); the coverage rebuild
+    // below runs only when the geometry signature changes.
     if (!useFloat && entry.useFloat !== false) warn(effect, property, "Float textures are unavailable; path points use 8-bit precision");
-    if (entry.key !== key || entry.useFloat !== useFloat) {
-      entry.coverage.dispose();
-      const source = evaluated.coverage;
-      const rgba = new Uint8Array(source.data.length * 4);
-      for (let i = 0; i < source.data.length; i++) {
-        rgba[i * 4] = 255;
-        rgba[i * 4 + 1] = 255;
-        rgba[i * 4 + 2] = 255;
-        rgba[i * 4 + 3] = source.data[i];
+    if (entry.key === evaluated.signature && entry.useFloat === useFloat) return entry;
+    entry.coverage.dispose();
+    // The layer composite and the Path inputs share one cached GPU
+    // coverage; the API falls back to a CPU upload for extreme feather
+    // radii or when a probe forces the reference pixels.
+    entry.coverage = api.coverageTexture(renderer(), evaluated);
+    if (entry.points) entry.points.dispose();
+    entry.points = pointsTexture(useFloat);
+    const uv = api.toUV(evaluated.points, evaluated.width, evaluated.height);
+    const data = entry.points.image.data;
+    for (let i = 0; i < POINTS_COUNT; i++) {
+      const point = uv[Math.min(i, uv.length - 1)] || [0, 0];
+      if (useFloat) {
+        data[i * 4] = point[0];
+        data[i * 4 + 1] = point[1];
+        data[i * 4 + 2] = 0;
+        data[i * 4 + 3] = 1;
+      } else {
+        data[i * 4] = Math.max(0, Math.min(255, Math.round(point[0] * 255)));
+        data[i * 4 + 1] = Math.max(0, Math.min(255, Math.round(point[1] * 255)));
+        data[i * 4 + 2] = 0;
+        data[i * 4 + 3] = 255;
       }
-      const coverage = new THREE.DataTexture(rgba, source.width, source.height, THREE.RGBAFormat, THREE.UnsignedByteType);
-      coverage.minFilter = coverage.magFilter = THREE.LinearFilter;
-      coverage.wrapS = coverage.wrapT = THREE.ClampToEdgeWrapping;
-      coverage.generateMipmaps = false;
-      // Row 0 is the top of mask space; v = 1 samples the top.
-      coverage.flipY = true;
-      coverage.needsUpdate = true;
-      entry.coverage = coverage;
-      const useFloat = floatSupported();
-      if (!useFloat && entry.useFloat !== false) warn(effect, property, "Float textures are unavailable; path points use 8-bit precision");
-      entry.useFloat = useFloat;
-      if (entry.points) entry.points.dispose();
-      entry.points = pointsTexture(useFloat);
-      const data = entry.points.image.data;
-      for (let i = 0; i < POINTS_COUNT; i++) {
-        const point = uv[Math.min(i, uv.length - 1)] || [0, 0];
-        if (useFloat) {
-          data[i * 4] = point[0];
-          data[i * 4 + 1] = point[1];
-          data[i * 4 + 2] = 0;
-          data[i * 4 + 3] = 1;
-        } else {
-          data[i * 4] = Math.max(0, Math.min(255, Math.round(point[0] * 255)));
-          data[i * 4 + 1] = Math.max(0, Math.min(255, Math.round(point[1] * 255)));
-          data[i * 4 + 2] = 0;
-          data[i * 4 + 3] = 255;
-        }
-      }
-      entry.points.needsUpdate = true;
-      entry.length = evaluated.width > 0 ? evaluated.length / evaluated.width : 0;
-      entry.count = Math.min(uv.length, POINTS_COUNT);
-      entry.useFloat = useFloat;
-      entry.key = key;
     }
+    entry.points.needsUpdate = true;
+    entry.length = evaluated.width > 0 ? evaluated.length / evaluated.width : 0;
+    entry.count = Math.min(uv.length, POINTS_COUNT);
+    entry.useFloat = useFloat;
+    entry.key = evaluated.signature;
     return entry;
   }
+  // Uniform entries are created once and mutated (.value) afterwards; the
+  // effect's updateFragmentShader wipes pass.uniforms on every recompile,
+  // so entries are re-created here when missing. This matches the
+  // time-sample bindings, which likewise mutate stable entries.
   function bind(effect, property, entry) {
     const name = effect.fixPropertyName(property.properties.name.get());
     const uniforms = effect.pass.uniforms;
-    uniforms[name + "Coverage"] = { type: "t", value: entry.coverage };
-    uniforms[name + "Points"] = { type: "t", value: entry.points };
-    uniforms[name + "Length"] = { type: "f", value: entry.length };
-    uniforms[name + "Count"] = { type: "i", value: entry.count };
+    const created = !uniforms[name + "Coverage"] || !uniforms[name + "Points"] || !uniforms[name + "Length"] || !uniforms[name + "Count"];
+    if (created) {
+      uniforms[name + "Coverage"] = { type: "t", value: null };
+      uniforms[name + "Points"] = { type: "t", value: null };
+      uniforms[name + "Length"] = { type: "f", value: 0 };
+      uniforms[name + "Count"] = { type: "i", value: 0 };
+    }
+    uniforms[name + "Coverage"].value = entry.coverage;
+    uniforms[name + "Points"].value = entry.points;
+    uniforms[name + "Length"].value = entry.length;
+    uniforms[name + "Count"].value = entry.count;
   }
   function dispose(property) {
     const entry = entries.get(property);

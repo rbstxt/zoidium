@@ -444,6 +444,11 @@
       "id": "mask-api",
       "type": "text",
       "source": "./plugins/shape-plus/mask-api.js?v=36"
+    },
+    {
+      "id": "mask-gpu",
+      "type": "text",
+      "source": "./plugins/shape-plus/mask-gpu.js?v=36"
     }
   ]
 }
