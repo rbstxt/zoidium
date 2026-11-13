@@ -9,6 +9,8 @@ sidebar:
 
 ### 追加
 
+- Scene と Adjustment のレイヤーに、Mask ペン（ツールバーの M）でマスクを描けるようになりました。Add・Subtract・Intersect のモード、Feather、Opacity、Invert があり、パスはキーフレームで動かせます。Adjustment レイヤーでは、エフェクトがマスクの内側だけにかかります。マスクはレイヤーの Properties の Masks に並びます。
+- Shader+ のカスタムプロパティに Path 型を追加しました。レイヤーのマスクや Shape+ のパスを読み、内側の範囲、パスに沿った 256 個の点、長さ、点の数をシェーダーに渡すので、パスに沿ったエフェクトが作れます。
 - 3D オブジェクト（シェイプ、テキスト、ライト、パーティクル、モデル、Particular、Form、Plexus などのパックのオブジェクト）に、キーフレームを打てる Enabled を追加しました。オフの間は描画せず、影も光も出さず、計算も飛ばすので、重いオブジェクトもオフの間は時間を使いません。カメラにはまだありません。
 - Scene を含むコンポジションのクリップのメニューに Edit 3D in comp を追加しました。コンポジションを開き、Scene を選んで 3D ビューにします。Comps の Back from 3D edit で元のコンポジションに戻ります。
 - Shader properties の Slider、Seed、Angle、Time sample に Snap を追加しました。ドラッグ、矢印キー、入力した値が Snap の倍数（例: 0.00、0.50、1.00）にそろいます。空欄なら今までと同じです。

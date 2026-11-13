@@ -7,6 +7,14 @@ each line describes one visible change.
 
 ### Added
 
+- Scene and Adjustment layers can have masks drawn with the Mask pen (M in
+  the toolbar), with Add, Subtract, and Intersect modes, Feather, Opacity,
+  Invert, and an animatable path. On an Adjustment layer, its effects apply
+  only inside the mask. Masks are listed under Masks in the layer's
+  Properties.
+- Shader+ custom properties have a Path type that reads a layer mask or a
+  Shape+ path: the shader gets its coverage, 256 points along it, its length,
+  and the point count, so effects can follow a path.
 - 3D objects (shapes, text, lights, particles, models, Particular, Form,
   Plexus, and other pack objects) have an Enabled switch that can be
   keyframed. A disabled object is not drawn, casts no shadow, gives no light,
