@@ -6,6 +6,67 @@
 
 const MAIN_KEY = "__main__";
 let session = null;
+let sceneReturn = null;
+
+// Scene clips are selected in the authored timeline, never in a render copy.
+function sceneTargets(sources, clip) {
+  const id = clip && clip.object && clip.object.compId;
+  const source = (sources || []).find(function (entry) { return entry.id === id; });
+  if (!source || !Array.isArray(source.tracks)) return [];
+  const targets = [];
+  let videoIndex = 0;
+  source.tracks.forEach(function (track) {
+    if (track.type === 1) return;
+    const trackIndex = videoIndex++;
+    (track.clips || []).forEach(function (item, clipIndex) {
+      if (item.object && item.object.type === 4) {
+        targets.push({ trackIndex: trackIndex, clipIndex: clipIndex,
+          name: (item.properties && item.properties.name) || "Scene" });
+      }
+    });
+  });
+  return targets;
+}
+
+function editSceneInComp(engine, editor, clip, target) {
+  const viewport = editor.mainViewport;
+  const sourceId = clip && clip.object && clip.object.compId;
+  const previous = engine.entries(editor).find(function (row) { return row.editing; });
+  if (!viewport || !previous || !sourceId) return { ok: false, message: "The editing viewport is unavailable." };
+  const opened = engine.openComp(editor, sourceId);
+  if (!opened.ok) return opened;
+  const tracks = engine.timelineTracks(editor);
+  const track = editor.project.sequence.videoTracks[target.trackIndex];
+  const scene = track && track.clips[target.clipIndex];
+  const element = tracks && tracks.container && Array.from(tracks.container.querySelectorAll(".clip")).find(function (item) {
+    return item.pz_object === scene;
+  });
+  if (!scene || !element) {
+    engine.openComp(editor, previous.id);
+    return { ok: false, message: "The Scene is no longer available." };
+  }
+  tracks.deselectClips();
+  element.classList.add("selected");
+  tracks.selectClips();
+  viewport.edit = true;
+  sceneReturn = { project: editor.project, from: previous.id, to: sourceId };
+  return { ok: true };
+}
+
+function returnFromScene(engine, editor) {
+  const state = sceneReturn;
+  const current = engine.entries(editor).find(function (row) { return row.editing; });
+  if (!state || state.project !== editor.project || !current || current.id !== state.to) {
+    sceneReturn = null;
+    return { ok: false, message: "The previous composition is no longer available." };
+  }
+  const result = engine.openComp(editor, state.from);
+  if (result.ok) {
+    sceneReturn = null;
+    if (editor.mainViewport) editor.mainViewport.edit = false;
+  }
+  return result;
+}
 
 function installEngine(context, PZ) {
   if (PZ.precomp && PZ.precomp.version === 3) return PZ.precomp;
@@ -641,6 +702,15 @@ function installClipMenu(context, engine, editor) {
       const opened = engine.openSourceOfClip(editor, clip);
       if (!opened.ok) session.kit.notify({ title: "Open source composition", message: opened.message });
     }, "If this clip came from a composition, open it");
+    const targets = sceneTargets(engine.referenceSources(editor), clip);
+    targets.forEach(function (target, index) {
+      const label = targets.length === 1 ? "Edit 3D in comp" :
+        "Edit 3D in comp: " + target.name + " (" + (index + 1) + ")";
+      addItem(label, function () {
+        const opened = editSceneInComp(engine, editor, clip, target);
+        if (!opened.ok) session.kit.notify({ title: "Edit 3D in comp", message: opened.message });
+      });
+    });
     addItem("Duplicate", function () {
       duplicateSelectedClips(editor, self);
     }, "Duplicate selected clips");
@@ -721,6 +791,12 @@ function fillTabPanel(body, kit) {
     { title: "Pre-compose selection", onClick: function () { openPrecomposeDialog(); } },
     { title: "New composition", onClick: function () { newEmptyCompAction(); } },
   ]).element);
+  body.appendChild(kit.controls.buttonRow([
+    { title: "Back from 3D edit", onClick: function () {
+      const result = returnFromScene(session.engine, session.editor);
+      if (!result.ok) session.kit.notify({ title: "Back from 3D edit", message: result.message });
+    } },
+  ]).element);
 }
 
 // Creates an empty composition from the tab. Open windows refresh through
@@ -775,7 +851,7 @@ module.exports = {
     const engine = installEngine(context, PZ);
     context.lifecycle.onDispose(engine.install());
     session = { context: context, PZ: PZ, editor: context.editor, engine: engine, kit: kitOf(context) };
-    context.lifecycle.onDispose(function () { session = null; });
+    context.lifecycle.onDispose(function () { session = null; sceneReturn = null; });
     context.lifecycle.onDispose(installClipMenu(context, engine, context.editor));
     const tabInfo = installTab(context);
     if (tabInfo) {
@@ -791,6 +867,7 @@ module.exports = {
   inUseReason() {
     return hasCompsInUse() ? "Delete all compositions before disabling Precomp+." : "";
   },
+  sceneTargets: sceneTargets,
 };
 
 function hasCompsInUse() {
