@@ -9,6 +9,8 @@ sidebar:
 
 ### 追加
 
+- 3D オブジェクト（シェイプ、テキスト、ライト、パーティクル、モデル、Particular、Form、Plexus などのパックのオブジェクト）に、キーフレームを打てる Enabled を追加しました。オフの間は描画せず、影も光も出さず、計算も飛ばすので、重いオブジェクトもオフの間は時間を使いません。カメラにはまだありません。
+- Scene を含むコンポジションのクリップのメニューに Edit 3D in comp を追加しました。コンポジションを開き、Scene を選んで 3D ビューにします。Comps の Back from 3D edit で元のコンポジションに戻ります。
 - Shader properties の Slider、Seed、Angle、Time sample に Snap を追加しました。ドラッグ、矢印キー、入力した値が Snap の倍数（例: 0.00、0.50、1.00）にそろいます。空欄なら今までと同じです。
 - Shader properties のグループに Visible when を追加しました。グループに所属する行のメニューの Group settings… で設定します。行は、自身の条件と所属グループの条件の両方を満たす場合だけ表示されます。
 - Shader properties の Time sample の設定に Minimum、Maximum、Step、Decimals を追加しました。Slider、Seed、Angle にも Decimals を追加しました。

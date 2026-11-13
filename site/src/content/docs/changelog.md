@@ -10,6 +10,14 @@ each line describes one visible change.
 
 ### Added
 
+- 3D objects (shapes, text, lights, particles, models, Particular, Form,
+  Plexus, and other pack objects) have an Enabled switch that can be
+  keyframed. A disabled object is not drawn, casts no shadow, gives no light,
+  and skips its work, so heavy objects stop costing time while off. Cameras
+  do not have it yet.
+- A composition clip that contains a Scene has Edit 3D in comp in its menu:
+  it opens the composition with the Scene selected and the 3D view on.
+  Back from 3D edit in Comps returns to the previous composition.
 - Shader properties: Slider, Seed, Angle, and Time sample have a Snap
   setting. Dragging, arrow keys, and typed values land on multiples of Snap,
   for example 0.00, 0.50, 1.00. Leave it blank to keep the current behavior.
