@@ -17,3 +17,7 @@ sidebar:
 スイートのライトを使用するには、ピッカーで **Trapcode Lights** を開きます。測光データを取り込むには、Photometric IES を選択し、TILT=NONE のローカル LM-63 Type C ファイルを選択します。
 
 コントロールのリファレンス: [trapcode-particular](/docs/ja/reference/trapcode-particular/), [trapcode-form](/docs/ja/reference/trapcode-form/), [plexus](/docs/ja/reference/plexus/), [trapcode-lights](/docs/ja/reference/trapcode-lights/).
+
+## オブジェクトを非表示にする
+
+3D オブジェクトを非表示にして更新と準備をスキップするには、オブジェクトのプロパティで **Enabled** をオフにします。時間に応じて値を変更するには、キーフレームを追加します。Particular を再び有効にすると、要求されたフレームを評価します。カメラには、別のカメラまたは Camera+ の切り替えを使用してください。

@@ -6,6 +6,10 @@ mode loads as `legacy`, regardless of the plugin versions recorded in the file.
 Explicit `legacy` and `current` fields always win. New objects use `current`
 and serialize that choice. There are no new UI controls.
 
+## 3D object Enabled
+
+Saved 3D objects without an `enabled` property load with **Enabled** on. The property is stored with each object and can use keyframes. When it is off, the object is hidden and its update and preparation are skipped. A disabled group also skips its children unless it contains a camera. Particular evaluates the requested frame when it is enabled again. Cameras: use a different camera or a Camera+ switch instead.
+
 ## Expressions+
 
 Expressions remain source strings in native dynamic properties. No compiled
