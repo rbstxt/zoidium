@@ -424,6 +424,11 @@
       "id": "mask-render",
       "type": "text",
       "source": "./plugins/shape-plus/mask-render.js?v=36"
+    },
+    {
+      "id": "mask-persist",
+      "type": "text",
+      "source": "./plugins/shape-plus/mask-persist.js?v=36"
     }
   ]
 }

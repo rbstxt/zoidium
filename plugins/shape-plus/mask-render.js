@@ -33,7 +33,7 @@ function coverageSize(resolution) {
 // Evaluated mask geometries at a clip-local frame. Throwaway Content items
 // read straight from the persisted JSON, so rendering never depends on editor
 // selection or gesture state; failed data disables the masks with a warning.
-function evaluateMasks(Content, masks, frame, warned) {
+function evaluateMasks(Content, masks, frame) {
   const evaluated = [];
   for (const data of masks) {
     let geometry;
@@ -133,11 +133,17 @@ function installMaskRender({ PZ, THREE, Content, onDispose }) {
 
   function applyMasks(compositor, effects, uvScale) {
     const layer = effects?.parentObject;
-    if (!maskable(PZ, layer) || effects !== layer.effects) return;
+    if (!maskable(PZ, layer) || effects !== layer.effects) {
+      return;
+    }
     const masks = layer[FIELD];
-    if (!Array.isArray(masks) || !masks.length) return;
+    if (!Array.isArray(masks) || !masks.length) {
+      return;
+    }
     const frame = layer[FRAME_KEY];
-    if (typeof frame !== "number" || !Number.isFinite(frame)) return;
+    if (typeof frame !== "number" || !Number.isFinite(frame)) {
+      return;
+    }
     let evaluated;
     try {
       evaluated = evaluateMasks(Content, masks, frame);
@@ -145,7 +151,9 @@ function installMaskRender({ PZ, THREE, Content, onDispose }) {
       warnOnce(layer, error.message);
       return;
     }
-    if (!evaluated.length || evaluated.every(mask => !mask.enabled)) return;
+    if (!evaluated.length || evaluated.every(mask => !mask.enabled)) {
+      return;
+    }
     let resolution = [0, 0];
     try {
       resolution = layer.properties.resolution.get();
