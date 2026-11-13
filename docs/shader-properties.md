@@ -263,7 +263,7 @@ precision highp float;
 uniform sampler2D tDiffuse;
 uniform sampler2D GlowPathCoverage;
 uniform sampler2D GlowPathPoints;
-uniform int GlowCount;
+uniform int GlowPathCount;
 varying vec2 vUvScaled;
 void main(){
   vec4 base = texture2D(tDiffuse, vUvScaled);
@@ -273,7 +273,7 @@ void main(){
     vec2 p = texture2D(GlowPathPoints, vec2((float(i) * 2.0 + 0.5) / 256.0, 0.5)).xy;
     d = min(d, distance(vUvScaled, p));
   }
-  float glow = (1.0 - smoothstep(0.0, 0.12, d)) * step(0.5, float(GlowCount));
+  float glow = (1.0 - smoothstep(0.0, 0.12, d)) * step(0.5, float(GlowPathCount));
   vec3 col = base.rgb + vec3(1.0, 0.55, 0.2) * glow * (0.25 + 0.75 * cov);
   gl_FragColor = vec4(col, base.a);
 }
