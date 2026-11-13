@@ -143,14 +143,22 @@ test("uv conversion maps mask space with y down", () => {
 });
 
 test("references format, parse and reject garbage", () => {
-  const maskRef = formatReference({ source: "mask", track: "t1", mask: "m1" });
-  assert.deepEqual(parseReference(maskRef), { source: "mask", track: "t1", mask: "m1" });
-  const shapeRef = formatReference({ source: "shape", track: "t2", path: "p3" });
-  assert.deepEqual(parseReference(shapeRef), { source: "shape", track: "t2", path: "p3" });
+  // The clip address is the only source token; nothing reads a track index.
+  const maskRef = formatReference({ source: "mask", clip: [0, 1, 0, 0, 0], mask: "m1" });
+  assert.deepEqual(parseReference(maskRef), { source: "mask", clip: [0, 1, 0, 0, 0], mask: "m1" });
+  const shapeRef = formatReference({ source: "shape", clip: [0, 2, 0, 0, 0], path: "p3" });
+  assert.deepEqual(parseReference(shapeRef), { source: "shape", clip: [0, 2, 0, 0, 0], path: "p3" });
+  // References without a clip still parse (the source picker re-links them).
+  assert.deepEqual(parseReference(formatReference({ source: "mask", mask: "m1" })), { source: "mask", mask: "m1" });
+  // The retired Round-3 `track` list index is ignored, never required.
+  const legacy = JSON.stringify({ version: 1, source: "mask", track: "0", clip: [0, 1, 0, 0, 0], mask: "m1" });
+  assert.deepEqual(parseReference(legacy), { source: "mask", clip: [0, 1, 0, 0, 0], mask: "m1" });
+  assert.ok(!("track" in JSON.parse(formatReference({ source: "mask", clip: [0], mask: "m1" }))));
   assert.equal(parseReference("not json"), null);
-  assert.equal(parseReference(JSON.stringify({ version: 999, source: "mask", track: "t", mask: "m" })), null);
-  assert.equal(parseReference(JSON.stringify({ version: 1, source: "mask", track: "t" })), null);
-  assert.equal(parseReference(JSON.stringify({ version: 1, source: "effect", track: "t", mask: "m" })), null);
+  assert.equal(parseReference(JSON.stringify({ version: 999, source: "mask", mask: "m" })), null);
+  assert.equal(parseReference(JSON.stringify({ version: 1, source: "mask" })), null);
+  assert.equal(parseReference(JSON.stringify({ version: 1, source: "effect", mask: "m" })), null);
+  assert.equal(parseReference("null"), null);
 });
 
 test("modes list is stable and documented", () => {
