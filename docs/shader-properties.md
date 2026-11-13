@@ -226,6 +226,63 @@ English shader error. Shader+ owns font asset load/unload references,
 and releases them with textures on property removal, effect unload or disable.
 Gradient, Curve, Palette and Text are static in this release.
 
+## Path
+
+Path stores TEXT JSON that references a layer mask or a Shape+ path. The row
+shows the referenced layer and path, or Missing source. Pick the source kind
+(Mask or Shape+ path), then the layer, then the mask or path. Every committed
+change is one undo step on the full JSON value.
+
+For each Path property named `Name`, the shader receives:
+
+```glsl
+uniform sampler2D NameCoverage; // coverage in the shader's UV space
+uniform sampler2D NamePoints;    // 256 equally spaced points, xy in UV space
+uniform float NameLength;        // path length in u units
+uniform int NameCount;           // sampled point count, 0 when the source is missing
+```
+
+Coverage is the feathered mask alpha (or the filled Shape+ path) resampled to
+the shader's UV space. Points are spaced equally along the path by arc
+length; open paths keep their endpoints. The points texture is 256x1 RGBA
+float, sampled with nearest filtering. Length divides the mask-space length
+by the source layer width. When float textures are unavailable, points fall
+back to 8-bit with a one-time warning; coverage is always 8-bit.
+
+The path resolves at the render frame, so an animated mask or path moves the
+effect. A missing or deleted source binds an empty coverage, count 0, and a
+visible shader error. Sampling never renders, so a Path property cannot
+create a render cycle. For Plexus and Particular emitters, reuse the same
+sampled representation (256 points plus length); emitter bindings are not
+part of this release.
+
+Example: draw a glow along a path.
+
+```glsl
+precision highp float;
+uniform sampler2D tDiffuse;
+uniform sampler2D GlowPathCoverage;
+uniform sampler2D GlowPathPoints;
+uniform int GlowPathCount;
+varying vec2 vUvScaled;
+void main(){
+  vec4 base = texture2D(tDiffuse, vUvScaled);
+  float cov = texture2D(GlowPathCoverage, vUvScaled).a;
+  float d = 1e9;
+  for (int i = 0; i < 128; i++) {
+    vec2 p = texture2D(GlowPathPoints, vec2((float(i) * 2.0 + 0.5) / 256.0, 0.5)).xy;
+    d = min(d, distance(vUvScaled, p));
+  }
+  float glow = (1.0 - smoothstep(0.0, 0.12, d)) * step(0.5, float(GlowPathCount));
+  vec3 col = base.rgb + vec3(1.0, 0.55, 0.2) * glow * (0.25 + 0.75 * cov);
+  gl_FragColor = vec4(col, base.a);
+}
+```
+
+Scale distances by `vec2(aspect, 1.0)` first when the frame is not square.
+The loop taps every second point; use all 256 points when the path is long
+and the glow is narrow.
+
 ## AlipFX migration
 
 `plugins/alipfx/controls.json` maps five representative effects at build time.

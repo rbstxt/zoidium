@@ -45,8 +45,19 @@ function install(context) {
   require("./text-controls.js").install(context);
   // Controls must exist before an enabled panel regenerates saved Path rows.
   // Reverse disposal then removes the overlay/panels before their controls.
+  // Layer masks on native Scene/Adjustment layers (mask-model.js,
+  // mask-raster.js, mask-host.js, mask-render.js). No masks means no wrapper
+  // work, so unmasked projects render exactly as before.
+  require("./mask-render.js").installMaskRender({ PZ, THREE, Content, onDispose: own });
+  require("./mask-persist.js").installMaskPersistence(PZ, own);
   require("./native-ui.js").install(PZ, Layer, Content, own);
   require("./editor.js").install(context, Layer, Content);
+  // Layer masks on native Scene/Adjustment layers (mask-model.js,
+  // mask-raster.js, mask-host.js, mask-render.js, mask-persist.js,
+  // mask-overlay.js, mask-panels.js).
+  const maskOverlay = require("./mask-overlay.js").install(context, Content);
+  require("./mask-panels.js").installMaskPanels(context, Content, () => maskOverlay.setTool("pen"));
+  require("./mask-api.js").installMaskApi({ PZ, THREE, Content, onDispose: own });
   require("./convert-native.js").install(context, Layer);
   require("./workflow.js").install(context, Layer, Content);
 }

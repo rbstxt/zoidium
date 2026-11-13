@@ -19,8 +19,15 @@ function replaceContents(layer, contents, Content) {
   layer.contents.splice(0, layer.contents.length, ...nodes);
   layer.signature = null; layer.contentsState?.invalidate();
 }
+// A path host lets the same pen, pointer, transform and action modules edit
+// something that is not a Shape+ layer. The default host is the layer's own
+// contents; a host supplies { contents(), owns(target), valid(), write(data),
+// addItemDefaults }. Layer masks use this to expose one mask per Content
+// path item (see mask-host.js). Nothing here changes when no host is set.
 function createEditorModel(s) {
   const { PZ, editor, layer, Content, project } = s;
+  const host = s.pathHost || null;
+  const liveContents = () => (host ? host.contents() : layer.contents);
   const address = layer.getAddress();
   const resolve = () => {
     if (editor.project !== project) return null;
@@ -32,17 +39,23 @@ function createEditorModel(s) {
   };
   const read = (history = false) => {
     const target = resolve();
+    if (host) return target && host.owns(target) ? clone(liveContents()) : null;
     if (!history && target !== layer) return null;
     return target && target.type === layer.type ? clone(target.contents) : null;
   };
   const write = (data, history = false) => {
     const target = resolve();
+    if (host) {
+      if (target && host.owns(target)) host.write(data);
+      return;
+    }
     if (!history && target !== layer) return;
     if (target && target.type === layer.type) replaceContents(target, data, Content);
   };
-  s.valid = () => editor.project === project && resolve() === layer;
+  s.valid = () =>
+    host ? host.valid() : editor.project === project && resolve() === layer;
   s.read = read;
-  s.find = (id) => tree.find(layer.contents, id)?.item || null;
+  s.find = (id) => tree.find(liveContents(), id)?.item || null;
   s.active = () => s.find(s.activeId);
   s.localFrame = () => {
     let clip = null;
@@ -55,7 +68,13 @@ function createEditorModel(s) {
       editor.playback.currentFrame - (clip?.start || 0) + (clip?.offset || 0)
     );
   };
-  s.gesture = createGesture(editor.history, read, write, () => s.refresh?.(true), () => editor.project);
+  s.gesture = createGesture(editor.history, read, write, () => {
+    // Property drags and nudges mutate the live items without a write; the
+    // host persists the settled state so the layer field (rendering, saving,
+    // the preview-cache key) never lags the editor.
+    host?.persist?.();
+    s.refresh?.(true);
+  }, () => editor.project);
   s.preview = () => {
     layer.signature = null;
     // A mutation ends the current read scope: later reads in the same event
@@ -80,7 +99,7 @@ function createEditorModel(s) {
     }
   };
   s.replaceItem = (id, data) => {
-    const entry = tree.find(layer.contents, id);
+    const entry = tree.find(liveContents(), id);
     if (!entry) return;
     if (!data) {
       entry.item.unload();
@@ -158,7 +177,8 @@ function createEditorModel(s) {
     s.setValue(s.active().properties.path, g.values(points));
   // Pen paths and context-menu shapes use the same AE structure as the
   // native add menu: a new group owns the shape and its paints unless a
-  // group is selected (see contents-ops.js).
+  // group is selected (see contents-ops.js). A path host may override the
+  // paint set (masks draw bare paths with no group and no paints).
   s.addItem = (kind, point = [0, 0], options = {}) => {
     const contents = read();
     const pen = kind === "path";
@@ -169,6 +189,7 @@ function createEditorModel(s) {
       paints: pen ? ["stroke", "fill"] : ["fill"],
       strokeWidth: pen ? 2 : undefined,
       groupsOnly: true,
+      ...(host?.addItemDefaults || {}),
       ...options,
     });
     validate(contents);
@@ -182,6 +203,7 @@ function createEditorModel(s) {
   };
   s.treeAction = (action, ...args) =>
     s.mutate(() => {
+      if (host && !host.allows(action)) throw Error("Layer masks do not support " + action);
       const contents = read();
       let selected;
       if (action === "group") {
