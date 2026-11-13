@@ -262,11 +262,21 @@ function parseReference(value) {
   if (data.version !== REFERENCE_VERSION) return null;
   if (data.source === "mask") {
     if (typeof data.track !== "string" || !data.track || typeof data.mask !== "string" || !data.mask) return null;
-    return { source: "mask", track: data.track, mask: data.mask };
+    const reference = { source: "mask", track: data.track, mask: data.mask };
+    if (data.clip !== undefined) {
+      if (!Array.isArray(data.clip) || !data.clip.every(n => typeof n === "number" && Number.isFinite(n))) return null;
+      reference.clip = data.clip.slice();
+    }
+    return reference;
   }
   if (data.source === "shape") {
     if (typeof data.track !== "string" || !data.track || typeof data.path !== "string" || !data.path) return null;
-    return { source: "shape", track: data.track, path: data.path };
+    const reference = { source: "shape", track: data.track, path: data.path };
+    if (data.clip !== undefined) {
+      if (!Array.isArray(data.clip) || !data.clip.every(n => typeof n === "number" && Number.isFinite(n))) return null;
+      reference.clip = data.clip.slice();
+    }
+    return reference;
   }
   return null;
 }

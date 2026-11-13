@@ -28,6 +28,24 @@ hide an item.
 
 Control reference: [shape-plus](/docs/reference/shape-plus/).
 
+## Mask a Scene or Adjustment layer
+
+1. Select a Scene or Adjustment clip (click it in the timeline).
+2. Click the **Mask pen (m)** toolbar button. The pen overlay appears.
+3. Click in the preview to draw mask vertices. Press Enter to finish.
+4. Drag anchors to reshape. Press Ctrl+Z to undo.
+5. Find the **Masks** group under the layer in Properties. Each mask has a
+   mode (click to cycle Add, Subtract, Intersect), Feather, Opacity, an
+   invert and enable toggle, a path keyframe toggle, Edit, and Delete.
+6. To animate the mask, move the playhead, press the ◆ keyframe toggle,
+   and edit the path to create the next keyed pose.
+
+Masks multiply the layer alpha by their coverage after all effects run.
+On a Scene layer the mask cuts the layer to transparent. On an Adjustment
+layer the mask limits the effects to the covered area. An open path closes
+for coverage and stays open for shader sampling. Masks serialize with the
+layer, so old projects render exactly as before.
+
 ## Add and edit text
 
 1. Select a Shape+ layer.

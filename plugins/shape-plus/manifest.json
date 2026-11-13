@@ -5,7 +5,7 @@
   "author": "Zoidium",
   "version": "36",
   "kind": "extension",
-  "description": "Animated vector layers, procedural contents, SVG import and native preview path editing.",
+  "description": "Animated vector layers, procedural contents, pen masks for Scene and Adjustment layers, SVG import and native preview path editing.",
   "category": "scene",
   "modules": [
     {
@@ -439,6 +439,11 @@
       "id": "mask-panels",
       "type": "text",
       "source": "./plugins/shape-plus/mask-panels.js?v=36"
+    },
+    {
+      "id": "mask-api",
+      "type": "text",
+      "source": "./plugins/shape-plus/mask-api.js?v=36"
     }
   ]
 }

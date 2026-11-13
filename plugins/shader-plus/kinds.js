@@ -70,9 +70,15 @@ const KINDS = {
     label: "Text", desc: "Text in a project font, sampled with zText(Name, uv).", texture: true,
     create: font => ({ custom: true, type: T.TEXT, value: JSON.stringify({ text: "Text", font: font || null, size: 128, align: "center", lineHeight: 1.2, letterSpacing: 0, mode: "layout", sdf: false }), zoidiumControl: "shader-plus/text", zoidiumShader: { kind: "text" } }),
   },
+  path: {
+    label: "Path", desc: "A layer mask or Shape+ path: coverage, points, length.", texture: true,
+    // The empty value is JSON null, never "": native history redo of a
+    // propertyOps empty-string write restores the definition instead.
+    create: () => ({ custom: true, type: T.TEXT, value: "null", zoidiumControl: "shader-plus/path", zoidiumShader: { kind: "path" } }),
+  },
 };
 // Hidden kinds stay loadable for saved projects but are not offered in menus.
-const ORDER = ["point", "checkbox", "dropdown", "staticDropdown", "slider", "angle", "seed", "color4", "gradient", "curve", "palette", "text", "timeSample"];
+const ORDER = ["point", "checkbox", "dropdown", "staticDropdown", "slider", "angle", "seed", "color4", "gradient", "curve", "palette", "text", "path", "timeSample"];
 
 function kindOf(property) {
   const kind = property?.definition?.zoidiumShader?.kind;

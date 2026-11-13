@@ -245,6 +245,88 @@ function installControls({ PZ, doc, register, editor }) {
     return box;
   });
 
+  register("shader-plus/path", PZ.property.type.TEXT, property => {
+    const box = editbox("zsp-path"), anchor = element("span", "zsp-anchor");
+    const api = () => (window.PZ && window.PZ.zoidium && window.PZ.zoidium.layerMask) || null;
+    const grid = element("div", "zsp-fields");
+    const kind = options("Source", [["mask", "Mask"], ["shape", "Shape+ path"]], () => writeRef({ source: kind.value }));
+    const layer = element("select", "pz-inputbox zsp-option", { "aria-label": "Layer", title: "Layer" });
+    layer.onchange = () => writeRef({ layer: layer.value });
+    const item = element("select", "pz-inputbox zsp-option", { "aria-label": "Path", title: "Path" });
+    item.onchange = () => writeRef({ item: item.value });
+    const status = element("span", "zsp-field-label");
+    grid.append(kind, layer, item);
+    box.append(anchor, grid, status);
+    const write = patch => commit(anchor, property, patch);
+    function lists() {
+      try {
+        const project = editor()?.project;
+        return (api() && project && api().listSources(project)) || [];
+      } catch (_error) {
+        return [];
+      }
+    }
+    function current() {
+      try {
+        return (api() && api().parseReference(property.get())) || null;
+      } catch (_error) {
+        return null;
+      }
+    }
+    function writeRef(change) {
+      const sources = lists();
+      const previous = current() || {};
+      const next = { source: "mask", ...previous, ...change };
+      const candidates = sources.filter(s => s.kind === next.source);
+      const chosen = candidates.find(s => String(sources.indexOf(s)) === String(next.layer)) || candidates[0];
+      if (!chosen) return;
+      const items = chosen.kind === "mask" ? chosen.masks : chosen.paths;
+      const key = chosen.kind === "mask" ? "mask" : "path";
+      const picked = items.find(entry => entry.id === next.item) || items[0];
+      if (!picked) return;
+      write(api().formatReference({ source: chosen.kind, track: String(sources.indexOf(chosen)), clip: chosen.clip || undefined, [key]: picked.id }));
+    }
+    box.pz_update = () => {
+      if (!api()) {
+        status.textContent = "Enable Shape+ for Path inputs";
+        kind.disabled = layer.disabled = item.disabled = true;
+        return;
+      }
+      kind.disabled = layer.disabled = item.disabled = false;
+      const sources = lists();
+      const ref = current();
+      const candidates = sources.filter(s => s.kind === (ref?.source || "mask"));
+      if (document.activeElement !== kind) kind.value = ref?.source || "mask";
+      if (document.activeElement !== layer) {
+        layer.textContent = "";
+        for (const [index, source] of sources.entries()) {
+          if (source.kind !== kind.value) continue;
+          const option = element("option", "", { value: String(index) });
+          option.textContent = "Track " + (source.track + 1) + " · " + source.layer;
+          layer.append(option);
+        }
+        const at = sources.findIndex(s => s.kind === kind.value && (ref?.clip && s.clip && JSON.stringify(s.clip) === JSON.stringify(ref.clip) || String(sources.indexOf(s)) === String(ref?.layer)));
+        layer.value = String(at >= 0 ? at : sources.findIndex(s => s.kind === kind.value));
+      }
+      const chosen = sources[Number(layer.value)] || candidates[0];
+      const items = chosen ? (chosen.kind === "mask" ? chosen.masks : chosen.paths) : [];
+      const key = chosen?.kind === "mask" ? "mask" : "path";
+      if (document.activeElement !== item) {
+        item.textContent = "";
+        for (const entry of items) {
+          const option = element("option", "", { value: entry.id });
+          option.textContent = entry.name || entry.id;
+          item.append(option);
+        }
+        item.value = (chosen && ref?.[key] && items.some(entry => entry.id === ref[key]) && ref[key]) || (items[0] && items[0].id) || "";
+      }
+      const names = chosen ? chosen.layer + " / " + ((items.find(entry => entry.id === item.value) || {}).name || item.value) : null;
+      status.textContent = ref ? (names ? "✓ " + names : "Missing source") : "Choose a source";
+    };
+    box.pz_update();
+    return box;
+  });
+
   return { commit, KINDS, options, iconButton };
 }
 

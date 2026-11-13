@@ -16,8 +16,9 @@ test("reference covers all kinds, native storage and actual runtime auxiliary bi
   assert.deepEqual(entries.map(e => e.kind).sort(), Object.keys(KINDS).sort());
   for (const e of entries) { const d = KINDS[e.kind].create(); assert.equal(e.storageType, d.type); assert.equal(e.dynamic, !!d.dynamic); assert.equal(e.description, KINDS[e.kind].desc); }
   const runtime = fs.readFileSync(require.resolve("../plugins/shader-plus/runtime.js"), "utf8");
-  const aliases = { f: "float", v2: "vec2", i: "int" };
-  const actual = [...runtime.matchAll(/uniforms\[name\s*\+\s*"(_\w+)"\]\s*=\s*\{\s*type:\s*"(\w+)"/g)].map(m => [m[1], aliases[m[2]]]).sort();
+  const pathSample = fs.readFileSync(require.resolve("../plugins/shader-plus/path-sample.js"), "utf8");
+  const aliases = { f: "float", v2: "vec2", i: "int", t: "sampler2D" };
+  const actual = [...(runtime + pathSample).matchAll(/uniforms\[name\s*\+\s*"([A-Za-z_]\w*)"\]\s*=\s*\{\s*type:\s*"(\w+)"/g)].map(m => [m[1], aliases[m[2]]]).sort();
   const documented = entries.flatMap(e => e.auxiliary).filter(e => e.type !== "#define").map(e => [e.suffix, e.type]).sort();
   assert.deepEqual(documented, actual);
   const configure = runtime.slice(runtime.indexOf("function configure"), runtime.indexOf("function dispose("));

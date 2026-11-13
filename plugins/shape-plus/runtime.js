@@ -57,6 +57,7 @@ function install(context) {
   // mask-overlay.js, mask-panels.js).
   const maskOverlay = require("./mask-overlay.js").install(context, Content);
   require("./mask-panels.js").installMaskPanels(context, Content, () => maskOverlay.setTool("pen"));
+  require("./mask-api.js").installMaskApi({ PZ, Content, onDispose: own });
   require("./convert-native.js").install(context, Layer);
   require("./workflow.js").install(context, Layer, Content);
 }

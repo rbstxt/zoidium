@@ -160,6 +160,48 @@ Layout モードは文字列全体をラスタライズします。Atlas モー�
 
 Text は、その JSON が変更された場合にだけ再ベイクします。書き出し準備はフォント読み込みとラスタライズを待ちます。フォント失敗は、英語のシェーダーエラーで書き出し準備を停止します。Shader+ はフォントアセットの読み込み/解放参照を所有します。プロパティ削除、エフェクトのアンロード、無効化時にテクスチャとともに解放します。Gradient、Curve、Palette、Text は、このリリースでは静的です。
 
+## パス
+
+Path は、レイヤーマスクまたは Shape+ パスを参照する TEXT JSON を保存します。行には参照先のレイヤーとパスが表示され、欠落時は Missing source と表示します。ソース種別(Mask または Shape+ path)を選び、レイヤー、マスクまたはパスの順に指定します。確定した各変更は完全な JSON 値に対する 1 つの Undo ステップです。
+
+`Name` という Path プロパティごとに、シェーダーは以下を受け取ります:
+
+```glsl
+uniform sampler2D NameCoverage; // シェーダーの UV 空間でのカバレッジ
+uniform sampler2D NamePoints;   // 256 等間隔点、xy は UV 空間
+uniform float NameLength;        // u 単位でのパス長
+uniform int NameCount;          // サンプル点数、欠落時は 0
+```
+
+Coverage はフェザー適用済みマスクアルファ(または塗りつぶした Shape+ パス)をシェーダーの UV 空間にリサンプルしたものです。Points は弧長で等間隔に配置されます。開いたパスは端点を保持します。Points テクスチャは 256x1 RGBA float で、nearest フィルタでサンプルします。Length はマスク空間長をソースレイヤー幅で割った値です。float テクスチャが使えない場合、Points は 8 ビットにフォールバックし、1 回だけ警告します。Coverage は常に 8 ビットです。
+
+パスはレンダーフレームで解決されるため、アニメーションするマスクやパスがエフェクトを動かします。欠落または削除されたソースは空のカバレッジ、カウント 0、目に見えるシェーダーエラーを結び付けます。サンプリングはレンダーしないため Path プロパティがレンダー循環を作ることはありません。Plexus や Particular のエミッターには同じサンプル表現(256 点と長さ)を再利用できます。エミッター結び付けはこのリリースに含まれません。
+
+例: パスに沿ったグロー描画。
+
+```glsl
+precision highp float;
+uniform sampler2D tDiffuse;
+uniform sampler2D GlowPathCoverage;
+uniform sampler2D GlowPathPoints;
+uniform int GlowCount;
+varying vec2 vUvScaled;
+void main(){
+  vec4 base = texture2D(tDiffuse, vUvScaled);
+  float cov = texture2D(GlowPathCoverage, vUvScaled).a;
+  float d = 1e9;
+  for (int i = 0; i < 128; i++) {
+    vec2 p = texture2D(GlowPathPoints, vec2((float(i) * 2.0 + 0.5) / 256.0, 0.5)).xy;
+    d = min(d, distance(vUvScaled, p));
+  }
+  float glow = (1.0 - smoothstep(0.0, 0.12, d)) * step(0.5, float(GlowCount));
+  vec3 col = base.rgb + vec3(1.0, 0.55, 0.2) * glow * (0.25 + 0.75 * cov);
+  gl_FragColor = vec4(col, base.a);
+}
+```
+
+フレームが正方形でない場合、距離を先に `vec2(aspect, 1.0)` でスケールします。ループは 1 点おきに 128 タップします。パスが長くグローが細い場合は 256 点すべてを使います。
+
 ## AlipFX 移行
 
 `plugins/alipfx/controls.json` は、ビルド時に 5 つの代表的なエフェクトに対応付けます。エディターメタデータだけを追加します。シェーダーソース、ネイティブ型、値、キーフレーム、式、uniform 名は変更されません。既存の保存済みエフェクトは独自の定義を保持します。対応付けはプロジェクトを書き換えません。

@@ -702,6 +702,50 @@ module.exports = {
       ]
     },
     {
+      "id": "kind.path",
+      "category": "kind",
+      "name": "Path",
+      "signature": "uniform sampler2D NameCoverage;",
+      "description": "A layer mask or Shape+ path: coverage, points, length.",
+      "example": "texture2D(NameCoverage, vUvScaled).a",
+      "kind": "path",
+      "types": [
+        "sampler2D"
+      ],
+      "storageType": 7,
+      "dynamic": false,
+      "auxiliary": [
+        {
+          "suffix": "Coverage",
+          "type": "sampler2D",
+          "description": "Coverage in the shader's UV space.",
+          "signature": "uniform sampler2D NameCoverage;",
+          "example": "texture2D(NameCoverage, vUvScaled).a"
+        },
+        {
+          "suffix": "Points",
+          "type": "sampler2D",
+          "description": "256 equally spaced points, xy in UV space.",
+          "signature": "uniform sampler2D NamePoints;",
+          "example": "texture2D(NamePoints, vec2(0.5 / 256.0, 0.5)).xy"
+        },
+        {
+          "suffix": "Length",
+          "type": "float",
+          "description": "Path length in u units.",
+          "signature": "uniform float NameLength;",
+          "example": "NameLength"
+        },
+        {
+          "suffix": "Count",
+          "type": "int",
+          "description": "Sampled point count, 0 when the source is missing.",
+          "signature": "uniform int NameCount;",
+          "example": "NameCount"
+        }
+      ]
+    },
+    {
       "id": "kind.timeSample",
       "category": "kind",
       "name": "Time sample",
