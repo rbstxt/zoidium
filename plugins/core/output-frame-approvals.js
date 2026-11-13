@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "cccc9d46c7cfc844d0393303a787e52babc13df7d9b2516fe17961d6f8074d8f",
+  "fingerprint": "353dc7e44b0b833417a82ccf924cafe674e47178ac0152a15b648b78f239c277",
   "plugins": {
     "native-fx": {
       "version": "39",
@@ -169,21 +169,27 @@
         "shader-effects-masks",
         "animated-source-full"
       ]
-    }
-  },
-  "excluded": {
+    },
     "expressions-plus": {
-      "version": "19",
+      "version": "20",
       "cases": [
         "seeded-time-fps",
         "mutable-realm",
+        "array-prototype-counter",
+        "methods-counter",
+        "retargeted-push",
+        "mixed-stateful",
+        "stateful-edit",
+        "cross-property",
+        "sampling-loop",
+        "wiggle-local",
+        "cross-layer",
+        "combined-two-keyed-videos",
         "seeded-time-fps-full"
-      ],
-      "failed": [
-        "mutable-realm"
       ]
     }
-  }
+  },
+  "excluded": {}
 };
   global.ZoidiumOutputFrameApprovals = receipt;
   if (typeof module === "object" && module.exports) module.exports = receipt;

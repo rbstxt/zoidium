@@ -202,15 +202,54 @@ function fixtures() {
     ...scalar(0), expression: "seedRandom(42); value + random() * 10 + time * fps",
   };
   add("expressions-plus", "seeded-time-fps", expr);
-  const stateful = copy(expr);
-  stateful.sequence.videoTracks[0].clips[0].object.objects[1].properties.position.objects[0].expression =
-    "Math.counter = (Math.counter || 0) + 1; Math.counter";
-  add("expressions-plus", "mutable-realm", stateful);
+  const expressionAt = data => data.sequence.videoTracks[0].clips[0].object.objects[1].properties.position.objects;
+  for (const [name, source] of [
+    ["mutable-realm", "Math.counter = (Math.counter || 0) + 1; Math.counter"],
+    ["array-prototype-counter", "Array.prototype.counter = (Array.prototype.counter || 0) + 1; Array.prototype.counter"],
+    ["methods-counter", "methods.counter = (methods.counter || 0) + 1; methods.counter"],
+    ["retargeted-push", "[].push.call(methods.x, 1); methods.x.length"],
+  ]) {
+    const data = copy(expr);
+    expressionAt(data)[0].expression = source;
+    add("expressions-plus", name, data, { rejectExpression: true });
+  }
+  const mixed = copy(expr);
+  expressionAt(mixed)[1].expression = "methods.counter = (methods.counter || 0) + 1; methods.counter";
+  add("expressions-plus", "mixed-stateful", mixed, { rejectExpression: true });
+  add("expressions-plus", "stateful-edit", copy(expr), { expressionEdit: true });
+  for (const [name, source] of [
+    ["cross-property", 'thisComp.layer(1).object(2).property("rotation").value[1] + value'],
+    ["sampling-loop", 'thisProperty.valueAtTime(time - thisComp.frameDuration) + loopOut(value)'],
+    ["wiggle-local", 'let a = [1, 2]; a.push(3); function sum(x) { return x[0] + x[2]; } value + wiggle(1, 2) + sum(a)'],
+  ]) {
+    const data = copy(expr);
+    expressionAt(data)[0].expression = source;
+    add("expressions-plus", name, data);
+  }
+  const crossLayer = copy(expr);
+  crossLayer.sequence.videoTracks[0].clips[0].object.properties.name = "Source";
+  crossLayer.sequence.videoTracks.push(copy(crossLayer.sequence.videoTracks[0]));
+  crossLayer.sequence.videoTracks[1].clips[0].object.properties.name = "Consumer";
+  crossLayer.sequence.videoTracks[1].clips[0].object.objects[1].properties.position.objects[0].expression =
+    'thisComp.layer(1).object(2).property("Position").value[0] + 5';
+  add("expressions-plus", "cross-layer", crossLayer);
+  const combined = copy(source);
+  combined.sequence.videoTracks[0].clips[0].object.objects.unshift(copy(camera));
+  combined.sequence.videoTracks[0].clips[0].object.objects[2].properties.position.objects[0].expression = "value + time * fps";
+  combined.sequence.videoTracks[1].clips[0].object.effects.push({ type: 1,
+    properties: { fragShader: sampleShader },
+    customProperties: [{ type: copy(sampleDefinition), properties: { name: "Past" }, ...scalar(0) }] });
+  for (const id of ["oracle-video", "oracle-video-2"]) {
+    combined.assets[id] = { sha256: id, source: 1, filename: id + ".webm" };
+    combined.sequence.videoTracks.push({ type: 0, clips: [{ start: 0, length: 60,
+      properties: { media: id }, object: { type: 0, properties: {}, effects: [{ type: "linearcolorkey", properties: {} }] } }] });
+  }
+  add("expressions-plus", "combined-two-keyed-videos", combined, { syntheticVideo: true, combined: true });
   for (const fixture of result) {
     fixture.requiredPlugin = fixture.plugin === "effector-plus" ? "repeater" : fixture.plugin;
     if (fixture.name === "time-displacement-image") fixture.requiredPlugin = "native-fx";
     if (fixture.plugin === "ccfx-shader-pack" || fixture.name === "legacy-slider") fixture.requiredPlugin = null;
-    fixture.prefetch = !fixture.liveOnly && (fixture.name === result.find(item => item.plugin === fixture.plugin)?.name ||
+    fixture.prefetch = !fixture.liveOnly && !fixture.rejectExpression && (fixture.name === result.find(item => item.plugin === fixture.plugin)?.name ||
       /echo|smartmotionblur|timedisplacement|ccwidetime|timedifference|Shake|Delay|Particular|Form|Plexus/.test(fixture.name));
   }
   add(native.id, "unrelated-bundle-error", project(), {
@@ -287,7 +326,7 @@ async function compareFixture(fixture) {
   async function load() {
     const project = new globalThis.PZ.project();
     const data = JSON.parse(JSON.stringify(fixture.data));
-    if (videoBlob) data.assets["oracle-video"].file = videoBlob;
+    if (videoBlob) for (const id of ["oracle-video", "oracle-video-2"]) if (data.assets[id]) data.assets[id].file = videoBlob;
     for (const [id, blob] of Object.entries(imageBlobs)) data.assets[id].file = blob;
     project.load(data);
     editor.project = project;
@@ -299,7 +338,7 @@ async function compareFixture(fixture) {
       await consumer._zoidiumSourceImage?.loading;
     }
     await document.fonts.ready;
-    cache.debug.prefetchDisabled = true;
+    cache.debug.prefetchDisabled = !fixture.combined;
     cache.clear();
     const viewport = editor.mainViewport;
     if (!viewport.__zoidiumPlayerPlusPaused) throw new Error("Pause drawing must stay enabled");
@@ -308,7 +347,7 @@ async function compareFixture(fixture) {
       throw new Error("Fixture does not require its plugin: " + JSON.stringify(requirements));
     }
     if (pluginError && requirements.some(item => item.id === pluginError.id)) throw new Error("Failed plugin is required");
-    if (fixture.syntheticVideo && !project.sequence.videoSchedules.some(schedule =>
+    if (fixture.syntheticVideo && !fixture.combined && !project.sequence.videoSchedules.some(schedule =>
       schedule.items.some(item => item.media && item.start === 300))) throw new Error("Video schedule is missing");
   }
   function pixels() {
@@ -372,9 +411,45 @@ async function compareFixture(fixture) {
       if (!cache.usage().reason?.includes("validation is deferred")) break;
       await pause(1550);
     }
-    throw new Error("Expected cache hit at " + frame + ": " + cache.usage().reason);
+    throw new Error("Expected cache hit at " + frame + ": " + cache.usage().reason + " " + JSON.stringify({ entries: cache.usage().entries, skipped: cache.debug.videoSkipped, error: cache.debug.videoError, resets: cache.debug.resets }));
   }
-  const frames = fixture.full ? [11] : fixture.plugin === "expresstext-plus" ? [0, 1, 8, 11, 37] :
+  const blockReason = "An expression may keep values between frames, so this project is not cached";
+  async function assertRejected() {
+    cache.debug.disabled = false;
+    const hits = cache.debug.hits, stores = cache.debug.stores;
+    for (const frame of [11, 37, 11]) {
+      editor.playback.currentFrame = frame;
+      await editor.project.sequence.prepare(frame, { sequence: editor.project.sequence });
+      editor.mainViewport.__zoidiumPlayerPlusRenderOnce = true;
+      editor.mainViewport.lastFrame = NaN;
+      editor.mainViewport._render();
+      if (editor.mainViewport.lastFrame !== frame) throw new Error("Rejected frame did not draw live");
+      if (!cache.usage().reason?.split("; ").includes(blockReason)) throw new Error("Unexpected rejection: " + cache.usage().reason);
+    }
+    if (cache.debug.hits !== hits || cache.debug.stores !== stores) {
+      throw new Error("Rejected frames did not remain live");
+    }
+  }
+  function assertExpressions() {
+    let count = 0;
+    editor.project.forEachItemOfType(PZ.property.dynamic, property => {
+      if (!property.expression) return;
+      property.get(11);
+      const error = globalThis.ZoidiumExpressions.engine.error(property);
+      if (error) throw new Error("Expression failed: " + error);
+      count++;
+    });
+    if (!count) throw new Error("Fixture has no evaluated expressions");
+  }
+  if (fixture.rejectExpression) {
+    await load();
+    if (fixture.name === "retargeted-push") PZ.expression.methods.x = [];
+    await assertRejected();
+    assertExpressions();
+    if (cache.usage().entries !== 0) throw new Error("Rejected project retained frames");
+    return { rejected: true, reason: blockReason, liveDraws: 3 };
+  }
+  const frames = fixture.full ? [11] : fixture.combined ? [11, 12] : fixture.plugin === "expresstext-plus" ? [0, 1, 8, 11, 37] :
     fixture.prefetch ? [0, 1, 11, 37] : [0, 11, 37];
   const references = new Map();
   for (const frame of frames) { await load(); references.set(frame, await draw(frame, false)); }
@@ -393,7 +468,8 @@ async function compareFixture(fixture) {
     warmPasses++;
   } while (!fixture.liveOnly && cache.debug.entries < frames.length && warmPasses < 4);
   if (!fixture.liveOnly && cache.debug.entries < frames.length) throw new Error("Cache window did not settle");
-  const order = fixture.full ? [11] : [11, 37, 0, 37, 11, 0];
+  if (fixture.combined) cache.debug.prefetchDisabled = true;
+  const order = fixture.full ? [11] : fixture.combined ? [11, 12, 11] : [11, 37, 0, 37, 11, 0];
   for (const frame of order) {
     let bytes;
     if (fixture.liveOnly) bytes = await draw(frame, false);
@@ -405,6 +481,25 @@ async function compareFixture(fixture) {
   for (const frame of frames) {
     equal(references.get(frame), await draw(frame, false), "history vs fresh " + frame);
     checks.push("history-" + frame);
+  }
+  if (fixture.expressionEdit) {
+    const property = editor.project.sequence.videoTracks[0].clips[0].object.objects[1].properties.position.objects[0];
+    if (!cache.usage().entries) throw new Error("Edit requires retained frames");
+    property.expression = new PZ.expression("Math.counter = (Math.counter || 0) + 1; Math.counter");
+    await assertRejected();
+    checks.push("stateful-edit-rejected");
+  }
+  if (fixture.plugin === "expressions-plus") {
+    assertExpressions();
+  }
+  if (fixture.combined) {
+    const requirements = JSON.parse(JSON.stringify(editor.project)).plugins || [];
+    for (const id of ["camera-plus", "layer-input", "expressions-plus", "shader-plus", "native-fx"]) {
+      if (!requirements.some(item => item.id === id)) throw new Error("Combined project is missing " + id);
+    }
+    const videos = editor.project.sequence.videoSchedules.filter(schedule => schedule.items.some(item => item.media));
+    if (videos.length !== 2) throw new Error("Combined project needs two video schedules: " + videos.length);
+    checks.push("combined-requirements-and-videos");
   }
   if (fixture.cameraCheck) {
     const tracks = editor.project.sequence.videoTracks;
