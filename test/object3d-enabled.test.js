@@ -92,3 +92,24 @@ test("native object types load and serialize the keyed property", () => {
   object.update(7);
   assert.equal(object.patched, 7);
 });
+
+test("a disabled group exposes zoidiumSkipsWork so readiness does not wait on skipped children", () => {
+  const { Object3D, Group } = host();
+  const group = new Group();
+  const child = new (class extends Object3D {})();
+  group.objects.push(child);
+  group.properties.enabled.keys = { 5: 0 };
+  assert.equal(group.zoidiumSkipsWork(5), true);
+  assert.equal(group.zoidiumSkipsWork(4), false);
+  child.threeObj = { visible: true };
+  child.properties.enabled.keys = { 5: 0 };
+  child.prepare(5);
+  assert.equal(child.threeObj.visible, false);
+});
+
+test("pack subclasses registered later get Enabled with default on", () => {
+  const { Object3D } = host();
+  class Pack extends Object3D { constructor() { super(); this.type = "zoidium:pack/thing"; } }
+  const object = new Pack();
+  assert.equal(object.properties.enabled.get(0), 1);
+});

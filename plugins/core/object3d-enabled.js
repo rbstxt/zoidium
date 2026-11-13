@@ -11,7 +11,7 @@
     const object = this.parent;
     if (definitions !== base.propertyDefinitions || !(object instanceof base) ||
         object instanceof base.camera ||
-        object.constructor.name === "CameraPlus") return result;
+        object.constructor.name === "CameraPlus" || object.type === "zoidium:camera-plus/camera") return result;
 
     this.add("enabled", Object.assign({}, base.group.propertyDefinitions.enabled));
     const ready = object.zoidiumFrameReady;
@@ -24,6 +24,10 @@
       return target instanceof base.group && containsCamera(target);
     }
     let hidden = false;
+    // Frame readiness walks child lists; a skipped subtree has no pending work.
+    object.zoidiumSkipsWork = function (frame) {
+      return this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this);
+    };
     object.update = function (frame) {
       const enabled = this.properties.enabled.get(frame) === 1;
       if (!enabled && !mustUpdateGroup(this)) {
@@ -36,7 +40,11 @@
       return Object.getPrototypeOf(this).update.apply(this, arguments);
     };
     object.prepare = function (frame) {
-      if (this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this)) return Promise.resolve();
+      if (this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this)) {
+        // An object-type swap can install a fresh, visible threeObj.
+        if (this.threeObj) this.threeObj.visible = false;
+        return Promise.resolve();
+      }
       return Object.getPrototypeOf(this).prepare.apply(this, arguments);
     };
     if (typeof ready === "function") object.zoidiumFrameReady = function (frame) {
