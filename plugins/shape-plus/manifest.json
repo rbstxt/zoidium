@@ -429,6 +429,16 @@
       "id": "mask-persist",
       "type": "text",
       "source": "./plugins/shape-plus/mask-persist.js?v=36"
+    },
+    {
+      "id": "mask-overlay",
+      "type": "text",
+      "source": "./plugins/shape-plus/mask-overlay.js?v=36"
+    },
+    {
+      "id": "mask-panels",
+      "type": "text",
+      "source": "./plugins/shape-plus/mask-panels.js?v=36"
     }
   ]
 }

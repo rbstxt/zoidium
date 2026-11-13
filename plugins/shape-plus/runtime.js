@@ -52,6 +52,11 @@ function install(context) {
   require("./mask-persist.js").installMaskPersistence(PZ, own);
   require("./native-ui.js").install(PZ, Layer, Content, own);
   require("./editor.js").install(context, Layer, Content);
+  // Layer masks on native Scene/Adjustment layers (mask-model.js,
+  // mask-raster.js, mask-host.js, mask-render.js, mask-persist.js,
+  // mask-overlay.js, mask-panels.js).
+  const maskOverlay = require("./mask-overlay.js").install(context, Content);
+  require("./mask-panels.js").installMaskPanels(context, Content, () => maskOverlay.setTool("pen"));
   require("./convert-native.js").install(context, Layer);
   require("./workflow.js").install(context, Layer, Content);
 }

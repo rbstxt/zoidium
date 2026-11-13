@@ -268,9 +268,14 @@ function createCanvas(s, canvas) {
     const width = Math.round(rect.width * dpr), height = Math.round(rect.height * dpr);
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
     const p = s.layer.properties;
-    projection = displayMatrix(rect, s.editor.sequence.properties.resolution.get(), {
+    const base = displayMatrix(rect, s.editor.sequence.properties.resolution.get(), {
       position: p.position.get(s.localFrame()), scale: p.scale.get(s.localFrame()), rotation: p.rotation.get(s.localFrame()),
     });
+    // A path host may author in a different coordinate space than the layer
+    // transform consumes (layer masks use top-left, y-down mask space while
+    // the layer matrix expects centered, y-up input). The host supplies the
+    // extra matrix; layers without one project exactly as before.
+    projection = base && s.layer.layerSpaceMatrix ? g.multiply(base, s.layer.layerSpaceMatrix) : base;
     return !!projection;
   }
   // Outlines of every drawn leaf under an item (the item itself for a leaf).

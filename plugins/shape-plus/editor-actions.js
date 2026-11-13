@@ -4,7 +4,8 @@ const g = require("./editor-geometry.js");
 const { createMenu } = require("./editor-menu.js");
 const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
-function installActions(s, root) {
+function installActions(s, root, options = {}) {
+  const shapes = options.shapes !== false;
   let nudge = null;
   const menu = createMenu(s.document, root, s.context?.ui || s.window.ZoidiumUI);
   s.closeMenu = () => menu.close(false);
@@ -24,15 +25,18 @@ function installActions(s, root) {
       });
     const entries = [];
     if (!item) {
-      entries.push(
-        { label: "Add Text", action: add("text"), disabled: !local },
-        { label: "Add Rectangle", action: add("rectangle"), disabled: !local },
-        { label: "Add Ellipse", action: add("ellipse"), disabled: !local },
-        { label: "Add Polystar", action: add("polystar"), disabled: !local },
-        { separator: true },
-        { label: "Pen", shortcut: "P", action: () => s.setTool?.("pen") },
-      );
-      menu.open(x, y, entries, { title: "Shape+", focusReturn: s.canvas });
+      const entries = [];
+      if (shapes) {
+        entries.push(
+          { label: "Add Text", action: add("text"), disabled: !local },
+          { label: "Add Rectangle", action: add("rectangle"), disabled: !local },
+          { label: "Add Ellipse", action: add("ellipse"), disabled: !local },
+          { label: "Add Polystar", action: add("polystar"), disabled: !local },
+          { separator: true },
+        );
+      }
+      entries.push({ label: "Pen", shortcut: "P", action: () => s.setTool?.("pen") });
+      menu.open(x, y, entries, { title: shapes ? "Shape+" : "Mask", focusReturn: s.canvas });
       return;
     }
     if (path)
@@ -47,7 +51,8 @@ function installActions(s, root) {
         })),
         { separator: true },
       );
-    if (primitive) entries.push({ label: "Convert to Path", action: s.convert }, { separator: true });
+    if (primitive && shapes) entries.push({ label: "Convert to Path", action: s.convert }, { separator: true });
+    if (!shapes && path) entries.push({ label: "Keyframe Path", action: s.keyframe }, { separator: true });
     const animatorLabels = { position: "Position", scale: "Scale", rotation: "Rotation", skew: "Skew", skewAxis: "Skew Axis", anchor: "Anchor Point", tracking: "Tracking Amount", charOffset: "Character Offset", groupingAlignment: "Grouping Alignment" };
     const axisOf = (node) => Object.keys(node.properties || {}).filter(key => key.startsWith("axis_")).map(key => ({ key, label: node.properties[key].definition?.name || key.slice(5) }));
     const flagOf = (node, key) => { try { return node.properties["enabled_" + key]?.get() ? true : false; } catch (_error) { return false; } };
@@ -77,15 +82,17 @@ function installActions(s, root) {
       );
     }
     entries.push(
-      { label: "Add Fill", action: () => s.treeAction("paint", "fill") },
-      { label: "Add Stroke", action: () => s.treeAction("paint", "stroke") },
-      { separator: true },
-      { label: "Group", shortcut: key("Ctrl+G"), action: () => s.treeAction("group") },
-      { label: "Ungroup", shortcut: key("Ctrl+Shift+G"), action: () => s.treeAction("ungroup"), disabled: many || item.kind !== "group" },
+      ...(shapes ? [
+        { label: "Add Fill", action: () => s.treeAction("paint", "fill") },
+        { label: "Add Stroke", action: () => s.treeAction("paint", "stroke") },
+        { separator: true },
+        { label: "Group", shortcut: key("Ctrl+G"), action: () => s.treeAction("group") },
+        { label: "Ungroup", shortcut: key("Ctrl+Shift+G"), action: () => s.treeAction("ungroup"), disabled: many || item.kind !== "group" },
+      ] : []),
       { label: "Bring Forward", shortcut: key("Ctrl+]"), action: () => s.treeAction("forward") },
       { label: "Send Backward", shortcut: key("Ctrl+["), action: () => s.treeAction("backward") },
       { separator: true },
-      { label: "Rename", action: () => s.rename(s.activeId), disabled: many },
+      ...(shapes ? [{ label: "Rename", action: () => s.rename(s.activeId), disabled: many }] : []),
       { label: "Duplicate", shortcut: key("Ctrl+D"), action: () => s.treeAction("duplicate") },
       { label: "Delete", shortcut: "Del", action: () => s.treeAction("delete") },
     );
