@@ -244,9 +244,12 @@ function evaluateMask(item, frame) {
   };
 }
 
-// Shader+ Path property reference. `track` identifies the source track the
-// same way Layer Input tokens do (a stable per-track token, not an index);
-// `mask` is the mask id, or `path` a Shape+ path id on that track's layer.
+// Shader+ Path property reference. The clip address is the stable source
+// token: it survives layer renames and re-resolves through the project, the
+// same way Layer Input addresses its tracks. `mask` is the mask id, or
+// `path` a Shape+ path id on that clip's layer. Parsed references ignore
+// unknown fields (including the retired Round-3 `track` list index, which
+// could never re-link a stale clip address and was never read at runtime).
 const REFERENCE_VERSION = 1;
 function formatReference(reference) {
   return JSON.stringify({ version: REFERENCE_VERSION, ...reference });
@@ -261,8 +264,8 @@ function parseReference(value) {
   if (!data || typeof data !== "object") return null;
   if (data.version !== REFERENCE_VERSION) return null;
   if (data.source === "mask") {
-    if (typeof data.track !== "string" || !data.track || typeof data.mask !== "string" || !data.mask) return null;
-    const reference = { source: "mask", track: data.track, mask: data.mask };
+    if (typeof data.mask !== "string" || !data.mask) return null;
+    const reference = { source: "mask", mask: data.mask };
     if (data.clip !== undefined) {
       if (!Array.isArray(data.clip) || !data.clip.every(n => typeof n === "number" && Number.isFinite(n))) return null;
       reference.clip = data.clip.slice();
@@ -270,8 +273,8 @@ function parseReference(value) {
     return reference;
   }
   if (data.source === "shape") {
-    if (typeof data.track !== "string" || !data.track || typeof data.path !== "string" || !data.path) return null;
-    const reference = { source: "shape", track: data.track, path: data.path };
+    if (typeof data.path !== "string" || !data.path) return null;
+    const reference = { source: "shape", path: data.path };
     if (data.clip !== undefined) {
       if (!Array.isArray(data.clip) || !data.clip.every(n => typeof n === "number" && Number.isFinite(n))) return null;
       reference.clip = data.clip.slice();

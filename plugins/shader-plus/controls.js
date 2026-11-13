@@ -277,14 +277,21 @@ function installControls({ PZ, doc, register, editor }) {
       const sources = lists();
       const previous = current() || {};
       const next = { source: "mask", ...previous, ...change };
+      // The clip address is the stable source token; a stored track list
+      // index could never re-link a stale address, so it is not persisted.
+      delete next.track;
       const candidates = sources.filter(s => s.kind === next.source);
-      const chosen = candidates.find(s => String(sources.indexOf(s)) === String(next.layer)) || candidates[0];
+      // The layer dropdown hands over a live list index; a stored reference
+      // re-links through its clip address only.
+      const chosen = candidates.find(s => String(sources.indexOf(s)) === String(next.layer)) ||
+        candidates.find(s => next.clip && s.clip && JSON.stringify(s.clip) === JSON.stringify(next.clip)) ||
+        candidates[0];
       if (!chosen) return;
       const items = chosen.kind === "mask" ? chosen.masks : chosen.paths;
       const key = chosen.kind === "mask" ? "mask" : "path";
       const picked = items.find(entry => entry.id === next.item) || items[0];
       if (!picked) return;
-      write(api().formatReference({ source: chosen.kind, track: String(sources.indexOf(chosen)), clip: chosen.clip || undefined, [key]: picked.id }));
+      write(api().formatReference({ source: chosen.kind, clip: chosen.clip || undefined, [key]: picked.id }));
     }
     box.pz_update = () => {
       if (!api()) {
@@ -305,7 +312,7 @@ function installControls({ PZ, doc, register, editor }) {
           option.textContent = "Track " + (source.track + 1) + " · " + source.layer;
           layer.append(option);
         }
-        const at = sources.findIndex(s => s.kind === kind.value && (ref?.clip && s.clip && JSON.stringify(s.clip) === JSON.stringify(ref.clip) || String(sources.indexOf(s)) === String(ref?.layer)));
+        const at = sources.findIndex(s => s.kind === kind.value && (ref?.clip && s.clip && JSON.stringify(s.clip) === JSON.stringify(ref.clip)));
         layer.value = String(at >= 0 ? at : sources.findIndex(s => s.kind === kind.value));
       }
       const chosen = sources[Number(layer.value)] || candidates[0];
