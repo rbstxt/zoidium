@@ -19,3 +19,7 @@ For suite lights, open **Trapcode Lights** in the picker. To import photometry,
 choose Photometric IES and select a local LM-63 Type C file with TILT=NONE.
 
 Control reference: [trapcode-particular](/docs/reference/trapcode-particular/), [trapcode-form](/docs/reference/trapcode-form/), [plexus](/docs/reference/plexus/), [trapcode-lights](/docs/reference/trapcode-lights/).
+
+## Hide an object
+
+Set **Enabled** to off in the object properties to hide a 3D object and skip its update and preparation. Add keyframes to change the value over time. Particular evaluates the requested frame when it is enabled again. Cameras: use a different camera or a Camera+ switch instead.

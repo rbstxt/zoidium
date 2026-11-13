@@ -313,6 +313,8 @@
   function objectsReady(objects, frame) {
     for (const object of objects || []) {
       if (!object || typeof object !== "object") continue;
+      // A disabled object (and its children) skips its frame work entirely.
+      if (typeof object.zoidiumSkipsWork === "function" && object.zoidiumSkipsWork(frame)) continue;
       if (typeof object.zoidiumFrameReady === "function" && object.zoidiumFrameReady(frame) !== true) return false;
       if (!objectsReady(object.objects, frame)) return false;
     }
