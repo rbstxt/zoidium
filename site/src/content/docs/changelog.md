@@ -246,6 +246,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Projects with many expressions play faster: each expression evaluation
+  takes less than half the time it did and leaves far less memory to clean
+  up, so playback stalls less often.
 - ExpressText+ with a Delay effector no longer slows down as playback moves
   toward the end of the timeline. Each frame now costs about the same at the
   start and at the end, also with several ExpressText+ objects in one scene.

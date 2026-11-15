@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=139",
       "bundle": "./plugins/core/bundle.json?v=139",
-      "integrity": "sha256-BS1nSS8C/sHN6z2nCXJgFqXG4XSJnOH6ogud6uDgexk="
+      "integrity": "sha256-NQyX/inZPNoFniyFOKewrm4abPy2SdIX39gxrYcTzX8="
     },
     {
       "id": "easing-plus",
