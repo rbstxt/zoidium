@@ -42,8 +42,39 @@ function encode(value, depth = 0) {
   throw new Error("Unsupported Delay cache input");
 }
 
-function trackInput(property) {
-  if (!property || typeof property.get !== "function") return ["value", property];
+// Single-pass fingerprint writer. It visits exactly the fields the old
+// stackInput/trackInput/encode pipeline visited, with the same type tags
+// and the same identity numbering order, but pushes tokens into one parts
+// array instead of building an intermediate object graph: the per-letter,
+// per-frame fingerprint no longer allocates hundreds of small arrays.
+// Depth accounting mirrors encode, so the same inputs hit the same guard.
+function pushValue(parts, value, depth) {
+  if (depth > 32) throw new Error("Unsupported Delay cache input");
+  if (value === null) { parts.push("null"); return; }
+  if (value === undefined) { parts.push("undefined"); return; }
+  if (typeof value === "number") { parts.push(`n:${Object.is(value, -0) ? "-0" : value}`); return; }
+  if (typeof value === "string") { parts.push(`s:${JSON.stringify(value)}`); return; }
+  if (typeof value === "boolean") { parts.push(value ? "true" : "false"); return; }
+  if (Array.isArray(value)) {
+    parts.push("[");
+    for (let i = 0; i < value.length; i += 1) {
+      if (i) parts.push(",");
+      pushValue(parts, value[i], depth + 1);
+    }
+    parts.push("]");
+    return;
+  }
+  throw new Error("Unsupported Delay cache input");
+}
+
+function pushTrackInput(parts, property, depth) {
+  if (depth > 32) throw new Error("Unsupported Delay cache input");
+  if (!property || typeof property.get !== "function") {
+    parts.push('["value",');
+    pushValue(parts, property, depth + 1);
+    parts.push("]");
+    return;
+  }
   const P = state.PZ && state.PZ.property;
   if (!P) throw new Error("Unknown Delay property reader");
   const proto = Object.getPrototypeOf(property);
@@ -51,15 +82,48 @@ function trackInput(property) {
   // expressions on vector components. They can read beyond the track.
   if (Object.hasOwn(property, "get") || Object.hasOwn(property, "getClosestKeyframeIndex")) throw new Error("Custom Delay property reader");
   const fallback = property.definition && property.definition.value;
-  if (P.static && proto === P.static.prototype) return ["static", identity(property.get), property.value, fallback];
+  if (P.static && proto === P.static.prototype) {
+    parts.push('["static",');
+    pushValue(parts, identity(property.get), depth + 1);
+    parts.push(",");
+    pushValue(parts, property.value, depth + 1);
+    parts.push(",");
+    pushValue(parts, fallback, depth + 1);
+    parts.push("]");
+    return;
+  }
   if (property.expression !== null) throw new Error("Expression Delay property reader");
   if (P.dynamic && P.dynamic.group && proto === P.dynamic.group.prototype) {
-    return ["group", identity(property.get), fallback, Array.from(property.objects, trackInput)];
+    parts.push('["group",');
+    pushValue(parts, identity(property.get), depth + 1);
+    parts.push(",");
+    pushValue(parts, fallback, depth + 1);
+    parts.push(",[");
+    const objects = property.objects;
+    for (let i = 0; i < objects.length; i += 1) {
+      if (i) parts.push(",");
+      pushTrackInput(parts, objects[i], depth + 2);
+    }
+    parts.push("]]");
+    return;
   }
   if (!P.dynamic || !P.dynamic.keyframes || proto !== P.dynamic.keyframes.prototype || !property.keyframes.length) {
     throw new Error("Unknown or empty Delay track");
   }
-  const tracks = Array.from(property.keyframes, k => {
+  const tracks = property.keyframes;
+  parts.push('["track",');
+  pushValue(parts, identity(property.get), depth + 1);
+  parts.push(",");
+  pushValue(parts, identity(property.getClosestKeyframeIndex), depth + 1);
+  parts.push(",");
+  pushValue(parts, property.frameOffset, depth + 1);
+  parts.push(",");
+  pushValue(parts, property.interpolated, depth + 1);
+  parts.push(",");
+  pushValue(parts, fallback, depth + 1);
+  parts.push(",[");
+  for (let i = 0; i < tracks.length; i += 1) {
+    const k = tracks[i];
     // Missing values invoke readProp's mutable fallback. Keep that path cold.
     if (k.value === null || k.value === undefined) throw new Error("Empty Delay keyframe");
     const easing = state.PZ.tween && state.PZ.tween.easingList[k.tween & 255];
@@ -70,15 +134,27 @@ function trackInput(property) {
           pair.some(value => typeof value !== "number" || !Number.isFinite(value)))) {
       throw new Error("Unsupported Delay keyframe interpolation");
     }
-    return [k.frame, k.value, k.tween, k.controlPoints];
-  });
-  return ["track", identity(property.get), identity(property.getClosestKeyframeIndex),
-    property.frameOffset, property.interpolated, fallback, tracks];
+    if (i) parts.push(",");
+    parts.push("[");
+    pushValue(parts, k.frame, depth + 3);
+    parts.push(",");
+    pushValue(parts, k.value, depth + 3);
+    parts.push(",");
+    pushValue(parts, k.tween, depth + 3);
+    parts.push(",");
+    pushValue(parts, k.controlPoints, depth + 3);
+    parts.push("]");
+  }
+  parts.push("]]");
 }
 
-function stackInput(layers) {
-  return layers.map(layer => {
-    if (!layer || !layer.kind) return null;
+function pushStackInput(parts, layers, depth) {
+  if (depth > 32) throw new Error("Unsupported Delay cache input");
+  parts.push("[");
+  for (let i = 0; i < layers.length; i += 1) {
+    const layer = layers[i];
+    if (i) parts.push(",");
+    if (!layer || !layer.kind) { parts.push("null"); continue; }
     const kind = layer.kind;
     let keys = keysByKind.get(kind);
     if (!keys) {
@@ -93,17 +169,61 @@ function stackInput(layers) {
       throw new Error("Unknown Delay section reader");
     }
     if (own && props.get !== own.readerGet) throw new Error("Changed Delay reader");
-    return [kind, keys.map(key => {
+    parts.push("[");
+    pushValue(parts, kind, depth + 2);
+    parts.push(",[");
+    for (let k = 0; k < keys.length; k += 1) {
+      const key = keys[k];
+      if (k) parts.push(",");
+      parts.push("[");
+      pushValue(parts, key, depth + 4);
+      parts.push(",");
       if (own) {
         const row = own.store[key];
-        if (!row) return [key, "owned", undefined];
-        if (row.get !== own.getters[key]) throw new Error("Changed Delay row reader");
-        return [key, "owned", own.values[key], row.value, row.definition && row.definition.value];
+        if (!row) {
+          parts.push('["owned",undefined]');
+        } else {
+          if (row.get !== own.getters[key]) throw new Error("Changed Delay row reader");
+          parts.push('["owned",');
+          pushValue(parts, own.values[key], depth + 5);
+          parts.push(",");
+          pushValue(parts, row.value, depth + 5);
+          parts.push(",");
+          pushValue(parts, row.definition && row.definition.value, depth + 5);
+          parts.push("]");
+        }
+      } else {
+        const property = !props ? undefined : typeof props.get === "function" ? props.get(key) : props[key];
+        pushTrackInput(parts, property, depth + 4);
       }
-      const property = !props ? undefined : typeof props.get === "function" ? props.get(key) : props[key];
-      return [key, trackInput(property)];
-    })];
-  });
+      parts.push("]");
+    }
+    parts.push("]]");
+  }
+  parts.push("]");
+}
+
+// Generation fingerprint for one stack: stack kinds/keys/tracks plus the
+// layout, world and easing identities the targets depend on. Rebuilt per
+// letter per frame on purpose: in-place keyframe and value edits keep every
+// object identity, so only a full re-read detects them.
+function fingerprintFor(layers, list, aux) {
+  const world = aux && aux.selfWorld;
+  const tween = state.PZ && state.PZ.tween;
+  const parts = ["["];
+  pushStackInput(parts, layers, 1);
+  parts.push(",");
+  pushValue(parts, list.total, 1);
+  parts.push(",");
+  pushValue(parts, list.order, 1);
+  parts.push(",");
+  pushValue(parts, aux && [aux.rate, aux.extent && [aux.extent.lo, aux.extent.hi], aux.bases,
+    world && [world.position, world.rotation, world.scale, world.eulerOrder]], 1);
+  parts.push(",");
+  pushValue(parts, tween && [tween.easingList.map(e => e.fn && identity(e.fn)),
+    ...["linear", "correctCurve", "findZero", "bezier"].map(k => identity(tween[k]))], 1);
+  parts.push("]");
+  return parts.join("");
 }
 
 function clearDelayCache() {
@@ -118,14 +238,7 @@ function clearDelayCache() {
 
 function delayCacheFor(layers, index, list, base, aux) {
   try {
-    const world = aux && aux.selfWorld;
-    const tween = state.PZ && state.PZ.tween;
-    const inputs = [stackInput(layers), list.total, list.order,
-      aux && [aux.rate, aux.extent && [aux.extent.lo, aux.extent.hi], aux.bases,
-        world && [world.position, world.rotation, world.scale, world.eulerOrder]],
-      tween && [tween.easingList.map(e => e.fn && identity(e.fn)),
-        ...["linear", "correctCurve", "findZero", "bezier"].map(k => identity(tween[k]))]];
-    const fingerprint = encode(inputs);
+    const fingerprint = fingerprintFor(layers, list, aux);
     if (fingerprint.length > MAX_FINGERPRINT) return null;
     let gen = generations.get(fingerprint);
     if (gen) {
