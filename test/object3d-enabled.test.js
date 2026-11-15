@@ -113,3 +113,40 @@ test("pack subclasses registered later get Enabled with default on", () => {
   const object = new Pack();
   assert.equal(object.properties.enabled.get(0), 1);
 });
+
+// Discord 2026-11-13/14: Camera+ updates a group holding a camera through a
+// receiver made with Object.create(group). The wrapper then found itself as
+// the receiver's prototype method and recursed until the stack overflowed.
+test("wrapped methods run on receivers that inherit from a wrapped object", async () => {
+  const { Object3D, Group, Camera } = host();
+  const group = new Group(), child = new Object3D(), camera = new Camera();
+  group.objects.push(child, camera);
+  const receiver = Object.create(group);
+  receiver.objects = [camera];
+  assert.doesNotThrow(() => group.update.call(receiver, 3));
+  assert.equal(child.updated, undefined);
+  assert.equal(camera.updated, 3);
+  await group.prepare.call(receiver, 4);
+  assert.equal(camera.prepared, 4);
+  const nested = Object.create(receiver);
+  assert.doesNotThrow(() => child.update.call(Object.create(child), 5));
+  assert.doesNotThrow(() => group.update.call(nested, 6));
+  assert.equal(camera.updated, 6);
+  group.properties.enabled.load({ keys: { 7: 0 } });
+  group.update.call(receiver, 7);
+  assert.equal(camera.updated, 7, "a disabled group with a camera still updates it");
+});
+
+test("the real Camera+ group receiver updates without recursion", () => {
+  const { Object3D, Group, Camera } = host();
+  const group = new Group(); group.type = 99;
+  const light = new Object3D(); light.type = 1;
+  const camera = new Camera(); camera.type = "zoidium:camera-plus/camera";
+  group.objects.push(light, camera);
+  const required = new Set([group, camera]);
+  const receiver = Object.create(group);
+  receiver.objects = group.objects.filter(item => required.has(item));
+  assert.doesNotThrow(() => group.update.call(receiver, 12));
+  assert.equal(camera.updated, 12);
+  assert.equal(light.updated, undefined);
+});

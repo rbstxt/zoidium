@@ -6,6 +6,25 @@
   if (!base || !list || list.__zoidiumObject3DEnabled) return;
 
   const addAll = list.addAll;
+  // Wrappers are own properties of each instance. Callers may run a method on
+  // a receiver that inherits from a wrapped instance (Camera+ updates groups
+  // through Object.create(group)); resolve past every wrapper to the type's
+  // own method, or the wrapper would call itself until the stack overflows.
+  const wrappers = new WeakSet();
+  function inherited(self, name) {
+    let owner = Object.getPrototypeOf(self);
+    let method = owner && owner[name];
+    while (method && wrappers.has(method)) {
+      while (owner && !Object.prototype.hasOwnProperty.call(owner, name)) owner = Object.getPrototypeOf(owner);
+      owner = owner && Object.getPrototypeOf(owner);
+      method = owner && owner[name];
+    }
+    return method;
+  }
+  function wrap(object, name, method) {
+    wrappers.add(method);
+    object[name] = method;
+  }
   list.addAll = function (definitions) {
     const result = addAll.apply(this, arguments);
     const object = this.parent;
@@ -28,7 +47,7 @@
     object.zoidiumSkipsWork = function (frame) {
       return this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this);
     };
-    object.update = function (frame) {
+    wrap(object, "update", function (frame) {
       const enabled = this.properties.enabled.get(frame) === 1;
       if (!enabled && !mustUpdateGroup(this)) {
         if (this.threeObj) this.threeObj.visible = false;
@@ -37,20 +56,20 @@
       }
       if (hidden && this.threeObj) this.threeObj.visible = true;
       hidden = false;
-      return Object.getPrototypeOf(this).update.apply(this, arguments);
-    };
-    object.prepare = function (frame) {
+      return inherited(this, "update").apply(this, arguments);
+    });
+    wrap(object, "prepare", function (frame) {
       if (this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this)) {
         // An object-type swap can install a fresh, visible threeObj.
         if (this.threeObj) this.threeObj.visible = false;
         return Promise.resolve();
       }
-      return Object.getPrototypeOf(this).prepare.apply(this, arguments);
-    };
-    if (typeof ready === "function") object.zoidiumFrameReady = function (frame) {
+      return inherited(this, "prepare").apply(this, arguments);
+    });
+    if (typeof ready === "function") wrap(object, "zoidiumFrameReady", function (frame) {
       if (this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this)) return true;
-      return Object.getPrototypeOf(this).zoidiumFrameReady.apply(this, arguments);
-    };
+      return inherited(this, "zoidiumFrameReady").apply(this, arguments);
+    });
     return result;
   };
   list.__zoidiumObject3DEnabled = true;

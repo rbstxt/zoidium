@@ -99,10 +99,10 @@ function renderMasksSection(document, container, session, layer, focusPen, refre
       }
       refresh();
     }));
-    row.append(toggleButton(document, "Edit", selected, "Edit this path with the pen", () => {
+    row.append(toggleButton(document, "Edit", selected, "Edit this path's points in the preview", () => {
       try {
         session.s.selectItem(mask.id);
-        if (typeof focusPen === "function") focusPen();
+        if (typeof focusPen === "function") focusPen("select");
       } catch (error) {
         session.s.message(error.message);
       }
@@ -152,7 +152,7 @@ function renderMasksSection(document, container, session, layer, focusPen, refre
       } catch (_error) { /* Defaults above. */ }
       const item = session.s.addItem("path", [size[0] / 2, size[1] / 2]);
       if (item) session.s.selectItem(item.id);
-      if (typeof focusPen === "function") focusPen();
+      if (typeof focusPen === "function") focusPen("pen");
     } catch (error) {
       session.s.message(error.message);
     }
