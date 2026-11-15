@@ -11,8 +11,11 @@ const MAX_LETTERS = 48;
 const MAX_PARAM_STAGES = 2;
 const MAX_FINGERPRINT = 262144;
 const keysByKind = new Map();
-let generation = null;
-const letters = new Map();
+// One letter cache per stack fingerprint, so alternating objects no longer
+// evict each other. Bounded (LRU): scenes with more distinct stacks than
+// this keep the most recently evaluated ones.
+const MAX_GENERATIONS = 16;
+const generations = new Map();
 let identities = new WeakMap();
 let nextIdentity = 1;
 const stats = { targetHits: 0, targetMisses: 0, paramHits: 0, paramMisses: 0 };
@@ -104,8 +107,7 @@ function stackInput(layers) {
 }
 
 function clearDelayCache() {
-  generation = null;
-  letters.clear();
+  generations.clear();
   stats.targetHits = 0;
   stats.targetMisses = 0;
   stats.paramHits = 0;
@@ -125,10 +127,17 @@ function delayCacheFor(layers, index, list, base, aux) {
         ...["linear", "correctCurve", "findZero", "bezier"].map(k => identity(tween[k]))]];
     const fingerprint = encode(inputs);
     if (fingerprint.length > MAX_FINGERPRINT) return null;
-    if (generation !== fingerprint) {
-      generation = fingerprint;
-      letters.clear();
+    let gen = generations.get(fingerprint);
+    if (gen) {
+      // LRU: a hit keeps this stack's letters while idle stacks age out.
+      generations.delete(fingerprint);
+      generations.set(fingerprint, gen);
+    } else {
+      if (generations.size >= MAX_GENERATIONS) generations.delete(generations.keys().next().value);
+      gen = { letters: new Map() };
+      generations.set(fingerprint, gen);
     }
+    const letters = gen.letters;
     const key = encode([index, base]);
     if (key.length > MAX_FINGERPRINT) return null;
     let entry = letters.get(key);
@@ -192,4 +201,4 @@ function cachedDelayParams(entry, stage, frame, sample) {
     position: !!values[offset + 3], scale: !!values[offset + 4], rotation: !!values[offset + 5] } : null;
 }
 
-module.exports = { cacheStats, cachedDelayParams, cachedDelayTarget, clearDelayCache, delayCacheFor, staticReaders, sectionReaders, MAX_LETTERS, WINDOW_SAMPLES };
+module.exports = { cacheStats, cachedDelayParams, cachedDelayTarget, clearDelayCache, delayCacheFor, staticReaders, sectionReaders, MAX_GENERATIONS, MAX_LETTERS, WINDOW_SAMPLES };
