@@ -31,14 +31,20 @@ Control reference: [shape-plus](/docs/reference/shape-plus/).
 ## Mask a Scene or Adjustment layer
 
 1. Select a Scene or Adjustment clip (click it in the timeline).
-2. Click the **Mask pen (m)** toolbar button. The pen overlay appears.
+2. Click the **Mask pen (q)** toolbar button, or press Q. The pen overlay
+   appears.
 3. Click in the preview to draw mask vertices. Press Enter to finish.
-4. Drag anchors to reshape. Press Ctrl+Z to undo.
+4. Press Q again to edit points: drag anchors to reshape. Press Ctrl+Z to
+   undo. Press Q a third time to stop editing masks.
 5. Find the **Masks** group under the layer in Properties. Each mask has a
    mode (click to cycle Add, Subtract, Intersect), Feather, Opacity, an
    invert and enable toggle, a path keyframe toggle, Edit, and Delete.
 6. To animate the mask, move the playhead, press the ◆ keyframe toggle,
    and edit the path to create the next keyed pose.
+
+While mask editing is off, drags in the preview go to the viewport as
+usual, so you can orbit the editing camera and use the transform controls.
+Selecting another clip also turns mask editing off.
 
 Masks multiply the layer alpha by their coverage after all effects run.
 On a Scene layer the mask cuts the layer to transparent. On an Adjustment

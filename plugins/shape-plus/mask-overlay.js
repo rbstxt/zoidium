@@ -129,16 +129,23 @@ function install(context, Content) {
     return maskSessionFor(layer, () => createMaskSession({ PZ, editor, project: editor.project, nativeLayer: layer, Content,
       notify: text => context.ui.notify({ title: "Masks", message: text }) }));
   }
-  let view = null, tool = "select", enabled = true, disposed = false;
-  function setTool(next) {
-    tool = next;
-    view?.tool(next);
+  // The overlay owns viewport pointer input only while mask editing is on:
+  // "off" leaves drags to the native viewport (editing-camera orbit, the 2D
+  // transform widget); "pen" draws; "select" reshapes. Q cycles
+  // off → pen → select → off. M stays the native marker toggle.
+  const MODES = ["off", "pen", "select"];
+  let view = null, mode = "off", modeLayer = null, disposed = false;
+  function setMode(next) {
+    if (!MODES.includes(next)) throw Error(`Unknown mask mode ${next}`);
+    mode = next;
+    if (mode === "off") { view?.dispose(); view = null; }
+    else view?.tool(mode);
     tick(false);
   }
-  const command = { title: "Mask pen (m)", key: "m", fn: () => setTool(tool === "pen" ? "select" : "pen") };
+  const command = { title: "Mask pen (q)", key: "q", fn: () => setMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]) };
   const button = document.createElement("button");
-  button.title = "Mask pen (m)";
-  button.setAttribute("aria-label", "Mask pen (m)");
+  button.title = "Mask pen (q)";
+  button.setAttribute("aria-label", "Mask pen (q)");
   button.cmd = command;
   const image = icon(document, "pen");
   image.style.cssText = "width:25px;height:25px;pointer-events:none";
@@ -146,16 +153,29 @@ function install(context, Content) {
   button.onclick = toolbar.click.bind(toolbar);
   transform.after(button);
   toolbar.buttons.push(command);
-  const changed = () => { view?.dispose(); view = null; };
+  const changed = () => { view?.dispose(); view = null; mode = "off"; };
   editor.onProjectChanged.watch(changed);
-  // Native transform controls take over the viewport; yield like Shape+.
+  // Hide the native 2D widget while the overlay is mounted and give back
+  // both its visibility and its edit state afterwards.
   let hiddenWidget = null;
+  function hideWidget() {
+    if (hiddenWidget !== null) return;
+    hiddenWidget = { visibility: viewport.widget2d.el.style.visibility, edit: viewport.widget2d.edit };
+    viewport.widget2d.edit = false;
+    viewport.widget2d.el.style.visibility = "hidden";
+  }
+  function restoreWidget() {
+    if (hiddenWidget === null) return;
+    const previous = hiddenWidget;
+    hiddenWidget = null;
+    viewport.widget2d.el.style.visibility = previous.visibility;
+    if (viewport.widget2d.edit !== previous.edit) viewport.widget2d.edit = previous.edit;
+  }
+  // Turning on the native transform controls ends mask editing.
   const transformChanged = () => {
-    if (view && viewport.widget2d.edit) {
-      if (hiddenWidget) hiddenWidget.edit = viewport.widget2d.edit;
-      view.dispose(); view = null;
-      tick(false);
-    }
+    if (!view || !viewport.widget2d.edit) return;
+    if (hiddenWidget) hiddenWidget.edit = true;
+    setMode("off");
   };
   viewport.widget2d.onEditChanged.watch(transformChanged);
   let request;
@@ -163,32 +183,31 @@ function install(context, Content) {
     if (disposed) return;
     const found = maskClip(editor, viewport, PZ);
     const layer = found?.layer || null;
-    if (view && (!found || !view.state.valid())) { view.dispose(); view = null; }
-    if (found && !view) {
+    // A different selection starts with mask editing off.
+    if (layer !== modeLayer) {
+      modeLayer = layer;
+      if (mode !== "off") mode = "off";
+    }
+    const active = !!found && mode !== "off";
+    if (view && (!active || !view.state.valid())) { view.dispose(); view = null; }
+    if (active && !view) {
       const session = sessionFor(layer);
-      view = mountMaskOverlay(session, viewport, context, tool);
-      // Selecting the pen with existing masks edits the last one; a fresh
-      // click in pen mode starts a new mask path.
+      view = mountMaskOverlay(session, viewport, context, mode);
+      // Entering the pen with existing masks continues the last one unless
+      // the Masks panel already picked a mask to edit.
       const masks = getMasks(layer);
-      if (masks.length && tool === "pen") session.s.selectItem(masks[masks.length - 1].id);
+      if (masks.length && !session.s.activeId) session.s.selectItem(masks[masks.length - 1].id);
     }
     if (view) {
-      if (hiddenWidget === null) {
-        hiddenWidget = { visibility: viewport.widget2d.el.style.visibility, edit: viewport.widget2d.edit };
-        viewport.widget2d.edit = false;
-      }
-      viewport.widget2d.el.style.visibility = "hidden";
+      hideWidget();
       view.update();
-    } else {
-      if (hiddenWidget !== null) {
-        viewport.widget2d.el.style.visibility = hiddenWidget.visibility;
-        hiddenWidget = null;
-      }
-    }
+    } else restoreWidget();
     button.disabled = !found;
-    button.setAttribute("aria-pressed", String(!!found && tool === "pen"));
-    image.style.fill = tool === "pen" && found ? "var(--zui-toggle-on)" : "var(--zui-toggle-off)";
-    image.style.color = tool === "pen" && found ? "var(--zui-toggle-on)" : "var(--zui-toggle-off)";
+    const on = !!found && mode !== "off";
+    button.title = on ? `Mask ${mode === "pen" ? "pen" : "point editing"} (q: next)` : "Mask pen (q)";
+    button.setAttribute("aria-pressed", String(on));
+    image.style.fill = on ? "var(--zui-toggle-on)" : "var(--zui-toggle-off)";
+    image.style.color = on ? "var(--zui-toggle-on)" : "var(--zui-toggle-off)";
     if (schedule) request = window.requestAnimationFrame(() => tick());
   }
   tick();
@@ -198,15 +217,13 @@ function install(context, Content) {
     editor.onProjectChanged.unwatch(changed);
     viewport.widget2d.onEditChanged.unwatch(transformChanged);
     view?.dispose();
-    if (hiddenWidget !== null) {
-      viewport.widget2d.el.style.visibility = hiddenWidget.visibility;
-      hiddenWidget = null;
-    }
+    view = null;
+    restoreWidget();
     const index = toolbar.buttons.indexOf(command);
     if (index >= 0) toolbar.buttons.splice(index, 1);
     button.remove();
   });
-  return { sessionFor, setTool };
+  return { sessionFor, setMode };
 }
 
 module.exports = { install, mountMaskOverlay, maskClip, maskableLayer };

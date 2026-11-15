@@ -3,9 +3,14 @@
 const MP4_FORMAT = "mp4_h264";
 const SAMPLE_RATE = 48000;
 
+// RangeError also covers "Maximum call stack size exceeded" and invalid
+// arguments, which are program errors; report those as they are.
 function isMemoryError(error) {
-  return error?.name === "QuotaExceededError" || error instanceof RangeError ||
-    /out of memory|allocation failed|memory allocation|cannot enlarge memory/i.test(error?.message || "");
+  const message = error?.message || "";
+  if (/call stack/i.test(message)) return false;
+  return error?.name === "QuotaExceededError" ||
+    error instanceof RangeError && /array buffer|array length|allocation|memory/i.test(message) ||
+    /out of memory|allocation failed|memory allocation|cannot enlarge memory/i.test(message);
 }
 
 function isMp4(params) {
