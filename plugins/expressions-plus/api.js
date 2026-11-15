@@ -25,36 +25,69 @@ function propertyOf(node, name) {
   return find(node?.customProperties, name);
 }
 
-// Every public handle contains copied values and closure methods only. Host
-// objects, Three objects, DOM nodes and project mutation methods stay private.
-// Legacy programs use the same guarded compiler and original method objects.
-// Only wiggle needs a private receiver; other legacy overrides bind the native
-// receiver exactly as the full API does, including call/apply invocations.
-function createLegacyAPI(options) {
-  const methods = options.methods, overrides = new Map();
-  const names = options.needs.methods || Object.keys(methods);
-  const used = new Set(names.map(name => methods[name]));
-  for (const name of ["random", "linear", "ease", "easeIn", "easeOut", "clamp", "wiggle"]) {
+// Per-evaluation legacy context without per-frame allocation. The overrides for
+// random/linear/ease/easeIn/easeOut/clamp do not depend on the frame, so they
+// are rebuilt only when the methods table (or one of the seven tracked
+// originals) changes; only wiggle keeps a per-evaluation private context.
+// Membership matches the uncached loop exactly: an override exists if and only
+// if the original is present and was statically referenced.
+const LEGACY_OVERRIDE_NAMES = ["random", "linear", "ease", "easeIn", "easeOut", "clamp", "wiggle"];
+const legacyStaticCache = new WeakMap();
+function snapshotMethods(methods) {
+  return LEGACY_OVERRIDE_NAMES.map(name => methods[name]);
+}
+function sameSnapshot(methods, snap) {
+  return methods.random === snap[0] && methods.linear === snap[1] && methods.ease === snap[2] &&
+    methods.easeIn === snap[3] && methods.easeOut === snap[4] && methods.clamp === snap[5] &&
+    methods.wiggle === snap[6];
+}
+function buildStaticOverrides(methods, used) {
+  const overrides = new Map();
+  for (const name of LEGACY_OVERRIDE_NAMES) {
+    if (name === "wiggle") continue;
     const original = methods[name];
     if (!used.has(original)) continue;
     if (["random", "linear", "ease", "easeIn", "easeOut"].includes(name) && original) {
       overrides.set(original, (...args) => original.apply(methods, args));
     } else if (name === "clamp" && original) {
       overrides.set(original, (v, a, b) => original.call(methods, v, a, b));
-    } else if (name === "wiggle" && original) {
-      const privateContext = Object.assign(Object.create(methods), {
-        currentFrame: options.frame, currentValue: options.base, currentProperty: options.property,
-      });
-      for (const [key, fn] of Object.entries(options.wiggleMethods || {})) {
-        if (typeof fn === "function") privateContext[key] = fn;
-      }
-      overrides.set(original, (...args) => privateContext.wiggle(...args));
     }
   }
-  return { methods, overrides };
+  return overrides;
+}
+function createLegacyAPI(methods, needs, frame, base, property, wiggleMethods) {
+  const cacheable = needs !== undefined && needs !== null;
+  let cached = legacyStaticCache.get(methods);
+  let entry = cacheable && cached ? cached.perNeeds.get(needs) : undefined;
+  if (!cached || !sameSnapshot(methods, cached.snap)) {
+    cached = { snap: snapshotMethods(methods), perNeeds: new WeakMap() };
+    legacyStaticCache.set(methods, cached);
+    entry = undefined;
+  }
+  if (entry === undefined || !sameSnapshot(methods, entry.snap)) {
+    const names = needs?.methods || Object.keys(methods);
+    const used = new Set(names.map(name => methods[name]));
+    entry = { snap: snapshotMethods(methods), used, statics: buildStaticOverrides(methods, used) };
+    if (cacheable) cached.perNeeds.set(needs, entry);
+  }
+  const wiggleOriginal = methods.wiggle;
+  if (wiggleOriginal && entry.used.has(wiggleOriginal)) {
+    const privateContext = Object.assign(Object.create(methods), {
+      currentFrame: frame, currentValue: base, currentProperty: property,
+    });
+    for (const [key, fn] of Object.entries(wiggleMethods || {})) {
+      if (typeof fn === "function") privateContext[key] = fn;
+    }
+    const overrides = new Map(entry.statics);
+    overrides.set(wiggleOriginal, (...args) => privateContext.wiggle(...args));
+    return { methods, overrides };
+  }
+  return entry.cached || (entry.cached = { methods, overrides: entry.statics });
 }
 function createAPI(options) {
-  if (options.needs?.full === false) return createLegacyAPI(options);
+  if (options.needs?.full === false) {
+    return createLegacyAPI(options.methods, options.needs, options.frame, options.base, options.property, options.wiggleMethods);
+  }
   const { PZ, owner, property, frame, time, base, read, baseAt } = options;
   const is = type => n => typeof type === "function" && n instanceof type;
   const clip = ancestor(owner, is(PZ.clip));
@@ -224,4 +257,4 @@ function createAPI(options) {
   if (methods.wiggle) overrides.set(methods.wiggle, (...args) => privateContext.wiggle(...args));
   return { api, methods, time, frame, overrides };
 }
-module.exports = { createAPI, copy, record, interpolate, propertyOf, ancestor, named, find };
+module.exports = { createAPI, createLegacyAPI, copy, record, interpolate, propertyOf, ancestor, named, find };
