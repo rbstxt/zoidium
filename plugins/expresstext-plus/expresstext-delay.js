@@ -237,10 +237,47 @@ function sampleStageTarget(layers, stepFrame, letterIndex, list, base, aux) {
 // One Delay layer for one letter: the letter chases its own stage input,
 // so forward and reversed sweeps time identically and static targets hold
 // exactly. Even closes in at uniform speed, Blend fast-then-slow, Spring
-// on a damper. Stacked Delays chain the same way C4D stacks them. Returns
-// a sampler for the next layer: integer steps read the output table
-// (linearly interpolated for fractional queries), the exact end frame
-// reads the fractional tail.
+// on a damper. Stacked Delays chain the same way C4D stacks them. The full
+// simulation below replays the whole window; sequential playback instead
+// continues the stored checkpoint (see extendDelayStage) and only falls
+// back here when the window slides, the timeline scrubs, or the travel
+// grows. Both paths share chaseStep/tailForEndFrame so they stay identical.
+function chaseForParams(params) {
+  if (!params) return { mode: 0, chase: null };
+  const mode = params.mode === 1 || params.mode === 2 ? params.mode : 0;
+  return {
+    mode,
+    chase: {
+      mode,
+      strength: params.strength,
+      position: params.position,
+      scale: params.scale,
+      rotation: params.rotation,
+    },
+  };
+}
+
+// One integer chase step from state toward own. Returns the next state and
+// its output (Spring blends the off-ramp; Even and Blend carry it in the
+// pacing and catch-up). Values match the historical inline loop exactly.
+function chaseStep(state, velocity, own, params, travel, dt) {
+  const { mode, chase } = chaseForParams(params);
+  const chased = copyDelayState(state);
+  chaseToward(chased, velocity, own, own, chase, travel, dt);
+  const output = mode === 2 ? blendDelayOutput(own, chased, params ? params.strength : 0) : chased;
+  return { state: chased, output };
+}
+
+// Fractional tail at the exact end frame from a finished integer state.
+function tailForEndFrame(paramsAt, sampleInput, endFrame, state, velocity, travel, frac) {
+  const params = paramsAt(endFrame);
+  const own = sampleInput(endFrame);
+  const { mode, chase } = chaseForParams(params);
+  const chased = copyDelayState(state);
+  const nextVel = copyDelayVelocity(velocity);
+  chaseToward(chased, nextVel, own, own, chase, travel, frac);
+  return mode === 2 ? blendDelayOutput(own, chased, params ? params.strength : 0) : chased;
+}
 function runDelayLetterStage(layers, delayProps, sampleInput, endFrame, lastStep, index, list, base, retainTable = true, sampleParams) {
   const firstStep = Math.max(0, lastStep - DELAY_SIM_WINDOW);
   const listsAt = (f) => plainListsAt(layers, f);
@@ -249,66 +286,38 @@ function runDelayLetterStage(layers, delayProps, sampleInput, endFrame, lastStep
   const targets = [];
   for (let f = firstStep; f <= lastStep; f += 1) targets.push(sampleInput(f));
   const travel = { position: [0, 0, 0], rotation: [0, 0, 0], scale: [0, 0, 0] };
+  const lo = { position: [0, 0, 0], rotation: [0, 0, 0], scale: [0, 0, 0] };
+  const hi = { position: [0, 0, 0], rotation: [0, 0, 0], scale: [0, 0, 0] };
   for (const key of ["position", "rotation", "scale"]) {
     for (let axis = 0; axis < 3; axis += 1) {
-      let lo = Infinity;
-      let hi = -Infinity;
+      let loValue = Infinity;
+      let hiValue = -Infinity;
       for (let k = 0; k < targets.length; k += 1) {
         const v = targets[k][key][axis];
-        if (v < lo) lo = v;
-        if (v > hi) hi = v;
+        if (v < loValue) loValue = v;
+        if (v > hiValue) hiValue = v;
       }
-      travel[key][axis] = hi > lo ? hi - lo : 0;
+      lo[key][axis] = loValue;
+      hi[key][axis] = hiValue;
+      travel[key][axis] = hiValue > loValue ? hiValue - loValue : 0;
     }
   }
   // Chase the letter's own target; static targets hold exactly.
   let state = copyDelayState(targets[0]);
-  let velocity = blankDelayVelocity();
+  const velocity = blankDelayVelocity();
   const table = [];
   for (let k = 0; k < targets.length; k += 1) {
     const f = firstStep + k;
-    const params = paramsAt(f);
-    const own = targets[k];
-    const mode = params ? params.mode : 0;
-    const chase = params
-      ? {
-          mode: mode === 1 || mode === 2 ? mode : 0,
-          strength: params.strength,
-          position: params.position,
-          scale: params.scale,
-          rotation: params.rotation,
-        }
-      : null;
-    const chased = retainTable ? copyDelayState(state) : state;
-    chaseToward(chased, velocity, own, own, chase, travel, 1);
-    state = chased;
-    // Spring blends (its deadbeat point is singular, so the trail would
-    // never fully switch off otherwise); Even and Blend carry their
-    // off-ramp in the pacing and catch-up.
-    const output = mode === 2 ? blendDelayOutput(own, chased, params ? params.strength : 0) : chased;
-    if (retainTable) table.push(output);
-    else table[0] = output;
+    const stepped = chaseStep(state, velocity, targets[k], paramsAt(f), travel, 1);
+    state = stepped.state;
+    if (retainTable) table.push(stepped.output);
+    else table[0] = stepped.output;
   }
   // Fractional tail at the exact end frame.
   const frac = endFrame - lastStep;
   let tail = null;
   if (frac > 1e-9) {
-    const params = paramsAt(endFrame);
-    const own = sampleInput(endFrame);
-    const mode = params ? params.mode : 0;
-    const chase = params
-      ? {
-          mode: mode === 1 || mode === 2 ? mode : 0,
-          strength: params.strength,
-          position: params.position,
-          scale: params.scale,
-          rotation: params.rotation,
-        }
-      : null;
-    const chased = copyDelayState(state);
-    const nextVel = copyDelayVelocity(velocity);
-    chaseToward(chased, nextVel, own, own, chase, travel, frac);
-    tail = mode === 2 ? blendDelayOutput(own, chased, params ? params.strength : 0) : chased;
+    tail = tailForEndFrame(paramsAt, sampleInput, endFrame, state, velocity, travel, frac);
   } else {
     tail = table[table.length - 1];
   }
@@ -322,6 +331,8 @@ function runDelayLetterStage(layers, delayProps, sampleInput, endFrame, lastStep
     return out;
   };
   return {
+    // Integer steps read the output table (linearly interpolated for
+    // fractional queries), the exact end frame reads the fractional tail.
     sample(stepFrame) {
       if (stepFrame >= endFrame - 1e-9) return tail;
       if (stepFrame <= firstStep) return table[0];
@@ -331,7 +342,110 @@ function runDelayLetterStage(layers, delayProps, sampleInput, endFrame, lastStep
       if (!(t > 1e-9)) return a;
       return lerpState(a, table[Math.min(table.length - 1, k0 + 1)], t);
     },
+    // Continuation for sequential playback: firstStep/lastStep pin the
+    // window, lo/hi the prefix bounds, state/velocity the chase head.
+    // extendedFrom is the oldest step this sampler cannot serve (full
+    // samplers serve from firstStep, so theirs is firstStep - 1).
+    checkpoint: {
+      firstStep,
+      lastStep,
+      extendedFrom: firstStep - 1,
+      lo,
+      hi,
+      travel,
+      state: copyDelayState(state),
+      velocity: copyDelayVelocity(velocity),
+      lastOutput: table[table.length - 1],
+    },
   };
+}
+
+// Continue a stored chase over the new steps only. The window must only
+// extend (same firstStep, lastStep ahead): old targets, params and travel
+// are then exactly what the full simulation would reuse, so chasing on
+// from the stored head matches it step for step. Any travel growth changes
+// Even pacing for the whole window, so it reruns fully instead. Returns
+// the staged sampler plus its replacement checkpoint, or null when the
+// full simulation must rerun. The sampler answers the new steps and the
+// exact end frame (everything a following incremental stage queries);
+// anything else reads null and the caller falls back to the full path.
+function extendDelayStage(checkpoint, prevSample, sampleParams, endFrame, lastStep) {
+  const firstStep = Math.max(0, lastStep - DELAY_SIM_WINDOW);
+  if (!checkpoint || checkpoint.firstStep !== firstStep) return null;
+  if (!(lastStep >= checkpoint.lastStep)) return null;
+  const fresh = [];
+  for (let f = checkpoint.lastStep + 1; f <= lastStep; f += 1) {
+    const own = prevSample(f);
+    if (!own) return null;
+    fresh.push(own);
+  }
+  // The window only extends, so merge the stored prefix bounds with the
+  // new steps (exact min/max: no rounding, NaN never wins a comparison).
+  const lo = copyDelayState(checkpoint.lo);
+  const hi = copyDelayState(checkpoint.hi);
+  const travel = { position: [0, 0, 0], rotation: [0, 0, 0], scale: [0, 0, 0] };
+  for (const key of ["position", "rotation", "scale"]) {
+    for (let axis = 0; axis < 3; axis += 1) {
+      for (let k = 0; k < fresh.length; k += 1) {
+        const v = fresh[k][key][axis];
+        if (v < lo[key][axis]) lo[key][axis] = v;
+        if (v > hi[key][axis]) hi[key][axis] = v;
+      }
+      travel[key][axis] = hi[key][axis] > lo[key][axis] ? hi[key][axis] - lo[key][axis] : 0;
+      if (travel[key][axis] !== checkpoint.travel[key][axis]) return null;
+    }
+  }
+  let state = copyDelayState(checkpoint.state);
+  const velocity = copyDelayVelocity(checkpoint.velocity);
+  const outputs = [];
+  for (let k = 0; k < fresh.length; k += 1) {
+    const stepped = chaseStep(state, velocity, fresh[k], sampleParams(checkpoint.lastStep + 1 + k), travel, 1);
+    state = stepped.state;
+    outputs.push(stepped.output);
+  }
+  const frac = endFrame - lastStep;
+  // An unchanged integer frame reuses the stored head output; anything
+  // else chases the new steps (or the fractional tail) from the head.
+  const tail = frac > 1e-9
+    ? tailForEndFrame(sampleParams, prevSample, endFrame, state, velocity, travel, frac)
+    : outputs.length ? outputs[outputs.length - 1] : checkpoint.lastOutput;
+  const fromStep = checkpoint.lastStep;
+  return {
+    checkpoint: {
+      firstStep,
+      lastStep,
+      extendedFrom: fromStep,
+      lo,
+      hi,
+      travel,
+      state: copyDelayState(state),
+      velocity: copyDelayVelocity(velocity),
+      // Head output at the integer lastStep (never the fractional tail:
+      // a later integer repeat frame reuses exactly this).
+      lastOutput: outputs.length ? outputs[outputs.length - 1] : checkpoint.lastOutput,
+    },
+    sample(stepFrame) {
+      if (stepFrame >= endFrame - 1e-9) return tail;
+      if (Number.isSafeInteger(stepFrame) && stepFrame > fromStep && stepFrame <= lastStep) {
+        return outputs[stepFrame - fromStep - 1];
+      }
+      return null;
+    },
+  };
+}
+
+// Whether stage `stage` may continue from its checkpoint. Its stored head
+// was chased against the previous stage's earlier outputs, so the previous
+// stage must also have continued this call: a full rerun of an earlier stage
+// can change every output it serves (an Even stage repaces on grown travel),
+// and then every later stage reruns too. The continued sampler must also
+// serve every step the extension queries: its new steps and the end frame.
+function prevStageCovers(checks, extended, stage, oldLast, lastStep) {
+  if (stage === 0) return true;
+  if (extended[stage - 1] !== true) return false;
+  const prev = checks ? checks[stage - 1] : null;
+  if (!prev) return false;
+  return oldLast >= prev.extendedFrom && lastStep <= prev.lastStep;
 }
 
 function simulateDelayLetter(layers, delays, frame, index, list, base, aux) {
@@ -342,28 +456,55 @@ function simulateDelayLetter(layers, delays, frame, index, list, base, aux) {
   }
   const lastStep = Math.floor(endFrame);
   const cache = delayCacheFor(layers, index, list, base, aux);
+  const checks = cache ? cache.checks || (cache.checks = []) : null;
   const target = (stepFrame) => sampleStageTarget(layers, stepFrame, index, list, base, aux);
-  let sample = (stepFrame) => cachedDelayTarget(cache, stepFrame, target);
-  let out = null;
+  const firstStep = Math.max(0, lastStep - DELAY_SIM_WINDOW);
+  // samplers[stage] feeds stage `stage` (samplers[0] is the stage target).
+  const samplers = [(stepFrame) => cachedDelayTarget(cache, stepFrame, target)];
+  const extended = [];
   for (let stage = 0; stage < delays.length; stage += 1) {
     const delay = delays[stage];
-    const staged = runDelayLetterStage(
-      layers,
-      delay.props,
-      sample,
-      endFrame,
-      lastStep,
-      index,
-      list,
-      base,
-      stage < delays.length - 1,
-      (stepFrame) => cachedDelayParams(cache, stage, stepFrame, (f) =>
-        delayLinkParams(delay.props, f, index, list, base, plainListsAt(layers, f)))
-    );
-    sample = staged.sample;
-    out = sample(endFrame);
+    const paramsFor = (stepFrame) => cachedDelayParams(cache, stage, stepFrame, (f) =>
+      delayLinkParams(delay.props, f, index, list, base, plainListsAt(layers, f)));
+    const checkpoint = checks ? checks[stage] : null;
+    let staged = null;
+    if (checkpoint && checkpoint.firstStep === firstStep && lastStep >= checkpoint.lastStep &&
+        prevStageCovers(checks, extended, stage, checkpoint.lastStep, lastStep)) {
+      staged = extendDelayStage(checkpoint, samplers[stage], paramsFor, endFrame, lastStep);
+    }
+    if (staged) {
+      samplers[stage + 1] = staged.sample;
+      extended[stage] = true;
+      if (checks) checks[stage] = staged.checkpoint;
+      continue;
+    }
+    // Full simulation for this stage. Earlier stages that continued
+    // incrementally serve only their new steps, so rerun them fully first
+    // (the full path rebuilds the whole window exactly like before).
+    let from = stage;
+    while (from > 0 && extended[from - 1]) from -= 1;
+    for (let j = from; j <= stage; j += 1) {
+      const resumed = delays[j];
+      const resumedParams = (stepFrame) => cachedDelayParams(cache, j, stepFrame, (f) =>
+        delayLinkParams(resumed.props, f, index, list, base, plainListsAt(layers, f)));
+      const full = runDelayLetterStage(
+        layers,
+        resumed.props,
+        samplers[j],
+        endFrame,
+        lastStep,
+        index,
+        list,
+        base,
+        j < delays.length - 1,
+        resumedParams
+      );
+      samplers[j + 1] = full.sample;
+      extended[j] = false;
+      if (checks) checks[j] = full.checkpoint;
+    }
   }
-  return out;
+  return samplers[delays.length](endFrame);
 }
 
-module.exports = { DELAY_BLEND_CATCH, DELAY_EVEN_SPAN, DELAY_SIM_WINDOW, DELAY_SPRING_DAMP, DELAY_SPRING_DAMP_MIN, DELAY_SPRING_STIFF, blankDelayVelocity, blendDelayOutput, chaseToward, copyDelayState, copyDelayVelocity, delayLinkParams, evaluateEffectors, evaluateStack, plainListsAt, runDelayLetterStage, sampleStageTarget, simulateDelayLetter };
+module.exports = { DELAY_BLEND_CATCH, DELAY_EVEN_SPAN, DELAY_SIM_WINDOW, DELAY_SPRING_DAMP, DELAY_SPRING_DAMP_MIN, DELAY_SPRING_STIFF, blankDelayVelocity, blendDelayOutput, chaseToward, chaseStep, copyDelayState, copyDelayVelocity, delayLinkParams, evaluateEffectors, evaluateStack, extendDelayStage, plainListsAt, prevStageCovers, runDelayLetterStage, sampleStageTarget, simulateDelayLetter, tailForEndFrame };
