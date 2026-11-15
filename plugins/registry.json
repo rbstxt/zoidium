@@ -245,7 +245,7 @@
       "category": "scene",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "34",
+      "version": "35",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "2D and 3D text",
@@ -254,16 +254,16 @@
       "description": "Adds per-character animation and 3D face materials to Text, plus advanced 3D bevel controls.",
       "credits": "Credits: DaviFX",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=34",
-      "bundle": "./plugins/text-plus/bundle.json?v=34",
-      "integrity": "sha256-0pLmOeqS9MWYugVjnuHs9rXxgYPntMBgg9UpnvBntU8="
+      "manifest": "./plugins/text-plus/manifest.json?v=35",
+      "bundle": "./plugins/text-plus/bundle.json?v=35",
+      "integrity": "sha256-+HrqOSEjnLmHbXTUxxhFck17VNxfvC2zNMSQ8NSVgXk="
     },
     {
       "id": "expresstext-plus",
       "category": "scene",
       "name": "ExpressText+",
       "author": "DaviFX",
-      "version": "6",
+      "version": "7",
       "defaultEnabled": true,
       "itemCount": 11,
       "format": "3D text containers",
@@ -271,9 +271,9 @@
       "color": "#b2704f",
       "description": "Tracks separate 3D text letters and drives them with Shake, Plain, Random, Formula, Delay, Spline, Orbit, Repeater, Twist, Wrap and Voronoi effectors.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/expresstext-plus/manifest.json?v=6",
-      "bundle": "./plugins/expresstext-plus/bundle.json?v=6",
-      "integrity": "sha256-kflIGmxXdwJQu6DVBuq24TQTHt86fCU+f2pt89WNHps="
+      "manifest": "./plugins/expresstext-plus/manifest.json?v=7",
+      "bundle": "./plugins/expresstext-plus/bundle.json?v=7",
+      "integrity": "sha256-IrAzgwk/9+NE+PH8gpgpKkefO9NXHPWwAWrG2VCux3w="
     },
     {
       "id": "particles-plus",
