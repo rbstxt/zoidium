@@ -246,6 +246,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Playback no longer freezes or crawls at about 1 fps after you switch to
+  another window or tab while the preview plays. When the browser pauses a
+  video or audio clip in the background, playback keeps its pace and the clip
+  resumes in sync.
 - The preview no longer stops with "Maximum call stack size exceeded" in
   projects with a camera inside a group on a 3D track (for example after
   copying a Camera+ camera into a group), and such projects export again.
