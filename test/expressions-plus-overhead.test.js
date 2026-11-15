@@ -16,7 +16,8 @@ function trapMethods() {
   new Function("PZ", fs.readFileSync(TRAPCODE, "utf8"))(scratch.PZ);
   return scratch.PZ.trapcode.expressionMethods;
 }
-const WIGGLE_METHODS = trapMethods();
+// The harness needs the staged CM3 core; without it every test here skips.
+const WIGGLE_METHODS = fs.existsSync(core) ? trapMethods() : null;
 function makeState(installEngine) {
   const state = installEngine ? host({ installEngine, wiggleMethods: WIGGLE_METHODS }) : host({ wiggleMethods: WIGGLE_METHODS });
   new Function("PZ", fs.readFileSync(TRAPCODE, "utf8"))(state.PZ);
@@ -143,4 +144,19 @@ test("old and new engines agree on a legacy/extended corpus with errors and cycl
     assert.deepEqual(after[i], before[i], JSON.stringify(before[i].slice(0, 2)));
   }
   console.log("expressions differential: ", after.length, "comparisons, all identical");
+});
+
+test("a methods-table alias of wiggle still sees the base value", { skip: !fs.existsSync(core) }, () => {
+  const read = installEngine => {
+    const state = makeState(installEngine);
+    state.PZ.expression.methods.wobble = state.PZ.expression.methods.wiggle;
+    state.list = buildWorld(state);
+    state.list.v0.expression = new state.PZ.expression("wobble(2, 30)");
+    state.list.s0.expression = new state.PZ.expression("wobble(1, 4)");
+    return [0, 7, 45.5, 120].flatMap(frame => [freeze(state.list.v0.get(frame)), freeze(state.list.s0.get(frame)),
+      state.list.v0.expression.error, state.list.s0.expression.error]);
+  };
+  const before = read(oldEngine.installEngine), after = read(undefined);
+  assert.deepEqual(after, before);
+  assert.ok(before.some(value => Array.isArray(value) || Number.isFinite(value)), "the alias evaluates to values");
 });

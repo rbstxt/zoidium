@@ -110,12 +110,18 @@ function installEngine(options) {
     const methods = PZ.expression.methods;
     // The full API exposes the base through `value` and its derivatives, so
     // it always needs it. Legacy reads it only for time properties and for
-    // the wiggle receiver; anything else stays unread. Like the old eager
-    // read, this stays outside the guarded section so a throwing native
-    // getter propagates exactly as before.
+    // the wiggle receiver; anything else stays unread. Wiggle use is matched
+    // by function identity, as the legacy override is, so a methods-table
+    // alias of wiggle still gets the base. When the base is read, it is read
+    // before the guarded section, so a throwing native getter propagates as
+    // before; when it is not read, such a getter is only reached on the
+    // fallback paths.
     // Time expressions use their native value as context, without reading
     // themselves again. Other properties read the evaluated clip time.
-    const needBase = !legacy || isTime || (methods.wiggle && (!result.needs.methods || result.needs.methods.includes("wiggle")));
+    const names = result.needs.methods, wiggle = methods.wiggle;
+    let usesWiggle = !!wiggle && !names;
+    if (wiggle && names) for (let i = 0; i < names.length && !usesWiggle; i += 1) usesWiggle = methods[names[i]] === wiggle;
+    const needBase = !legacy || isTime || usesWiggle;
     const base = needBase ? baseAt(property, frame) : undefined;
     try {
       const time = clip ? isTime ? base : read(clip.properties.time, frame) : 0;
