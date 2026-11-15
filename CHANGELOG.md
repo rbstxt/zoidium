@@ -7,7 +7,7 @@ each line describes one visible change.
 
 ### Added
 
-- Scene and Adjustment layers can have masks drawn with the Mask pen (M in
+- Scene and Adjustment layers can have masks drawn with the Mask pen (Q in
   the toolbar), with Add, Subtract, and Intersect modes, Feather, Opacity,
   Invert, and an animatable path. On an Adjustment layer, its effects apply
   only inside the mask. Masks are listed under Masks in the layer's
@@ -177,6 +177,16 @@ each line describes one visible change.
 
 ### Fixed
 
+- The preview no longer stops with "Maximum call stack size exceeded" in
+  projects with a camera inside a group on a 3D track (for example after
+  copying a Camera+ camera into a group), and such projects export again.
+- Selecting a Scene or Adjustment layer no longer turns drags in the preview
+  into a mask selection box: the editing camera orbits again, and T shows the
+  transform controls again. Mask editing now starts only with the Mask pen
+  (Q): press Q to draw, again to edit points, and again to stop. M toggles
+  markers as before.
+- An export that fails because of a program error no longer says that MP4
+  ran out of memory or temporary storage.
 - Shape+ SVG import accepts files from Inkscape, Illustrator, Figma, and
   Scratch that include comments, editor metadata, titles, or an empty defs
   section. These parts are ignored; the imported shapes are unchanged.
