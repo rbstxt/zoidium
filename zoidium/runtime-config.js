@@ -72,6 +72,7 @@
       "./plugins/core/remove-community-media.js",
       "./plugins/core/composite-video-materials.js",
       "./plugins/core/playback-seek-sync.js",
+      "./plugins/core/playback-media-clock.js",
       "./plugins/core/export-audio-trace.js",
       "./zoidium/direct-download.js",
       "./plugins/core/project-files-shared.js",
