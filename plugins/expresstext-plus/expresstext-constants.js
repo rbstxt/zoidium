@@ -36,8 +36,45 @@ const state = {
   textPatched: false,
   originalTextUpdate: null,
   originalTextUpdateGeometry: null,
+  // Live ExpressText+ containers and effectors (every class carrying
+  // zoidiumExpressTextObject or zoidiumExpressEffector). The patched 3D
+  // Text update skips its ancestor walk while this is zero; the count
+  // only ever errs towards walking (see trackExpressInstance).
+  liveExpressCount: 0,
 };
+
+/* ------------------------------------------------- live tracking */
+
+// Live registration for the per-frame fast path. Every ExpressText+
+// container and effector class calls trackExpressInstance from its
+// constructor and load, and untrackExpressInstance from unload; the
+// __zoidiumExpressCounted flag keeps construction plus load on the same
+// instance at one count. Counting errs towards walking: an instance that
+// cannot be flagged or unflagged still counts while alive, so a zero
+// count always means no live ExpressText+ object or effector.
+function trackExpressInstance(instance) {
+  if (!instance) return;
+  try {
+    if (instance.__zoidiumExpressCounted === true) return;
+    instance.__zoidiumExpressCounted = true;
+  } catch (_flag) {
+    // Flagging failed (frozen object): count it anyway and never trust a
+    // zero count while it may be alive.
+  }
+  state.liveExpressCount += 1;
+}
+
+function untrackExpressInstance(instance) {
+  try {
+    if (!instance || instance.__zoidiumExpressCounted !== true) return;
+    instance.__zoidiumExpressCounted = false;
+  } catch (_flag) {
+    // Unflagging failed: keep the count high and keep walking.
+    return;
+  }
+  state.liveExpressCount = Math.max(0, state.liveExpressCount - 1);
+}
 
 /* ------------------------------------------------------------------ numbers */
 
-module.exports = { DEGREES_TO_RADIANS, DELAY_MODE_LABELS, DELAY_ORDER_LABELS, EXPRESS_TEXT_NAME, EXPRESS_TEXT_TYPE, FIELD_LABELS, MAX_ANCESTOR_DEPTH, PIVOT_LABELS, PZ_EULER_ORDERS, RANDOM_MODE_LABELS, RANDOM_SPACE_LABELS, REPEATER_MAX_COPIES, REPEATER_MODE_LABELS, SCHEMA_VERSION, SPLINE_MODE_LABELS, SPLINE_PATH_LABELS, SPLINE_PLANE_LABELS, SPLINE_TRANSFORM_LABELS, TWIST_AXIS_LABELS, WRAP_DIRECTION_LABELS, state };
+module.exports = { DEGREES_TO_RADIANS, DELAY_MODE_LABELS, DELAY_ORDER_LABELS, EXPRESS_TEXT_NAME, EXPRESS_TEXT_TYPE, FIELD_LABELS, MAX_ANCESTOR_DEPTH, PIVOT_LABELS, PZ_EULER_ORDERS, RANDOM_MODE_LABELS, RANDOM_SPACE_LABELS, REPEATER_MAX_COPIES, REPEATER_MODE_LABELS, SCHEMA_VERSION, SPLINE_MODE_LABELS, SPLINE_PATH_LABELS, SPLINE_PLANE_LABELS, SPLINE_TRANSFORM_LABELS, TWIST_AXIS_LABELS, WRAP_DIRECTION_LABELS, state, trackExpressInstance, untrackExpressInstance };

@@ -2,7 +2,7 @@
 
 // ExpressText+ container class, text patches and activation.
 const { clearDelayCache } = require("./expresstext-delay-cache.js");
-const { DELAY_MODE_LABELS, DELAY_ORDER_LABELS, EXPRESS_TEXT_NAME, EXPRESS_TEXT_TYPE, FIELD_LABELS, RANDOM_MODE_LABELS, RANDOM_SPACE_LABELS, REPEATER_MAX_COPIES, REPEATER_MODE_LABELS, SCHEMA_VERSION, SPLINE_MODE_LABELS, SPLINE_PATH_LABELS, SPLINE_PLANE_LABELS, SPLINE_TRANSFORM_LABELS, TWIST_AXIS_LABELS, WRAP_DIRECTION_LABELS, state } = require("./expresstext-constants.js");
+const { DELAY_MODE_LABELS, DELAY_ORDER_LABELS, EXPRESS_TEXT_NAME, EXPRESS_TEXT_TYPE, FIELD_LABELS, RANDOM_MODE_LABELS, RANDOM_SPACE_LABELS, REPEATER_MAX_COPIES, REPEATER_MODE_LABELS, SCHEMA_VERSION, SPLINE_MODE_LABELS, SPLINE_PATH_LABELS, SPLINE_PLANE_LABELS, SPLINE_TRANSFORM_LABELS, TWIST_AXIS_LABELS, WRAP_DIRECTION_LABELS, state, trackExpressInstance, untrackExpressInstance } = require("./expresstext-constants.js");
 const { fieldWeight, isLetterSelected, numberValue, parseLetterSelection, resolveSelection, selectedList, splitSelectionTokens, strengthWeight, vector3 } = require("./expresstext-select.js");
 const { compileFormula, parseFormula, tokenizeFormula } = require("./expresstext-formula.js");
 const { delayRank, fractalNoise3, hashLattice, hashSeed, seededRandom, shakeValue, shuffledStrata, valueNoise3 } = require("./expresstext-random.js");
@@ -166,6 +166,7 @@ function createExpressObjectClass(PZ, definition) {
       super();
       this.objects.name = definition.objectsName;
       if (this.threeObj) this.threeObj.__zoidiumExpressOwner = this;
+      trackExpressInstance(this);
       // The customs list carries our scoped item class, so the stock +
       // dialog on ExpressText+ containers offers only effectors. The row
       // keeps its stock "Custom properties" label.
@@ -205,6 +206,9 @@ function createExpressObjectClass(PZ, definition) {
         const stockLoad = this.load;
         const self = this;
         this.load = function (data) {
+          // Loading from a saved project registers too: construction and
+          // load share one count per instance, so either order counts once.
+          trackExpressInstance(self);
           let loadData = data;
           let stashed = null;
           try {
@@ -269,6 +273,12 @@ function createExpressObjectClass(PZ, definition) {
       data.expressProperties = this.expressProperties;
       return data;
     }
+
+    unload() {
+      untrackExpressInstance(this);
+      if (typeof super.unload === "function") return super.unload();
+      return undefined;
+    }
   }
 
   ExpressObject.prototype.defaultName = definition.name;
@@ -293,6 +303,12 @@ function installTextPatches(PZ) {
       const out = originalUpdate.call(this, frame);
       try {
         if (!patchedUpdate.__expressTextPlusAlive) return out;
+        // Fast path: with no live ExpressText+ object or effector the
+        // walk below would find nothing, so keep only the native update.
+        // Stale split state still falls through to restore exactly once.
+        if (state.liveExpressCount === 0 && !state.splitStates.has(this)) {
+          return out;
+        }
         syncExpressRendering(this, frame);
       } catch (_error) {}
       return out;
