@@ -24,12 +24,17 @@ function createCallGuard(limit = 10000000) {
   let remaining = limit, depth = 0, bounded = true;
   let overrides = new Map();
   const info = new WeakMap(), wrappers = new WeakMap(), receivers = new WeakMap();
+  const boundMethods = new WeakMap(), resolved = new WeakMap();
   function tick() { if (bounded && --remaining < 0) throw new Error("Expression iteration/call budget exceeded"); }
   function describe(fn) {
     if (typeof fn !== "function") return Object.create(null);
     if (info.has(fn)) return info.get(fn);
     const source = apply(nativeSource, fn, []);
-    const value = Object.assign(Object.create(null), { forbidden: constructors.test(source) || dynamic.test(source), native: nativeName.exec(source)?.[1] });
+    const native = nativeName.exec(source)?.[1];
+    // Precompute everything dispatch derives from the function identity, so a
+    // plain call costs one WeakMap lookup instead of repeated Map lookups.
+    const value = Object.assign(Object.create(null), { forbidden: constructors.test(source) || dynamic.test(source), native,
+      slots: callbackSlots.get(native), protocol: protocolMethods.get(native) });
     info.set(fn, value);
     return value;
   }
@@ -58,11 +63,23 @@ function createCallGuard(limit = 10000000) {
   }
   function dispatch(fn, receiver, args, newTarget) {
     tick();
-    let meta = describe(fn);
-    while (meta.target) {
-      if (meta.bound) receiver = meta.receiver;
-      fn = meta.target; meta = describe(fn);
+    // Resolve proxy chains once per function. The record keeps the final
+    // target, its precomputed description and the receiver the chain fixes
+    // (a bound link always wins over the call-site receiver, exactly like the
+    // loop this replaces). The overrides table stays dynamic per evaluation.
+    let record = resolved.get(fn);
+    if (record === undefined) {
+      let meta = describe(fn), target = fn, fixed = false, fixedReceiver;
+      while (meta.target) {
+        if (meta.bound) { fixed = true; fixedReceiver = meta.receiver; }
+        target = meta.target; meta = describe(target);
+      }
+      record = { fn: target, meta, fixed, fixedReceiver };
+      resolved.set(fn, record);
     }
+    if (record.fixed) receiver = record.fixedReceiver;
+    fn = record.fn;
+    const meta = record.meta;
     if (meta.forbidden) throw new Error("Expression cannot call Function constructors or eval, or functions they create");
     if (overrides.has(fn)) return apply(overrides.get(fn), receiver, args);
     if (meta.native === "call") return invoke(receiver, args[0], args.slice(1));
@@ -72,13 +89,13 @@ function createCallGuard(limit = 10000000) {
       // compiler call site. Bind the guarded callable, including other realms.
       return apply(fn, wrap(receiver), args);
     }
-    const slots = callbackSlots.get(meta.native);
-    if (slots?.some(slot => typeof args[slot] === "function")) {
+    const slots = meta.slots;
+    if (slots !== undefined && slots.some(slot => typeof args[slot] === "function")) {
       args = args.slice();
       for (const slot of slots) if (typeof args[slot] === "function") args[slot] = wrap(args[slot]);
     }
-    const protocol = protocolMethods.get(meta.native);
-    if (protocol && args[0] !== null && (typeof args[0] === "object" || typeof args[0] === "function")) {
+    const protocol = meta.protocol;
+    if (protocol !== undefined && args[0] !== null && (typeof args[0] === "object" || typeof args[0] === "function")) {
       // Well-known symbols are shared by every realm.
       if (describe(protocolTarget(args[0][Symbol[protocol]])).forbidden) throw new Error("Expression cannot call Function constructors or eval, or functions they create");
     }
@@ -107,7 +124,19 @@ function createCallGuard(limit = 10000000) {
       if (value == null) return value;
       const object = Object(value);
       if (receivers.has(object)) return receivers.get(object);
-      const proxy = new Proxy(Object.create(null), { get(_target, key) { return wrap(Reflect.get(object, key, value), value, true); } });
+      // Method wrappers for one receiver are stable: the same (object, method)
+      // pair returns the identical proxy. The method is still read fresh on
+      // every access, so getters that return a new function are never stale;
+      // only the wrapper for an unchanged method is reused.
+      const proxy = new Proxy(Object.create(null), { get(_target, key) {
+        const current = Reflect.get(object, key, value);
+        if (typeof current !== "function" || (typeof value !== "object" && typeof value !== "function")) return wrap(current, value, true);
+        let byMethod = boundMethods.get(object);
+        if (!byMethod) { byMethod = new Map(); boundMethods.set(object, byMethod); }
+        let bound = byMethod.get(current);
+        if (!bound) { bound = wrap(current, value, true); byMethod.set(current, bound); }
+        return bound;
+      } });
       receivers.set(object, proxy);
       return proxy;
     },

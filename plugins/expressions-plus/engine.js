@@ -1,7 +1,7 @@
 "use strict";
 const { compile, createSharedMutationCache, sandboxFunction } = require("./compiler.js");
 const { createCallGuard } = require("./call-guard.js");
-const { createAPI, copy, ancestor } = require("./api.js");
+const { createAPI, createLegacyAPI, copy, ancestor } = require("./api.js");
 
 function installEngine(options) {
   const { PZ, document: doc, patch } = options;
@@ -60,6 +60,8 @@ function installEngine(options) {
   const baseGetters = new Map();
   const protos = [PZ.property.dynamic.prototype, PZ.property.dynamic.group.prototype, PZ.property.dynamic.keyframes.prototype];
   for (const proto of protos) baseGetters.set(proto, proto.get);
+  const isClip = node => node instanceof PZ.clip;
+  const protoCache = new WeakMap();
   function baseAt(p, frame) {
     if (!p) return undefined;
     // A property whose default is an expression, such as CM3's Glitch Time,
@@ -70,7 +72,13 @@ function installEngine(options) {
       // The host stores an observable backing slot. Avoid firing UI events
       // while reading a base value during rendering.
       p._expression = null;
-      const proto = protos.findLast(proto => proto.isPrototypeOf(p));
+      // The prototype chain of a property never changes; cache the lookup.
+      let proto = protoCache.get(p);
+      if (proto === undefined) {
+        proto = false;
+        for (const candidate of protos) if (candidate.isPrototypeOf(p)) proto = candidate;
+        protoCache.set(p, proto);
+      }
       return copy(proto ? baseGetters.get(proto).call(p, frame) : p.get(frame));
     } finally { p._expression = expression; }
   }
@@ -81,31 +89,56 @@ function installEngine(options) {
     return result;
   }
   function evaluate(expression, frame, owner, property) {
-    if (!compiled.has(expression)) { expression.fn = expression.parse(expression.source); }
-    const result = compiled.get(expression);
-    const base = baseAt(property, frame);
-    if (!result || result.failed) return base;
-    if (active.has(property)) { report(expression, property, new Error("Expression property cycle detected")); return base; }
+    let result = compiled.get(expression);
+    if (result === undefined) {
+      expression.fn = expression.parse(expression.source);
+      result = compiled.get(expression);
+    }
+    // The native base value is only a fallback (failed compiles, cycles and
+    // unusable results) plus the `value` observable and the wiggle context.
+    // Read it eagerly only when the program can observe it, so the hot path
+    // skips the native getter entirely.
+    if (!result || result.failed) return baseAt(property, frame);
+    if (active.has(property)) { report(expression, property, new Error("Expression property cycle detected")); return baseAt(property, frame); }
     const outer = active.size === 0;
     let previousOverrides;
     if (outer) guard.reset(result.extended);
     active.add(property);
+    const clip = ancestor(owner, isClip);
+    const isTime = clip && property === clip.properties.time;
+    const legacy = result.needs.full === false;
+    const methods = PZ.expression.methods;
+    // The full API exposes the base through `value` and its derivatives, so
+    // it always needs it. Legacy reads it only for time properties and for
+    // the wiggle receiver; anything else stays unread. Like the old eager
+    // read, this stays outside the guarded section so a throwing native
+    // getter propagates exactly as before.
+    // Time expressions use their native value as context, without reading
+    // themselves again. Other properties read the evaluated clip time.
+    const needBase = !legacy || isTime || (methods.wiggle && (!result.needs.methods || result.needs.methods.includes("wiggle")));
+    const base = needBase ? baseAt(property, frame) : undefined;
     try {
-      const clip = ancestor(owner, n => n instanceof PZ.clip);
-      // Time expressions use their native value as context, without reading
-      // themselves again. Other properties read the evaluated clip time.
-      const time = clip ? property === clip.properties.time ? base : read(clip.properties.time, frame) : 0;
-      const context = createAPI({ PZ, owner, property, frame, time, base, read, baseAt,
-        methods: PZ.expression.methods, wiggleMethods: options.wiggleMethods,
-        controls: options.controls, world: options.world, extended: result.extended, needs: result.needs });
+      const time = clip ? isTime ? base : read(clip.properties.time, frame) : 0;
+      // Legacy programs only observe methods, the frame, the base and the
+      // property, so they skip the full context object (and its allocation).
+      const context = legacy
+        ? createLegacyAPI(methods, result.needs, frame, base, property, options.wiggleMethods)
+        : createAPI({ PZ, owner, property, frame, time, base, read, baseAt,
+          methods, wiggleMethods: options.wiggleMethods,
+          controls: options.controls, world: options.world, extended: result.extended, needs: result.needs });
       const pure = result.fn.zoidiumPure;
-      const helpers = { ...guard, api: context.api, pure };
+      // Legacy helpers never carry an API handle and the guard functions are
+      // stable per engine, so one helpers object serves every evaluation of
+      // the same compiled expression. Full programs build their own context.
+      const helpers = legacy
+        ? result.helpers || (result.helpers = { ...guard, api: undefined, pure })
+        : { ...guard, api: context.api, pure };
       previousOverrides = guard.swapOverrides(context.overrides);
       const custom = expression.getCustomProperties(frame, owner);
       const value = result.fn(frame, time, context.methods, custom, pure.Math, helpers);
       report(expression, property, unusableResult(expression, property, value));
       return value;
-    } catch (error) { report(expression, property, error); return base; }
+    } catch (error) { report(expression, property, error); return base !== undefined ? base : baseAt(property, frame); }
     finally { if (previousOverrides) guard.swapOverrides(previousOverrides); active.delete(property); }
   }
   patch(PZ.expression.prototype, "evaluate", () => function evaluateExtended(frame, owner, property) {
