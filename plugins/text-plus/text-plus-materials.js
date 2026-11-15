@@ -1,6 +1,6 @@
 "use strict";
 
-const { normalizeObjectData } = require("./text-plus-utils.js");
+const { normalizeObjectData, trackTextPlusInstance, untrackTextPlusInstance } = require("./text-plus-utils.js");
 const { createPropertyCategory } = require("./text-plus-properties.js");
 const { parseCharacterSelection, propertyValue } = require("./text-plus-controls.js");
 
@@ -29,12 +29,14 @@ function createClass(PZ) {
       this.sideMaterials.name = "Side material";
       // Append collections to keep native addresses stable across slot edits.
       this.children.push(this.frontMaterials, this.sideMaterials);
+      trackTextPlusInstance(this);
     }
 
     load(data) {
       const normalized = normalizeObjectData(data, TYPE, NAME, 1);
       super.load(normalized);
       this.characterProperties.load(normalized.characterProperties);
+      trackTextPlusInstance(this);
       for (const [key, slot] of [["frontMaterial", this.frontMaterials], ["sideMaterial", this.sideMaterials]]) {
         if (!normalized[key]) continue;
         const material = PZ.material.create(normalized[key].type);
@@ -67,6 +69,7 @@ function createClass(PZ) {
     }
 
     unload() {
+      untrackTextPlusInstance(this);
       this.frontMaterials[0]?.unload();
       this.sideMaterials[0]?.unload();
       super.unload();

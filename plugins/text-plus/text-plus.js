@@ -84,6 +84,9 @@ let watchFontLoad;
 let observeFontRevision;
 let countGeometryVertices;
 let collectTextPlusObjects;
+let hasCharacterSplitRequest;
+let trackTextPlusInstance;
+let untrackTextPlusInstance;
 let syncTextRendering;
 let restoreTextRendering;
 
@@ -137,7 +140,10 @@ function refreshTextPlusBindings(loaded) {
   observeFontRevision = loaded.diagnostics.observeFontRevision;
   countGeometryVertices = loaded.diagnostics.countGeometryVertices;
   collectTextPlusObjects = loaded.utils.collectTextPlusObjects;
+  trackTextPlusInstance = loaded.utils.trackTextPlusInstance;
+  untrackTextPlusInstance = loaded.utils.untrackTextPlusInstance;
   createTextShapes = loaded.geometry.createTextShapes;
+  hasCharacterSplitRequest = loaded.geometry.hasCharacterSplitRequest;
   textGeometryOptions = loaded.geometry.textGeometryOptions;
   syncTextRendering = loaded.geometry.syncTextRendering;
   restoreTextRendering = loaded.geometry.restoreTextRendering;
@@ -251,6 +257,7 @@ function createTextParentObjectClass(PZ, definition) {
         propertyDefinitions
       );
       this.type = definition.type;
+      trackTextPlusInstance(this);
     }
 
     load(data) {
@@ -258,6 +265,15 @@ function createTextParentObjectClass(PZ, definition) {
       super.load(normalized);
       this.characterProperties.load(normalized.characterProperties);
       this.type = definition.type;
+      // Loading from a saved project registers too: construction and load
+      // share one count per instance, so either order counts exactly once.
+      trackTextPlusInstance(this);
+    }
+
+    unload() {
+      untrackTextPlusInstance(this);
+      if (typeof super.unload === "function") return super.unload();
+      return undefined;
     }
 
     toJSON() {
@@ -509,12 +525,29 @@ function installTextPatches(PZ) {
     const patchedUpdateGeometry = function updateGeometry() {
       const font = this.font?.font3d;
       const THREE = state.THREE;
+      // Layers stashed by the patched per-frame update are reused here, so
+      // one frame walks once. Otherwise collect only while Text+ objects
+      // are alive; with none alive the walk would return [] anyway.
+      let ancestorLayers = null;
+      try {
+        if (Array.isArray(this.__zoidiumTextPlusAncestorLayers)) {
+          ancestorLayers = this.__zoidiumTextPlusAncestorLayers;
+        }
+      } catch (_stash) {
+        ancestorLayers = null;
+      }
+      if (!ancestorLayers) {
+        ancestorLayers =
+          state.liveTextPlusCount === 0
+            ? []
+            : collectTextPlusObjects(this);
+      }
       if (
         !font ||
         !this.threeObj ||
         typeof THREE?.ExtrudeGeometry !== "function"
       ) {
-        if (this.threeObj && collectTextPlusObjects(this).length > 0) {
+        if (this.threeObj && ancestorLayers.length > 0) {
           watchFontLoad(this);
           reportUnavailableFont(this);
         }
@@ -531,7 +564,7 @@ function installTextPatches(PZ) {
         propertyValue(this.properties?.spacing, 0, 0)
       );
       const geometry = new THREE.ExtrudeGeometry(shapes, options);
-      if (collectTextPlusObjects(this).length > 0 && hasVisibleCharacters(rawText)) {
+      if (ancestorLayers.length > 0 && hasVisibleCharacters(rawText)) {
         if (shapes.length === 0) reportTextFontIssue(this, "no-shapes");
         else if (countGeometryVertices(geometry) === 0) reportTextFontIssue(this, "zero-vertices");
       } else if (!hasVisibleCharacters(rawText)) {
@@ -552,10 +585,40 @@ function installTextPatches(PZ) {
   }
 
   const patchedUpdate = function update(frame) {
-    if (collectTextPlusObjects(this).length > 0) observeFontRevision(this);
-    originalUpdate.call(this, frame);
+    // Fast path: with no live Text+ object the walk below and the sync
+    // after it would both find nothing, so run only the native update.
+    // Split state or a pending split request falls through to the full
+    // path, which restores stale splits exactly once.
+    if (
+      state.liveTextPlusCount === 0 &&
+      !state.splitStates.has(this) &&
+      !hasCharacterSplitRequest(this)
+    ) {
+      originalUpdate.call(this, frame);
+      return;
+    }
+    const layers = collectTextPlusObjects(this);
+    if (layers.length > 0) observeFontRevision(this);
+    // The geometry rebuild inside the native update reuses this frame's
+    // layers instead of walking again; always cleared right after.
+    let stashed = false;
     try {
-      syncTextRendering(this, frame);
+      this.__zoidiumTextPlusAncestorLayers = layers;
+      stashed = true;
+    } catch (_stash) {
+      stashed = false;
+    }
+    try {
+      originalUpdate.call(this, frame);
+    } finally {
+      if (stashed) {
+        try {
+          delete this.__zoidiumTextPlusAncestorLayers;
+        } catch (_unstash) {}
+      }
+    }
+    try {
+      syncTextRendering(this, frame, layers);
       rebuildWarned = false;
     } catch (error) {
       restoreTextRendering(this);
