@@ -245,7 +245,7 @@
       "category": "scene",
       "name": "Text+",
       "author": "Zoidium",
-      "version": "34",
+      "version": "35",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "2D and 3D text",
@@ -254,9 +254,9 @@
       "description": "Adds per-character animation and 3D face materials to Text, plus advanced 3D bevel controls.",
       "credits": "Credits: DaviFX",
       "zoidiumOnly": true,
-      "manifest": "./plugins/text-plus/manifest.json?v=34",
-      "bundle": "./plugins/text-plus/bundle.json?v=34",
-      "integrity": "sha256-0pLmOeqS9MWYugVjnuHs9rXxgYPntMBgg9UpnvBntU8="
+      "manifest": "./plugins/text-plus/manifest.json?v=35",
+      "bundle": "./plugins/text-plus/bundle.json?v=35",
+      "integrity": "sha256-+HrqOSEjnLmHbXTUxxhFck17VNxfvC2zNMSQ8NSVgXk="
     },
     {
       "id": "expresstext-plus",
@@ -273,7 +273,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/expresstext-plus/manifest.json?v=7",
       "bundle": "./plugins/expresstext-plus/bundle.json?v=7",
-      "integrity": "sha256-BlIDv2SKYCC1f+LAmIeKAYaUZGCVa/+TvHTH51VGzck="
+      "integrity": "sha256-uX6tLOJ+d5XcTk1ByTLVguxZEpq8HBe/FIa3JQUWBsY="
     },
     {
       "id": "particles-plus",

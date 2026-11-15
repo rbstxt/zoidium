@@ -56,6 +56,11 @@ const state = {
   textUnloadPatched: null,
   splitStates: new WeakMap(),
   splitTexts: new Set(),
+  // Live Text+ parent objects (every class carrying zoidiumTextPlusObject,
+  // including character materials). The per-frame text patches skip their
+  // ancestor walks while this is zero; the count only ever errs towards
+  // walking (see trackTextPlusInstance).
+  liveTextPlusCount: 0,
 };
 
 /* ------------------------------------------------------------------ values */
@@ -451,11 +456,56 @@ function getAncestorObject(object) {
   }
 }
 
+// Text+ containers are 3D objects (PZ.object3d.group subclasses) parented
+// inside a scene, so nothing at or above the scene layer can be one. Stop
+// the walk at the first ancestor that is not a 3D object. Returns false
+// (keep walking) whenever the host API is unavailable or the check itself
+// fails: the walk then costs what it costs today, never a wrong answer.
+function isAboveTextPlusScope(object) {
+  try {
+    const object3d = state.PZ && state.PZ.object3d;
+    if (typeof object3d !== "function") return false;
+    return !(object instanceof object3d);
+  } catch (_error) {
+    return false;
+  }
+}
+
+// Live registration for the per-frame fast path. Every Text+ parent class
+// calls trackTextPlusInstance from its constructor and load, and
+// untrackTextPlusInstance from unload; the __zoidiumTextPlusCounted flag
+// keeps construction plus load on the same instance at one count. Counting
+// errs towards walking: an instance that cannot be flagged or unflagged
+// still counts while alive, so a zero count always means no live Text+.
+function trackTextPlusInstance(instance) {
+  if (!instance) return;
+  try {
+    if (instance.__zoidiumTextPlusCounted === true) return;
+    instance.__zoidiumTextPlusCounted = true;
+  } catch (_flag) {
+    // Flagging failed (frozen object): count it anyway and never trust a
+    // zero count while it may be alive.
+  }
+  state.liveTextPlusCount += 1;
+}
+
+function untrackTextPlusInstance(instance) {
+  try {
+    if (!instance || instance.__zoidiumTextPlusCounted !== true) return;
+    instance.__zoidiumTextPlusCounted = false;
+  } catch (_flag) {
+    // Unflagging failed: keep the count high and keep walking.
+    return;
+  }
+  state.liveTextPlusCount = Math.max(0, state.liveTextPlusCount - 1);
+}
+
 function collectTextPlusObjects(textObject) {
   const objects = [];
   const visited = new Set();
   let current = getAncestorObject(textObject);
   for (let depth = 0; current && depth < MAX_ANCESTOR_DEPTH; depth += 1) {
+    if (isAboveTextPlusScope(current)) break;
     if (visited.has(current)) break;
     visited.add(current);
     if (current.zoidiumTextPlusObject === true) objects.push(current);
@@ -519,5 +569,8 @@ module.exports = {
   getCenterOffset,
   getTextCenter,
   getAncestorObject,
+  isAboveTextPlusScope,
+  trackTextPlusInstance,
+  untrackTextPlusInstance,
   collectTextPlusObjects,
 };

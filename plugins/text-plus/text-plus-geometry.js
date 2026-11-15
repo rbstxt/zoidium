@@ -56,6 +56,18 @@ function clearCharacterSplitRequests(textObject) {
   else splitRequests.clear();
 }
 
+// True while a Text+ owner still holds a pending character-split request
+// for this text. The per-frame fast path must not skip such a text: the
+// pending split may need its first build on the next update.
+function hasCharacterSplitRequest(textObject) {
+  try {
+    const owners = textObject ? splitRequests.get(textObject) : null;
+    return !!owners && owners.size > 0;
+  } catch (_error) {
+    return true;
+  }
+}
+
 /* ----------------------------------------------------------- text rendering */
 
 function createTextShapes(font, text, size, divisions, spacing = 0) {
@@ -818,8 +830,11 @@ function restoreTextRendering(textObject) {
   splitTextCleanup.unregister(splitState.textReference);
 }
 
-function syncTextRendering(textObject, frame) {
-  const layers = collectTextPlusObjects(textObject);
+function syncTextRendering(textObject, frame, ancestorLayers) {
+  const layers =
+    ancestorLayers === undefined
+      ? collectTextPlusObjects(textObject)
+      : ancestorLayers;
   if (layers.length === 0 && !splitRequests.get(textObject)?.size) {
     restoreTextRendering(textObject);
     return;
@@ -852,6 +867,7 @@ function syncTextRendering(textObject, frame) {
 module.exports = {
   requestCharacterSplit,
   clearCharacterSplitRequests,
+  hasCharacterSplitRequest,
   createTextShapes,
   sameObjects,
   finiteBox,

@@ -2,7 +2,7 @@
 
 // ExpressText+ Text layout, tracking and repeater specs.
 
-const { MAX_ANCESTOR_DEPTH, REPEATER_MAX_COPIES } = require("./expresstext-constants.js");
+const { MAX_ANCESTOR_DEPTH, REPEATER_MAX_COPIES, state } = require("./expresstext-constants.js");
 const { numberValue, vector3 } = require("./expresstext-select.js");
 const { hashLattice } = require("./expresstext-random.js");
 const { readProp, readVector } = require("./expresstext-eval.js");
@@ -110,6 +110,22 @@ function getAncestorObject(object) {
   }
 }
 
+// ExpressText+ containers and effectors are 3D objects (PZ.object3d.group
+// subclasses) parented inside a scene, so nothing at or above the scene
+// layer can be one. Stop the walk at the first ancestor that is not a 3D
+// object. Returns false (keep walking) whenever the host API is
+// unavailable or the check itself fails: the walk then costs what it
+// costs today, never a wrong answer.
+function isAboveExpressScope(object) {
+  try {
+    const object3d = state.PZ && state.PZ.object3d;
+    if (typeof object3d !== "function") return false;
+    return !(object instanceof object3d);
+  } catch (_error) {
+    return false;
+  }
+}
+
 // Ancestor layers above a Text, outermost first: the tracking container
 // plus every ExpressText+ effector stacked over it. Bails out (returns [])
 // when a Text+ container owns the text, so the two trackers never fight.
@@ -118,6 +134,7 @@ function collectExpressObjects(textObject) {
   const visited = new Set();
   let current = getAncestorObject(textObject);
   for (let depth = 0; current && depth < MAX_ANCESTOR_DEPTH; depth += 1) {
+    if (isAboveExpressScope(current)) break;
     if (visited.has(current)) break;
     visited.add(current);
     if (current.zoidiumTextPlusObject === true) return [];
