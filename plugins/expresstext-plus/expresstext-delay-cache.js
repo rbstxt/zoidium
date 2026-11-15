@@ -15,6 +15,11 @@ let generation = null;
 const letters = new Map();
 let identities = new WeakMap();
 let nextIdentity = 1;
+const stats = { targetHits: 0, targetMisses: 0, paramHits: 0, paramMisses: 0 };
+
+function cacheStats() {
+  return { ...stats };
+}
 
 function identity(value) {
   if (!identities.has(value)) identities.set(value, nextIdentity++);
@@ -101,6 +106,10 @@ function stackInput(layers) {
 function clearDelayCache() {
   generation = null;
   letters.clear();
+  stats.targetHits = 0;
+  stats.targetMisses = 0;
+  stats.paramHits = 0;
+  stats.paramMisses = 0;
   identities = new WeakMap();
   nextIdentity = 1;
 }
@@ -144,6 +153,7 @@ function cachedDelayTarget(entry, frame, sample) {
   const offset = slot * 9;
   const values = entry.values;
   if (entry.frames[slot] !== frame) {
+    stats.targetMisses += 1;
     const target = sample(frame);
     values.set(target.position, offset);
     values.set(target.rotation, offset + 3);
@@ -151,6 +161,7 @@ function cachedDelayTarget(entry, frame, sample) {
     entry.frames[slot] = frame;
     return target;
   }
+  stats.targetHits += 1;
   return {
     position: [values[offset], values[offset + 1], values[offset + 2]],
     rotation: [values[offset + 3], values[offset + 4], values[offset + 5]],
@@ -169,14 +180,16 @@ function cachedDelayParams(entry, stage, frame, sample) {
   }
   const slot = frame % WINDOW_SAMPLES, offset = slot * 6, values = buffer.values;
   if (buffer.frames[slot] !== frame) {
+    stats.paramMisses += 1;
     const params = sample(frame);
     values[offset] = params ? 1 : 0;
     if (params) values.set([params.strength, params.mode, +params.position, +params.scale, +params.rotation], offset + 1);
     buffer.frames[slot] = frame;
     return params;
   }
+  stats.paramHits += 1;
   return values[offset] ? { strength: values[offset + 1], mode: values[offset + 2],
     position: !!values[offset + 3], scale: !!values[offset + 4], rotation: !!values[offset + 5] } : null;
 }
 
-module.exports = { cachedDelayParams, cachedDelayTarget, clearDelayCache, delayCacheFor, staticReaders, sectionReaders, MAX_LETTERS, WINDOW_SAMPLES };
+module.exports = { cacheStats, cachedDelayParams, cachedDelayTarget, clearDelayCache, delayCacheFor, staticReaders, sectionReaders, MAX_LETTERS, WINDOW_SAMPLES };
