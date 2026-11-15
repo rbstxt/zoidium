@@ -9,7 +9,7 @@ function isMemoryError(error) {
   const message = error?.message || "";
   if (/call stack/i.test(message)) return false;
   return error?.name === "QuotaExceededError" ||
-    error instanceof RangeError && /array buffer|array length|allocation|memory/i.test(message) ||
+    (error instanceof RangeError || error?.name === "RangeError") && /array buffer|array length|allocation|memory/i.test(message) ||
     /out of memory|allocation failed|memory allocation|cannot enlarge memory/i.test(message);
 }
 

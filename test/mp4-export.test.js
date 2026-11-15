@@ -329,4 +329,7 @@ test("a stack overflow during export is not reported as running out of memory", 
   assert.equal(isMemoryError(new RangeError("Invalid typed array length: 99999999999")), true);
   assert.equal(isMemoryError(Object.assign(new Error("full"), { name: "QuotaExceededError" })), true);
   assert.equal(isMemoryError(new Error("Out of memory")), true);
+  const foreign = require("node:vm").runInNewContext("new RangeError('invalid array length')");
+  assert.equal(isMemoryError(foreign), true);
+  assert.equal(isMemoryError(require("node:vm").runInNewContext("new RangeError('Maximum call stack size exceeded')")), false);
 });

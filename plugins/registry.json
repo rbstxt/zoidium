@@ -527,7 +527,7 @@
       "tagline": "H.264 MP4 video export",
       "description": "Export MP4 from the native Export panel with AAC or Opus audio. Requires WebCodecs encoder support.",
       "manifest": "./plugins/mp4-export/manifest.json?v=11",
-      "integrity": "sha256-pXWtVoLgxEJKuzClFPCIAR7pqpMa7wyIHWtOSRG86d0=",
+      "integrity": "sha256-2B8Dd6pg4aPeQJKHSqsUwG+E2w4bfjgreHXmgW5rC1s=",
       "bundle": "./plugins/mp4-export/bundle.json?v=11"
     }
   ]
