@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "58bb59ffd3e6e843cd93ee87cc4566deeeff3c6bf56b52d65e6bbdbc127475e5",
+  "fingerprint": "d1872f04531b24c9b74b29a85d129f3ca51c7e9e6496c5933eaf45d3e75d24c9",
   "plugins": {
     "native-fx": {
       "version": "39",
@@ -56,7 +56,7 @@
       ]
     },
     "text-plus": {
-      "version": "34",
+      "version": "35",
       "cases": [
         "Character Transform",
         "Gradient Transform",
@@ -124,7 +124,7 @@
       ]
     },
     "expresstext-plus": {
-      "version": "6",
+      "version": "7",
       "cases": [
         "ExpressText+",
         "ExpressText+-full"

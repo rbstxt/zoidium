@@ -177,6 +177,12 @@ each line describes one visible change.
 
 ### Fixed
 
+- ExpressText+ with a Delay effector no longer slows down as playback moves
+  toward the end of the timeline. Each frame now costs about the same at the
+  start and at the end, also with several ExpressText+ objects in one scene.
+- Projects with many 3D Text objects play faster: Text+ and ExpressText+ no
+  longer add work to Text objects that are not inside a Text+ or ExpressText+
+  object.
 - Playback no longer freezes or crawls at about 1 fps after you switch to
   another window or tab while the preview plays. When the browser pauses a
   video or audio clip in the background, playback keeps its pace and the clip
