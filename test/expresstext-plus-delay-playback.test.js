@@ -134,3 +134,25 @@ test("frames past the simulation window match the original traversal", { timeout
   }
   for (let frame = 7198; frame <= 7203; frame += 1) check(frame, "slide");
 });
+
+test("a later stage reruns when an earlier Even stage reruns on grown travel", (t) => {
+  setup(t);
+  // PZ.keyframe takes (value, frame, tween). The flight swings out and back
+  // in two frames, so the non-final Even stage's travel grows at frame 2 and
+  // its full rerun changes the outputs the Blend stage already chased.
+  const plain = layer("plain", { plainPosition: [0, 0, 0], plainStrength: 100 });
+  const track = plain.props.plainPosition.objects[0];
+  track.animated = true;
+  track.keyframes.push(new PZ.keyframe(0, 0, 1));
+  track.keyframes.push(new PZ.keyframe(300, 1, 1));
+  track.keyframes.push(new PZ.keyframe(-300, 2, 1));
+  track.keyframes.push(new PZ.keyframe(0, 400, 1));
+  stacks = [[plain, layer("delay", { delayMode: 0, delayStrength: 100 }), layer("delay", { delayMode: 1, delayStrength: 84 })],
+    [layer("plain", { plainPosition: [0, 0, 0], plainStrength: 100 }), layer("delay", { delayMode: 0, delayStrength: 60 }),
+      layer("delay", { delayMode: 2, delayStrength: 84 })]];
+  stacks[1][0].props.plainPosition.objects[1].animated = true;
+  for (const [value, frame] of [[0, 0], [-50, 40], [80, 90], [-120, 160], [0, 260]]) {
+    stacks[1][0].props.plainPosition.objects[1].keyframes.push(new PZ.keyframe(value, frame, 1));
+  }
+  for (let frame = 0; frame <= 280; frame += 1) check(frame, "chained-even");
+});

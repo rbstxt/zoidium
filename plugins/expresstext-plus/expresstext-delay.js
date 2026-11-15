@@ -434,12 +434,15 @@ function extendDelayStage(checkpoint, prevSample, sampleParams, endFrame, lastSt
   };
 }
 
-// Whether the previous stage's sampler serves every step an incremental
-// extension of stage `stage` queries: its new steps plus the end frame.
-// The base target cache answers every frame; a full rerun serves its whole
-// window; an incremental one serves its own new steps and end frame.
-function prevStageCovers(checks, stage, oldLast, lastStep) {
+// Whether stage `stage` may continue from its checkpoint. Its stored head
+// was chased against the previous stage's earlier outputs, so the previous
+// stage must also have continued this call: a full rerun of an earlier stage
+// can change every output it serves (an Even stage repaces on grown travel),
+// and then every later stage reruns too. The continued sampler must also
+// serve every step the extension queries: its new steps and the end frame.
+function prevStageCovers(checks, extended, stage, oldLast, lastStep) {
   if (stage === 0) return true;
+  if (extended[stage - 1] !== true) return false;
   const prev = checks ? checks[stage - 1] : null;
   if (!prev) return false;
   return oldLast >= prev.extendedFrom && lastStep <= prev.lastStep;
@@ -466,7 +469,7 @@ function simulateDelayLetter(layers, delays, frame, index, list, base, aux) {
     const checkpoint = checks ? checks[stage] : null;
     let staged = null;
     if (checkpoint && checkpoint.firstStep === firstStep && lastStep >= checkpoint.lastStep &&
-        prevStageCovers(checks, stage, checkpoint.lastStep, lastStep)) {
+        prevStageCovers(checks, extended, stage, checkpoint.lastStep, lastStep)) {
       staged = extendDelayStage(checkpoint, samplers[stage], paramsFor, endFrame, lastStep);
     }
     if (staged) {
