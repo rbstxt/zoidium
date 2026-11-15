@@ -122,3 +122,29 @@ test("the patched clock keeps playback moving and resumes the element", { skip: 
     assert.ok(Math.abs(playback._exactFrame - 90) < 1, `re-anchored at ${playback._exactFrame}`);
   } finally { delete global.requestAnimationFrame; delete global.Audio; }
 });
+
+test("after a fallback the frame clock stays; reverse and stopped playback are untouched", () => {
+  const PZ = { ui: { playback: { prototype: {
+    update() { this.updated = (this.updated || 0) + 1; },
+    updateSchedule() {},
+  } } } };
+  assert.equal(install(PZ), true);
+  const stalled = schedule(element({ paused: true }));
+  const playback = Object.create(PZ.ui.playback.prototype);
+  Object.assign(playback, { speed: 1, syncSchedule: stalled, _sequence: { audioSchedules: [stalled], videoSchedules: [] } });
+  playback.update(16);
+  assert.equal(playback.syncSchedule, null, "the stalled anchor is dropped");
+  stalled.el.paused = false;
+  playback.update(32);
+  assert.equal(playback.syncSchedule, null, "the fallback is kept for the rest of the run");
+  const reverse = Object.create(PZ.ui.playback.prototype);
+  const paused = schedule(element({ paused: true }));
+  Object.assign(reverse, { speed: -1, syncSchedule: paused, _sequence: { audioSchedules: [paused], videoSchedules: [] } });
+  reverse.update(16);
+  reverse.updateSchedule(paused, -1);
+  assert.equal(paused.el.plays, 0, "reverse playback never resumes media");
+  const stopped = Object.create(PZ.ui.playback.prototype);
+  Object.assign(stopped, { speed: 0, syncSchedule: paused, _sequence: { audioSchedules: [paused], videoSchedules: [] } });
+  stopped.update(16);
+  assert.equal(stopped.syncSchedule, paused, "stopped playback keeps its anchor");
+});

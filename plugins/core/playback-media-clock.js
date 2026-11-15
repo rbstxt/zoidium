@@ -39,7 +39,10 @@
   }
 
   // The native anchor when it runs; otherwise another running element, or
-  // none (frame-time clock) until one runs again.
+  // none: the frame-time clock. A fallback is kept for the rest of the run
+  // (CM3 picks a new anchor only when a schedule starts playing); CM3's drift
+  // correction keeps the elements within half a second of the playhead, and
+  // jumping back to an element's own time could move the playhead backwards.
   function chooseAnchor(playback) {
     const current = playback.syncSchedule;
     if (!current || canClock(current)) return current;
