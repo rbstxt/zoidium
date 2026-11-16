@@ -7,10 +7,10 @@ function hasAudio(sequence) {
   return (sequence.audioSchedules || []).some((schedule) => schedule.items?.length > 0);
 }
 
-// The media each scheduled audio clip plays. A clip keeps its media in the
-// native animated property, so read it at the clip start. An item that yields
-// no media leaves the plan undecided, so an unusual clip shape never drops a
-// real audio stream.
+// The media each scheduled audio clip plays. Native schedule items carry it as
+// item.media; an item shaped like a clip keeps it in the animated media
+// property, read at the clip start. An item that yields no media leaves the
+// plan undecided, so an unusual clip shape never drops a real audio stream.
 function scheduledMedias(sequence) {
   const medias = new Set();
   let undecided = false;
@@ -20,8 +20,8 @@ function scheduledMedias(sequence) {
       continue;
     }
     for (const item of schedule.items) {
-      let media = null;
-      try {
+      let media = item && item.media && typeof item.media === "object" ? item.media : null;
+      if (!media) try {
         const property = item && item.properties && item.properties.media;
         media = property && typeof property.get === "function" ? property.get(item.start || 0) : property;
       } catch (_error) {

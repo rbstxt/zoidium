@@ -139,6 +139,17 @@ test("a file with no audio stream is planned as silent", async () => {
   assert.ok(plan.silent.has(media));
 });
 
+test("native schedule items carry their media directly, as in a reopened project", async () => {
+  const videoOnly = { file: fakeFile(mp4(["vide"])) };
+  const plan = await planAudio(sequence([{ clip: {}, start: 0, length: 60, media: videoOnly }]), loadProbe());
+  assert.equal(plan.present, false);
+  assert.ok(plan.silent.has(videoOnly));
+  const withSound = { file: fakeFile(mp4(["vide", "soun"])) };
+  const mixed = await planAudio(sequence([{ start: 0, media: videoOnly }, { start: 0, media: withSound }]), loadProbe());
+  assert.equal(mixed.present, true);
+  assert.deepEqual([...mixed.silent], [videoOnly]);
+});
+
 test("a video-only WebM clip is planned as silent", async () => {
   const media = { file: fakeFile(webm([1])) };
   const plan = await planAudio(sequence([clip(media)]), loadProbe());
