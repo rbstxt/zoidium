@@ -246,6 +246,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- The Bitrate choices in the render options now show the video bitrate each
+  one targets at the current size and frame rate, for example "8x: 72 Mbps
+  target" at 1080p30, so the highest setting is visible.
 - A property whose keyframe list is empty, such as Markers after deleting the
   last marker, no longer stops the preview with "Cannot read properties of
   undefined (reading 'frame')" when something reads it.
