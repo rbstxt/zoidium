@@ -24,7 +24,7 @@ The export rate changes output frame count and timing; project frame rate and se
 
 ## Quality and bitrate
 
-**Bitrate** offers **1x (default)**, **2x**, **4x**, and **8x**. These values multiply the encoder's target video bitrate. **1x (default)** leaves the target unchanged.
+**Bitrate** offers **1x (default)**, **2x**, **4x**, and **8x**. These values multiply the encoder's target video bitrate. **1x (default)** leaves the target unchanged. Each choice also states the target it produces for the selected resolution and frame rate, such as **1x (default): 9 Mbps target** at 1920×1080 and 30 fps. The labels follow any **Resolution** or **Frame rate** change.
 
 For MP4, the **Quality** selector is disabled.
 
