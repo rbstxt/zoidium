@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "cde005ae5ba0378f5013866c017c9c2eaaf038a77f804109ca460d158689ec91",
+  "fingerprint": "a5a4ee06b1b451262b5bcbe231d839d88948b3fbf945632c552c400a10a1b128",
   "plugins": {
     "native-fx": {
       "version": "39",
@@ -93,7 +93,7 @@
       ]
     },
     "trapcode-suite": {
-      "version": "49",
+      "version": "50",
       "cases": [
         "Particular",
         "Default burst",
@@ -171,7 +171,7 @@
       ]
     },
     "expressions-plus": {
-      "version": "21",
+      "version": "22",
       "cases": [
         "seeded-time-fps",
         "mutable-realm",

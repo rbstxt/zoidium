@@ -177,6 +177,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- A property whose keyframe list is empty, such as Markers after deleting the
+  last marker, no longer stops the preview with "Cannot read properties of
+  undefined (reading 'frame')" when something reads it.
 - A video file without sound no longer adds an empty audio clip when it is
   placed on the timeline, and MP4 export no longer fails with "MP4 could not
   decode an audio asset" because of such a clip. Projects saved with one
