@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "139",
+      "version": "140",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=139",
-      "bundle": "./plugins/core/bundle.json?v=139",
-      "integrity": "sha256-NQyX/inZPNoFniyFOKewrm4abPy2SdIX39gxrYcTzX8="
+      "manifest": "./plugins/core/manifest.json?v=140",
+      "bundle": "./plugins/core/bundle.json?v=140",
+      "integrity": "sha256-FUaET5RExYWNDM3cO5e1n7A8KSt7iT0SPP0Ro21rDqY="
     },
     {
       "id": "easing-plus",
