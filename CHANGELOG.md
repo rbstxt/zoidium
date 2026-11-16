@@ -177,6 +177,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Phone and screen recordings with a variable frame rate now show the right
+  frame when the preview or export lands exactly on a frame boundary. Before,
+  such videos could repeat one frame and skip the next.
 - Projects with many expressions play faster: each expression evaluation
   takes less than half the time it did and leaves far less memory to clean
   up, so playback stalls less often.
