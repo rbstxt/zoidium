@@ -4,7 +4,11 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
   BITRATE_SCALES,
+  bitrateLabels,
+  formatBitrate,
   installEncode,
+  installOptionsPage,
+  nativeVideoBitrate,
   normalizeBitrateScale,
 } = require("../plugins/core/export-bitrate");
 const {
@@ -109,4 +113,113 @@ test("the storage estimate follows the bitrate multiplier", () => {
   const scaled = estimateVideoStorageBytes(Object.assign({}, long, { bitrateScale: 4 }), profiles);
   assert.ok(scaled > base * 3, `4x estimate ${scaled} vs ${base}`);
   assert.equal(estimateVideoStorageBytes(Object.assign({}, long, { bitrateScale: 1 }), profiles), base);
+});
+
+const nativeProfiles = Array.from({ length: 5 }, () => ({ bitrate: 1 }));
+
+test("the native target follows the CM3 device-render bitrate formula", () => {
+  const target = (width, height, rate, quality = 2, profiles = nativeProfiles) =>
+    nativeVideoBitrate({ width, height, rate, quality }, profiles);
+  assert.equal(target(640, 360, 30), 1e6);
+  assert.equal(target(1280, 720, 30), 4e6);
+  assert.equal(target(1920, 1080, 30), 9e6);
+  assert.equal(target(1920, 1080, 60), 13.5e6);
+  assert.equal(target(3840, 2160, 30), 36e6);
+  assert.equal(target(3840, 2160, 60), 54e6);
+  // The quality profile's bitrate is part of the target, as in the native formula.
+  const custom = nativeProfiles.map((profile, index) => Object.assign({}, profile, { bitrate: index + 1 }));
+  assert.equal(target(1920, 1080, 30, 4, custom), 45e6);
+  // Missing parameters fall back to the 640x360 at 30 fps native base.
+  assert.equal(nativeVideoBitrate({}, nativeProfiles), 1e6);
+});
+
+test("the bitrate labels state the target each multiplier produces", () => {
+  assert.deepEqual(
+    bitrateLabels({ width: 1920, height: 1080, rate: 30, quality: 2 }, nativeProfiles),
+    ["1x (default): 9 Mbps target", "2x: 18 Mbps target",
+      "4x: 36 Mbps target", "8x: 72 Mbps target"],
+  );
+  assert.deepEqual(
+    bitrateLabels({ width: 1920, height: 1080, rate: 60, quality: 2 }, nativeProfiles),
+    ["1x (default): 13.5 Mbps target", "2x: 27 Mbps target",
+      "4x: 54 Mbps target", "8x: 108 Mbps target"],
+  );
+  assert.equal(
+    bitrateLabels({ width: 3840, height: 2160, rate: 60, quality: 2 }, nativeProfiles)[3],
+    "8x: 432 Mbps target",
+  );
+  assert.equal(formatBitrate(443750), "443.8 kbps");
+  assert.equal(formatBitrate(1e9), "1 Gbps");
+  assert.equal(formatBitrate(0), "unknown");
+});
+
+function fakeDropdown(spec, owner) {
+  const options = spec.items.split(";").map((text) => ({ text }));
+  const select = {
+    options,
+    selectedIndex: 0,
+    title: "",
+    onchange() { spec.set.call(owner, select.selectedIndex); },
+  };
+  const row = {
+    select,
+    pz_update() { select.selectedIndex = spec.get.call(owner); },
+    querySelector() { return select; },
+  };
+  row.pz_update();
+  return row;
+}
+
+function fakeExportPage() {
+  const listeners = [];
+  return {
+    children: [],
+    appendChild(child) { this.children.push(child); return child; },
+    addEventListener(type, listener) { if (type === "change") listeners.push(listener); },
+    fireChange() { for (const listener of listeners) listener({ type: "change" }); },
+    querySelectorAll() { return []; },
+    parentElement: null,
+  };
+}
+
+test("the Bitrate row shows the target and follows resolution and frame rate", () => {
+  const page = fakeExportPage();
+  function Device() {
+    this.params = { width: 1920, height: 1080, rate: 30, quality: 2, format: "mkv_vp8_opus" };
+  }
+  Device.prototype.createOptionsPage = function createOptionsPage() {
+    this.page = page;
+    return page;
+  };
+  const PZ = {
+    av: { profiles: nativeProfiles },
+    ui: {
+      controls: { legacy: { generateDropdown: fakeDropdown } },
+      export: { device: Device },
+    },
+  };
+  assert.equal(installOptionsPage(PZ), true);
+  const device = new Device();
+  assert.equal(device.createOptionsPage(), page);
+  assert.equal(device.params.bitrateScale, 1);
+  const row = page.children[0];
+  const labels = () => row.select.options.map((option) => option.text);
+  assert.deepEqual(labels(), [
+    "1x (default): 9 Mbps target", "2x: 18 Mbps target",
+    "4x: 36 Mbps target", "8x: 72 Mbps target",
+  ]);
+  assert.match(row.select.title, /Target video bitrate/);
+  row.select.selectedIndex = 3;
+  row.select.onchange();
+  assert.equal(device.params.bitrateScale, 8);
+  device.params.width = 3840;
+  device.params.height = 2160;
+  page.fireChange();
+  assert.equal(labels()[0], "1x (default): 36 Mbps target");
+  assert.equal(labels()[1], "2x: 72 Mbps target");
+  device.params.rate = 60;
+  page.fireChange();
+  assert.equal(labels()[1], "2x: 108 Mbps target");
+  assert.equal(row.select.selectedIndex, 3, "relabelling keeps the selection");
+  assert.equal(device.params.bitrateScale, 8, "relabelling does not change the choice");
 });
