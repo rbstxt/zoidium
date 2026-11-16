@@ -27,6 +27,9 @@
 // entry named after the file, so its tile can be deleted and undone as usual.
 // The native audio probe has no error handler, so an undecodable file whose type
 // passes canPlayType, such as HEVC .mp4, never settled. It settles empty now.
+// The native probe also reports success for a video-only file, because an
+// audio element accepts the container and stays silent. It now reads the
+// container first and creates no audio clip for a file with no audio track.
 const DEFAULT_PROBE_TIMEOUT_MS = 15000;
 
 function buildDecodeWarning(filename) {
@@ -48,36 +51,57 @@ function buildFailedImportEntry(file, asset) {
 }
 
 // Keeps the native audio probe's gate and clip fields, and adds the error path.
-function createLoadAudio(document) {
+// probeAudioTrack(file) answers true/false/null for the container's audio
+// stream; a false answer means the file is video-only, so the import creates
+// no audio clip. Unknown answers keep the native element probe unchanged, so a
+// readable audio stream is never dropped on a parse failure.
+function createLoadAudio(document, probeAudioTrack) {
   return function loadAudioWithError(asset) {
     if (!asset || !asset.file || !asset.url) return undefined;
     const audio = document.createElement("audio");
     const support = audio.canPlayType(asset.file.type);
     if (support === "" || support === "no") return undefined;
-    return new Promise((resolve) => {
-      audio.onloadeddata = function onAudioLoaded() {
-        const frames = Math.floor(30 * audio.duration);
-        asset.length = audio.duration;
-        audio.onloadeddata = null;
-        audio.onerror = null;
-        resolve({
-          type: 1,
-          start: 0,
-          length: frames,
-          offset: 0,
-          properties: { name: asset.filename, media: asset.key },
-        });
-      };
-      audio.onerror = function onAudioError() {
-        audio.onloadeddata = null;
-        audio.onerror = null;
-        audio.removeAttribute("src");
-        audio.load();
-        resolve(undefined);
-      };
-      audio.preload = "metadata";
-      audio.src = asset.url;
-    });
+    const probe = function probeWithElement() {
+      return new Promise((resolve) => {
+        audio.onloadeddata = function onAudioLoaded() {
+          const frames = Math.floor(30 * audio.duration);
+          asset.length = audio.duration;
+          audio.onloadeddata = null;
+          audio.onerror = null;
+          resolve({
+            type: 1,
+            start: 0,
+            length: frames,
+            offset: 0,
+            properties: { name: asset.filename, media: asset.key },
+          });
+        };
+        audio.onerror = function onAudioError() {
+          audio.onloadeddata = null;
+          audio.onerror = null;
+          audio.removeAttribute("src");
+          audio.load();
+          resolve(undefined);
+        };
+        audio.preload = "metadata";
+        audio.src = asset.url;
+      });
+    };
+    if (typeof probeAudioTrack !== "function") return probe();
+    return Promise.resolve()
+      .then(() => probeAudioTrack(asset.file))
+      .then((hasAudio) => {
+        if (hasAudio !== false) return probe();
+        // A video-only container never needs an audio element; release the
+        // gate element without touching the shared asset URL.
+        try {
+          audio.removeAttribute("src");
+          audio.load();
+        } catch (_error) {
+          // Releasing an unused element cannot change the import.
+        }
+        return undefined;
+      }, () => probe());
   };
 }
 
@@ -270,7 +294,7 @@ module.exports = {
     };
     prototype.loadVideo = replacement;
     const originalLoadAudio = prototype.loadAudio;
-    const loadAudio = createLoadAudio(host.document);
+    const loadAudio = createLoadAudio(host.document, host.ZoidiumVideoSeekPolicy && host.ZoidiumVideoSeekPolicy.probeAudioTrack);
     if (typeof originalLoadAudio === "function") prototype.loadAudio = loadAudio;
     const originalImportAV = prototype.importAV;
     const importAV = async function importAVWithFailedEntry(file) {
