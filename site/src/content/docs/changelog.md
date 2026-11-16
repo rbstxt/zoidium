@@ -246,6 +246,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- MP4 export no longer ends with "MP4 export failed. Failed to fetch" when the
+  browser briefly cannot read back the finished movie from temporary storage.
+  It tries again, and if that still fails it downloads the temporary file
+  directly. When the file really is unreadable, the message says so and
+  suggests freeing disk space or using MKV/WebM.
 - The Bitrate choices in the render options now show the video bitrate each
   one targets at the current size and frame rate, for example "8x: 72 Mbps
   target" at 1080p30, so the highest setting is visible.
