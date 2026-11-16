@@ -337,8 +337,10 @@ test("MP4 timing covers 23.976, 24, 25, 29.97, 30 and 60 fps timescales", () => 
   }
 });
 
-test("MP4 variable rates and non-video tracks keep uncorrected seeks", () => {
-  assert.equal(readTiming(mp4File({ traks: [videoTrak({ timescale: 90000, entries: [[100, 3000], [100, 3001]] })] })), null);
+test("MP4 variable rates gain a table; malformed rates and non-video tracks keep uncorrected seeks", () => {
+  const variable = readTiming(mp4File({ traks: [videoTrak({ timescale: 90000, entries: [[100, 3000], [100, 3001]] })] }));
+  assert.equal(variable.pts.length, 200);
+  assert.equal(variable.pts[100], 100 * 3000 / 90000);
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ timescale: 90000, entries: [[100, 0]] })] })), null);
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ timescale: 0, entries: [[100, 3000]] })] })), null);
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ timescale: 48000, entries: [[96, 1024]], handler: "soun" })] })), null);
@@ -354,6 +356,8 @@ test("MP4 edit lists shift or preserve nominal boundaries", () => {
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[12000, 0], [12000, 0]]) })] })).period, 1 / 24);
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[24000, 0]], 1) })] })).period, 1 / 24);
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[2000, 0xFFFFFFFF]]) })] })), null);
+  // A media time off the sample grid moves the first presentation time away
+  // from zero, where the element's timeline is not known: no correction.
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[2000, 480]]) })] })), null);
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[24000, 0, 2]]) })] })), null);
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[24000, 480]], 1) })] })), null);
@@ -446,13 +450,15 @@ test("B-frame composition offsets with a matching edit list keep the grid", () =
   assert.equal(shifted.phase, 1024 / 12288);
 });
 
-test("mismatched composition and edit phases keep uncorrected seeks", () => {
+test("mismatched composition and edit phases keep uncorrected seeks unless the table starts at zero", () => {
   const fraction = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 1024]]), composition: ctts([[48, 768]]) };
   assert.equal(readTiming(mp4File({ traks: [videoTrak(fraction)] })), null);
   const drift = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 256]]), composition: ctts([[48, 1024]]) };
   assert.equal(readTiming(mp4File({ traks: [videoTrak(drift)] })), null);
   const offgrid = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 1024]]), composition: ctts([[24, 1024], [24, 100]]) };
-  assert.equal(readTiming(mp4File({ traks: [videoTrak(offgrid)] })), null);
+  const table = readTiming(mp4File({ traks: [videoTrak(offgrid)] }));
+  assert.equal(table.pts.length, 48);
+  assert.ok(table.pts.some(value => Math.abs(value - (24 * 512 + 100 - 1024) / 12288) < 1e-12));
   const counts = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 1024]]), composition: ctts([[47, 1024]]) };
   assert.equal(readTiming(mp4File({ traks: [videoTrak(counts)] })), null);
   const versioned = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 1024]]), composition: ctts([[48, 1024]], 2) };
