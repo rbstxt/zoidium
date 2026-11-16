@@ -24,6 +24,11 @@ current export page and add no saved project fields.
   offsets, playback speed, volume and stereo pan. Web Audio decodes source assets
   at 48 kHz; formats it cannot read use a private instance of CM3's existing
   libav audio decoder. Mixed blocks are at most one second long.
+- Audio clips whose container has no audio track, such as a video-only MP4,
+  contribute silence. A project with only such clips creates no audio track,
+  like a project without audio. The shared core container probe decides this
+  before encoding starts; an unknown or unreadable container keeps the current
+  audio path, so a real audio stream is never dropped.
 - AAC-LC stereo at 128 kbit/s is preferred. Its selected encoder is calibrated
   locally with an impulse encode/decode round trip before rendering. Silent
   preroll protects the beginning of the track, negative packet times produce
