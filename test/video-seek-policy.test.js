@@ -356,14 +356,11 @@ test("MP4 edit lists shift or preserve nominal boundaries", () => {
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[12000, 0], [12000, 0]]) })] })).period, 1 / 24);
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[24000, 0]], 1) })] })).period, 1 / 24);
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[2000, 0xFFFFFFFF]]) })] })), null);
-  // A media time off the sample grid no longer discards the file: the measured
-  // presentation times carry the shift instead.
-  const offGrid = readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[2000, 480]]) })] }));
-  assert.equal(offGrid.pts[0], -480 / 24000);
-  assert.equal(offGrid.pts[1], (1000 - 480) / 24000);
+  // A media time off the sample grid moves the first presentation time away
+  // from zero, where the element's timeline is not known: no correction.
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[2000, 480]]) })] })), null);
   assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[24000, 0, 2]]) })] })), null);
-  const offGridV1 = readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[24000, 480]], 1) })] }));
-  assert.equal(offGridV1.pts[0], -480 / 24000);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ ...base, edit: elst([[24000, 480]], 1) })] })), null);
 });
 
 test("truncated MP4 input returns null without throwing", () => {
@@ -453,11 +450,11 @@ test("B-frame composition offsets with a matching edit list keep the grid", () =
   assert.equal(shifted.phase, 1024 / 12288);
 });
 
-test("mismatched composition and edit phases fall back to presentation times", () => {
+test("mismatched composition and edit phases keep uncorrected seeks unless the table starts at zero", () => {
   const fraction = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 1024]]), composition: ctts([[48, 768]]) };
-  assert.equal(readTiming(mp4File({ traks: [videoTrak(fraction)] })).pts[0], (768 - 1024) / 12288);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak(fraction)] })), null);
   const drift = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 256]]), composition: ctts([[48, 1024]]) };
-  assert.equal(readTiming(mp4File({ traks: [videoTrak(drift)] })).pts[0], (1024 - 256) / 12288);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak(drift)] })), null);
   const offgrid = { timescale: 12288, entries: [[48, 512]], edit: elst([[2000, 1024]]), composition: ctts([[24, 1024], [24, 100]]) };
   const table = readTiming(mp4File({ traks: [videoTrak(offgrid)] }));
   assert.equal(table.pts.length, 48);

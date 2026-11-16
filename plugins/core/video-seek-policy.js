@@ -288,6 +288,10 @@
     if (index !== pts.length) return null;
     // B-frames present samples in composition order, so sort before searching.
     pts.sort();
+    // Chromium presents the first frame at time zero. A table that starts
+    // elsewhere (a negative or late first presentation time after the edit
+    // list) does not match the element's timeline, so keep uncorrected seeks.
+    if (pts[0] !== 0) return null;
     return { quantum: 1 / timescale, pts };
   }
   function readVideoTrack(bytes, start, end) {

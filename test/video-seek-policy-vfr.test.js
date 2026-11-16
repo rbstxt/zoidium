@@ -129,35 +129,38 @@ test("a multi-run stts without ctts exposes presentation times and corrects them
 test("B-frame composition offsets that leave the grid are sorted into a table", () => {
   const timescale = 12288;
   const composition = ctts([[1, 1024], [1, 0], [1, 768], [1, 0]]);
-  const timing = readTiming(mp4File({ traks: [videoTrak({ timescale, entries: [[4, 512]], composition })] }));
+  const edit = elst([[2000, 512]]);
+  const timing = readTiming(mp4File({ traks: [videoTrak({ timescale, entries: [[4, 512]], composition, edit })] }));
   assert.ok(timing && timing.pts, "offsets off the delta grid use the table");
-  assert.deepEqual([...timing.pts], [512, 1024, 1536, 1792].map(value => value / timescale));
-  const boundary = 1536 / timescale;
+  assert.deepEqual([...timing.pts], [0, 512, 1024, 1280].map(value => value / timescale));
+  const boundary = 1024 / timescale;
   assert.ok(target(boundary, 10, timing) > boundary, "a stored presentation time gains a bias");
-  const between = 1280 / timescale;
+  const between = 768 / timescale;
   assert.equal(target(between, 10, timing), between, "an unstored time keeps its frame");
 });
 
 test("a non-zero edit list subtracts its media time from the table", () => {
   const timescale = 12288;
   const edit = elst([[2000, 256]]);
-  const composition = ctts([[1, 512], [3, 0]]);
-  const timing = readTiming(mp4File({ traks: [videoTrak({ timescale, entries: [[4, 512]], edit, composition })] }));
+  const composition = ctts([[1, 256], [3, 0]]);
+  const timing = readTiming(mp4File({ traks: [videoTrak({ timescale, entries: [[2, 512], [2, 640]], edit, composition })] }));
   assert.ok(timing && timing.pts);
-  assert.deepEqual([...timing.pts], [256, 256, 768, 1280].map(value => value / timescale));
+  assert.deepEqual([...timing.pts], [0, 256, 768, 1408].map(value => value / timescale));
   const boundary = 768 / timescale;
   assert.ok(target(boundary, 10, timing) > boundary);
 });
 
-test("negative version 1 offsets sort below zero and stay correctable", () => {
+test("a table whose first presentation time is not zero keeps uncorrected seeks", () => {
   const timescale = 12288;
-  const composition = ctts([[1, -256], [3, 0]], 1);
-  const timing = readTiming(mp4File({ traks: [videoTrak({ timescale, entries: [[4, 512]], composition })] }));
-  assert.ok(timing && timing.pts);
-  assert.deepEqual([...timing.pts], [-256, 512, 1024, 1536].map(value => value / timescale));
-  assert.equal(target(0, 10, timing), 0, "a zero request stays uncorrected");
-  const boundary = 512 / timescale;
-  assert.ok(target(boundary, 10, timing) > boundary);
+  // Negative v1 offset: the first frame would present before zero.
+  const negative = ctts([[1, -256], [3, 0]], 1);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ timescale, entries: [[4, 512]], composition: negative })] })), null);
+  // B-frame offsets without an edit list: the first frame would present late.
+  const late = ctts([[1, 1024], [1, 0], [1, 768], [1, 0]]);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ timescale, entries: [[4, 512]], composition: late })] })), null);
+  // A variable-rate track shifted by an edit list into negative time.
+  const shifted = elst([[2000, 100]]);
+  assert.equal(readTiming(mp4File({ traks: [videoTrak({ timescale, entries: [[2, 512], [2, 640]], edit: shifted })] })), null);
 });
 
 test("only requests within half a timestamp tick of a presentation time are corrected", () => {
