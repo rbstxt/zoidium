@@ -6,6 +6,7 @@
   const HEADER_BYTES = 256 * 1024;
   const MOOV_MAX_BYTES = 16 * 1024 * 1024;
   const MOOV_SCAN_BOXES = 64;
+  const MAX_TABLE_SAMPLES = 1000000;
   const masters = new Set([0x1a45dfa3, 0x18538067, 0x1549a966, 0x1654ae6b, 0xae]);
 
   function vint(bytes, at, id = false) {
@@ -142,6 +143,23 @@
     }
     return { delta, total };
   }
+  // Every stts run for the presentation-time table as a flat [count, delta, ...]
+  // list, or null for malformed tables and tracks beyond the table cap.
+  function readSttsRuns(bytes, body, end) {
+    if (body + 8 > end || body + 8 > bytes.length) return null;
+    const count = u32be(bytes, body + 4);
+    if (count < 1 || body + 8 + count * 8 > end || body + 8 + count * 8 > bytes.length) return null;
+    const runs = [];
+    let total = 0;
+    for (let i = 0; i < count; i++) {
+      const run = u32be(bytes, body + 8 + i * 8), step = u32be(bytes, body + 8 + i * 8 + 4);
+      if (run < 1 || step < 1) return null;
+      total += run;
+      if (total > MAX_TABLE_SAMPLES) return null;
+      runs.push(run, step);
+    }
+    return { runs, total };
+  }
   // Composition offsets per sample run: [count, offset] with signed v1
   // offsets. Returns null for malformed or versioned-out tables.
   function readCttsRuns(bytes, body, end) {
@@ -227,6 +245,51 @@
     }
     return { mediaTime };
   }
+  // Sorted presentation timestamps in seconds, relative to the edit-list media
+  // time: DTS from every stts run plus the signed ctts offset. Returns null for
+  // malformed tables, tracks beyond the cap, and tables that disagree, so
+  // callers keep uncorrected seeks.
+  function readTableTiming(bytes, stts, ctts, timescale, mediaTime) {
+    if (!stts) return null;
+    const table = readSttsRuns(bytes, stts.body, stts.end);
+    if (!table) return null;
+    let offsets = null;
+    if (ctts) {
+      offsets = readCttsRuns(bytes, ctts.body, ctts.end);
+      if (!offsets) return null;
+      if (!offsets.length) offsets = null;
+      else {
+        let covered = 0;
+        for (const [run] of offsets) {
+          covered += run;
+          if (covered > table.total) return null;
+        }
+        if (covered !== table.total) return null;
+      }
+    }
+    const pts = new Float64Array(table.total);
+    let index = 0, dts = 0, runIndex = 0;
+    let remaining = offsets ? offsets[0][0] : 0, offset = offsets ? offsets[0][1] : 0;
+    for (let r = 0; r < table.runs.length; r += 2) {
+      const run = table.runs[r], delta = table.runs[r + 1];
+      for (let i = 0; i < run; i++) {
+        if (offsets) {
+          while (!remaining) {
+            runIndex++;
+            if (runIndex >= offsets.length) return null;
+            remaining = offsets[runIndex][0]; offset = offsets[runIndex][1];
+          }
+          remaining--;
+        }
+        pts[index++] = (dts + offset - mediaTime) / timescale;
+        dts += delta;
+      }
+    }
+    if (index !== pts.length) return null;
+    // B-frames present samples in composition order, so sort before searching.
+    pts.sort();
+    return { quantum: 1 / timescale, pts };
+  }
   function readVideoTrack(bytes, start, end) {
     let mdia = null, editBox = null;
     eachBox(bytes, start, end, (type, body, boxEnd) => {
@@ -253,27 +316,28 @@
       return false;
     });
     if (handler !== "vide" || !(timescale > 0)) return null;
-    const grid = readPresentationGrid(bytes, stts, ctts);
-    if (!grid) return null;
     const edit = !editBox ? { mediaTime: 0 } : readEditMediaTime(bytes, editBox.body, editBox.end);
     if (!edit) return null;
+    const grid = readPresentationGrid(bytes, stts, ctts);
     // The nominal boundaries stay at n * period only when the presentation
     // grid (earliest composition timestamp minus the edit-list media time)
-    // lands on a whole multiple of the sample delta. Anything else keeps
-    // uncorrected seeks: shifting the grid cannot be done safely without
-    // knowing the caller's intended frame mapping.
-    if (tickMod(grid.minCts - edit.mediaTime, grid.delta) !== 0) return null;
-    const delta = grid.delta;
-    // Sample deltas are integral ticks. Recover conventional rational rates
-    // only when they match the grid to within one nanosecond, mirroring the
-    // WebM branch. Anything coarser keeps the exact tick grid, which simply
-    // misses the boundary guard instead of biasing a wrong frame.
-    let period = delta / timescale;
-    for (const denominator of [1, 1001]) {
-      const rate = Math.round(timescale / delta * denominator) / denominator;
-      if (rate > 0 && Math.abs(timescale / rate - delta) <= timescale * 1e-9) { period = 1 / rate; break; }
+    // lands on a whole multiple of the sample delta. Any other grid keeps
+    // today's constant-rate result untouched and falls back to the measured
+    // presentation times below.
+    if (grid && tickMod(grid.minCts - edit.mediaTime, grid.delta) === 0) {
+      const delta = grid.delta;
+      // Sample deltas are integral ticks. Recover conventional rational rates
+      // only when they match the grid to within one nanosecond, mirroring the
+      // WebM branch. Anything coarser keeps the exact tick grid, which simply
+      // misses the boundary guard instead of biasing a wrong frame.
+      let period = delta / timescale;
+      for (const denominator of [1, 1001]) {
+        const rate = Math.round(timescale / delta * denominator) / denominator;
+        if (rate > 0 && Math.abs(timescale / rate - delta) <= timescale * 1e-9) { period = 1 / rate; break; }
+      }
+      return { period, quantum: 1 / timescale, phase: (grid.minCts - edit.mediaTime) / timescale };
     }
-    return { period, quantum: 1 / timescale, phase: (grid.minCts - edit.mediaTime) / timescale };
+    return readTableTiming(bytes, stts, ctts, timescale, edit.mediaTime);
   }
   function readMp4Timing(bytes) {
     try {
@@ -295,21 +359,47 @@
       return null;
     }
   }
+  // Index of the presentation time a request lands on, or -1 when the request
+  // sits between frames. A request within half a timestamp tick of a stored
+  // presentation time is a boundary request; the stored time is the exact PTS.
+  function nearestPresentationTime(requested, timing) {
+    const pts = timing.pts;
+    let low = 0, high = pts.length - 1;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (pts[middle] < requested) low = middle + 1;
+      else high = middle;
+    }
+    let best = low;
+    if (low > 0 && requested - pts[low - 1] <= pts[low] - requested) best = low - 1;
+    return Math.abs(requested - pts[best]) <= timing.quantum / 2 ? best : -1;
+  }
   function target(time, duration, timing) {
     const requested = Number.isFinite(time) ? time : 0;
     let result = Math.max(0, requested);
-    // This assumes muxers round nominal PTS to the nearest timestamp tick.
-    // Sub-millisecond periods can have colliding or truncated PTS instead.
-    if (timing && timing.period >= 0.001 && requested > 0) {
-      const boundary = Math.round(requested / timing.period) * timing.period;
-      // Restrict correction to nominal frame boundaries. Fractional shutter
-      // samples, even ones just before a boundary, must retain their frame.
-      if (Math.abs(requested - boundary) <= 1e-9) {
-        let bias = Math.min(0.0005, timing.quantum / 2, timing.period * 0.249);
-        // Decoder comparisons below one microsecond are unreliable, so keep
-        // the bias above the observed precision without leaving the frame.
-        if (bias < 2e-6) bias = Math.min(2e-6, timing.quantum / 2);
-        result += bias;
+    if (timing && requested > 0) {
+      if (timing.pts) {
+        const index = nearestPresentationTime(requested, timing);
+        if (index >= 0) {
+          const pts = timing.pts;
+          const gap = index + 1 < pts.length ? pts[index + 1] - pts[index] : index > 0 ? pts[index] - pts[index - 1] : 0;
+          let bias = Math.min(0.0005, timing.quantum / 2, gap * 0.249);
+          if (bias < 2e-6) bias = Math.min(2e-6, timing.quantum / 2);
+          result = Math.max(requested, pts[index]) + bias;
+        }
+      } else if (timing.period >= 0.001) {
+        // This assumes muxers round nominal PTS to the nearest timestamp tick.
+        // Sub-millisecond periods can have colliding or truncated PTS instead.
+        const boundary = Math.round(requested / timing.period) * timing.period;
+        // Restrict correction to nominal frame boundaries. Fractional shutter
+        // samples, even ones just before a boundary, must retain their frame.
+        if (Math.abs(requested - boundary) <= 1e-9) {
+          let bias = Math.min(0.0005, timing.quantum / 2, timing.period * 0.249);
+          // Decoder comparisons below one microsecond are unreliable, so keep
+          // the bias above the observed precision without leaving the frame.
+          if (bias < 2e-6) bias = Math.min(2e-6, timing.quantum / 2);
+          result += bias;
+        }
       }
     }
     if (Number.isFinite(duration) && duration > 0) result = Math.min(result, Math.max(0, duration - 1e-7));
