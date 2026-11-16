@@ -12,7 +12,7 @@ sidebar:
 3. **Format** で **.mp4 (H.264 / AAC or Opus)** を選択します。
 4. **Resolution**、**Aspect ratio**、**Aspect ratio mode** を設定します。
 5. **Frame rate** を 1～240 FPS に設定します。
-6. **Bitrate** を設定します。最初は **1x (default)** を使います。目標ビットレートを上げる場合は、**2x**、**4x**、**8x** を選択します。
+6. **Bitrate** を設定します。最初は **1x (default)** を使います。目標ビットレートを上げる場合は、**2x**、**4x**、**8x** を選択します。各選択肢には、現在の解像度とフレームレートでの目標ビットレートが表示されます。
 7. **Start** をクリックします。
 8. **Render complete** が表示されたら、**Download your video** をクリックします。
 

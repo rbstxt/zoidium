@@ -12,7 +12,7 @@ Export an opaque H.264 movie through **Device**. If you are editing a compositio
 3. In **Format**, select **.mp4 (H.264 / AAC or Opus)**.
 4. Set **Resolution**, **Aspect ratio**, and **Aspect ratio mode**.
 5. Set **Frame rate** between 1 and 240 FPS.
-6. Set **Bitrate**. Start with **1x (default)**. For a higher target bitrate, select **2x**, **4x**, or **8x**.
+6. Set **Bitrate**. Start with **1x (default)**. For a higher target bitrate, select **2x**, **4x**, or **8x**. Each choice shows the target bitrate for the current resolution and frame rate.
 7. Click **Start**.
 8. When **Render complete** appears, click **Download your video**.
 

@@ -4,19 +4,51 @@
   // CM3 derives the device-render video bitrate only from the output size and
   // frame rate ((w/640)*(h/360) Mbps, x1.5 above 30 fps); the Quality choice
   // changes only crf/speed. The Bitrate option multiplies that target. At 1x
-  // the native encode call is passed through untouched.
+  // the native encode call is passed through untouched. A bare multiplier does
+  // not tell the user what the export will request, so every label also states
+  // the target the choice produces at the current resolution and frame rate.
   const PATCH_MARKER = "__zoidiumExportBitratePatch";
   const ORIGINAL_MARKER = "__zoidiumExportBitrateOriginal";
   const IO_SERIALIZATION_KEY = "zoidiumIoSerialization";
   const IO_SERIALIZATION_ORIGINAL = "__zoidiumIoSerializationOriginal";
   const BITRATE_SCALES = [1, 2, 4, 8];
-  const BITRATE_LABELS = ["1x (default)", "2x", "4x", "8x"];
+  const REFRESH_KEY = "__zoidiumRefreshBitrateLabels";
   const RETRY_DELAY_MS = 100;
   const MAX_ATTEMPTS = 200;
 
   function normalizeBitrateScale(value) {
     const scale = Number(value);
     return BITRATE_SCALES.includes(scale) ? scale : 1;
+  }
+
+  // The unmultiplied target the Bitrate option scales: CM3's own
+  // (w/640)*(h/360) Mbps formula, including the profile bitrate and the 1.5
+  // factor above 30 fps. MP4 requests exactly this value times the chosen
+  // scale, so the row can show the same number the encoder receives.
+  function nativeVideoBitrate(params, profiles) {
+    const width = Math.max(1, Number(params && params.width) || 640);
+    const height = Math.max(1, Number(params && params.height) || 360);
+    const rate = Math.max(1, Number(params && params.rate) || 30);
+    const quality = params && params.quality;
+    const profile = profiles && (profiles[quality] || profiles[2]);
+    const profileBitrate =
+      Number(profile && profile.bitrate) > 0 ? Number(profile.bitrate) : 1;
+    return Math.round(width / 640 * (height / 360) * 1000000 *
+      (rate > 30 ? 1.5 : 1) * profileBitrate);
+  }
+
+  function formatBitrate(bits) {
+    if (!Number.isFinite(bits) || bits <= 0) return "unknown";
+    const unit = bits >= 1e9 ? [1e9, "Gbps"] : bits >= 1e6 ? [1e6, "Mbps"] : [1e3, "kbps"];
+    const value = Math.round(bits / unit[0] * 10) / 10;
+    return (Number.isInteger(value) ? String(value) : value.toFixed(1)) + " " + unit[1];
+  }
+
+  function bitrateLabels(params, profiles) {
+    const target = nativeVideoBitrate(params, profiles);
+    return BITRATE_SCALES.map((scale, index) =>
+      (scale + "x" + (index === 0 ? " (default)" : "")) + ": " +
+      formatBitrate(target * scale) + " target");
   }
 
   // Runs encode with the chosen quality profile's bitrate multiplied. CM3
@@ -90,10 +122,11 @@
   }
 
   function createBitrateRow(PZ, owner) {
-    return PZ.ui.controls.legacy.generateDropdown(
+    const profiles = PZ && PZ.av && PZ.av.profiles;
+    const row = PZ.ui.controls.legacy.generateDropdown(
       {
         title: "Bitrate",
-        items: BITRATE_LABELS.join(";"),
+        items: bitrateLabels(owner.params, profiles).join(";"),
         get() {
           return BITRATE_SCALES.indexOf(
             normalizeBitrateScale(owner.params.bitrateScale),
@@ -105,6 +138,25 @@
       },
       owner,
     );
+    const select = row && typeof row.querySelector === "function"
+      ? row.querySelector("select")
+      : null;
+    if (select) {
+      select.title = "Target video bitrate for the selected resolution and " +
+        "frame rate. MP4 encodes to this target; MKV/WebM also apply the " +
+        "Quality preset.";
+    }
+    // Export options pages have no periodic update, so the labels follow the
+    // resolution and frame rate choices through one change listener per page.
+    row[REFRESH_KEY] = function refreshBitrateLabels() {
+      const labels = bitrateLabels(owner.params, profiles);
+      const options = select && select.options;
+      if (!options) return;
+      for (let index = 0; index < options.length && index < labels.length; index++) {
+        if (options[index].text !== labels[index]) options[index].text = labels[index];
+      }
+    };
+    return row;
   }
 
   function installOptionsPage(PZ) {
@@ -123,6 +175,9 @@
         qualityRow.parentElement.insertBefore(row, qualityRow.nextSibling);
       } else {
         page.appendChild(row);
+      }
+      if (typeof page.addEventListener === "function") {
+        page.addEventListener("change", row[REFRESH_KEY]);
       }
       return page;
     };
@@ -145,11 +200,14 @@
 
   if (typeof module === "object" && module.exports) {
     module.exports = {
-      BITRATE_LABELS,
       BITRATE_SCALES,
+      bitrateLabels,
+      createBitrateRow,
       encodeWithBitrateScale,
+      formatBitrate,
       installEncode,
       installOptionsPage,
+      nativeVideoBitrate,
       normalizeBitrateScale,
       wrapEncode,
     };
