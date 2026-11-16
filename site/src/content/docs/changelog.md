@@ -246,6 +246,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- A video file without sound no longer adds an empty audio clip when it is
+  placed on the timeline, and MP4 export no longer fails with "MP4 could not
+  decode an audio asset" because of such a clip. Projects saved with one
+  export as video-only.
 - Phone and screen recordings with a variable frame rate now show the right
   frame when the preview or export lands exactly on a frame boundary. Before,
   such videos could repeat one frame and skip the next.
