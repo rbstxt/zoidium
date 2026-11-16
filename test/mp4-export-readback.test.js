@@ -365,7 +365,12 @@ test("a quota error during the read-back keeps the memory message", async () => 
 });
 
 test("an unreadable finished MP4 never reaches the page as Failed to fetch", async () => {
-  const opfs = fakeOpfs({ copyError: () => FAILED_TO_FETCH() });
+  // The copy fails every time and the temporary file is incomplete, so the
+  // export cannot succeed. That is the one path the user must read as text.
+  const opfs = fakeOpfs({
+    copyError: () => FAILED_TO_FETCH(),
+    snapshot: (bytes) => bytes.subarray(0, bytes.byteLength - 1),
+  });
   const exporter = jobExporter();
   let error;
   try {
@@ -378,6 +383,7 @@ test("an unreadable finished MP4 never reaches the page as Failed to fetch", asy
   assert.doesNotMatch(error.message, /Failed to fetch/);
   assert.equal(error.cause && error.cause.name, "TypeError");
   assert.equal(exporter.framesRendered, 1, "the frames were encoded before the read failed");
+  assert.equal(opfs.state.entries.size, 0, "the unusable temporary file is removed");
 });
 
 test("a readable export through the job still yields the copied video", async () => {
