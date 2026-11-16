@@ -23,7 +23,12 @@ function createRealm() {
         if (data.keyframes) for (const entry of data.keyframes) { const key = new Keyframe(); key.load(entry); this.keyframes.push(key); }
       } else if (!this.definition.allowEmpty) this.keyframes.push(new Keyframe(this.getDefaultValue(), 0, this.defaultTween));
     }
-    get() { return this.keyframes[0].value; }
+    get(frame) {
+      if (this.expression !== null) return this.expression.evaluate(frame);
+      const key = this.keyframes[0];
+      if (!key) throw new TypeError("Cannot read properties of undefined (reading 'frame')");
+      return key.value;
+    }
   }
   const PZ = { keyframe: Keyframe, property: { dynamic: { keyframes: Keyframes } } };
   const realm = { PZ };
@@ -60,4 +65,33 @@ test("installation is idempotent", () => {
   const load = PZ.property.dynamic.keyframes.prototype.load;
   vm.runInNewContext(source, { PZ, window: { PZ } });
   assert.equal(PZ.property.dynamic.keyframes.prototype.load, load);
+});
+
+// Graph Editor 2 may delete the last keyframe of an allowEmpty property, and a
+// saved empty list stays empty for the same definitions. CM3's getter reads
+// keyframes[0].frame in both cases, which used to throw through the native
+// property panel and the debug journal. A read returns no value instead.
+test("a read of an empty keyframe list returns no value", () => {
+  const PZ = createRealm();
+
+  const allowed = new PZ.property.dynamic.keyframes({ value: 7, allowEmpty: true });
+  allowed.load({ keyframes: [] });
+  assert.equal(allowed.keyframes.length, 0);
+  assert.equal(allowed.get(0), undefined);
+
+  const cleared = new PZ.property.dynamic.keyframes({ value: 7 });
+  cleared.load({ keyframes: [{ value: 3, frame: 0 }] });
+  cleared.keyframes.length = 0;
+  assert.equal(cleared.get(0), undefined);
+
+  const stocked = new PZ.property.dynamic.keyframes({ value: 7 });
+  stocked.load({ keyframes: [{ value: 3, frame: 10 }] });
+  assert.equal(stocked.get(10), 3);
+
+  const expressed = new PZ.property.dynamic.keyframes({ value: 7, allowEmpty: true });
+  expressed.load({ keyframes: [] });
+  expressed.expression = { evaluate: frame => 40 + frame };
+  assert.equal(expressed.get(2), 42);
+  expressed.expression = null;
+  assert.equal(expressed.get(2), undefined);
 });

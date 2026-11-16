@@ -23,6 +23,18 @@
     }
     return result;
   };
+
+  // A definition that allows an empty list keeps it empty, and Graph Editor 2
+  // can delete the last keyframe of such a property on purpose. CM3's getter
+  // then reads keyframes[0].frame without a guard and throws for every reader,
+  // including the native property panel. A read has no value to return there;
+  // do not let it break the caller. Expressions keep their own path.
+  var originalGet = prototype.get;
+  prototype.get = function get(frame) {
+    if ((this.expression === null || this.expression === undefined) &&
+        this.keyframes && this.keyframes.length === 0) return undefined;
+    return originalGet.apply(this, arguments);
+  };
   prototype.__zoidiumEmptyKeyframesRepair = true;
 })(typeof window !== "undefined" ? window : globalThis);
 (function installGroupHistoryRepair(global) {

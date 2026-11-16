@@ -257,6 +257,33 @@ test("getBaseValue installs missing-only and interpolates", () => {
   assert.equal(PZ.property.dynamic.keyframes.prototype.getBaseValue, undefined);
 });
 
+// A property whose definition allows an empty keyframe list, or whose last key
+// was deleted, has no frame to read. CM3's stock getter throws while reading
+// keyframes[0].frame; the installed getter and the expression base read must
+// return no value instead of stopping the native property panel.
+test("empty keyframe lists never reach the unguarded stock read", () => {
+  const { PZ } = stubPZ();
+  const stockGet = function (e) { return this.keyframes[0].frame + e; };
+  PZ.property.dynamic.keyframes.prototype.get = stockGet;
+  const T = loadCommon(PZ, {});
+  T.installExpressionSupport(PZ);
+  const get = PZ.property.dynamic.keyframes.prototype.get;
+  const getBaseValue = PZ.property.dynamic.keyframes.prototype.getBaseValue;
+  const empty = { expression: null, keyframes: [], getClosestKeyframeIndex: () => 0 };
+  assert.equal(get.call(empty, 0), undefined);
+  assert.equal(getBaseValue.call(empty, 0), undefined);
+  const expressed = { expression: { evaluate: () => 9 }, keyframes: [], parentObject: null };
+  assert.equal(get.call(expressed, 0), 9);
+  const stocked = {
+    expression: null,
+    keyframes: [{ frame: 0, value: 100, tween: 0 }, { frame: 10, value: 200, tween: 0 }],
+    getClosestKeyframeIndex: e => (e < 10 ? 0 : 1),
+  };
+  assert.equal(get.call(stocked, 10), 10);
+  assert.equal(getBaseValue.call(stocked, 10), 200);
+  T.uninstallExpressionSupport(PZ);
+});
+
 test("getBaseValue installs onto inheriting prototypes, not just the base", () => {
   const T = loadCommon({}, {});
   // Mirror the runtime chain: keyframes/group inherit dynamic.

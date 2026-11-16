@@ -145,6 +145,9 @@ var PZ = PZ || {};
             return this.value;
         },
         keyframes: function (e) {
+            // An allowEmpty property, or one whose last key was deleted, has no
+            // frame to read. Expressions+ returns undefined for the same case.
+            if (!this.keyframes || this.keyframes.length === 0) return undefined;
             var t,
                 r = this.getClosestKeyframeIndex(e),
                 i = this.keyframes[r];
@@ -298,6 +301,12 @@ var PZ = PZ || {};
                                 return this.expression.evaluate(e, this.parentObject, this);
                             } catch (_err) { /* fall through to stock */ }
                         }
+                        // CM3's stock getter reads keyframes[0].frame without a
+                        // guard, so a list that is empty by definition or after
+                        // its last key was deleted throws here. A getter is a
+                        // read; return no value instead of stopping the caller.
+                        if ((this.expression === null || this.expression === undefined) &&
+                            this.keyframes && this.keyframes.length === 0) return undefined;
                         return originalGet.call(this, e);
                     };
                     patchedGet.__trapcodeSuite = true;
