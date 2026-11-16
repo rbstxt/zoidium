@@ -8,6 +8,15 @@
   const MOOV_SCAN_BOXES = 64;
   const MAX_TABLE_SAMPLES = 1000000;
   const masters = new Set([0x1a45dfa3, 0x18538067, 0x1549a966, 0x1654ae6b, 0xae]);
+  // Container audio probes read one bounded header window. Tracks and moov
+  // normally sit there; MP4 with moov after its media data reads moov alone.
+  const AUDIO_HEAD_BYTES = 1024 * 1024;
+  const ISO_TOP_LEVEL_BOXES = new Set(["ftyp", "styp", "moov", "mdat", "free", "skip", "wide", "pdin", "sidx", "moof", "meta"]);
+  const EBML_SEGMENT = 0x18538067;
+  const EBML_TRACKS = 0x1654ae6b;
+  const EBML_TRACK_ENTRY = 0xae;
+  const EBML_TRACK_TYPE = 0x83;
+  const EBML_CLUSTER = 0x1f43b675;
 
   function vint(bytes, at, id = false) {
     const first = bytes[at];
@@ -442,6 +451,134 @@
     }
     return null;
   }
+  // ---------------------------------------------------------------- audio
+  // Import and export both need to know whether a media container carries an
+  // audio stream at all. Some editors create an audio clip for any file the
+  // audio element accepts, including video-only MP4/WebM files whose audio
+  // element merely stays silent. Answer "absent" only when the container was
+  // recognized and every track was read without truncation, so a real audio
+  // stream is never dropped by a guess.
+  const audioProbes = new WeakMap();
+
+  // Walks boxes like eachBox but reports whether the whole range was read, so
+  // a truncated container is never mistaken for a complete one.
+  function eachBoxState(bytes, start, end, visit) {
+    let count = 0;
+    for (let at = start; at < end;) {
+      const box = readBox(bytes, at, end);
+      if (!box || ++count > 4096) return false;
+      if (visit(box.type, box.body, box.end)) return true;
+      at = box.end;
+    }
+    return true;
+  }
+
+  function readMp4AudioTracks(bytes) {
+    let moov = null;
+    eachBoxState(bytes, 0, bytes.length, (type, body, end) => {
+      if (type === "moov") { moov = { body, end }; return true; }
+      return false;
+    });
+    if (!moov) return null;
+    let tracks = 0, audio = 0, readable = true;
+    const complete = eachBoxState(bytes, moov.body, moov.end, (type, body, end) => {
+      if (type !== "trak") return false;
+      tracks += 1;
+      let mdia = null;
+      eachBoxState(bytes, body, end, (childType, childBody, childEnd) => {
+        if (childType === "mdia") { mdia = { body: childBody, end: childEnd }; return true; }
+        return false;
+      });
+      if (!mdia) { readable = false; return false; }
+      let handler = "";
+      eachBoxState(bytes, mdia.body, mdia.end, (type2, body2, end2) => {
+        if (type2 === "hdlr") { handler = readHandler(bytes, body2, end2); return true; }
+        return false;
+      });
+      if (!handler) readable = false;
+      else if (handler === "soun") audio += 1;
+      return false;
+    });
+    if (!complete || !tracks || !readable) return null;
+    return audio > 0;
+  }
+
+  // EBML walker for the audio probe. Returns false when a header or a declared
+  // size crosses the buffer, so callers can treat the parse as unreadable.
+  function readEbml(bytes, start, end, visit) {
+    let at = start;
+    while (at < end) {
+      const id = vint(bytes, at, true);
+      if (!id) return false;
+      const size = vint(bytes, at + id.length);
+      if (!size) return false;
+      const body = at + id.length + size.length;
+      const stop = size.unknown ? end : body + size.value;
+      if (body > end || stop > end) return false;
+      if (visit(id.value, body, stop)) return true;
+      if (size.unknown) return false;
+      at = stop;
+    }
+    return true;
+  }
+
+  function readWebmAudioTracks(bytes) {
+    let found = false, audio = null;
+    function readTracks(body, end) {
+      let entries = 0, sound = 0, complete = true;
+      const walked = readEbml(bytes, body, end, (id, childBody, childEnd) => {
+        if (id !== EBML_TRACK_ENTRY) return false;
+        entries += 1;
+        const entryComplete = readEbml(bytes, childBody, childEnd, (fieldId, fieldBody, fieldEnd) => {
+          if (fieldId !== EBML_TRACK_TYPE) return false;
+          if (unsigned(bytes, fieldBody, fieldEnd) === 2) sound += 1;
+          return true;
+        });
+        if (!entryComplete) complete = false;
+        return false;
+      });
+      return walked && complete && entries ? sound > 0 : null;
+    }
+    function segmentChild(id, body, end) {
+      if (id === EBML_TRACKS) { audio = readTracks(body, end); found = true; return true; }
+      // Tracks must precede the first cluster in a valid file.
+      if (id === EBML_CLUSTER) { found = true; return true; }
+      return false;
+    }
+    readEbml(bytes, 0, bytes.length, (id, body, end) => {
+      if (id === EBML_SEGMENT) return readEbml(bytes, body, end, segmentChild);
+      if (id === EBML_TRACKS) { audio = readTracks(body, end); found = true; return true; }
+      return false;
+    });
+    return found ? audio : null;
+  }
+
+  // true: the container has an audio track. false: the container was parsed
+  // completely and has none. null: unknown format, unreadable bytes, or a
+  // truncated header, so callers keep their existing behaviour.
+  function probeAudioTrack(file) {
+    if (!file || typeof file !== "object" || typeof file.slice !== "function" ||
+        typeof file.arrayBuffer !== "function") return Promise.resolve(null);
+    if (!audioProbes.has(file)) {
+      audioProbes.set(file, Promise.resolve().then(async () => {
+        const head = new Uint8Array(await file.slice(0, AUDIO_HEAD_BYTES).arrayBuffer());
+        if (head.length < 8) return null;
+        if (head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) {
+          return readWebmAudioTracks(head);
+        }
+        if (!ISO_TOP_LEVEL_BOXES.has(ascii(head, 4, 4))) return null;
+        const inHead = readMp4AudioTracks(head);
+        if (inHead !== null) return inHead;
+        // Many MP4s keep moov after mdat, past the header window. Read only
+        // the box headers to find it, then read moov alone.
+        const moov = await locateMoov(file);
+        if (!moov) return null;
+        return readMp4AudioTracks(new Uint8Array(await file.slice(moov.start, moov.start + moov.size).arrayBuffer()));
+      }).catch(() => null));
+    }
+    return audioProbes.get(file);
+  }
+
   function timingFor(media) {
     const file = media?.file;
     if (!file || typeof file !== "object" || typeof file.slice !== "function" || typeof file.arrayBuffer !== "function") return Promise.resolve(null);
@@ -509,7 +646,7 @@
     return !!state && state.media === media && state.file === media?.file && state.resolved &&
       !state.unadjusted && video.paused === true && !video.seeking && video.readyState >= 2;
   }
-  const api = { readTiming, target, ensure, isReady,
+  const api = { readTiming, target, ensure, isReady, probeAudioTrack,
     canCapture(sequence, frame) {
       return (sequence.videoSchedules || []).every(schedule => {
         const item = schedule.currentItem;

@@ -2,7 +2,7 @@
 
 const { chooseCodecs, frameCount, frameTiming, isMemoryError, projectFrame, SAMPLE_RATE } = require("./export-math.js");
 const { createStorage } = require("./stream-target.js");
-const { createAudioMixer, hasAudio } = require("./audio-mix.js");
+const { createAudioMixer, hasAudio, planAudio } = require("./audio-mix.js");
 const { createAudioEncoding } = require("./audio-encode.js");
 
 function createJob(scope, PZ, exporter, loadBunny) {
@@ -25,8 +25,17 @@ function createJob(scope, PZ, exporter, loadBunny) {
       try {
         const params = exporter.params;
         const count = frameCount(params.length);
-        const audioPresent = hasAudio(exporter.sequence);
-        const codecs = await chooseCodecs(scope, params, PZ.av.profiles, audioPresent);
+        // Existing projects can hold audio clips for video-only files. Probe
+        // the containers once, so those clips are skipped instead of failing
+        // the export, and a project with only such clips exports no audio
+        // track, exactly like a project without audio. A project without any
+        // audio clip keeps its exact capability-probe timing.
+        const probeAudioTrack = scope.ZoidiumVideoSeekPolicy?.probeAudioTrack;
+        const audioPlan = hasAudio(exporter.sequence)
+          ? await planAudio(exporter.sequence, probeAudioTrack)
+          : { present: false, silent: new Set() };
+        check();
+        const codecs = await chooseCodecs(scope, params, PZ.av.profiles, audioPlan.present);
         check();
         const bunny = loadBunny();
         storage = await createStorage(scope, bunny);
@@ -55,7 +64,8 @@ function createJob(scope, PZ, exporter, loadBunny) {
         if (codecs.audio) {
           audio = await createAudioEncoding(scope, bunny, codecs.audio, count / params.rate, controller.signal);
           output.addAudioTrack(audio.source);
-          mixer = createAudioMixer(scope, exporter, check, controller.signal);
+          mixer = createAudioMixer(scope, exporter, check, controller.signal,
+            { silent: audioPlan.silent, probeAudioTrack });
         }
         await output.start();
         check();

@@ -6,6 +6,7 @@ const vm = require("node:vm");
 const test = require("node:test");
 
 const source = fs.readFileSync(path.join(__dirname, "../plugins/core/video-decode-hint.js"), "utf8");
+const { fakeFile, mp4, webm } = require("./media-container-fixture.js");
 
 function loadModule() {
   const sandbox = { module: { exports: {} } };
@@ -457,4 +458,74 @@ test("an unsupported type skips the audio probe like the native gate", () => {
     assert.equal(load(asset), undefined);
     assert.equal(element.src, undefined);
   }
+});
+
+function audioProbeWith(probe, support = "maybe") {
+  const api = loadModule();
+  const element = {
+    removed: [], loads: 0, duration: 2.5, src: undefined,
+    canPlayType: () => support,
+    removeAttribute(name) { this.removed.push(name); },
+    load() { this.loads += 1; },
+  };
+  const load = api.createLoadAudio({ createElement(tag) { assert.equal(tag, "audio"); return element; } }, probe);
+  const asset = (bytes, overrides = {}) => Object.assign({
+    file: Object.assign(fakeFile(bytes), { type: "video/mp4" }),
+    url: "blob:x", filename: "clip.mp4", key: "hash",
+  }, overrides);
+  return { load, asset, element };
+}
+
+test("a video-only MP4 creates no audio clip and never loads the element", async () => {
+  const { load, asset, element } = audioProbeWith(async () => false);
+  assert.equal(await load(asset(mp4(["vide"]))), undefined);
+  assert.equal(element.src, undefined, "the gate element never receives the asset URL");
+  assert.equal(element.loads, 1, "the unused element is released");
+});
+
+test("a video-only WebM creates no audio clip", async () => {
+  const { load, asset, element } = audioProbeWith(async () => false);
+  assert.equal(await load(asset(webm([1]))), undefined);
+  assert.equal(element.src, undefined);
+});
+
+test("an MP4 with an audio stream still returns the native clip fields", async () => {
+  let probed = null;
+  const { load, asset, element } = audioProbeWith(async (file) => { probed = file; return true; });
+  const file = asset(mp4(["vide", "soun"]));
+  const pending = load(file);
+  await new Promise(setImmediate);
+  assert.equal(probed, file.file);
+  assert.equal(element.src, "blob:x");
+  element.onloadeddata();
+  assert.deepEqual(JSON.parse(JSON.stringify(await pending)), {
+    type: 1, start: 0, length: 75, offset: 0, properties: { name: "clip.mp4", media: "hash" },
+  });
+  assert.equal(file.length, 2.5);
+});
+
+test("an unknown container keeps the native element probe", async () => {
+  const { load, asset, element } = audioProbeWith(async () => null);
+  const pending = load(asset(Buffer.from("RIFF0000WAVEfmt ")));
+  await new Promise(setImmediate);
+  assert.equal(element.src, "blob:x");
+  element.onloadeddata();
+  assert.equal((await pending).properties.name, "clip.mp4");
+});
+
+test("a failed probe keeps the native element probe", async () => {
+  const { load, asset, element } = audioProbeWith(async () => { throw new Error("read failed"); });
+  const pending = load(asset(mp4(["vide"])));
+  await new Promise(setImmediate);
+  assert.equal(element.src, "blob:x");
+  element.onloadeddata();
+  assert.equal((await pending).properties.name, "clip.mp4");
+});
+
+test("without a container probe the audio gate behaves as before", async () => {
+  const { load, asset, element } = audioProbeWith(undefined);
+  const pending = load(asset(mp4(["vide"])));
+  assert.equal(element.src, "blob:x");
+  element.onloadeddata();
+  assert.equal((await pending).properties.name, "clip.mp4");
 });

@@ -3,61 +3,61 @@
   "id": "mp4-export",
   "name": "MP4 Export",
   "author": "Zoidium",
-  "version": "11",
+  "version": "12",
   "kind": "extension",
   "description": "Export H.264 MP4 with AAC audio or an Opus fallback through the native Export panel.",
   "category": "utilities",
   "modules": [
     {
       "id": "mp4-export",
-      "source": "./plugins/mp4-export/mp4-export.js?v=11"
+      "source": "./plugins/mp4-export/mp4-export.js?v=12"
     }
   ],
   "resources": [
     {
       "id": "export-math-js",
       "type": "text",
-      "source": "./plugins/mp4-export/export-math.js?v=11"
+      "source": "./plugins/mp4-export/export-math.js?v=12"
     },
     {
       "id": "audio-mix-js",
       "type": "text",
-      "source": "./plugins/mp4-export/audio-mix.js?v=11"
+      "source": "./plugins/mp4-export/audio-mix.js?v=12"
     },
     {
       "id": "render-js",
       "type": "text",
-      "source": "./plugins/mp4-export/render.js?v=11"
+      "source": "./plugins/mp4-export/render.js?v=12"
     },
     {
       "id": "stream-target-js",
       "type": "text",
-      "source": "./plugins/mp4-export/stream-target.js?v=11"
+      "source": "./plugins/mp4-export/stream-target.js?v=12"
     },
     {
       "id": "vendor-mediabunny-1-62-0-cjs",
       "type": "text",
-      "source": "./plugins/mp4-export/vendor/mediabunny-1.62.0.cjs?v=11"
+      "source": "./plugins/mp4-export/vendor/mediabunny-1.62.0.cjs?v=12"
     },
     {
       "id": "vendor-license",
       "type": "text",
-      "source": "./plugins/mp4-export/vendor/LICENSE?v=11"
+      "source": "./plugins/mp4-export/vendor/LICENSE?v=12"
     },
     {
       "id": "vendor-readme-md",
       "type": "text",
-      "source": "./plugins/mp4-export/vendor/README.md?v=11"
+      "source": "./plugins/mp4-export/vendor/README.md?v=12"
     },
     {
       "id": "audio-encode",
       "type": "text",
-      "source": "./plugins/mp4-export/audio-encode.js?v=11"
+      "source": "./plugins/mp4-export/audio-encode.js?v=12"
     },
     {
       "id": "audio-decode",
       "type": "text",
-      "source": "./plugins/mp4-export/audio-decode.js?v=11"
+      "source": "./plugins/mp4-export/audio-decode.js?v=12"
     }
   ]
 }
