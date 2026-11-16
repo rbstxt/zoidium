@@ -521,14 +521,14 @@
       "id": "mp4-export",
       "name": "MP4 Export",
       "author": "Zoidium",
-      "version": "12",
+      "version": "13",
       "category": "utilities",
       "defaultEnabled": true,
       "tagline": "H.264 MP4 video export",
       "description": "Export MP4 from the native Export panel with AAC or Opus audio. Requires WebCodecs encoder support.",
-      "manifest": "./plugins/mp4-export/manifest.json?v=12",
-      "integrity": "sha256-bhAv9S9u1tsUROE8sZbTYC/ToZIsERIsQZ8UbgOw3+Q=",
-      "bundle": "./plugins/mp4-export/bundle.json?v=12"
+      "manifest": "./plugins/mp4-export/manifest.json?v=13",
+      "integrity": "sha256-nMczxZstx4Ev1eQVq6qhnp9mJHxkpZeLnA64A3peZOY=",
+      "bundle": "./plugins/mp4-export/bundle.json?v=13"
     }
   ]
 }
