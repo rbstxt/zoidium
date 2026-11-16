@@ -395,3 +395,13 @@ test("a readable export through the job still yields the copied video", async ()
   assert.equal(opfs.state.copies, 2);
   assert.equal(opfs.state.entries.size, 0);
 });
+
+test("a complete export whose copy keeps failing still downloads through the job", async () => {
+  const opfs = fakeOpfs({ copyError: () => FAILED_TO_FETCH() });
+  const exporter = jobExporter();
+  const blob = await createJob(jobScope(opfs), { av: { profiles } }, exporter, fakeBunny).run();
+  assert.equal(blob.type, "video/mp4");
+  assert.deepEqual([...new Uint8Array(await blob.arrayBuffer())], [7]);
+  assert.equal(opfs.state.copies, 4, "every scheduled copy was tried");
+  assert.equal(opfs.state.entries.size, 1, "the job's cleanup keeps the file the download reads");
+});
