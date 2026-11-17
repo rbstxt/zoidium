@@ -190,12 +190,12 @@
             function (started) {
               downloading = false;
               button.disabled = wasDisabled;
-              if (!started) emitDownloadError(globalObject, artifactError(artifact));
+              if (!started) emitDownloadError(globalObject, artifactError(artifact), artifact.filename);
             },
             function (error) {
               downloading = false;
               button.disabled = wasDisabled;
-              emitDownloadError(globalObject, error);
+              emitDownloadError(globalObject, error, artifact.filename);
             },
           );
         },
@@ -223,6 +223,13 @@
   }
 
   var EXPORT_FORMATS = ["mkv", "webm", "mp4", "png", "jpeg", "webp", "gif"];
+  // Start times stashed by the progress wrapper so the finished-page record
+  // can carry the render duration. Keyed by export instance, never retained
+  // past its own finished page.
+  var renderStartTimes = new WeakMap();
+  // Errors stashed by the render wrapper so the native error page can record
+  // the real failure instead of a constant string.
+  var renderFailures = new WeakMap();
 
   function exportFormatForFilename(filename) {
     var match = /(?:\.([a-z0-9]+))$/i.exec(String(filename || ""));
@@ -305,12 +312,19 @@
       if (artifact) {
         manager.bind(findDownloadButton(page), artifact);
         // The finished page appears only after a successful render, so page
-        // creation is the render-completion record for native exports.
-        recordExportComplete(globalObject, {
-          format: exportFormatForFilename(filename),
-          bytes: finiteOrNull(artifact.blob && artifact.blob.size),
-          filename: filename,
-        });
+        // creation is the render-completion record for native exports. The
+        // MP4 plugin records its own completion and never reaches this hook,
+        // but the skip keeps the pairing exact if wrapping order changes.
+        if (!isMp4Instance(this)) {
+          var started = renderStartTimes.has(this) ? renderStartTimes.get(this) : null;
+          renderStartTimes.delete(this);
+          recordExportComplete(globalObject, {
+            format: exportFormatForFilename(filename),
+            durationMs: started == null ? null : Math.max(0, Date.now() - started),
+            bytes: finiteOrNull(artifact.blob && artifact.blob.size),
+            filename: filename,
+          });
+        }
       }
       return page;
     };
@@ -318,6 +332,24 @@
     wrapped.__zoidiumDirectDownloadOriginal = original;
     prototype.createFinishedPage = wrapped;
     return true;
+  }
+
+  function stashRenderFailure(instance, error) {
+    try {
+      if (instance && (typeof instance === "object" || typeof instance === "function")) {
+        renderFailures.set(instance, error);
+      }
+    } catch (_ignored) {
+      // A frozen instance still fails; only its diagnosis is lost.
+    }
+  }
+
+  function isMp4Instance(instance) {
+    try {
+      return Boolean(instance && instance.params && instance.params.format === "mp4_h264");
+    } catch (_error) {
+      return false;
+    }
   }
 
   function patchDeviceLifecycle(prototype, globalObject) {
@@ -334,7 +366,12 @@
       var wrappedProgress = function createProgressPageWithExportStart() {
         try {
           var params = (this && this.params) || {};
-          if (exportFormatForParams(params) !== "mp4") {
+          if (!isMp4Instance(this)) {
+            try {
+              renderStartTimes.set(this, Date.now());
+            } catch (_ignored) {
+              // A frozen or sealed instance still exports without timing.
+            }
             recordExportStart(globalObject, {
               format: exportFormatForParams(params),
               width: finiteOrNull(params.width),
@@ -354,16 +391,52 @@
       patched = true;
     }
     if (
+      typeof prototype.render === "function" &&
+      !prototype.render[PATCH_MARKER]
+    ) {
+      // Mirrors the frame-export pattern: CM3 shows its "Render error" page
+      // through createErrorPage without passing the failure along, so the
+      // render wrapper stashes the real error for the error page to record.
+      var originalRender = prototype.render;
+      var wrappedRender = function renderWithExportFailure() {
+        var self = this;
+        try {
+          var result = originalRender.apply(this, arguments);
+        } catch (error) {
+          stashRenderFailure(self, error);
+          throw error;
+        }
+        if (result && typeof result.then === "function") {
+          return result.then(
+            function (value) { return value; },
+            function (error) {
+              stashRenderFailure(self, error);
+              throw error;
+            },
+          );
+        }
+        return result;
+      };
+      wrappedRender[PATCH_MARKER] = true;
+      wrappedRender.__zoidiumDirectDownloadOriginal = originalRender;
+      prototype.render = wrappedRender;
+      patched = true;
+    }
+    if (
       typeof prototype.createErrorPage === "function" &&
       !prototype.createErrorPage[PATCH_MARKER]
     ) {
       var originalError = prototype.createErrorPage;
       var wrappedError = function createErrorPageWithExportError() {
         try {
-          var params = (this && this.params) || {};
-          if (exportFormatForParams(params) !== "mp4") {
-            recordExportError(globalObject, new Error("Export failed."), {
-              format: exportFormatForParams(params),
+          // A failure stashed by the render wrapper carries the real message
+          // and cause chain. Without one there is nothing truthful to record,
+          // so the page renders unrecorded rather than with a constant.
+          if (!isMp4Instance(this) && renderFailures.has(this)) {
+            var failure = renderFailures.get(this);
+            renderFailures.delete(this);
+            recordExportError(globalObject, failure, {
+              format: exportFormatForParams((this && this.params) || {}),
               stage: "render",
             });
           }
@@ -424,8 +497,14 @@
       : new Error("The requested export is no longer available.");
   }
 
-  function emitDownloadError(globalObject, error) {
-    recordExportError(globalObject, error, { stage: "download" });
+  function emitDownloadError(globalObject, error, filename) {
+    // Only real export failures are export errors: a stale project link or
+    // any other non-export download keeps its console and event report but
+    // stays out of the export lifecycle records.
+    if (exportFormatForFilename(filename) !== "unknown") {
+      var format = exportFormatForFilename(filename);
+      recordExportError(globalObject, error, { format: format, stage: "download" });
+    }
     var message =
       error && error.message
         ? error.message
@@ -450,10 +529,11 @@
     }
   }
 
-  function emitMissingArtifact(globalObject) {
+  function emitMissingArtifact(globalObject, filename) {
     emitDownloadError(
       globalObject,
       new Error("The requested export is no longer available."),
+      filename,
     );
   }
 
@@ -477,13 +557,13 @@
         var pz = globalObject.PZ || {};
         var artifact = manager.capture(pz.downloadBlob, pz.downloadFilename);
         if (!artifact) {
-          emitMissingArtifact(globalObject);
+          emitMissingArtifact(globalObject, pz.downloadFilename);
           return null;
         }
         Promise.resolve(manager.trigger(artifact)).then(
           function (started) {
             if (!started) {
-              emitDownloadError(globalObject, artifactError(artifact));
+              emitDownloadError(globalObject, artifactError(artifact), artifact.filename);
               return;
             }
             // The legacy download page has no finished-page hook, so a
@@ -498,7 +578,7 @@
             }
           },
           function (error) {
-            emitDownloadError(globalObject, error);
+            emitDownloadError(globalObject, error, artifact.filename);
           },
         );
         return null;

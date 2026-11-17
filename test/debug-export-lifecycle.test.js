@@ -63,6 +63,8 @@ function createTimers() {
 
 function loadJournal() {
   const timers = createTimers();
+  const localValues = new Map();
+  const sessionValues = new Map();
   const context = {
     Date,
     Error,
@@ -73,12 +75,14 @@ function loadJournal() {
     JSON,
     Number,
     String,
+    localStorage: storage(localValues),
+    sessionStorage: storage(sessionValues),
     clearTimeout: timers.clearTimeout,
     setTimeout: timers.setTimeout,
   };
   vm.createContext(context);
   vm.runInContext(readSource("zoidium/debug-journal.js"), context, { filename: "debug-journal.js" });
-  return { journal: context.__zoidiumDebugParts.journal, runTimers: timers.run };
+  return { journal: context.__zoidiumDebugParts.journal, runTimers: timers.run, localValues };
 }
 
 function loadDebugLog(options = {}) {
@@ -144,20 +148,27 @@ function loadDebugLog(options = {}) {
   return { api: context.ZOIDIUM_DEBUG_LOG, context, runTimers: timers.run };
 }
 
-test("successful project spans share a small quota and never evict other records", () => {
-  const { journal } = loadJournal();
+test("startup verification spans leave older records in the persisted journal", () => {
+  const { journal, runTimers, localValues } = loadJournal();
   journal.initializeJournal();
-  for (let index = 0; index < 100; index += 1) {
-    journal.record("project-span", { name: "verify restore point", durationMs: index, status: "complete" });
-  }
-  for (let index = 0; index < 5; index += 1) {
+  for (let index = 0; index < 105; index += 1) {
     journal.record("marker", { index });
   }
-  const events = journal.liveEvents();
-  assert.equal(events.filter((entry) => entry.type === "marker").length, 5);
-  const spans = events.filter((entry) => entry.type === "project-span" && entry.status !== "failed");
-  assert.ok(spans.length <= 10, `expected at most 10 retained spans, saw ${spans.length}`);
-  assert.ok(spans.length > 0);
+  for (let point = 0; point < 20; point += 1) {
+    for (let span = 0; span < 5; span += 1) {
+      journal.record("project-span", { name: "verify restore point", durationMs: span, status: "complete" });
+    }
+  }
+  for (let index = 0; index < 3; index += 1) {
+    journal.record("project-span", { name: "verify restore point", durationMs: index, status: "failed" });
+  }
+  runTimers();
+  const persisted = JSON.parse(localValues.get("zoidium.debug-log.journal.v2"));
+  const events = persisted.sessions.at(-1).events;
+  assert.ok(events.length <= 120);
+  assert.equal(events.filter((entry) => entry.type === "marker").length, 105);
+  assert.equal(events.filter((entry) => entry.type === "project-span" && entry.status !== "failed").length, 10);
+  assert.equal(events.filter((entry) => entry.type === "project-span" && entry.status === "failed").length, 3);
 });
 
 test("failed project spans are still recorded in full", () => {
@@ -293,4 +304,144 @@ test("a finished export page records completion through the download adapter", a
   assert.equal(records.length, 1);
   assert.equal(records[0].format, "webm");
   assert.equal(records[0].bytes, 5);
+});
+
+function flush(rounds = 8) {
+  let chain = Promise.resolve();
+  for (let index = 0; index < rounds; index += 1) {
+    chain = chain.then(() => new Promise((resolve) => setImmediate(resolve)));
+  }
+  return chain;
+}
+
+function installDeviceWorld({ debugLog, params, renderBehavior } = {}) {
+  const { install } = require("../zoidium/direct-download");
+  const { causeChain } = require("../zoidium/debug-journal");
+  const records = [];
+  const errors = [];
+  const globalObject = {
+    CustomEvent: class CustomEvent {
+      constructor(type, options) {
+        this.type = type;
+        this.detail = options.detail;
+      }
+    },
+    PZ: { downloadBlob: null, downloadFilename: null, ui: { export: {} } },
+    console: { error: (message) => errors.push(message) },
+    dispatchEvent: (event) => errors.push(event.detail.message),
+    location: { href: "https://example.test/tools/clipmaker/" },
+    open() {},
+  };
+  if (debugLog !== false) {
+    globalObject.ZOIDIUM_DEBUG_LOG = {
+      recordExportStart(details) {
+        records.push({ type: "export-start", ...details });
+      },
+      recordExportComplete(details) {
+        records.push({ type: "export-complete", ...details });
+      },
+      recordExportError(error, details) {
+        records.push({ type: "export-error", error: error.message, causes: causeChain(error), ...details });
+      },
+    };
+  }
+  globalObject.window = globalObject;
+  function DeviceExport() {
+    this.params = params || { format: "webm_vp8_opus" };
+  }
+  DeviceExport.prototype.createProgressPage = function () {
+    return {};
+  };
+  DeviceExport.prototype.createFinishedPage = function () {
+    return {};
+  };
+  if (renderBehavior !== "absent") {
+    DeviceExport.prototype.render = renderBehavior || (function () {
+      return {};
+    });
+  }
+  DeviceExport.prototype.createErrorPage = function () {
+    return {};
+  };
+  globalObject.PZ.ui.export.device = DeviceExport;
+  install(globalObject, { downloadArtifact() {} });
+  return { records, errors, globalObject, DeviceExport };
+}
+
+test("an MP4 finished page records no second export-complete", () => {
+  const { records, globalObject, DeviceExport } = installDeviceWorld({ params: { format: "mp4_h264" } });
+  globalObject.PZ.downloadBlob = new Blob(["video"]);
+  globalObject.PZ.downloadFilename = "video.mp4";
+  new DeviceExport().createFinishedPage();
+  assert.equal(records.filter((entry) => entry.type === "export-complete").length, 0);
+});
+
+test("a native render failure records the real error message and causes", async () => {
+  const failure = new TypeError("Failed to fetch");
+  failure.cause = new Error("encoder ran out of memory");
+  const { records, DeviceExport } = installDeviceWorld({ renderBehavior() {
+    throw failure;
+  } });
+  const device = new DeviceExport();
+  assert.throws(() => device.render());
+  device.createErrorPage();
+  const error = records.find((entry) => entry.type === "export-error");
+  assert.ok(error);
+  assert.match(error.error, /Failed to fetch/);
+  assert.ok(error.causes.some((cause) => /Failed to fetch/.test(cause)));
+  assert.ok(error.causes.some((cause) => /out of memory/.test(cause)));
+});
+
+test("a native error page without a stashed error records nothing and still renders", () => {
+  const { records, DeviceExport } = installDeviceWorld({});
+  new DeviceExport().createErrorPage();
+  assert.equal(records.filter((entry) => entry.type === "export-error").length, 0);
+});
+
+test("device lifecycle hooks tolerate a missing debug log", () => {
+  const { DeviceExport } = installDeviceWorld({ debugLog: false, renderBehavior() {
+    throw new TypeError("Failed to fetch");
+  } });
+  const device = new DeviceExport();
+  device.createProgressPage();
+  assert.throws(() => device.render());
+  assert.deepEqual(device.createErrorPage(), {});
+  device.createFinishedPage();
+});
+
+test("non-export download failures record no export-error", async () => {
+  const { records, errors, globalObject } = installDeviceWorld({});
+  assert.equal(globalObject.open("download.html", "_blank"), null);
+  await flush();
+  assert.equal(records.filter((entry) => entry.type === "export-error").length, 0);
+  assert.ok(errors.some((message) => /no longer available/.test(message)));
+  globalObject.PZ.downloadBlob = new Blob(["project"]);
+  globalObject.PZ.downloadFilename = "project.pz";
+  globalObject.open("download.html", "_blank");
+  await flush();
+  assert.equal(records.filter((entry) => entry.type === "export-error").length, 0);
+});
+
+test("a failing export download still records export-error with its format", async () => {
+  const { install } = require("../zoidium/direct-download");
+  const records = [];
+  const globalObject = {
+    PZ: { downloadBlob: null, downloadFilename: null, ui: { export: {} } },
+    location: { href: "https://example.test/tools/clipmaker/" },
+    open() {},
+    ZOIDIUM_DEBUG_LOG: {
+      recordExportError(error, details) {
+        records.push({ error: error.message, ...details });
+      },
+    },
+  };
+  globalObject.window = globalObject;
+  install(globalObject, { downloadArtifact() { return Promise.reject(new Error("drive full")); } });
+  globalObject.PZ.downloadBlob = new Blob(["video"]);
+  globalObject.PZ.downloadFilename = "video.webm";
+  globalObject.open("download.html", "_blank");
+  await flush();
+  assert.equal(records.length, 1);
+  assert.equal(records[0].format, "webm");
+  assert.equal(records[0].stage, "download");
 });
