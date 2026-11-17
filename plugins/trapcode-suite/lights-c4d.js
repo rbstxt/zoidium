@@ -157,6 +157,9 @@
         if (!rect) for (var y = -1; y <= 1; y++) for (var x = -1; x <= 1; x++) {
             var sample = new THREE.SpotLight(16777215, 1, 0, Math.PI / 2, 1, 2);
             sample.areaX = x / 3; sample.areaY = y / 3;
+            // Each sample is one ninth of the rectangle; shadow maps stay off
+            // unless applyAreaShadows promotes the centre sample.
+            sample.castShadow = false;
             root.add(sample); root.add(sample.target);
             root.areaSamples.push(sample);
         }
@@ -170,6 +173,21 @@
             root.add(root.areaHelper);
         }
         return { object: root, name: label };
+    }
+
+    // One shadow map is enough for a rectangle. Nine spot shadow maps exceed
+    // the per-draw texture units, and the root point light would add six cube
+    // faces, so a shadow request on the fallback belongs to the centre sample
+    // alone. A request through the root light is moved there and cleared.
+    function applyAreaShadows(root) {
+        if (!root || !root.areaSamples) return;
+        var sample = root.areaSamples[4];
+        var wanted = !!root.castShadow || root.areaSamples.some(function (item) { return !!item.castShadow; });
+        root.castShadow = false;
+        root.areaSamples.forEach(function (item) {
+            if (item !== sample && item.castShadow) setupShadows(item, false);
+        });
+        if (wanted !== !!sample.castShadow) setupShadows(sample, wanted);
     }
 
     // LM-63 Type C, TILT=NONE. Reject external tilt references rather than fetch them.
@@ -426,6 +444,7 @@
 
     function syncArea(light, time) {
         var root = light.threeObj, p = light.properties, target = p.target.get(time);
+        applyAreaShadows(root);
         var direction = new THREE.Vector3(target[0] - root.position.x, target[1] - root.position.y, target[2] - root.position.z);
         if (direction.lengthSq && direction.lengthSq() < 0.000001) direction.set(0, 0, -1);
         if (!direction.normalize) return;
@@ -796,10 +815,18 @@
                 t = p.color.get(time);
                 o.color.setRGB(t[0] * kelvin[0], t[1] * kelvin[1], t[2] * kelvin[2]);
                 if (o.shadow && o.shadow.camera) {
-                    o.shadow.radius = p.shadowSoftness.get(time);
+                    // Rebuilding the shadow projection every frame costs a
+                    // matrix update for an unchanged coverage and softness.
+                    var softness = p.shadowSoftness.get(time);
                     var extent = p.shadowExtent.get(time) / 2;
-                    Object.assign(o.shadow.camera, { left: -extent, right: extent, top: extent, bottom: -extent });
-                    if (o.shadow.camera.updateProjectionMatrix) o.shadow.camera.updateProjectionMatrix();
+                    var projection = softness + "|" + extent;
+                    if (this.shadowProjection !== projection || this.shadowProjectionTarget !== o) {
+                        this.shadowProjection = projection;
+                        this.shadowProjectionTarget = o;
+                        o.shadow.radius = softness;
+                        Object.assign(o.shadow.camera, { left: -extent, right: extent, top: extent, bottom: -extent });
+                        if (o.shadow.camera.updateProjectionMatrix) o.shadow.camera.updateProjectionMatrix();
+                    }
                 }
             }
             if (this.objectType === 7) {
