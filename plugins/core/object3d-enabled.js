@@ -64,6 +64,15 @@
     if (light.areaSamples && light.areaSamples.length) {
       for (let i = 0; i < light.areaSamples.length; i++) light.areaSamples[i].castShadow = false;
     }
+    // A suite light that did not cast at install (IES) still has three.js's
+    // untuned shadow defaults; the suite's own setup gives it the same map
+    // size and camera range as every other suite caster.
+    const suite = typeof object.type === "string" && object.type.indexOf(SUITE_PREFIX) === 0;
+    const lights = PZ && PZ.trapcode && PZ.trapcode.lights;
+    if (on && suite && light.shadow && light.shadow.camera && lights && typeof lights.setupShadows === "function") {
+      lights.setupShadows(light, true);
+      return;
+    }
     light.castShadow = !!on;
   }
 

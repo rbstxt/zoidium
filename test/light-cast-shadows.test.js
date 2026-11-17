@@ -327,3 +327,24 @@ test("the suite Area fallback keeps one centre shadow sample and clears it again
     host.PZ.trapcode.lights.uninstall();
   }
 });
+
+test("turning on a suite IES light gives it the suite's tuned shadow settings", () => {
+  const host = suiteHost();
+  try {
+    const light = suiteLight(host, 6);
+    assert.equal(Boolean(light.threeObj.castShadow), false);
+    // three.js r91's untuned LightShadow defaults on a light that never cast.
+    light.threeObj.shadow = { mapSize: { width: 512, height: 512 }, camera: { near: 0.5, far: 500, fov: 50 } };
+    light.properties[KEY].set(1);
+    const shadow = light.threeObj.shadow;
+    assert.equal(light.threeObj.castShadow, true);
+    assert.equal(shadow.mapSize.width, 1024);
+    assert.equal(shadow.mapSize.height, 1024);
+    assert.equal(shadow.camera.near, 5);
+    assert.equal(shadow.camera.far, 1500);
+    light.properties[KEY].set(0);
+    assert.equal(light.threeObj.castShadow, false);
+  } finally {
+    host.PZ.trapcode.lights.uninstall();
+  }
+});
