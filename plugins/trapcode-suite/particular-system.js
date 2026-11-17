@@ -300,7 +300,15 @@ var PZ = PZ || {};
         else delete this.material.defines.USE_CPU;
         if (useCPU && T.particularSpin.active(this, e, this.sceneRate())) this.material.defines.USE_PARTICULAR_SPIN = 1;
         else delete this.material.defines.USE_PARTICULAR_SPIN;
-        this.material.needsUpdate = true;
+        // Only a define change needs a material refresh; uniforms were just
+        // written and apply on the next draw. Form guards its defines the
+        // same way (form-fields.js USE_PARTICLE_ROTATION).
+        var program = T.programSignature(this.material);
+        if (program !== this._programSignature || this._programMaterial !== this.material) {
+            this._programSignature = program;
+            this._programMaterial = this.material;
+            this.material.needsUpdate = true;
+        }
     };
     PZ.object3d.particular.system.prototype.updatePalettes = function () {
         var palette = this.palettes;

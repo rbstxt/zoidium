@@ -90,6 +90,17 @@ var PZ = PZ || {};
             return String(value);
         }
     };
+    // Program-relevant material state: define order does not matter, so the
+    // keys are sorted. Compare this before flagging `needsUpdate`; updating a
+    // uniform does not need a material refresh.
+    T.programSignature = function (material) {
+        if (!material) return "";
+        var defines = material.defines || {};
+        var keys = Object.keys(defines).sort();
+        var parts = [];
+        for (var i = 0; i < keys.length; i++) parts.push(keys[i] + "=" + String(defines[keys[i]]));
+        return parts.join(";");
+    };
 
     T.createPalette = function () {
         var texture = new THREE.DataTexture(new Uint8Array(256 * 4), 256, 1, THREE.RGBAFormat);
