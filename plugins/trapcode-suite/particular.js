@@ -660,8 +660,11 @@ var PZ = PZ || {};
                 this[key] = new PZ.asset.image(project.assets.load(value));
             }
             if (this.material) {
-                this.material.uniforms[uniformName].value = this[key] ? this[key].getTexture(true) : null;
-                this.material.needsUpdate = true;
+                // Only the uniform changes; the sampler stays declared, so a
+                // missing or replaced map needs no material refresh.
+                var texture = this[key] ? this[key].getTexture(true) : null;
+                var uniform = this.material.uniforms[uniformName];
+                if (uniform.value !== texture) uniform.value = texture;
             }
         }
         updateLayerMaps() {
@@ -677,7 +680,11 @@ var PZ = PZ || {};
             else delete this.material.defines.USE_LAYER_SIZE;
             this.material.uniforms.layerColorMix.value = maps.colorAlphaMix.get(PZ.trapcode.currentTime) / 100;
             this.material.uniforms.layerSizeStrength.value = maps.sizeStrength.get(PZ.trapcode.currentTime) / 100;
-            this.material.needsUpdate = true;
+            var program = T.programSignature(this.material);
+            if (program !== this._layerProgramSignature) {
+                this._layerProgramSignature = program;
+                this.material.needsUpdate = true;
+            }
         }
         updateAudio() {
             if (!this.material) return;

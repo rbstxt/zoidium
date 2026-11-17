@@ -25,6 +25,83 @@
     wrappers.add(method);
     object[name] = method;
   }
+
+  // Three.js r91 compiles a lit program for every visible light count, so
+  // hiding a light recompiles every lit material. A disabled light keeps its
+  // place in the scene graph instead: every light in its subtree stays
+  // visible with zero intensity, which contributes exactly nothing, and its
+  // non-light children (targets, gizmos) hide as they did before.
+  // `castShadow` is not touched because it also selects a program variant.
+  // Muted lights carry `zoidiumMuted` so models that walk the scene, such as
+  // the Trapcode shading model, treat a disabled light as absent rather than
+  // as a zero-intensity light.
+  function treeState(root) {
+    const entries = [];
+    const walk = node => {
+      entries.push({ node, visible: node.visible !== false, intensity: node.intensity });
+      const children = node.children || [];
+      for (let i = 0; i < children.length; i++) walk(children[i]);
+    };
+    walk(root);
+    return entries;
+  }
+  function restoreMute(mute) {
+    for (const entry of mute.entries) {
+      const node = entry.node;
+      node.visible = entry.visible;
+      if (node.isLight) {
+        if (typeof entry.intensity === "number") node.intensity = entry.intensity;
+        delete node.zoidiumMuted;
+      }
+    }
+  }
+  function forgetMute(object) {
+    const mute = object && object.zoidiumLightMute;
+    if (!mute) return null;
+    delete object.zoidiumLightMute;
+    return mute;
+  }
+  // True only when the record belonged to the object's current threeObj. A
+  // record for a tree an object-type swap replaced is forgotten without
+  // restoring it: that tree stays as the disable left it, and the caller
+  // restores the current object instead.
+  function unmuteLight(object) {
+    const mute = forgetMute(object);
+    if (!mute || mute.root !== (object && object.threeObj)) return false;
+    restoreMute(mute);
+    return true;
+  }
+  // Returns false for anything that is not a light, so the caller keeps the
+  // old `visible = false` behaviour for every other object type.
+  function muteLight(object) {
+    const root = object && object.threeObj;
+    if (!root || root.isLight !== true) {
+      // A light -> non-light type swap leaves a record for a discarded tree.
+      forgetMute(object);
+      return false;
+    }
+    let mute = object.zoidiumLightMute;
+    if (mute && mute.root !== root) {
+      // A light -> light type swap installs a fresh tree.
+      forgetMute(object);
+      mute = null;
+    }
+    if (!mute) mute = object.zoidiumLightMute = { root, entries: treeState(root) };
+    for (const entry of mute.entries) {
+      const node = entry.node;
+      if (node.isLight) {
+        node.visible = true;
+        if (typeof entry.intensity === "number" && typeof node.intensity === "number") {
+          node.intensity = 0;
+          node.zoidiumMuted = true;
+        }
+      } else {
+        node.visible = false;
+      }
+    }
+    return true;
+  }
+
   list.addAll = function (definitions) {
     const result = addAll.apply(this, arguments);
     const object = this.parent;
@@ -50,18 +127,22 @@
     wrap(object, "update", function (frame) {
       const enabled = this.properties.enabled.get(frame) === 1;
       if (!enabled && !mustUpdateGroup(this)) {
-        if (this.threeObj) this.threeObj.visible = false;
-        hidden = true;
+        if (!muteLight(this)) {
+          if (this.threeObj) this.threeObj.visible = false;
+          hidden = true;
+        }
         return;
       }
-      if (hidden && this.threeObj) this.threeObj.visible = true;
+      // A prepare of a disabled frame can mute the light, so the restore does
+      // not depend on the flag update used before.
+      if (!unmuteLight(this) && hidden && this.threeObj) this.threeObj.visible = true;
       hidden = false;
       return inherited(this, "update").apply(this, arguments);
     });
     wrap(object, "prepare", function (frame) {
       if (this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this)) {
         // An object-type swap can install a fresh, visible threeObj.
-        if (this.threeObj) this.threeObj.visible = false;
+        if (!muteLight(this) && this.threeObj) this.threeObj.visible = false;
         return Promise.resolve();
       }
       return inherited(this, "prepare").apply(this, arguments);

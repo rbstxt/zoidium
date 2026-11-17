@@ -797,3 +797,79 @@ test("removing the photometry hook still restores a live material's own callback
   assert.equal(material.onBeforeCompile, own);
   assert.equal(Object.getOwnPropertyDescriptor(THREE.Material.prototype, "onBeforeCompile")?.get, undefined);
 });
+
+function shadowCasters(root) {
+  const out = [];
+  const walk = (node) => {
+    if (node.castShadow) out.push(node);
+    for (const child of node.children || []) walk(child);
+  };
+  walk(root);
+  return out;
+}
+
+test("the Area fallback never renders nine shadow maps and keeps one centre sample", () => {
+  const { PZ, THREE } = setup();
+  PZ.trapcode.lights.install(PZ);
+  try {
+    const area = new PZ.object3d.light();
+    area.load({ objectType: 4, properties: { width: 40, height: 20 } });
+    const root = area.threeObj;
+    assert.ok(root instanceof THREE.PointLight);
+    assert.equal(root.areaSamples.length, 9);
+    area.update(0);
+    assert.equal(shadowCasters(root).length, 0, "a fallback Area casts no shadows by default");
+
+    root.castShadow = true;
+    area.update(0);
+    assert.equal(root.castShadow, false, "the zero-intensity point root never casts a cube map");
+    const casters = shadowCasters(root);
+    assert.equal(casters.length, 1, "one shadow map is enough for a rectangle");
+    assert.equal(casters[0], root.areaSamples[4], "the centre sample carries the shadow");
+    assert.deepEqual([casters[0].shadow.mapSize.width, casters[0].shadow.mapSize.height], [1024, 1024]);
+
+    for (const sample of root.areaSamples) sample.castShadow = true;
+    area.update(0);
+    const clamped = shadowCasters(root);
+    assert.equal(clamped.length, 1, "stray per-sample shadow flags collapse to the centre");
+    assert.equal(clamped[0], root.areaSamples[4]);
+
+    root.castShadow = false;
+    root.areaSamples[4].castShadow = false;
+    area.update(0);
+    assert.equal(shadowCasters(root).length, 0, "turning the request off returns to no shadow pass");
+  } finally {
+    PZ.trapcode.lights.uninstall();
+  }
+});
+
+test("an unchanged directional shadow coverage does not rebuild its projection", () => {
+  const { PZ } = setup();
+  PZ.trapcode.lights.install(PZ);
+  try {
+    const sun = new PZ.object3d.light();
+    sun.load({ objectType: 3, properties: { name: "Infinite", decay: 1 } });
+    const shadow = sun.threeObj.shadow;
+    let updates = 0;
+    shadow.camera = { updateProjectionMatrix() { updates += 1; } };
+    sun.update(0);
+    assert.equal(updates, 1, "the first frame applies the coverage");
+    assert.equal(shadow.camera.left, -100);
+    assert.equal(shadow.camera.right, 100);
+    assert.equal(shadow.radius, 1);
+    sun.update(1);
+    assert.equal(updates, 1, "an unchanged coverage keeps the projection");
+    sun.properties.shadowExtent.set(400);
+    sun.update(2);
+    assert.equal(updates, 2, "a new coverage updates the projection");
+    assert.equal(shadow.camera.right, 200);
+    sun.properties.shadowSoftness.set(4);
+    sun.update(3);
+    assert.equal(updates, 3);
+    assert.equal(shadow.radius, 4);
+    sun.update(4);
+    assert.equal(updates, 3);
+  } finally {
+    PZ.trapcode.lights.uninstall();
+  }
+});

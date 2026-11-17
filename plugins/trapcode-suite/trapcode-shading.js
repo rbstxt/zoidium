@@ -103,7 +103,10 @@ var PZ = PZ || {};
         var stack = [root];
         while (stack.length) {
             var node = stack.pop();
-            if (node !== threeObj && shadeIsLight(node)) {
+            // A disabled light keeps its place in the light count but gives
+            // no light here: it is absent, not a zero-intensity light, so it
+            // does not take one of the MAX_LIGHTS slots.
+            if (node !== threeObj && shadeIsLight(node) && node.zoidiumMuted !== true) {
                 var kind = shadeClassify(node);
                 var color = shadeLightColor(node);
                 var intensity = shadeLightIntensity(node);
