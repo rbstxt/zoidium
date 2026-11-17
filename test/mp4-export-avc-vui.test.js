@@ -209,7 +209,7 @@ test("a packet without a SPS is left alone", () => {
   assert.equal(rewriteInBandSps(Uint8Array.of(0, 0, 0, 9, 1), 4), null);
 });
 
-test("every four-byte length size is honoured", () => {
+test("every length size is honoured", () => {
   const sps = hex(HIGH_SPS);
   const packet = Uint8Array.from([sps.length, ...sps]);
   const patched = rewriteInBandSps(packet, 1);

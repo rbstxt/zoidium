@@ -185,6 +185,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- MP4 exports keep their brightness in After Effects, VLC, and other players
+  that read only the H.264 stream. Some hardware encoders wrote full-range
+  video tagged only in the MP4 box, so those players showed it darker with
+  lost shadow detail. Exports are now limited-range BT.709 with the same
+  colour tags in the box and the stream.
 - Playback no longer sometimes jumps back to an earlier frame and repeats a
   section when a shape with a video material that has a Start offset begins
   playing.

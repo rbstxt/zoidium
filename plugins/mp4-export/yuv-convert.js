@@ -16,10 +16,12 @@ function glslNumber(value) {
   return Number.isInteger(value) ? value.toFixed(1) : String(value);
 }
 
-// Four bytes of one plane per fragment. Row 0 of the framebuffer is row 0 of
-// the Y plane, so readPixels returns the planes in memory order and nothing
-// needs flipping: texImage2D stores the source canvas top row first and
-// texelFetch indexes that order directly.
+// Four bytes of one plane per fragment. The shader counts output rows from
+// the framebuffer's bottom (gl_FragCoord.y) and readPixels also returns the
+// bottom row first, so the two orders cancel and the buffer holds the planes
+// top-down in memory order. texImage2D stores the source canvas top row first
+// and texelFetch indexes that order directly. Flipping either side alone
+// turns every exported frame upside down.
 const FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
 precision highp int;
