@@ -4,6 +4,8 @@ const { chooseCodecs, frameCount, frameTiming, isMemoryError, projectFrame, SAMP
 const { createStorage } = require("./stream-target.js");
 const { createAudioMixer, hasAudio, planAudio } = require("./audio-mix.js");
 const { createAudioEncoding } = require("./audio-encode.js");
+const { createVideoSource } = require("./video-source.js");
+const { createPacketTagger } = require("./avc-vui.js");
 
 function createJob(scope, PZ, exporter, loadBunny) {
   let cancelled = false;
@@ -21,7 +23,7 @@ function createJob(scope, PZ, exporter, loadBunny) {
       if (output) cancellation ||= output.cancel().catch(() => {});
     },
     async run() {
-      let storage = null, mixer = null, audio = null;
+      let storage = null, mixer = null, audio = null, video = null;
       try {
         const params = exporter.params;
         const count = frameCount(params.length);
@@ -52,21 +54,20 @@ function createJob(scope, PZ, exporter, loadBunny) {
           format: new bunny.Mp4OutputFormat({ fastStart: false }),
           target: storage.target,
         });
-        let canvas = exporter.renderer.domElement;
-        let padding = null;
-        if (canvas.width !== codecs.video.width || canvas.height !== codecs.video.height) {
-          const padded = scope.document.createElement("canvas");
-          padded.width = codecs.video.width;
-          padded.height = codecs.video.height;
-          padding = padded.getContext("2d");
-          canvas = padded;
-        }
-        const video = new bunny.CanvasSource(canvas, {
-          codec: "avc", fullCodecString: codecs.video.codec,
-          quality: new bunny.Quality({ bitrate: codecs.video.bitrate }),
-          latencyMode: "quality", keyFrameInterval: 2,
+        const canvas = exporter.renderer.domElement;
+        const tagger = createPacketTagger((message) => console.warn(message));
+        video = createVideoSource(scope, bunny, {
+          canvas,
+          codec: codecs.video.codec,
+          width: codecs.video.width,
+          height: codecs.video.height,
+          bitrate: codecs.video.bitrate,
+          onEncodedPacket: tagger.handle,
+          // A lost context must be caught after the last draw and before the
+          // encoder accepts the frame.
+          beforeSubmit: () => exporter.checkExportContext?.("before encoder submission"),
         });
-        output.addVideoTrack(video, { frameRate: params.rate });
+        output.addVideoTrack(video.source, { frameRate: params.rate });
         if (codecs.audio) {
           audio = await createAudioEncoding(scope, bunny, codecs.audio, count / params.rate, controller.signal);
           output.addAudioTrack(audio.source);
@@ -92,14 +93,8 @@ function createJob(scope, PZ, exporter, loadBunny) {
           exporter.frame = projectFrame(index, params.start, exporter.sequence.properties.rate.get(), params.rate);
           await exporter.renderVideoFrame();
           check();
-          if (padding) {
-            padding.fillStyle = "black";
-            padding.fillRect(0, 0, canvas.width, canvas.height);
-            padding.drawImage(exporter.renderer.domElement, 0, 0);
-          }
-          exporter.checkExportContext?.("before encoder submission");
           const timing = frameTiming(index, params.rate);
-          await video.add(timing.timestamp / 1000000, timing.duration / 1000000);
+          await video.add(timing.timestamp / 1000000, timing.duration / 1000000, canvas);
           exporter.__zoidiumPendingFrame = null;
           // Yield even if the encoder immediately accepts this frame, so the
           // native Cancel/back button remains responsive on small projects.
@@ -129,6 +124,7 @@ function createJob(scope, PZ, exporter, loadBunny) {
         const cleanups = [
           ["audio", () => audio?.dispose()],
           ["mixer", () => mixer?.dispose()],
+          ["video", () => video?.dispose()],
           ["storage", () => storage?.dispose()],
         ];
         for (const [name, dispose] of cleanups) {
