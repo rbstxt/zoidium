@@ -398,6 +398,15 @@ test("a native error page without a stashed error records nothing and still rend
   assert.equal(records.filter((entry) => entry.type === "export-error").length, 0);
 });
 
+test("a native error page records the message CM3 passes when nothing was stashed", () => {
+  const { records, DeviceExport } = installDeviceWorld({});
+  new DeviceExport().createErrorPage("Output was empty.");
+  const error = records.find((entry) => entry.type === "export-error");
+  assert.ok(error);
+  assert.equal(error.error, "Output was empty.");
+  assert.equal(error.stage, "render");
+});
+
 test("device lifecycle hooks tolerate a missing debug log", () => {
   const { DeviceExport } = installDeviceWorld({ debugLog: false, renderBehavior() {
     throw new TypeError("Failed to fetch");

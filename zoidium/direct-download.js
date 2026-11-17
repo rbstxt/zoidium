@@ -430,15 +430,22 @@
       var wrappedError = function createErrorPageWithExportError() {
         try {
           // A failure stashed by the render wrapper carries the real message
-          // and cause chain. Without one there is nothing truthful to record,
-          // so the page renders unrecorded rather than with a constant.
-          if (!isMp4Instance(this) && renderFailures.has(this)) {
-            var failure = renderFailures.get(this);
-            renderFailures.delete(this);
-            recordExportError(globalObject, failure, {
-              format: exportFormatForParams((this && this.params) || {}),
-              stage: "render",
-            });
+          // and cause chain. Without one, CM3 passes the page its own text
+          // (for example an empty output), which is recorded as given.
+          if (!isMp4Instance(this)) {
+            var failure = null;
+            if (renderFailures.has(this)) {
+              failure = renderFailures.get(this);
+              renderFailures.delete(this);
+            } else if (typeof arguments[0] === "string" && arguments[0]) {
+              failure = new Error(arguments[0]);
+            }
+            if (failure) {
+              recordExportError(globalObject, failure, {
+                format: exportFormatForParams((this && this.params) || {}),
+                stage: "render",
+              });
+            }
           }
         } catch (_ignored) {
           // A missing params shape must not stop the error page.
