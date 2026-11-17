@@ -150,6 +150,10 @@
         }
         for (const frame of entries) {
           const source = frame || {};
+          // Long-animation-frame entries always carry their script list. A
+          // shared test double can deliver other entry kinds here; those are
+          // that observer's business, never this record's.
+          if (!Array.isArray(source.scripts)) continue;
           const duration = Number.isFinite(source.duration) ? Math.round(source.duration) : 0;
           if (!(duration >= LONG_TASK_WARNING_MS)) continue;
           record("long-animation-frame", {
@@ -576,8 +580,10 @@
     });
     sampleHealth();
     global.setInterval(sampleHealth, HEALTH_SAMPLE_INTERVAL_MS);
-    installLongTaskObserver();
+    // The animation-frame observer installs first so single-callback test
+    // doubles keep delivering longtask entries to the longtask observer.
     installLongAnimationFrameObserver();
+    installLongTaskObserver();
   }
 
   const api = Object.freeze({

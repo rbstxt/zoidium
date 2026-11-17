@@ -205,20 +205,21 @@ test("export error redacts secrets and survives a missing debug log", () => {
 });
 
 test("long animation frames record duration, blocking time and top scripts", () => {
-  let deliver;
+  const callbacks = {};
   const seen = [];
   class FakeObserver {
     constructor(callback) {
-      deliver = callback;
+      this.callback = callback;
     }
     observe(options) {
       seen.push(options);
+      callbacks[options.type] = this.callback;
     }
   }
   FakeObserver.supportedEntryTypes = ["longtask", "long-animation-frame"];
   const { api } = loadDebugLog({ PerformanceObserver: FakeObserver });
   assert.ok(seen.some((options) => options.type === "long-animation-frame"));
-  deliver({
+  callbacks["long-animation-frame"]({
     getEntries: () => [{
       duration: 63000,
       blockingDuration: 62000,
