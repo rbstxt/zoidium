@@ -22,6 +22,12 @@ const NOT_READABLE_HINT = " The temporary file was changed or locked by another 
   "(for example antivirus or a disk indexer).";
 const NOT_FOUND_HINT = " The temporary file was removed.";
 
+// Peak-constrained VBR treats the requested bitrate as a mean target, not a
+// floor. A driver that ignores it, a slow preset, or simple frames can land far
+// below it, and nothing in the API reports the value that was used. The target
+// sees every written byte, so the average is checked once at the end.
+const LOW_BITRATE_RATIO = 0.35;
+
 // Names this page keeps because a download still points at the file. Only these
 // names may be removed later: another tab can be writing its own temporary file
 // at the same time, so sweeping the "zoidium-mp4-" prefix would delete a live
@@ -74,6 +80,29 @@ async function probeCause(snapshot) {
   } catch (error) {
     return error || null;
   }
+}
+
+function formatRate(bits) {
+  if (!(bits > 0)) return "0 Mbps";
+  const unit = bits >= 1e6 ? [1e5, "Mbps"] : [1e2, "kbps"];
+  const value = Math.round(bits / unit[0]) / 10;
+  return (Number.isInteger(value) ? value : value.toFixed(1)) + " " + unit[1];
+}
+
+// The target receives the whole muxed file. Without an audio track every byte
+// is video, so bytes * 8 / duration is the achieved video rate. With audio the
+// tracks cannot be separated here, and the check would credit the video with
+// the audio bytes; it stays silent instead of reporting a wrong number.
+function warnLowBitrate(bytes, options) {
+  if (!options || options.hasAudio) return;
+  const requested = Number(options.videoBitrate);
+  const duration = Number(options.duration);
+  if (!(requested > 0) || !(duration > 0) || !(bytes > 0)) return;
+  const achieved = bytes * 8 / duration;
+  if (achieved >= requested * LOW_BITRATE_RATIO) return;
+  console.warn("[Zoidium] The encoder produced " + formatRate(achieved) + " of the " +
+    formatRate(requested) + " requested for this MP4 export. A slow speed preset or " +
+    "simple frames can stay below the target.");
 }
 
 // Cancellation must win over a retry schedule: a cancel during any wait stops
@@ -238,6 +267,7 @@ async function createStorage(scope, bunny, options) {
     target: new bunny.StreamTarget(stream, { chunked: true, chunkSize: 1024 * 1024 }),
     async finish() {
       if (!length) throw new Error("The MP4 export is empty.");
+      warnLowBitrate(length, options);
       if (!file) return new Blob(parts.map((part) => part.blob), { type: "video/mp4" });
       // Detach from our temporary file once, using browser Blob storage. The
       // normal download manager then receives a stable Blob, not a live File.
