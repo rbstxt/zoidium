@@ -164,6 +164,8 @@ each line describes one visible change.
 
 ### Changed
 
+- Existing projects, new look: a light whose Enabled switch is off no longer
+  lights Trapcode Form and Particular particles.
 - Projects that use Camera+, Layer Input, or Expressions+ can now use the
   Preview cache. Cached frames match a fresh render exactly. A project stays
   uncached when an expression may keep values between frames, for example by
@@ -246,6 +248,14 @@ each line describes one visible change.
 
 ### Fixed
 
+- Turning a light off with its Enabled switch, or keyframing Enabled, no
+  longer freezes playback while every lit material is rebuilt. The light
+  stays in the scene with no output, so the first toggle costs about as much
+  as an ordinary frame.
+- Trapcode Particular no longer refreshes its material on every frame, and
+  directional light shadows are recalculated only when the light changes.
+- When the Trapcode Area light's sampled fallback is asked for shadows, only
+  its centre sample casts one.
 - MKV and WebM export no longer fails with "The rendered video could not be
   read back from the browser's temporary file" when the encoder finishes
   writing the file a moment after handing it over. The read is retried from a

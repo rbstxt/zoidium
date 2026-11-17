@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "b8d2de4edc57a99bd960f66e06535feca341733a7d731d521561a75baff7a98a",
+  "fingerprint": "c33a96df6626ec6f9c8b5321717ad6fa0c9e4d3733519361b2ee496b8db79a1b",
   "plugins": {
     "native-fx": {
       "version": "39",
@@ -69,7 +69,7 @@
       ]
     },
     "repeater": {
-      "version": "43",
+      "version": "44",
       "cases": [
         "Repeater",
         "Linear Repeater",
@@ -93,7 +93,7 @@
       ]
     },
     "trapcode-suite": {
-      "version": "50",
+      "version": "51",
       "cases": [
         "Particular",
         "Default burst",
