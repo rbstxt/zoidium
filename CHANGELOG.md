@@ -177,6 +177,19 @@ each line describes one visible change.
 
 ### Fixed
 
+- MKV and WebM export no longer fails with "The rendered video could not be
+  read back from the browser's temporary file" when the encoder finishes
+  writing the file a moment after handing it over. The read is retried from a
+  fresh copy of the file.
+- MP4 export no longer reports success for a movie that was copied
+  incompletely or as an empty file. When a read-back fails, the message now
+  says whether the temporary file was changed or locked by another program
+  (for example antivirus or a disk indexer) or was removed.
+- The Bitrate choice in the render options is kept while the page stays open,
+  instead of returning to 1x each time the export dialog opens.
+- The debug log now records each export's start, finish, and failure with the
+  error and its causes, keeps startup restore-point checks from pushing out
+  other entries, and names the scripts behind a freeze of a second or more.
 - MP4 export no longer ends with "MP4 export failed. Failed to fetch" when the
   browser briefly cannot read back the finished movie from temporary storage.
   It tries again, and if that still fails it downloads the temporary file
