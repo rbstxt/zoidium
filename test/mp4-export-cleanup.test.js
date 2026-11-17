@@ -25,6 +25,8 @@ function loadRender(hooks = {}) {
   function fakeRequire(id) {
     if (id === "./export-math.js") return require("../plugins/mp4-export/export-math.js");
     if (id === "./audio-mix.js") return require("../plugins/mp4-export/audio-mix.js");
+    if (id === "./video-source.js") return require("../plugins/mp4-export/video-source.js");
+    if (id === "./avc-vui.js") return require("../plugins/mp4-export/avc-vui.js");
     if (id === "./audio-encode.js") {
       const audioEncode = require("../plugins/mp4-export/audio-encode.js");
       return {
