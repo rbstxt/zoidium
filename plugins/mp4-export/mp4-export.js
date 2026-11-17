@@ -6,7 +6,7 @@ function install(context) {
   const PZ = context.PZ || globalThis.PZ;
   const scope = globalThis;
   const load = context.apis.modules.createRequire(context.getAsset, { root: "./plugins/mp4-export/" });
-  const { MP4_FORMAT, isMp4 } = load("./export-math.js");
+  const { MP4_FORMAT, isMp4, frameCount } = load("./export-math.js");
   const { createJob } = load("./render.js");
   const prototype = PZ.ui.export.device.prototype;
   // The page owns its restoration record. The activation only keeps weak
@@ -22,6 +22,14 @@ function install(context) {
       if (prototype[key] === replacement) prototype[key] = original;
     });
     prototype[key] = replacement;
+  }
+  function recordExport(method, arg1, arg2) {
+    try {
+      const api = scope && scope.ZOIDIUM_DEBUG_LOG;
+      if (api && typeof api[method] === "function") api[method](arg1, arg2);
+    } catch (_ignored) {
+      // Diagnostics must never interrupt an export.
+    }
   }
   context.lifecycle.onDispose(() => {
     for (const ref of owned) {
@@ -103,6 +111,20 @@ function install(context) {
       const started = performance.now();
       try {
         if (cancelled) return;
+        let startFrames = null;
+        try {
+          if (Number.isFinite(owner.params.length)) startFrames = frameCount(owner.params.length);
+        } catch (_ignored) {
+          startFrames = null;
+        }
+        recordExport("recordExportStart", {
+          format: "mp4",
+          width: owner.params.width,
+          height: owner.params.height,
+          fps: owner.params.rate,
+          frames: startFrames,
+          bitrateScale: owner.params.bitrateScale,
+        });
         exporter = new PZ.export(owner.editor.sequence, owner.params);
         job = createJob(scope, PZ, exporter, () => load("./vendor/mediabunny-1.62.0.cjs"));
         const progress = page.appendChild(controls.generateProgressbar({
@@ -123,10 +145,17 @@ function install(context) {
         PZ.downloadBlob = blob;
         PZ.downloadFilename = "video.mp4";
         settled = true;
+        recordExport("recordExportComplete", {
+          format: "mp4",
+          durationMs: Math.round(performance.now() - started),
+          bytes: blob && blob.size,
+          filename: "video.mp4",
+        });
         owner.export.navigate(owner.createFinishedPage());
       } catch (error) {
         if (cancelled) return;
         settled = true;
+        recordExport("recordExportError", error, { format: "mp4", stage: "render" });
         // Native error pages interpolate HTML. Keep encoder messages as text.
         const failed = owner.export.createPage("Render error", true, () => { owner.renderCleanUp(); return true; });
         const description = controls.generateDescription({ content: "" });
