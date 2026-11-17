@@ -58,4 +58,6 @@ IES の読み込みは `TILT=NONE` の LM-63 Type C に対応します。プロ�
 
 Area Light と Portal Light は長方形の発光面を使います。パストレーシングによる間接照明は行いません。
 
+**Cast shadows** は Spot、Point、Infinite、Sun の照明でオン、Area、Portal、IES の照明でオフです。Area と Portal の照明では、長方形の中心のサンプルだけで影を落とします。
+
 [スイートのオブジェクトと照明を追加する](/docs/ja/features/trapcode-suite/)

@@ -58,4 +58,6 @@ IES imports accept LM-63 Type C profiles with `TILT=NONE`. The profile modifies 
 
 Area Light and Portal Light use rectangular emitters. They do not provide path-traced indirect lighting.
 
+**Cast shadows** is on for Spot, Point, Infinite and Sun lights and off for Area, Portal and IES lights. In Area and Portal lights it shadows the rectangle from its centre sample.
+
 [Add suite objects and lights](/docs/features/trapcode-suite/)
