@@ -16,6 +16,15 @@
   const RETRY_DELAY_MS = 100;
   const MAX_ATTEMPTS = 200;
 
+  // CM3 rebuilds the device params every time the export dialog opens, so the
+  // choice has to live outside them. It lasts for the page session: a reload
+  // starts again at 1x.
+  let rememberedBitrateScale = 1;
+
+  function resetBitrateMemory() {
+    rememberedBitrateScale = 1;
+  }
+
   function normalizeBitrateScale(value) {
     const scale = Number(value);
     return BITRATE_SCALES.includes(scale) ? scale : 1;
@@ -134,6 +143,7 @@
         },
         set(index) {
           owner.params.bitrateScale = BITRATE_SCALES[index] || 1;
+          rememberedBitrateScale = normalizeBitrateScale(owner.params.bitrateScale);
         },
       },
       owner,
@@ -168,7 +178,8 @@
     prototype.createOptionsPage = function createOptionsPageWithBitrate() {
       const page = originalCreateOptionsPage.apply(this, arguments);
       if (!page || !this.params) return page;
-      this.params.bitrateScale = 1;
+      // CM3 resets the params on every open; the last choice survives it.
+      this.params.bitrateScale = normalizeBitrateScale(rememberedBitrateScale);
       const row = createBitrateRow(PZ, this);
       const qualityRow = findQualityRow(page);
       if (qualityRow && qualityRow.parentElement) {
@@ -209,6 +220,7 @@
       installOptionsPage,
       nativeVideoBitrate,
       normalizeBitrateScale,
+      resetBitrateMemory,
       wrapEncode,
     };
     return;

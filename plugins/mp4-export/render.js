@@ -38,7 +38,13 @@ function createJob(scope, PZ, exporter, loadBunny) {
         const codecs = await chooseCodecs(scope, params, PZ.av.profiles, audioPlan.present);
         check();
         const bunny = loadBunny();
-        storage = await createStorage(scope, bunny, { signal: controller.signal });
+        storage = await createStorage(scope, bunny, {
+          signal: controller.signal,
+          // The finished-size check needs the encoder target and the duration.
+          videoBitrate: codecs.video.bitrate,
+          duration: count / params.rate,
+          hasAudio: Boolean(codecs.audio),
+        });
         check();
         output = new bunny.Output({
           // Metadata at the end keeps memory bounded and gives the audio edit

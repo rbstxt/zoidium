@@ -10,6 +10,7 @@ const {
   installOptionsPage,
   nativeVideoBitrate,
   normalizeBitrateScale,
+  resetBitrateMemory,
 } = require("../plugins/core/export-bitrate");
 const {
   createIoSerializer,
@@ -222,4 +223,49 @@ test("the Bitrate row shows the target and follows resolution and frame rate", (
   assert.equal(labels()[1], "2x: 108 Mbps target");
   assert.equal(row.select.selectedIndex, 3, "relabelling keeps the selection");
   assert.equal(device.params.bitrateScale, 8, "relabelling does not change the choice");
+});
+
+test("the Bitrate choice survives the next options page", () => {
+  resetBitrateMemory();
+  try {
+    const pages = [];
+    function Device() {
+      this.params = { width: 1920, height: 1080, rate: 30, quality: 2, format: "mkv_vp8_opus" };
+    }
+    Device.prototype.createOptionsPage = function createOptionsPage() {
+      const page = fakeExportPage();
+      pages.push(page);
+      return page;
+    };
+    const PZ = {
+      av: { profiles: nativeProfiles },
+      ui: {
+        controls: { legacy: { generateDropdown: fakeDropdown } },
+        export: { device: Device },
+      },
+    };
+    assert.equal(installOptionsPage(PZ), true);
+
+    const first = new Device();
+    first.createOptionsPage();
+    const firstRow = pages[0].children[0];
+    assert.equal(first.params.bitrateScale, 1, "the first page starts at 1x");
+    firstRow.select.selectedIndex = 2;
+    firstRow.select.onchange();
+    assert.equal(first.params.bitrateScale, 4);
+
+    // CM3 rebuilds the params for every open, exactly like the dialog does.
+    const second = new Device();
+    second.createOptionsPage();
+    const secondRow = pages[1].children[0];
+    assert.equal(second.params.bitrateScale, 4, "the choice is restored");
+    assert.equal(secondRow.select.selectedIndex, 2, "the select shows the restored value");
+    assert.deepEqual(
+      secondRow.select.options.map((option) => option.text),
+      ["1x (default): 9 Mbps target", "2x: 18 Mbps target",
+        "4x: 36 Mbps target", "8x: 72 Mbps target"],
+    );
+  } finally {
+    resetBitrateMemory();
+  }
 });

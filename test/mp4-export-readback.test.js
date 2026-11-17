@@ -51,6 +51,7 @@ function fakeOpfs(options = {}) {
     names: 0,
     copyError: options.copyError || (() => null),
     getFileError: options.getFileError || null,
+    probeError: options.probeError || null,
     snapshot: options.snapshot || ((bytes) => bytes),
   };
 
@@ -77,7 +78,20 @@ function fakeOpfs(options = {}) {
         if (!bytes) throw new TypeError("The temporary file is gone.");
         // The wrapper copies in Node, so a later removal cannot change it; the
         // snapshot hook models a truncated or changed file instead.
-        return new File([state.snapshot(bytes)], name);
+        const file = new File([state.snapshot(bytes)], name);
+        if (!state.probeError) return file;
+        // A stale snapshot fails even its one-byte read, which is how the page
+        // learns the real DOMException behind a failed stream copy.
+        return {
+          name: file.name,
+          size: file.size,
+          stream: () => file.stream(),
+          slice: () => ({
+            async arrayBuffer() {
+              throw state.probeError;
+            },
+          }),
+        };
       },
     };
   }
@@ -297,10 +311,107 @@ test("a wrong-sized temporary file is never offered as a download", async () => 
     restore();
   }
   assert.equal(error.message, READBACK_MESSAGE);
-  assert.equal(error.cause && error.cause.name, "TypeError");
-  assert.equal(error.cause && error.cause.message, "Failed to fetch");
+  assert.equal(error.cause && error.cause.name, "Error");
+  assert.match(error.cause && error.cause.message, /3 bytes instead of 4/);
   await storage.dispose();
   assert.equal(opfs.state.entries.size, 0, "an unusable entry is removed");
+});
+
+test("a short copy is retried and never returned as a download", async () => {
+  const opfs = fakeOpfs({
+    snapshot: (bytes) => bytes.subarray(0, bytes.byteLength - 1),
+  });
+  const storage = await createStorage(opfs.scope, fakeBunny(), { delays: FAST });
+  await fill(storage, [1, 2, 3, 4]);
+  const { warnings, restore } = captureWarnings();
+  let blob = null;
+  let error = null;
+  try {
+    blob = await storage.finish();
+  } catch (rejected) {
+    error = rejected;
+  } finally {
+    restore();
+  }
+  assert.equal(blob, null, "a short copy must not become the download");
+  assert.equal(error.message, READBACK_MESSAGE);
+  assert.match(error.cause && error.cause.message, /3 bytes instead of 4/);
+  assert.equal(opfs.state.copies, 4, "every attempt is retried");
+  assert.equal(warnings.length, 4, "each short copy is reported once");
+  assert.match(warnings[0], /The copied MP4 was 3 bytes instead of 4/);
+  await storage.dispose();
+  assert.equal(opfs.state.entries.size, 0);
+});
+
+test("a zero-length temporary file is never offered as a download", async () => {
+  const opfs = fakeOpfs({
+    copyError: () => FAILED_TO_FETCH(),
+    snapshot: () => new Uint8Array(0),
+  });
+  const storage = await createStorage(opfs.scope, fakeBunny(), { delays: FAST });
+  await fill(storage, [1, 2, 3, 4]);
+  const { restore } = captureWarnings();
+  let error = null;
+  try {
+    await storage.finish();
+  } catch (rejected) {
+    error = rejected;
+  } finally {
+    restore();
+  }
+  assert.equal(error.message, READBACK_MESSAGE);
+  assert.match(error.cause && error.cause.message, /0 bytes instead of 4/);
+  await storage.dispose();
+  assert.equal(opfs.state.entries.size, 0);
+});
+
+test("a changed temporary file is named after the generic copy error", async () => {
+  const changed = new DOMException("The file changed.", "NotReadableError");
+  const opfs = fakeOpfs({
+    copyError: () => FAILED_TO_FETCH(),
+    probeError: changed,
+  });
+  const storage = await createStorage(opfs.scope, fakeBunny(), { delays: FAST });
+  await fill(storage, [1, 2, 3, 4]);
+  const { warnings, restore } = captureWarnings();
+  let error = null;
+  try {
+    await storage.finish();
+  } catch (rejected) {
+    error = rejected;
+  } finally {
+    restore();
+  }
+  assert.equal(warnings[0],
+    "[Zoidium] MP4 output read-back failed (attempt 1): " +
+      "NotReadableError: The file changed.");
+  assert.equal(error.message, READBACK_MESSAGE + " The temporary file was changed or " +
+    "locked by another program (for example antivirus or a disk indexer).");
+  assert.equal(error.cause, changed);
+  await storage.dispose();
+  assert.equal(opfs.state.entries.size, 0);
+});
+
+test("a removed temporary file is named after the generic copy error", async () => {
+  const removed = new DOMException("The entry is gone.", "NotFoundError");
+  const opfs = fakeOpfs({
+    copyError: () => FAILED_TO_FETCH(),
+    probeError: removed,
+  });
+  const storage = await createStorage(opfs.scope, fakeBunny(), { delays: FAST });
+  await fill(storage, [5]);
+  const { restore } = captureWarnings();
+  let error = null;
+  try {
+    await storage.finish();
+  } catch (rejected) {
+    error = rejected;
+  } finally {
+    restore();
+  }
+  assert.equal(error.message, READBACK_MESSAGE + " The temporary file was removed.");
+  assert.equal(error.cause, removed);
+  await storage.dispose();
 });
 
 test("an unreadable snapshot reports the last error and removes the entry", async () => {
@@ -317,7 +428,8 @@ test("an unreadable snapshot reports the last error and removes the entry", asyn
   } finally {
     restore();
   }
-  assert.equal(error.message, READBACK_MESSAGE);
+  assert.equal(error.message, READBACK_MESSAGE + " The temporary file was changed or " +
+    "locked by another program (for example antivirus or a disk indexer).");
   assert.equal(error.cause, broken, "the last read error is retained as the cause");
   assert.equal(warnings.length, 4, "a failed snapshot is a failed attempt");
   assert.match(warnings[0], /attempt 1\): NotReadableError: The file could not be opened\./);
@@ -381,7 +493,10 @@ test("an unreadable finished MP4 never reaches the page as Failed to fetch", asy
   assert.ok(error, "the job must reject");
   assert.equal(error.message, READBACK_MESSAGE);
   assert.doesNotMatch(error.message, /Failed to fetch/);
-  assert.equal(error.cause && error.cause.name, "TypeError");
+  // The finished file stayed one byte short, so every copy was refused by the
+  // length check rather than by the stream error.
+  assert.equal(error.cause && error.cause.name, "Error");
+  assert.match(error.cause && error.cause.message, /bytes instead of/);
   assert.equal(exporter.framesRendered, 1, "the frames were encoded before the read failed");
   assert.equal(opfs.state.entries.size, 0, "the unusable temporary file is removed");
 });

@@ -15,6 +15,19 @@ const READBACK_DELAYS = [0, 250, 1000, 3000];
 const READBACK_FAILURE = "MP4 was encoded, but the browser could not read the finished file from " +
   "temporary storage. Free some disk space and try again, or use MKV/WebM.";
 
+// The stream copy flattens every read error into "TypeError: Failed to fetch".
+// One byte from the same snapshot keeps the specific DOMException without
+// allocating the export a second time.
+const NOT_READABLE_HINT = " The temporary file was changed or locked by another program " +
+  "(for example antivirus or a disk indexer).";
+const NOT_FOUND_HINT = " The temporary file was removed.";
+
+// Peak-constrained VBR treats the requested bitrate as a mean target, not a
+// floor. A driver that ignores it, a slow preset, or simple frames can land far
+// below it, and nothing in the API reports the value that was used. The target
+// sees every written byte, so the average is checked once at the end.
+const LOW_BITRATE_RATIO = 0.35;
+
 // Names this page keeps because a download still points at the file. Only these
 // names may be removed later: another tab can be writing its own temporary file
 // at the same time, so sweeping the "zoidium-mp4-" prefix would delete a live
@@ -44,6 +57,52 @@ function cancelledError() {
 function describeError(error) {
   return (error && error.name ? error.name : "Error") + ": " +
     (error && error.message ? error.message : String(error));
+}
+
+function readbackHint(cause) {
+  if (!cause) return "";
+  if (cause.name === "NotReadableError") return NOT_READABLE_HINT;
+  if (cause.name === "NotFoundError") return NOT_FOUND_HINT;
+  return "";
+}
+
+function readbackFailure(cause) {
+  return new Error(READBACK_FAILURE + readbackHint(cause), { cause });
+}
+
+async function probeCause(snapshot) {
+  try {
+    if (!snapshot || typeof snapshot.slice !== "function") return null;
+    const head = snapshot.slice(0, 1);
+    if (!head || typeof head.arrayBuffer !== "function") return null;
+    await head.arrayBuffer();
+    return null;
+  } catch (error) {
+    return error || null;
+  }
+}
+
+function formatRate(bits) {
+  if (!(bits > 0)) return "0 Mbps";
+  const unit = bits >= 1e6 ? [1e5, "Mbps"] : [1e2, "kbps"];
+  const value = Math.round(bits / unit[0]) / 10;
+  return (Number.isInteger(value) ? value : value.toFixed(1)) + " " + unit[1];
+}
+
+// The target receives the whole muxed file. Without an audio track every byte
+// is video, so bytes * 8 / duration is the achieved video rate. With audio the
+// tracks cannot be separated here, and the check would credit the video with
+// the audio bytes; it stays silent instead of reporting a wrong number.
+function warnLowBitrate(bytes, options) {
+  if (!options || options.hasAudio) return;
+  const requested = Number(options.videoBitrate);
+  const duration = Number(options.duration);
+  if (!(requested > 0) || !(duration > 0) || !(bytes > 0)) return;
+  const achieved = bytes * 8 / duration;
+  if (achieved >= requested * LOW_BITRATE_RATIO) return;
+  console.warn("[Zoidium] The encoder produced " + formatRate(achieved) + " of the " +
+    formatRate(requested) + " requested for this MP4 export. A slow speed preset or " +
+    "simple frames can stay below the target.");
 }
 
 // Cancellation must win over a retry schedule: a cancel during any wait stops
@@ -105,8 +164,10 @@ function watchUnload(scope) {
 
 // Copy the finished file into page Blob storage. The copy is what makes the
 // download independent of the temporary file, so it stays the normal result.
-// When every attempt fails, the read error names the small set of remaining
-// causes instead of the raw "Failed to fetch".
+// A copy whose length differs from the written length is a failed attempt, not
+// a success: a short read would otherwise download a broken movie. When every
+// attempt fails, the read error names the small set of remaining causes instead
+// of the raw "Failed to fetch".
 async function readBack(scope, file, name, length, options) {
   const delays = options && Array.isArray(options.delays) ? options.delays : READBACK_DELAYS;
   const signal = options && options.signal;
@@ -115,14 +176,19 @@ async function readBack(scope, file, name, length, options) {
   for (let index = 0; index < delays.length; index++) {
     const attempt = index + 1;
     await wait(delays[index], signal);
+    let snapshot = null;
     try {
       if (!ResponseCtor) throw new Error("This browser cannot copy the finished file.");
       // A fresh snapshot per attempt: status, size, and modification state can
       // change between attempts, and an old File handle keeps the first error.
-      const snapshot = await file.getFile();
+      snapshot = await file.getFile();
       const copy = await new ResponseCtor(snapshot.stream(), {
         headers: { "Content-Type": "video/mp4" },
       }).blob();
+      if (!copy || copy.size !== length) {
+        throw new Error("The copied MP4 was " + (copy ? copy.size : 0) +
+          " bytes instead of " + length + ".");
+      }
       return { blob: copy, retained: false };
     } catch (error) {
       // A cancelled export reports the abort, not a read failure.
@@ -130,24 +196,36 @@ async function readBack(scope, file, name, length, options) {
       // Quota and allocation failures keep their own message upstream.
       if (isMemoryError(error)) throw error;
       cause = error;
-      console.warn("[Zoidium] MP4 output read-back failed (attempt " + attempt + "): " + describeError(error));
+      if (snapshot && cause.name === "TypeError") {
+        const probed = await probeCause(snapshot);
+        if (probed) cause = probed;
+      }
+      console.warn("[Zoidium] MP4 output read-back failed (attempt " + attempt + "): " + describeError(cause));
     }
   }
   // Every copy failed. The temporary file can still be downloaded when it is
-  // complete: the wrapper references it instead of copying its bytes, and
-  // dispose() keeps the entry readable until the next export or page unload.
+  // complete and readable: the wrapper references it instead of copying its
+  // bytes, and dispose() keeps the entry readable until the next export or
+  // page unload. A zero-length or shorter snapshot would arrive as an empty or
+  // broken download, so it is never offered.
   try {
     const snapshot = await file.getFile();
-    if (snapshot && snapshot.size === length) {
-      const download = new Blob([snapshot], { type: "video/mp4" });
-      retainedNames.add(name);
-      return { blob: download, retained: true };
+    if (!snapshot || snapshot.size === 0 || snapshot.size !== length) {
+      cause = new Error("The temporary file is " + (snapshot ? snapshot.size : 0) +
+        " bytes instead of " + length + ".");
+    } else {
+      const probed = await probeCause(snapshot);
+      if (probed) cause = probed;
+      else {
+        retainedNames.add(name);
+        return { blob: new Blob([snapshot], { type: "video/mp4" }), retained: true };
+      }
     }
   } catch (error) {
     if (isMemoryError(error)) throw error;
     cause = error;
   }
-  throw new Error(READBACK_FAILURE, { cause });
+  throw readbackFailure(cause);
 }
 
 // OPFS bounds page memory. The fallback retains immutable Blob chunks and
@@ -189,6 +267,7 @@ async function createStorage(scope, bunny, options) {
     target: new bunny.StreamTarget(stream, { chunked: true, chunkSize: 1024 * 1024 }),
     async finish() {
       if (!length) throw new Error("The MP4 export is empty.");
+      warnLowBitrate(length, options);
       if (!file) return new Blob(parts.map((part) => part.blob), { type: "video/mp4" });
       // Detach from our temporary file once, using browser Blob storage. The
       // normal download manager then receives a stable Blob, not a live File.
