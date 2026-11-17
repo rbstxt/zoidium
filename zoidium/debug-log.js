@@ -22,6 +22,7 @@
   var record = journal.record;
   var recordException = journal.recordException;
   var flushJournal = journal.flushJournal;
+  var scheduleJournalWrite = journal.scheduleJournalWrite;
   var closeCurrentSession = journal.closeCurrentSession;
   var resumeCurrentSession = journal.resumeCurrentSession;
   var initializeJournal = journal.initializeJournal;
@@ -30,6 +31,7 @@
   var getPhase = journal.getPhase;
   var setPhaseValue = journal.setPhaseValue;
   var errorDetails = journal.errorDetails;
+  var causeChain = journal.causeChain;
   var mainWindowContext = crash.mainWindowContext;
   var installWindowHooks = crash.installWindowHooks;
   var checkpointDiagnostics = crash.checkpointDiagnostics;
@@ -44,6 +46,7 @@
   var exceptionEvents = crash.exceptionEvents;
   var analyzeCrash = crash.analyzeCrash;
   var HEALTH_SAMPLE_INTERVAL_MS = crash.HEALTH_SAMPLE_INTERVAL_MS;
+  var LONG_TASK_WARNING_MS = crash.LONG_TASK_WARNING_MS;
 
   var PZ = (global.PZ = global.PZ || {});
   PZ.zoidium = PZ.zoidium || {};
@@ -67,6 +70,107 @@
   const SUPPORT_URL = "https://discord.gg/PWAmY9m5bu";
   let emergencyBanner = null;
   let emergencyMountQueued = false;
+  let longAnimationFrameObserver = null;
+
+  function finiteOrNull(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  function recordExportStart(details) {
+    const input = details && typeof details === "object" ? details : {};
+    record("export-start", {
+      format: input.format,
+      codec: input.codec,
+      width: finiteOrNull(input.width),
+      height: finiteOrNull(input.height),
+      fps: finiteOrNull(input.fps),
+      frames: finiteOrNull(input.frames),
+      bitrateScale: finiteOrNull(input.bitrateScale),
+    });
+  }
+
+  function recordExportComplete(details) {
+    const input = details && typeof details === "object" ? details : {};
+    record("export-complete", {
+      format: input.format,
+      durationMs: finiteOrNull(input.durationMs),
+      bytes: finiteOrNull(input.bytes),
+      filename: input.filename,
+    });
+  }
+
+  function recordExportError(error, details) {
+    const input = details && typeof details === "object" ? details : {};
+    const top = errorDetails(error);
+    const causes = causeChain(error);
+    record("export-error", {
+      format: input.format,
+      stage: input.stage,
+      name: top.name,
+      message: top.message,
+      ...(causes.length > 1 ? { causes } : {}),
+    });
+  }
+
+  function frameScriptSummary(script) {
+    if (!script || typeof script !== "object") return null;
+    const duration = Number.isFinite(script.duration) ? Math.round(script.duration) : 0;
+    let file = "";
+    try {
+      const segments = String(script.sourceURL || "").split(/[\\/]/);
+      file = segments[segments.length - 1] || "";
+    } catch (_error) {
+      file = "";
+    }
+    return redact(
+      `${file || "unknown"} ${script.sourceFunctionName || "anonymous"}` +
+      ` (${script.invokerType || script.invoker || "unknown"}) ${duration}ms`,
+    );
+  }
+
+  // The Long Animation Frames API attributes main-thread stalls to the
+  // scripts that ran inside the frame. Frames under a second stay aggregated
+  // in the health counters; longer ones keep their top scripts for diagnosis.
+  function installLongAnimationFrameObserver() {
+    if (typeof global.PerformanceObserver !== "function") return;
+    try {
+      const supported = global.PerformanceObserver.supportedEntryTypes;
+      if (Array.isArray(supported) && supported.indexOf("long-animation-frame") === -1) return;
+    } catch (_error) {
+      return;
+    }
+    try {
+      longAnimationFrameObserver = new global.PerformanceObserver((list) => {
+        let entries = [];
+        try {
+          entries = list.getEntries ? list.getEntries() : [];
+        } catch (_error) {
+          entries = [];
+        }
+        for (const frame of entries) {
+          const source = frame || {};
+          const duration = Number.isFinite(source.duration) ? Math.round(source.duration) : 0;
+          if (!(duration >= LONG_TASK_WARNING_MS)) continue;
+          record("long-animation-frame", {
+            durationMs: duration,
+            blockingDurationMs: Number.isFinite(source.blockingDuration)
+              ? Math.round(source.blockingDuration)
+              : null,
+            scriptCount: Array.isArray(source.scripts) ? source.scripts.length : 0,
+            scripts: Array.isArray(source.scripts)
+              ? source.scripts.slice(0, 5).map(frameScriptSummary).filter(Boolean)
+              : [],
+          });
+        }
+        scheduleJournalWrite();
+      });
+      longAnimationFrameObserver.observe({ type: "long-animation-frame", buffered: true });
+    } catch (_error) {
+      // The entry type is optional; longtask coverage is unaffected.
+      longAnimationFrameObserver = null;
+    }
+  }
 
   function mountEmergencyControls(source, error) {
     const documentObject = global.document;
@@ -473,12 +577,16 @@
     sampleHealth();
     global.setInterval(sampleHealth, HEALTH_SAMPLE_INTERVAL_MS);
     installLongTaskObserver();
+    installLongAnimationFrameObserver();
   }
 
   const api = Object.freeze({
     version: 2,
     record,
     recordException,
+    recordExportStart,
+    recordExportComplete,
+    recordExportError,
     setPhase(nextPhase) {
       var value = redact(nextPhase || "unknown");
       setPhaseValue(value);
