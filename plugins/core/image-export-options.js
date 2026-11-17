@@ -306,6 +306,9 @@
           format: this.params && this.params.format,
           width: this.params && this.params.width,
           height: this.params && this.params.height,
+          fps: this.params && this.params.rate,
+          frames: this.params && this.params.length,
+          bitrateScale: this.params && this.params.bitrateScale,
         });
         return originalCreateProgressPage.apply(this, arguments);
       };

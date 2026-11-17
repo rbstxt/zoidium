@@ -109,22 +109,22 @@ function install(context) {
     Promise.resolve().then(async () => {
       let exporter = null;
       const started = performance.now();
-      let startFrames = null;
-      try {
-        if (Number.isFinite(owner.params.length)) startFrames = frameCount(owner.params.length);
-      } catch (_ignored) {
-        startFrames = null;
-      }
-      recordExport("recordExportStart", {
-        format: "mp4",
-        width: owner.params.width,
-        height: owner.params.height,
-        fps: owner.params.rate,
-        frames: startFrames,
-        bitrateScale: owner.params.bitrateScale,
-      });
       try {
         if (cancelled) return;
+        let startFrames = null;
+        try {
+          if (Number.isFinite(owner.params.length)) startFrames = frameCount(owner.params.length);
+        } catch (_ignored) {
+          startFrames = null;
+        }
+        recordExport("recordExportStart", {
+          format: "mp4",
+          width: owner.params.width,
+          height: owner.params.height,
+          fps: owner.params.rate,
+          frames: startFrames,
+          bitrateScale: owner.params.bitrateScale,
+        });
         exporter = new PZ.export(owner.editor.sequence, owner.params);
         job = createJob(scope, PZ, exporter, () => load("./vendor/mediabunny-1.62.0.cjs"));
         const progress = page.appendChild(controls.generateProgressbar({
@@ -149,6 +149,7 @@ function install(context) {
           format: "mp4",
           durationMs: Math.round(performance.now() - started),
           bytes: blob && blob.size,
+          filename: "video.mp4",
         });
         owner.export.navigate(owner.createFinishedPage());
       } catch (error) {
