@@ -40,6 +40,9 @@ function copyObjectState(source, target) {
     for (const key of ["intensity", "distance", "decay", "angle", "penumbra", "width", "height"]) {
       if (key in source) target[key] = source[key];
     }
+    // A disabled light keeps its place with zero intensity; the echo tree
+    // needs the stored value so its own shading matches the source tree.
+    target.zoidiumMutedIntensity = source.zoidiumMutedIntensity;
     if (source.groundColor) target.groundColor.copy(source.groundColor);
     if (source.target) copyObjectState(source.target, target.target);
     if (source.shadow && target.shadow) {

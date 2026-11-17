@@ -26,12 +26,27 @@ function host() {
     prepare(frame) { for (const child of this.objects) child.prepare(frame); }
   }
   class Camera extends Object3D {}
-  Object3D.camera = Camera; Object3D.group = Group;
+  class Light extends Object3D {
+    constructor() {
+      super();
+      this.threeObj = { visible: true, isLight: true, intensity: 1, castShadow: true, children: [] };
+    }
+    update(frame) {
+      this.updated = frame;
+      this.threeObj.intensity = this.properties.intensity.get(frame);
+    }
+    zoidiumFrameReady() { return false; }
+  }
+  Object3D.camera = Camera; Object3D.group = Group; Object3D.light = Light;
   Object3D.propertyDefinitions = { name: { value: "Object" } };
   Group.propertyDefinitions = { enabled: { dynamic: true, name: "Enabled", type: 7, value: 1, items: "off;on" } };
   const PZ = { object3d: Object3D, propertyList: PropertyList };
   vm.runInNewContext(fs.readFileSync(require.resolve("../plugins/core/object3d-enabled.js"), "utf8"), { window: { PZ } });
-  return { Object3D, Group, Camera };
+  return { Object3D, Group, Camera, Light };
+}
+
+function lightNode(intensity) {
+  return { visible: true, isLight: true, intensity, castShadow: false, children: [] };
 }
 
 test("object enabled defaults on, survives loading, and skips disabled frames", async () => {
@@ -50,6 +65,83 @@ test("object enabled defaults on, survives loading, and skips disabled frames", 
     object.update(11); await object.prepare(11);
     assert.equal(object.threeObj.visible, true); assert.equal(object.updated, 11); assert.equal(object.prepared, 11);
   }
+});
+
+test("disabled light keeps its place with zero intensity, restores on enable, and keeps edits", () => {
+  const { Light } = host();
+  const light = new Light();
+  light.properties.add("intensity", { value: 3 });
+  light.properties.enabled.load({ keys: { 9: 1, 10: 0, 11: 1 } });
+  light.update(9);
+  assert.equal(light.threeObj.intensity, 3);
+  const castShadow = light.threeObj.castShadow;
+
+  light.update(10);
+  assert.equal(light.updated, 9, "the light's own update does not run while disabled");
+  assert.equal(light.threeObj.visible, true, "the light keeps its place in the light count");
+  assert.equal(light.threeObj.intensity, 0, "the disabled light contributes nothing");
+  assert.equal(light.threeObj.castShadow, castShadow, "changing castShadow would change the program key");
+  assert.equal(light.threeObj.zoidiumMutedIntensity, 3, "the shading model keeps its previous input");
+  assert.equal(light.zoidiumFrameReady(10), true);
+
+  light.update(11);
+  assert.equal(light.updated, 11);
+  assert.equal(light.threeObj.intensity, light.properties.intensity.get(11));
+  assert.equal(light.threeObj.zoidiumMutedIntensity, undefined);
+});
+
+test("a user intensity edit while disabled is applied when the light returns", () => {
+  const { Light } = host();
+  const light = new Light();
+  light.properties.add("intensity", { value: 2 });
+  light.properties.enabled.load({ keys: { 4: 1, 5: 0, 6: 1 } });
+  light.update(4);
+  light.update(5);
+  assert.equal(light.threeObj.intensity, 0);
+  light.properties.intensity.load({ keys: { 4: 2, 5: 2, 6: 7 } });
+  light.update(5);
+  assert.equal(light.threeObj.intensity, 0);
+  light.update(6);
+  assert.equal(light.threeObj.intensity, 7);
+});
+
+test("lights inside a light subtree are muted and non-light children hide", () => {
+  const { Light } = host();
+  const sun = new Light();
+  sun.properties.add("intensity", { value: 4 });
+  const fill = lightNode(0.5);
+  const helper = { visible: true };
+  sun.threeObj.children.push(fill, helper);
+  sun.properties.enabled.load({ keys: { 2: 0, 3: 1 } });
+  sun.update(2);
+  assert.equal(sun.threeObj.visible, true);
+  assert.equal(sun.threeObj.intensity, 0);
+  assert.equal(fill.visible, true, "a nested light also keeps the light count");
+  assert.equal(fill.intensity, 0);
+  assert.equal(fill.zoidiumMutedIntensity, 0.5);
+  assert.equal(helper.visible, false, "a non-light helper hides as before");
+  sun.update(3);
+  assert.equal(sun.threeObj.intensity, 4);
+  assert.equal(fill.intensity, 0.5);
+  assert.equal(fill.zoidiumMutedIntensity, undefined);
+  assert.equal(fill.visible, true);
+  assert.equal(helper.visible, true);
+});
+
+test("a disabled light prepared with a fresh threeObj stays muted", async () => {
+  const { Light } = host();
+  const light = new Light();
+  light.properties.add("intensity", { value: 2 });
+  light.properties.enabled.load({ keys: { 1: 0 } });
+  await light.prepare(1);
+  assert.equal(light.threeObj.intensity, 0);
+  assert.equal(light.threeObj.visible, true);
+  // An object-type swap installs a new, visible light.
+  light.threeObj = lightNode(6);
+  light.update(1);
+  assert.equal(light.threeObj.intensity, 0);
+  assert.equal(light.threeObj.visible, true);
+  assert.equal(light.threeObj.zoidiumMutedIntensity, 6);
 });
 
 test("disabled groups skip children except when they contain cameras", () => {

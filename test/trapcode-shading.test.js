@@ -102,6 +102,24 @@ test("light collection is a pure function of the scene graph", () => {
   assert.deepEqual(empty, []);
 });
 
+test("a muted light keeps its stored intensity for the shading model", () => {
+  const { T, THREE } = loadShading();
+  const root = new THREE.Object3D();
+  const holder = new THREE.Object3D();
+  root.add(holder);
+  const point = new THREE.PointLight(0xffffff, 2, 0);
+  point.position.set(100, 0, 0);
+  root.add(point);
+  const before = T.shading.collectLights(holder);
+  // The Enabled wrapper keeps a disabled light visible with zero intensity.
+  point.intensity = 0;
+  point.zoidiumMutedIntensity = 2;
+  assert.deepEqual(T.shading.collectLights(holder), before, "the disabled input is unchanged");
+  delete point.zoidiumMutedIntensity;
+  point.intensity = 2;
+  assert.deepEqual(T.shading.collectLights(holder), before);
+});
+
 test("shadePoint is ambient-only without lights and brighter near a light", () => {
   const { T } = loadShading();
   const params = T.shading.readParams(formLikeGroup());

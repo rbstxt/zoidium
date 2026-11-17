@@ -62,6 +62,11 @@ var PZ = PZ || {};
     }
 
     function shadeLightIntensity(light) {
+        // A disabled light keeps its scene-graph place with zero intensity.
+        // Its last value stays available so this model reads what it read
+        // while the light was hidden (it has always ignored `visible`).
+        var muted = light && light.zoidiumMutedIntensity;
+        if (typeof muted === "number" && isFinite(muted)) return muted;
         var v = light && light.intensity;
         return typeof v === "number" && isFinite(v) ? v : 1;
     }
