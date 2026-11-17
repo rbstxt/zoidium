@@ -14,6 +14,10 @@
   const MAX_PERSISTED_EVENTS = 120;
   const MAX_PERSISTED_EXCEPTIONS = 30;
   const MAX_PERSISTED_SESSIONS = 4;
+  // Bulk instrumentation (restore-point verification spans) shares a small
+  // quota of the live ring instead of evicting unrelated records. Failures
+  // bypass the quota and are always kept in full.
+  const MAX_SPAN_EVENTS = 10;
   const MAX_TEXT_LENGTH = 2400;
   // Redaction scans at most this much input per value. A huge string logged
   // to console.warn must not cost a full regex pass on the main thread.
@@ -26,6 +30,7 @@
   // rare: usage progress fires only at powers of two.
   const IMMEDIATE_RECORD_TYPES = new Set([
     "script-error",
+    "export-error",
     "plugin-usage-progress",
     "project-load-start",
     "project-load-complete",
@@ -177,6 +182,45 @@
         .slice(0, 32)
         .map(([key, value]) => [redact(key), safeRecordValue(value)]),
     );
+  }
+
+  // Follows the `cause` chain of an export or download failure so the journal
+  // keeps the underlying reason, not only the wrapper message. Cycles stop at
+  // the first repeat; primitive causes are kept as their redacted text.
+  function causeChain(error, limit) {
+    const chain = [];
+    const seen = [];
+    let current = error;
+    const max = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 10) : 5;
+    while (chain.length < max) {
+      if (current == null) break;
+      if (typeof current !== "object" && typeof current !== "function") {
+        chain.push(redact(current));
+        break;
+      }
+      if (seen.indexOf(current) !== -1) break;
+      seen.push(current);
+      const details = errorDetails(current);
+      chain.push(`${details.name}: ${details.message}`);
+      let next = null;
+      try {
+        next = current.cause;
+      } catch (_error) {
+        next = null;
+      }
+      current = next;
+    }
+    return chain;
+  }
+
+  function trimSuccessfulSpans() {
+    let kept = 0;
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const candidate = events[index];
+      if (!candidate || candidate.type !== "project-span" || candidate.status === "failed") continue;
+      kept += 1;
+      if (kept > MAX_SPAN_EVENTS) events.splice(index, 1);
+    }
   }
 
   function diagnosticId(prefix) {
@@ -369,6 +413,7 @@
     }
     events.push(entry);
     if (events.length > MAX_EVENTS) events.splice(0, events.length - MAX_EVENTS);
+    if (entry.type === "project-span" && entry.status !== "failed") trimSuccessfulSpans();
     const isException =
       currentSession &&
       (entry.type === "exception" || (entry.type === "console" && entry.level === "error"));
@@ -447,11 +492,13 @@
     MAX_PERSISTED_EVENTS: MAX_PERSISTED_EVENTS,
     MAX_PERSISTED_EXCEPTIONS: MAX_PERSISTED_EXCEPTIONS,
     MAX_PERSISTED_SESSIONS: MAX_PERSISTED_SESSIONS,
+    MAX_SPAN_EVENTS: MAX_SPAN_EVENTS,
     text: text,
     truncate: truncate,
     redact: redact,
     primitive: primitive,
     errorDetails: errorDetails,
+    causeChain: causeChain,
     isErrorLike: isErrorLike,
     consoleArgument: consoleArgument,
     safeRecordValue: safeRecordValue,
