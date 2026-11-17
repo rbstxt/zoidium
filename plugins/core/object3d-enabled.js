@@ -36,13 +36,6 @@
   // `zoidiumMutedIntensity`: the Trapcode shading model collects lights by
   // walking the scene and has always ignored `visible`, so it keeps the same
   // input it saw while the light was hidden.
-  function lightTree(root, out) {
-    if (!root) return out;
-    if (root.isLight) out.push(root);
-    const children = root.children || [];
-    for (let i = 0; i < children.length; i++) lightTree(children[i], out);
-    return out;
-  }
   function treeState(root) {
     const entries = [];
     const walk = node => {
