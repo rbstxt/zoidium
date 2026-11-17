@@ -11,23 +11,33 @@ test("separators put play at the toolbar center when there is room", () => {
     const [before, after] = playSpaces({ ...layout, width });
     const center = layout.playLeft + (before - 8) + layout.playWidth / 2;
     assert.equal(center, width / 2);
-    // The last control stays at the right edge, inside the padding.
-    assert.equal(layout.right + (before - 8) + (after - 8), width - 5);
+    // The last control stays one pixel inside the padding, so fractional
+    // control widths can never overflow into a scrollbar.
+    assert.equal(layout.right + (before - 8) + (after - 8), width - 6);
   }
 });
 
 test("current separator widths are measured out before recomputing", () => {
   const first = playSpaces({ ...layout, width: 1299 });
-  const again = playSpaces({ width: 1299, before: first[0], after: first[1], right: 1294, playLeft: 295 + first[0] - 8, playWidth: 29 });
+  const again = playSpaces({ width: 1299, before: first[0], after: first[1], right: 1293, playLeft: 295 + first[0] - 8, playWidth: 29 });
   assert.deepEqual(again, first);
 });
 
 test("a toolbar without room keeps the minimum separators and play moves as close as fits", () => {
   assert.deepEqual(playSpaces({ ...layout, width: 600 }), [8, 8]);
   const [before, after] = playSpaces({ ...layout, width: 700 });
-  assert.equal(before, 18); assert.equal(after, 8);
+  assert.equal(before, 17); assert.equal(after, 8);
 });
 
 test("play right of center never shrinks separators below the minimum", () => {
-  assert.deepEqual(playSpaces({ width: 400, right: 380, before: 8, after: 8, playLeft: 300, playWidth: 29 }), [8, 23]);
+  assert.deepEqual(playSpaces({ width: 400, right: 380, before: 8, after: 8, playLeft: 300, playWidth: 29 }), [8, 22]);
+});
+
+test("separators never fill fractional room up to the edge", () => {
+  // A toolbar at a fractional width (zoom or display scaling): the slack is floored and
+  // one pixel stays free, so the real content width stays below the box.
+  const [before, after] = playSpaces({ ...layout, width: 1299.4 });
+  const contentRight = layout.right + (before - 8) + (after - 8) + 5;
+  assert.ok(contentRight <= 1299.4 - 1);
+  assert.equal(Number.isInteger(before + after), true);
 });

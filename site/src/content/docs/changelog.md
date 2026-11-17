@@ -254,6 +254,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- The playback toolbar under the preview no longer sometimes shows a
+  horizontal scrollbar when it has room for every control.
 - Turning a light off with its Enabled switch, or keyframing Enabled, no
   longer freezes playback while every lit material is rebuilt. The light
   stays in the scene with no output, so the first toggle costs about as much

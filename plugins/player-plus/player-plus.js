@@ -477,9 +477,12 @@ const PlayerPlus = (() => {
   // Widths for the separators before and after the transport buttons. The
   // measurements include the separators' current widths, which are removed
   // first. Without enough room, play moves as close to the center as fits.
-  function playSpaces({ width, right, before, after, playLeft, playWidth, padding = 5, base = 8 }) {
+  // Offset and client sizes are rounded to whole pixels while the controls
+  // lay out at fractional widths, so filling the measured room exactly can
+  // overflow by a fraction and show a scrollbar. One pixel stays free.
+  function playSpaces({ width, right, before, after, playLeft, playWidth, padding = 5, base = 8, spare = 1 }) {
     const extraBefore = before - base, extraAfter = after - base;
-    const slack = Math.max(0, width - padding - (right - extraBefore - extraAfter));
+    const slack = Math.max(0, Math.floor(width - padding - spare - (right - extraBefore - extraAfter)));
     const center = playLeft - extraBefore + playWidth / 2;
     const shift = Math.min(slack, Math.max(0, width / 2 - center));
     return [base + shift, base + slack - shift];

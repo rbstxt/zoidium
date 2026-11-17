@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=146",
       "bundle": "./plugins/core/bundle.json?v=146",
-      "integrity": "sha256-TsRHpMexJPXGXxuG6akOaUbWiRS/tdblizuilwfAVL0="
+      "integrity": "sha256-wMbITgWpnmQfnf89LEFyxcquYWaALFQZpKeqD5k4pzM="
     },
     {
       "id": "easing-plus",
@@ -87,16 +87,16 @@
       "category": "utilities",
       "name": "Player+",
       "author": "Zoidium",
-      "version": "16",
+      "version": "17",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "playback controls",
       "tagline": "Playback Quality Controls",
       "color": "#4f7dbf",
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
-      "manifest": "./plugins/player-plus/manifest.json?v=16",
-      "bundle": "./plugins/player-plus/bundle.json?v=16",
-      "integrity": "sha256-v7aymKHmuRsVJL8i1GtixRZjK9u43un/a48byCbX+0s="
+      "manifest": "./plugins/player-plus/manifest.json?v=17",
+      "bundle": "./plugins/player-plus/bundle.json?v=17",
+      "integrity": "sha256-BeW2DQKhByPVnAeG7kAOS8OGZJP0E/Werwyvv24tr8k="
     },
     {
       "id": "asset-manager",
