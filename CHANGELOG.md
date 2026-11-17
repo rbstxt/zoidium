@@ -7,6 +7,12 @@ each line describes one visible change.
 
 ### Added
 
+- Lights have a Cast shadows switch in their properties. Turning it off for a
+  light that does not need shadows removes its shadow pass, which is the main
+  cost of a shadowed point light. Spot, point, directional, and the Trapcode
+  Spot, Point, Infinite, and Sun lights start with it on; the Trapcode Area,
+  Portal, and IES lights start with it off, so existing projects look the
+  same. The switch cannot be keyframed.
 - Scene and Adjustment layers can have masks drawn with the Mask pen (Q in
   the toolbar), with Add, Subtract, and Intersect modes, Feather, Opacity,
   Invert, and an animatable path. On an Adjustment layer, its effects apply

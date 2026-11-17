@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "c33a96df6626ec6f9c8b5321717ad6fa0c9e4d3733519361b2ee496b8db79a1b",
+  "fingerprint": "b20ea427733f0d49c8c60b0076360635e30c3c8ccaccff20923b5cca251c80a7",
   "plugins": {
     "native-fx": {
       "version": "39",
@@ -93,7 +93,7 @@
       ]
     },
     "trapcode-suite": {
-      "version": "51",
+      "version": "52",
       "cases": [
         "Particular",
         "Default burst",
