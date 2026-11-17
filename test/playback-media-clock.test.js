@@ -54,6 +54,18 @@ test("a stalled anchor yields to another running element or to the frame clock",
   assert.equal(chooseAnchor(healthy), running, "a running anchor is kept");
 });
 
+test("an offset video material cannot rewind the playback clock", () => {
+  const audio = schedule(element({ paused: true }));
+  const video = schedule(element({ currentTime: 0 }));
+  video.currentItem.start = 97;
+  const playback = { syncSchedule: audio, _sequence: { audioSchedules: [audio], videoSchedules: [video] } };
+  assert.equal(chooseAnchor(playback), null);
+  playback.syncSchedule = video;
+  assert.equal(chooseAnchor(playback), null, "a newly selected native anchor is also retired");
+  video.currentItem.start = video.currentItem.clip.start;
+  assert.equal(chooseAnchor(playback), video, "an unshifted video can still be a clock");
+});
+
 test("a paused element that is still scheduled to play is resumed at most every retry window", () => {
   const el = element({ paused: true }), item = schedule(el);
   const playback = { speed: 1 };
@@ -96,6 +108,25 @@ function run(PZ, anchorElement) {
   for (let tick = 1; tick <= 60; tick++) playback.update(tick * 1000 / 60);
   return { playback, audio };
 }
+
+test("a fallback to an offset material does not reset native playback", { skip: !ui }, () => {
+  try {
+    function tick(patched) {
+      const PZ = nativePlayback();
+      if (patched) install(PZ);
+      const video = schedule(element());
+      video.currentItem.start = 97;
+      const playback = Object.create(PZ.ui.playback.prototype);
+      Object.assign(playback, { frameRate: FPS, speed: 1, loop: false, totalFrames: 600, lastFrame: 0,
+        _exactFrame: 97, _currentFrame: 97, syncSchedule: video, currentFrame: 97,
+        _sequence: { update() {}, audioSchedules: [], videoSchedules: [video] } });
+      playback.update(1000 / 60);
+      return playback._exactFrame;
+    }
+    assert.equal(tick(false), 0, "native clock uses the parent clip start");
+    assert.ok(tick(true) > 97, "the patched clock advances from the playhead");
+  } finally { delete global.requestAnimationFrame; delete global.Audio; }
+});
 
 test("native CM3 freezes the playhead on a paused anchor element", { skip: !ui }, () => {
   try {

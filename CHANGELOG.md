@@ -185,6 +185,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Playback no longer sometimes jumps back to an earlier frame and repeats a
+  section when a shape with a video material that has a Start offset begins
+  playing.
 - The playback toolbar under the preview no longer sometimes shows a
   horizontal scrollbar when it has room for every control.
 - Turning a light off with its Enabled switch, or keyframing Enabled, no
