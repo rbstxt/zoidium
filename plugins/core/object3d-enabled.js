@@ -55,20 +55,21 @@
       }
     }
   }
-  // Restores and forgets a record, including one whose tree an object-type
-  // swap has already discarded.
-  function dropMute(object) {
+  function forgetMute(object) {
     const mute = object && object.zoidiumLightMute;
     if (!mute) return null;
     delete object.zoidiumLightMute;
-    restoreMute(mute);
     return mute;
   }
-  // True only when the record belonged to the object's current threeObj. The
-  // caller then restores the current tree itself after a swap.
+  // True only when the record belonged to the object's current threeObj. A
+  // record for a tree an object-type swap replaced is forgotten without
+  // restoring it: that tree stays as the disable left it, and the caller
+  // restores the current object instead.
   function unmuteLight(object) {
-    const mute = dropMute(object);
-    return !!mute && mute.root === (object && object.threeObj);
+    const mute = forgetMute(object);
+    if (!mute || mute.root !== (object && object.threeObj)) return false;
+    restoreMute(mute);
+    return true;
   }
   // Returns false for anything that is not a light, so the caller keeps the
   // old `visible = false` behaviour for every other object type.
@@ -76,14 +77,13 @@
     const root = object && object.threeObj;
     if (!root || root.isLight !== true) {
       // A light -> non-light type swap leaves a record for a discarded tree.
-      dropMute(object);
+      forgetMute(object);
       return false;
     }
     let mute = object.zoidiumLightMute;
     if (mute && mute.root !== root) {
-      // A light -> light type swap installs a fresh tree; restore the old one
-      // before recording the new one.
-      dropMute(object);
+      // A light -> light type swap installs a fresh tree.
+      forgetMute(object);
       mute = null;
     }
     if (!mute) mute = object.zoidiumLightMute = { root, entries: treeState(root) };
