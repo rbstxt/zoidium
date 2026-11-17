@@ -222,7 +222,71 @@
     return null;
   }
 
-  function patchFinishedPage(prototype, manager, pz, filenameForInstance) {
+  var EXPORT_FORMATS = ["mkv", "webm", "mp4", "png", "jpeg", "webp", "gif"];
+
+  function exportFormatForFilename(filename) {
+    var match = /(?:\.([a-z0-9]+))$/i.exec(String(filename || ""));
+    var extension = match ? match[1].toLowerCase() : "";
+    if (extension === "jpg") extension = "jpeg";
+    return EXPORT_FORMATS.indexOf(extension) !== -1 ? extension : "unknown";
+  }
+
+  function finiteOrNull(value) {
+    var number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  function debugExportApi(globalObject) {
+    try {
+      var api = globalObject && globalObject.ZOIDIUM_DEBUG_LOG;
+      if (api && typeof api === "object") return api;
+    } catch (_error) {
+      // Diagnostics must never interrupt the download flow.
+    }
+    return null;
+  }
+
+  function recordExportComplete(globalObject, details) {
+    var api = debugExportApi(globalObject);
+    if (!api || typeof api.recordExportComplete !== "function") return;
+    try {
+      api.recordExportComplete(details);
+    } catch (_error) {
+      // Diagnostics must never interrupt the download flow.
+    }
+  }
+
+  function recordExportStart(globalObject, details) {
+    var api = debugExportApi(globalObject);
+    if (!api || typeof api.recordExportStart !== "function") return;
+    try {
+      api.recordExportStart(details);
+    } catch (_error) {
+      // Diagnostics must never interrupt the export flow.
+    }
+  }
+
+  function recordExportError(globalObject, error, details) {
+    var api = debugExportApi(globalObject);
+    if (!api || typeof api.recordExportError !== "function") return;
+    try {
+      api.recordExportError(error, details);
+    } catch (_error) {
+      // Diagnostics must never interrupt the download flow.
+    }
+  }
+
+  function exportFormatForParams(params) {
+    // Native device formats read like "webm_vp8_opus" or start with "mkv";
+    // the MP4 plugin records its own richer lifecycle events.
+    var format = String((params && params.format) || "");
+    if (format === "mp4_h264") return "mp4";
+    if (/^mkv/i.test(format)) return "mkv";
+    if (/^webm/i.test(format)) return "webm";
+    return exportFormatForFilename(format);
+  }
+
+  function patchFinishedPage(prototype, manager, pz, filenameForInstance, globalObject) {
     if (
       !prototype ||
       typeof prototype.createFinishedPage !== "function" ||
@@ -238,15 +302,82 @@
         pz.downloadFilename;
       var artifact = manager.capture(pz.downloadBlob, filename);
       var page = original.apply(this, arguments);
-      // Only the page's button holds the artifact, so the output file is
-      // released with the page. The export device outlives every render.
-      if (artifact) manager.bind(findDownloadButton(page), artifact);
+      if (artifact) {
+        manager.bind(findDownloadButton(page), artifact);
+        // The finished page appears only after a successful render, so page
+        // creation is the render-completion record for native exports.
+        recordExportComplete(globalObject, {
+          format: exportFormatForFilename(filename),
+          bytes: finiteOrNull(artifact.blob && artifact.blob.size),
+          filename: filename,
+        });
+      }
       return page;
     };
     wrapped[PATCH_MARKER] = true;
     wrapped.__zoidiumDirectDownloadOriginal = original;
     prototype.createFinishedPage = wrapped;
     return true;
+  }
+
+  function patchDeviceLifecycle(prototype, globalObject) {
+    // Render start and the native "Render error" page live in CM3-owned code
+    // the repository does not copy. These guarded wrappers only observe the
+    // lifecycle from the outside; the MP4 plugin records its own events.
+    if (!prototype) return false;
+    var patched = false;
+    if (
+      typeof prototype.createProgressPage === "function" &&
+      !prototype.createProgressPage[PATCH_MARKER]
+    ) {
+      var originalProgress = prototype.createProgressPage;
+      var wrappedProgress = function createProgressPageWithExportStart() {
+        try {
+          var params = (this && this.params) || {};
+          if (exportFormatForParams(params) !== "mp4") {
+            recordExportStart(globalObject, {
+              format: exportFormatForParams(params),
+              width: finiteOrNull(params.width),
+              height: finiteOrNull(params.height),
+              fps: finiteOrNull(params.rate),
+              bitrateScale: finiteOrNull(params.bitrateScale),
+            });
+          }
+        } catch (_ignored) {
+          // A missing params shape must not stop the export.
+        }
+        return originalProgress.apply(this, arguments);
+      };
+      wrappedProgress[PATCH_MARKER] = true;
+      wrappedProgress.__zoidiumDirectDownloadOriginal = originalProgress;
+      prototype.createProgressPage = wrappedProgress;
+      patched = true;
+    }
+    if (
+      typeof prototype.createErrorPage === "function" &&
+      !prototype.createErrorPage[PATCH_MARKER]
+    ) {
+      var originalError = prototype.createErrorPage;
+      var wrappedError = function createErrorPageWithExportError() {
+        try {
+          var params = (this && this.params) || {};
+          if (exportFormatForParams(params) !== "mp4") {
+            recordExportError(globalObject, new Error("Export failed."), {
+              format: exportFormatForParams(params),
+              stage: "render",
+            });
+          }
+        } catch (_ignored) {
+          // A missing params shape must not stop the error page.
+        }
+        return originalError.apply(this, arguments);
+      };
+      wrappedError[PATCH_MARKER] = true;
+      wrappedError.__zoidiumDirectDownloadOriginal = originalError;
+      prototype.createErrorPage = wrappedError;
+      patched = true;
+    }
+    return patched;
   }
 
   function patchExportFinishedPages(globalObject, manager) {
@@ -264,6 +395,7 @@
           ? "video.mkv"
           : "video.webm";
       },
+      globalObject,
     );
     var framePatched = patchFinishedPage(
       exportUi.frame && exportUi.frame.prototype,
@@ -273,8 +405,13 @@
         return "image." +
           String((instance && instance.params && instance.params.format) || "png");
       },
+      globalObject,
     );
-    return devicePatched || framePatched;
+    var deviceLifecyclePatched = patchDeviceLifecycle(
+      exportUi.device && exportUi.device.prototype,
+      globalObject,
+    );
+    return devicePatched || framePatched || deviceLifecyclePatched;
   }
 
   function artifactError(artifact) {
@@ -288,6 +425,7 @@
   }
 
   function emitDownloadError(globalObject, error) {
+    recordExportError(globalObject, error, { stage: "download" });
     var message =
       error && error.message
         ? error.message
@@ -344,7 +482,20 @@
         }
         Promise.resolve(manager.trigger(artifact)).then(
           function (started) {
-            if (!started) emitDownloadError(globalObject, artifactError(artifact));
+            if (!started) {
+              emitDownloadError(globalObject, artifactError(artifact));
+              return;
+            }
+            // The legacy download page has no finished-page hook, so a
+            // delivered export-stage file completes the record here. Project
+            // files keep their own validation path and stay unlabeled.
+            if (exportFormatForFilename(artifact.filename) !== "unknown") {
+              recordExportComplete(globalObject, {
+                format: exportFormatForFilename(artifact.filename),
+                bytes: finiteOrNull(artifact.blob && artifact.blob.size),
+                filename: artifact.filename,
+              });
+            }
           },
           function (error) {
             emitDownloadError(globalObject, error);
