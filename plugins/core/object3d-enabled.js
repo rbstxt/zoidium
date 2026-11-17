@@ -26,6 +26,116 @@
     object[name] = method;
   }
 
+  // Cast shadows: one static "Cast shadows" row per shadow-capable light.
+  //
+  // A shadow-casting point light renders the six faces of a cube map every
+  // frame, so the row lets a user turn shadows off for a light that does not
+  // need them. The row is a plain 0/1 value with no keyframes: playback never
+  // toggles it, and changing it recompiles lit materials once for the new
+  // combination. The default is today's behaviour for the light type, so a
+  // project saved before this row existed loads with the same look.
+  const CAST_SHADOWS = "zoidiumCastShadows";
+  const CAST_SHADOWS_CONTROL = "core/cast-shadows";
+  const SUITE_PREFIX = "zoidium:trapcode-suite/";
+
+  // 1 for a light that casts shadows today, 0 for a suite light that renders
+  // without them (Area, IES and Portal), and null for a light that cannot cast
+  // any (both Hemisphere lights and unknown types).
+  function shadowDefault(object) {
+    const type = object && object.objectType;
+    if (typeof type !== "number") return null;
+    const suite = typeof object.type === "string" && object.type.indexOf(SUITE_PREFIX) === 0;
+    if (suite) {
+      if (type === 1 || type === 2 || type === 3 || type === 7) return 1;
+      if (type === 4 || type === 6 || type === 8) return 0;
+      return null;
+    }
+    if (type === 1 || type === 2 || type === 3) return 1;
+    return null;
+  }
+
+  // The suite's Area fallback is a point root with nine spot samples; only one
+  // sample may carry a shadow map. The suite moves a request on the root to
+  // the centre sample on its next update, so clearing the samples first turns
+  // a previous request off immediately.
+  function applyCastShadows(object, on) {
+    const light = object && object.threeObj;
+    if (!light) return;
+    if (light.areaSamples && light.areaSamples.length) {
+      for (let i = 0; i < light.areaSamples.length; i++) light.areaSamples[i].castShadow = false;
+    }
+    light.castShadow = !!on;
+  }
+
+  function createCastShadowsRow(property, context) {
+    const doc = context && context.document;
+    if (!doc) return null;
+    const row = doc.createElement("div");
+    row.classList.add("editbox");
+    const box = doc.createElement("input");
+    box.type = "checkbox";
+    box.className = "pz-inputbox";
+    box.setAttribute("aria-label", property.definition.name || "Cast shadows");
+    box.checked = property.get() === 1;
+    box.onchange = function () {
+      const value = box.checked ? 1 : 0;
+      if (value === property.get()) return;
+      const controls = row.closest && row.closest("ul") ? row.closest("ul").pz_controls : null;
+      if (!controls || !PZ.ui || !PZ.ui.controls) {
+        property.set(value);
+        return;
+      }
+      PZ.ui.controls.editStart.call(box, property);
+      property.set(value);
+      PZ.ui.controls.editFinish.call(box, property);
+    };
+    // CM3 binds this to the row's property and calls it before every refresh.
+    row.pz_update = function () {
+      const value = property.get() === 1;
+      if (doc.activeElement !== box) box.checked = value;
+    };
+    row.appendChild(box);
+    return row;
+  }
+
+  // The shared control registry loads after this pre-init script, so the
+  // checkbox registers on the first light that needs a row. Until then the
+  // definition still renders as a native option row.
+  let controlReady = false;
+  function ensureCastShadowsControl() {
+    if (controlReady) return;
+    const apis = global.ZoidiumPluginApis;
+    const controls = apis && apis.propertyControls;
+    if (!controls || typeof controls.register !== "function") return;
+    controlReady = true;
+    controls.register(CAST_SHADOWS_CONTROL, {
+      type: PZ.property.type.OPTION,
+      create: createCastShadowsRow,
+    });
+  }
+
+  // Rows attach through addAll, before the light loads its saved properties,
+  // so CM3's own properties.load() writes the saved value. A light that never
+  // had the row keeps the type default.
+  function attachCastShadows(properties, object) {
+    if (!properties || properties[CAST_SHADOWS]) return;
+    const fallback = shadowDefault(object);
+    if (fallback === null) return;
+    ensureCastShadowsControl();
+    addAll.call(properties, {
+      [CAST_SHADOWS]: {
+        name: "Cast shadows",
+        type: PZ.property.type.OPTION,
+        value: fallback,
+        items: "off;on",
+        zoidiumControl: CAST_SHADOWS_CONTROL,
+        changed: function () {
+          applyCastShadows(this.parentObject, this.get() === 1);
+        },
+      },
+    });
+  }
+
   // Three.js r91 compiles a lit program for every visible light count, so
   // hiding a light recompiles every lit material. A disabled light keeps its
   // place in the scene graph instead: every light in its subtree stays
@@ -104,7 +214,8 @@
 
   list.addAll = function (definitions) {
     const result = addAll.apply(this, arguments);
-    const object = this.parent;
+    const object = this.parent || this.parentObject;
+    if (base.light && object instanceof base.light) attachCastShadows(this, object);
     if (definitions !== base.propertyDefinitions || !(object instanceof base) ||
         object instanceof base.camera ||
         object.constructor.name === "CameraPlus" || object.type === "zoidium:camera-plus/camera") return result;
