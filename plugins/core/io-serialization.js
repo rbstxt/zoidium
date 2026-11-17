@@ -7,6 +7,13 @@
   const CLEANUP_TIMEOUT_MS = 5000;
   const DIAGNOSTICS_KEY = "zoidiumIoSerialization";
   const CROSS_TAB_LOCK_NAME = "zoidium-export-workspace-v2";
+  const OUT_FILE_NAME = "out";
+  // CM3's render worker posts the File for "out" in the same task as its last
+  // write, which is asynchronous. A File is a snapshot: when a later write
+  // lands, every read of that snapshot fails. A fresh snapshot of the same
+  // entry reads fine, so the copy is retried with the delays below. The first
+  // copy stays immediate, so a healthy render keeps its single read.
+  const VIDEO_READBACK_DELAYS = [250, 1000, 3000];
   const MINIMUM_WORKSPACE_BYTES = 100 * 1024 * 1024;
   const ARCHIVE_HEADROOM_BYTES = 16 * 1024 * 1024;
   const LEASE_DATABASE_NAME = "zoidium-coordination";
@@ -288,25 +295,163 @@
         value.name.length > 0,
     );
   }
-  async function detachFileBackedBlob(blob, description) {
+  function describeError(error) {
+    return (error && error.name ? error.name : "Error") + ": " +
+      (error && error.message ? error.message : String(error));
+  }
+  // The stream copy reports every read failure of a file-backed Blob as
+  // "TypeError: Failed to fetch". Reading one byte keeps the specific
+  // DOMException (NotReadableError when the file changed, NotFoundError when it
+  // is gone) without allocating the whole export a second time.
+  async function probeReadCause(source) {
+    if (!source || typeof source.slice !== "function") return null;
+    try {
+      const head = source.slice(0, 1);
+      if (!head || typeof head.arrayBuffer !== "function") return null;
+      await head.arrayBuffer();
+      return null;
+    } catch (error) {
+      return error || null;
+    }
+  }
+  function readbackHint(cause) {
+    if (!cause) return "";
+    if (cause.name === "NotReadableError") {
+      return " The temporary file was changed or locked by another program " +
+        "(for example antivirus or a disk indexer).";
+    }
+    if (cause.name === "NotFoundError") {
+      return " The temporary file was removed.";
+    }
+    return "";
+  }
+  // The snapshot CM3's worker posts for "out" can predate its own last write.
+  // A fresh File from the same entry reads the finished file.
+  function defaultOpenOutFile() {
+    return new Promise((resolve) => {
+      try {
+        if (typeof webkitRequestFileSystem !== "function") {
+          resolve(null);
+          return;
+        }
+        let settled = false;
+        const finish = (file) => {
+          if (settled) return;
+          settled = true;
+          resolve(file || null);
+        };
+        webkitRequestFileSystem(
+          PERSISTENT,
+          0,
+          (fs) => {
+            try {
+              fs.root.getFile(
+                OUT_FILE_NAME,
+                null,
+                (entry) => {
+                  try {
+                    entry.file(
+                      (file) => finish(file),
+                      () => finish(null),
+                    );
+                  } catch (_error) {
+                    finish(null);
+                  }
+                },
+                () => finish(null),
+              );
+            } catch (_error) {
+              finish(null);
+            }
+          },
+          () => finish(null),
+        );
+        setTimeout(() => finish(null), CLEANUP_TIMEOUT_MS);
+      } catch (_error) {
+        resolve(null);
+      }
+    });
+  }
+  // Copy a file-backed Blob into page Blob storage. A failure of CM3's shared
+  // render file may be a snapshot that a late write invalidated, so the copy is
+  // retried with a fresh File from the same entry. The caller runs this inside
+  // the export lock, so every retry stays serialised with other file access.
+  async function detachFileBackedBlob(blob, description, options) {
     if (!isFileBackedBlob(blob)) return blob;
     if (typeof Response !== "function" || byteLength(blob) === 0) return blob;
-    let copy;
-    try {
-      copy = await new Response(blob.stream()).blob();
-    } catch (error) {
-      const failure = new Error(
-        description + " could not be read back from the browser's temporary file.",
-      );
-      failure.cause = error;
-      throw failure;
+    options = options || {};
+    const openOutFile =
+      blob.name === OUT_FILE_NAME && typeof options.openOutFile === "function"
+        ? options.openOutFile
+        : null;
+    const delays = Array.isArray(options.delays)
+      ? options.delays
+      : VIDEO_READBACK_DELAYS;
+    const label = description
+      .replace(/^The\s+/, "")
+      .replace(/^[a-z]/, (letter) => letter.toUpperCase());
+    const originalSize = byteLength(blob);
+    let source = blob;
+    let attempt = 0;
+    let incomplete = false;
+    let copiedSize = 0;
+    let cause = null;
+    for (;;) {
+      attempt += 1;
+      let copy = null;
+      incomplete = false;
+      cause = null;
+      try {
+        copy = await new Response(source.stream()).blob();
+      } catch (error) {
+        cause = error;
+      }
+      if (copy) {
+        copiedSize = byteLength(copy);
+        if (copiedSize !== byteLength(source) || copiedSize < originalSize) {
+          copy = null;
+          incomplete = true;
+        }
+      }
+      if (copy) return copy;
+      // Name the cause behind the generic stream error before the retry.
+      if (openOutFile && !incomplete && cause && cause.name === "TypeError") {
+        const probed = await probeReadCause(source);
+        if (probed) cause = probed;
+      }
+      if (openOutFile) {
+        const expectedSize =
+          copiedSize === byteLength(source) ? originalSize : byteLength(source);
+        console.warn(
+          "[Zoidium] " + label + " read-back failed (attempt " + attempt +
+            "): " + (incomplete
+              ? "incomplete copy (" + copiedSize + " of " + expectedSize +
+                " bytes)"
+              : describeError(cause)),
+        );
+      }
+      if (!openOutFile || attempt > delays.length) break;
+      await delay(delays[attempt - 1]);
+      let fresh = null;
+      try {
+        fresh = await openOutFile();
+      } catch (_error) {
+        fresh = null;
+      }
+      if (!fresh) break;
+      source = fresh;
     }
-    if (!copy || byteLength(copy) !== byteLength(blob)) {
+    if (incomplete) {
       throw new Error(
         description + " was copied incompletely from the browser's temporary file.",
       );
     }
-    return copy;
+    const failure = new Error(
+      description + " could not be read back from the browser's temporary file." +
+        readbackHint(cause),
+    );
+    failure.cause = cause;
+    throw failure;
   }
   function createIoSerializer(hooks) {
     hooks = hooks || {};
@@ -316,6 +461,13 @@
       typeof hooks.deleteOutFile === "function"
         ? hooks.deleteOutFile
         : defaultDeleteOutFile;
+    const openOutFile =
+      typeof hooks.openOutFile === "function"
+        ? hooks.openOutFile
+        : defaultOpenOutFile;
+    const readbackDelays = Array.isArray(hooks.readbackDelays)
+      ? hooks.readbackDelays
+      : VIDEO_READBACK_DELAYS;
     const coordination = hooks.runExclusive
       ? { mode: hooks.coordinationMode || "custom", run: hooks.runExclusive }
       : createOriginLockRunner(global);
@@ -472,7 +624,10 @@
             holder.encodeSettled = true;
           }
           return assertBlobPrefix(
-            await detachFileBackedBlob(blob, "The rendered video"),
+            await detachFileBackedBlob(blob, "The rendered video", {
+              openOutFile,
+              delays: readbackDelays,
+            }),
             [0x1a, 0x45, 0xdf, 0xa3],
             "Video",
           );
@@ -771,15 +926,19 @@
       CROSS_TAB_LOCK_NAME,
       MAX_ATTEMPTS,
       MINIMUM_WORKSPACE_BYTES,
+      OUT_FILE_NAME,
       RETRY_DELAY_MS,
+      VIDEO_READBACK_DELAYS,
       createIoSerializer,
       createOriginLockRunner,
       createWebLockRunner,
+      defaultOpenOutFile,
       detachFileBackedBlob,
       estimateArchiveStorageBytes,
       estimateVideoStorageBytes,
       install,
       isFileBackedBlob,
+      probeReadCause,
       requestPersistentQuota,
     };
     return;

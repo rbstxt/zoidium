@@ -68,6 +68,50 @@ function fileBackedExport(bytes) {
   };
 }
 
+// The File CM3's worker posts for "out" can predate its own last write. Every
+// read of that snapshot fails with the generic stream error while a fresh File
+// from the same entry reads the finished bytes.
+function staleRenderSnapshot(options) {
+  options = options || {};
+  const bytes = Uint8Array.from(
+    options.bytes || [0x1a, 0x45, 0xdf, 0xa3, 5, 5, 5],
+  );
+  const streamError = options.streamError || new TypeError("Failed to fetch");
+  const probeError =
+    options.probeError === undefined
+      ? new DOMException("The file changed.", "NotReadableError")
+      : options.probeError;
+  return {
+    name: options.name || "out",
+    size: bytes.length,
+    stream() {
+      throw streamError;
+    },
+    slice() {
+      return {
+        arrayBuffer() {
+          if (probeError) return Promise.reject(probeError);
+          return new Blob([bytes.subarray(0, 1)]).arrayBuffer();
+        },
+      };
+    },
+  };
+}
+
+function captureWarnings() {
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (...args) => {
+    warnings.push(args.join(" "));
+  };
+  return {
+    warnings,
+    restore() {
+      console.warn = original;
+    },
+  };
+}
+
 class SharedLockManager {
   constructor() {
     this.tails = new Map();
@@ -357,6 +401,191 @@ test("a render that cannot be read back fails instead of returning a stale file"
   });
 
   await assert.rejects(encode(), /could not be read back from the browser's temporary file/);
+});
+
+test("a late render write is retried with a fresh snapshot of the render file", async () => {
+  const io = createIoSerializer({
+    readbackDelays: [0, 0, 0],
+    openOutFile: async () => new File([Uint8Array.from([0x1a, 0x45, 0xdf, 0xa3, 7, 7, 7])], "out"),
+  });
+  const encode = io.wrapEncode(() => staleRenderSnapshot());
+  const { warnings, restore } = captureWarnings();
+  let result = null;
+  try {
+    result = await encode();
+  } finally {
+    restore();
+  }
+
+  assert.deepEqual(
+    [...new Uint8Array(await result.arrayBuffer())],
+    [0x1a, 0x45, 0xdf, 0xa3, 7, 7, 7],
+  );
+  assert.deepEqual(warnings, [
+    "[Zoidium] Rendered video read-back failed (attempt 1): " +
+      "NotReadableError: The file changed.",
+  ]);
+});
+
+test("a render file that cannot be opened stops the retry schedule", async () => {
+  let opens = 0;
+  const io = createIoSerializer({
+    readbackDelays: [0, 0, 0],
+    openOutFile: async () => {
+      opens += 1;
+      return null;
+    },
+  });
+  const encode = io.wrapEncode(() => staleRenderSnapshot());
+  const { warnings, restore } = captureWarnings();
+  let error = null;
+  try {
+    await encode();
+  } catch (rejected) {
+    error = rejected;
+  } finally {
+    restore();
+  }
+
+  assert.match(
+    error.message,
+    /could not be read back from the browser's temporary file/,
+  );
+  assert.match(error.message, /was changed or locked by another program/);
+  assert.equal(error.cause && error.cause.name, "NotReadableError");
+  assert.equal(opens, 1, "the entry is opened once before the schedule ends");
+  assert.equal(warnings.length, 1);
+});
+
+test("a fresh render file shorter than the snapshot is never accepted", async () => {
+  let opens = 0;
+  const io = createIoSerializer({
+    readbackDelays: [0, 0, 0],
+    openOutFile: async () => {
+      opens += 1;
+      return new File([Uint8Array.from([0x1a, 0x45])], "out");
+    },
+  });
+  const encode = io.wrapEncode(() => staleRenderSnapshot());
+  const { warnings, restore } = captureWarnings();
+  let error = null;
+  try {
+    await encode();
+  } catch (rejected) {
+    error = rejected;
+  } finally {
+    restore();
+  }
+
+  assert.match(
+    error.message,
+    /was copied incompletely from the browser's temporary file/,
+  );
+  assert.equal(opens, 3, "every scheduled retry took a fresh snapshot");
+  assert.equal(warnings.length, 4, "each failed attempt is reported once");
+  assert.match(warnings[1], /incomplete copy \(2 of 7 bytes\)/);
+});
+
+test("the export lock stays held across the read-back retries", async () => {
+  const manager = new SharedLockManager();
+  const order = [];
+  const first = createIoSerializer({
+    coordinationMode: "web-locks",
+    runExclusive: createWebLockRunner(manager),
+    readbackDelays: [0, 0, 0],
+    openOutFile: async () => {
+      order.push("snapshot");
+      return new File([Uint8Array.from([0x1a, 0x45, 0xdf, 0xa3, 1])], "out");
+    },
+  });
+  const second = createIoSerializer({
+    coordinationMode: "web-locks",
+    runExclusive: createWebLockRunner(manager),
+  });
+  const encode = first.wrapEncode(() => staleRenderSnapshot({ bytes: [0x1a, 0x45, 0xdf, 0xa3, 1] }));
+  const tar = second.wrapTar(() => {
+    order.push("archive");
+    return archiveBlob();
+  });
+  const { restore } = captureWarnings();
+  try {
+    const pending = encode();
+    await flush();
+    const save = tar();
+    await Promise.all([pending, save]);
+  } finally {
+    restore();
+  }
+
+  assert.deepEqual(order, ["snapshot", "archive"]);
+});
+
+test("a changed temporary file is named in the final message", async () => {
+  const io = createIoSerializer({
+    readbackDelays: [0],
+    openOutFile: async () => null,
+  });
+  const encode = io.wrapEncode(() => staleRenderSnapshot());
+  const { restore } = captureWarnings();
+  let error = null;
+  try {
+    await encode();
+  } catch (rejected) {
+    error = rejected;
+  } finally {
+    restore();
+  }
+
+  assert.match(error.message, /was changed or locked by another program/);
+  assert.match(error.message, /antivirus or a disk indexer/);
+  assert.equal(error.cause && error.cause.name, "NotReadableError");
+});
+
+test("a removed temporary file says it was removed", async () => {
+  const io = createIoSerializer({
+    readbackDelays: [0],
+    openOutFile: async () => null,
+  });
+  const encode = io.wrapEncode(() =>
+    staleRenderSnapshot({
+      probeError: new DOMException("The entry is gone.", "NotFoundError"),
+    }),
+  );
+  const { restore } = captureWarnings();
+  let error = null;
+  try {
+    await encode();
+  } catch (rejected) {
+    error = rejected;
+  } finally {
+    restore();
+  }
+
+  assert.match(error.message, /The temporary file was removed\.$/);
+  assert.equal(error.cause && error.cause.name, "NotFoundError");
+});
+
+test("a project archive keeps the plain read-back failure", async () => {
+  const io = createIoSerializer({
+    readbackDelays: [0],
+    openOutFile: async () => new File([Uint8Array.from([0x1f, 0x8b])], "out"),
+  });
+  const tar = io.wrapTar(() => staleRenderSnapshot({ name: "project.tar" }));
+  const { warnings, restore } = captureWarnings();
+  let error = null;
+  try {
+    await tar();
+  } catch (rejected) {
+    error = rejected;
+  } finally {
+    restore();
+  }
+
+  assert.equal(
+    error.message,
+    "The project archive could not be read back from the browser's temporary file.",
+  );
+  assert.deepEqual(warnings, [], "an archive read is not retried or warned about");
 });
 
 test("storage estimates scale beyond the old fixed 100 MB quota", () => {
