@@ -32,10 +32,9 @@
   // visible with zero intensity, which contributes exactly nothing, and its
   // non-light children (targets, gizmos) hide as they did before.
   // `castShadow` is not touched because it also selects a program variant.
-  // The intensity at the moment of the disable stays readable as
-  // `zoidiumMutedIntensity`: the Trapcode shading model collects lights by
-  // walking the scene and has always ignored `visible`, so it keeps the same
-  // input it saw while the light was hidden.
+  // Muted lights carry `zoidiumMuted` so models that walk the scene, such as
+  // the Trapcode shading model, treat a disabled light as absent rather than
+  // as a zero-intensity light.
   function treeState(root) {
     const entries = [];
     const walk = node => {
@@ -46,40 +45,58 @@
     walk(root);
     return entries;
   }
+  function restoreMute(mute) {
+    for (const entry of mute.entries) {
+      const node = entry.node;
+      node.visible = entry.visible;
+      if (node.isLight) {
+        if (typeof entry.intensity === "number") node.intensity = entry.intensity;
+        delete node.zoidiumMuted;
+      }
+    }
+  }
+  // Restores and forgets a record, including one whose tree an object-type
+  // swap has already discarded.
+  function dropMute(object) {
+    const mute = object && object.zoidiumLightMute;
+    if (!mute) return null;
+    delete object.zoidiumLightMute;
+    restoreMute(mute);
+    return mute;
+  }
+  // True only when the record belonged to the object's current threeObj. The
+  // caller then restores the current tree itself after a swap.
+  function unmuteLight(object) {
+    const mute = dropMute(object);
+    return !!mute && mute.root === (object && object.threeObj);
+  }
   // Returns false for anything that is not a light, so the caller keeps the
   // old `visible = false` behaviour for every other object type.
   function muteLight(object) {
     const root = object && object.threeObj;
-    if (!root || root.isLight !== true) return false;
-    let mute = object.zoidiumLightMute;
-    if (!mute || mute.root !== root) {
-      // An object-type swap installs a fresh threeObj; record that one.
-      mute = object.zoidiumLightMute = { root, entries: treeState(root) };
+    if (!root || root.isLight !== true) {
+      // A light -> non-light type swap leaves a record for a discarded tree.
+      dropMute(object);
+      return false;
     }
+    let mute = object.zoidiumLightMute;
+    if (mute && mute.root !== root) {
+      // A light -> light type swap installs a fresh tree; restore the old one
+      // before recording the new one.
+      dropMute(object);
+      mute = null;
+    }
+    if (!mute) mute = object.zoidiumLightMute = { root, entries: treeState(root) };
     for (const entry of mute.entries) {
       const node = entry.node;
       if (node.isLight) {
         node.visible = true;
         if (typeof entry.intensity === "number" && typeof node.intensity === "number") {
           node.intensity = 0;
-          if (node.zoidiumMutedIntensity === undefined) node.zoidiumMutedIntensity = entry.intensity;
+          node.zoidiumMuted = true;
         }
       } else {
         node.visible = false;
-      }
-    }
-    return true;
-  }
-  function unmuteLight(object) {
-    const mute = object && object.zoidiumLightMute;
-    if (!mute) return false;
-    delete object.zoidiumLightMute;
-    for (const entry of mute.entries) {
-      const node = entry.node;
-      node.visible = entry.visible;
-      if (node.isLight) {
-        if (typeof entry.intensity === "number") node.intensity = entry.intensity;
-        delete node.zoidiumMutedIntensity;
       }
     }
     return true;

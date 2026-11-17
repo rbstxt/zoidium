@@ -102,7 +102,7 @@ test("light collection is a pure function of the scene graph", () => {
   assert.deepEqual(empty, []);
 });
 
-test("a muted light keeps its stored intensity for the shading model", () => {
+test("a disabled light gives the shading model no light", () => {
   const { T, THREE } = loadShading();
   const root = new THREE.Object3D();
   const holder = new THREE.Object3D();
@@ -110,12 +110,25 @@ test("a muted light keeps its stored intensity for the shading model", () => {
   const point = new THREE.PointLight(0xffffff, 2, 0);
   point.position.set(100, 0, 0);
   root.add(point);
+  const lamp = new THREE.PointLight(0xffffff, 1, 0);
+  lamp.position.set(-100, 0, 0);
+  root.add(lamp);
   const before = T.shading.collectLights(holder);
-  // The Enabled wrapper keeps a disabled light visible with zero intensity.
+  assert.equal(before.length, 2);
+  // The Enabled wrapper keeps a disabled light visible with zero intensity
+  // and marks it, so the model treats it as absent, not as a dim light.
   point.intensity = 0;
-  point.zoidiumMutedIntensity = 2;
-  assert.deepEqual(T.shading.collectLights(holder), before, "the disabled input is unchanged");
-  delete point.zoidiumMutedIntensity;
+  point.zoidiumMuted = true;
+  const muted = T.shading.collectLights(holder);
+  assert.equal(muted.length, 1, "the disabled light takes no light slot");
+  assert.deepEqual(muted[0].position, [-100, 0, 0]);
+  // A light the user set to zero intensity by hand is not muted, so it keeps
+  // its slot and its zero contribution exactly as before.
+  delete point.zoidiumMuted;
+  point.intensity = 0;
+  const dimmed = T.shading.collectLights(holder);
+  assert.equal(dimmed.length, 2);
+  assert.equal(dimmed.find(light => light.position[0] === 100).intensity, 0);
   point.intensity = 2;
   assert.deepEqual(T.shading.collectLights(holder), before);
 });

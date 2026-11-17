@@ -62,11 +62,6 @@ var PZ = PZ || {};
     }
 
     function shadeLightIntensity(light) {
-        // A disabled light keeps its scene-graph place with zero intensity.
-        // Its last value stays available so this model reads what it read
-        // while the light was hidden (it has always ignored `visible`).
-        var muted = light && light.zoidiumMutedIntensity;
-        if (typeof muted === "number" && isFinite(muted)) return muted;
         var v = light && light.intensity;
         return typeof v === "number" && isFinite(v) ? v : 1;
     }
@@ -108,7 +103,10 @@ var PZ = PZ || {};
         var stack = [root];
         while (stack.length) {
             var node = stack.pop();
-            if (node !== threeObj && shadeIsLight(node)) {
+            // A disabled light keeps its place in the light count but gives
+            // no light here: it is absent, not a zero-intensity light, so it
+            // does not take one of the MAX_LIGHTS slots.
+            if (node !== threeObj && shadeIsLight(node) && node.zoidiumMuted !== true) {
                 var kind = shadeClassify(node);
                 var color = shadeLightColor(node);
                 var intensity = shadeLightIntensity(node);

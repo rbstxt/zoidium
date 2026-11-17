@@ -814,19 +814,21 @@
                 var kelvin = temperatureColor(p.temperature.get(time));
                 t = p.color.get(time);
                 o.color.setRGB(t[0] * kelvin[0], t[1] * kelvin[1], t[2] * kelvin[2]);
-                if (o.shadow && o.shadow.camera) {
-                    // Rebuilding the shadow projection every frame costs a
-                    // matrix update for an unchanged coverage and softness.
-                    var softness = p.shadowSoftness.get(time);
-                    var extent = p.shadowExtent.get(time) / 2;
-                    var projection = softness + "|" + extent;
-                    if (this.shadowProjection !== projection || this.shadowProjectionTarget !== o) {
-                        this.shadowProjection = projection;
-                        this.shadowProjectionTarget = o;
-                        o.shadow.radius = softness;
-                        Object.assign(o.shadow.camera, { left: -extent, right: extent, top: extent, bottom: -extent });
-                        if (o.shadow.camera.updateProjectionMatrix) o.shadow.camera.updateProjectionMatrix();
-                    }
+            }
+            // Rebuilding the shadow projection every frame costs a matrix
+            // update for unchanged coverage and softness. Anything the light
+            // carries these controls on gets the update, not only lights with
+            // a temperature control.
+            if (p.shadowSoftness && p.shadowExtent && o.shadow && o.shadow.camera) {
+                var softness = p.shadowSoftness.get(time);
+                var extent = p.shadowExtent.get(time) / 2;
+                var projection = softness + "|" + extent;
+                if (this.shadowProjection !== projection || this.shadowProjectionTarget !== o) {
+                    this.shadowProjection = projection;
+                    this.shadowProjectionTarget = o;
+                    o.shadow.radius = softness;
+                    Object.assign(o.shadow.camera, { left: -extent, right: extent, top: extent, bottom: -extent });
+                    if (o.shadow.camera.updateProjectionMatrix) o.shadow.camera.updateProjectionMatrix();
                 }
             }
             if (this.objectType === 7) {
