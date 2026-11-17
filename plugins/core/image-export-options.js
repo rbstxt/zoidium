@@ -205,6 +205,15 @@
     return null;
   }
 
+  function recordExportEvent(method, arg1, arg2) {
+    try {
+      const api = globalThis.ZOIDIUM_DEBUG_LOG;
+      if (api && typeof api[method] === "function") api[method](arg1, arg2);
+    } catch (_ignored) {
+      // Diagnostics must never interrupt an export.
+    }
+  }
+
   function installImageExportPatch() {
     const prototype = PZ.ui?.export?.frame?.prototype;
     if (!prototype || prototype[PATCH_MARKER]) return;
@@ -265,7 +274,7 @@
         try {
           return await originalRender.apply(this, arguments);
         } catch (error) {
-          failures.set(this, error?.message || String(error));
+          failures.set(this, error);
           // CM3's progress page handles undefined as failure. Returning it
           // lets that page clear its timer, show the error page, and unload.
           return undefined;
@@ -274,15 +283,31 @@
       prototype.createErrorPage = function createImageErrorPageWithDiagnostic() {
         const page = originalCreateErrorPage.apply(this, arguments);
         if (!failures.has(this)) return page;
-        const message = failures.get(this);
+        const error = failures.get(this);
         failures.delete(this);
         this.renderCleanUp();
         // Native descriptions accept HTML. Keep renderer diagnostics as text,
         // as the video export adapter does, because clip names are user input.
         const description = PZ.ui.controls.legacy.generateDescription({ content: "" });
-        description.textContent = "Image export failed. " + message;
+        description.textContent = "Image export failed. " + (error?.message || String(error));
         page.appendChild(description);
+        recordExportEvent("recordExportError", error, {
+          format: this.params && this.params.format,
+          stage: "render",
+        });
         return page;
+      };
+    }
+
+    const originalCreateProgressPage = prototype.createProgressPage;
+    if (typeof originalCreateProgressPage === "function") {
+      prototype.createProgressPage = function createImageProgressPageWithExportStart() {
+        recordExportEvent("recordExportStart", {
+          format: this.params && this.params.format,
+          width: this.params && this.params.width,
+          height: this.params && this.params.height,
+        });
+        return originalCreateProgressPage.apply(this, arguments);
       };
     }
 
