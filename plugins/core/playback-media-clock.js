@@ -28,6 +28,12 @@
   function canClock(schedule) {
     const element = schedule && schedule.el;
     if (!element || !schedule.playing || !schedule.currentItem) return false;
+    // Native playback converts media time using clip.start. Video materials
+    // start at item.start instead, so an offset material would rewind the
+    // playhead by that offset if selected as the clock.
+    const item = schedule.currentItem;
+    const clipStart = item.clip && item.clip.start;
+    if (Number.isFinite(item.start) && Number.isFinite(clipStart) && item.start !== clipStart) return false;
     return !element.paused && !element.seeking && !element.ended &&
       !(element.readyState < HAVE_FUTURE_DATA);
   }
