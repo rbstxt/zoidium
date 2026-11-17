@@ -869,6 +869,6 @@
 
     var T = (typeof PZ !== "undefined" && PZ.trapcode) || null;
     if (T) {
-        T.lights = { install: install, uninstall: uninstall, catalogue: CATALOGUE, legacyType: legacyType, parseIES: parseIES, sampleIES: sampleIES, sunValues: sunValues };
+        T.lights = { install: install, uninstall: uninstall, setupShadows: setupShadows, catalogue: CATALOGUE, legacyType: legacyType, parseIES: parseIES, sampleIES: sampleIES, sunValues: sunValues };
     }
 })();

@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "145",
+      "version": "146",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=145",
-      "bundle": "./plugins/core/bundle.json?v=145",
-      "integrity": "sha256-9lnqBGRetgBr79FueMzv/xfG9nxUZjLZsWEH97y2aRU="
+      "manifest": "./plugins/core/manifest.json?v=146",
+      "bundle": "./plugins/core/bundle.json?v=146",
+      "integrity": "sha256-pQ5qWrF14hid9PtuY2JwUXLMBmCSSM4u6OedKWL9B3A="
     },
     {
       "id": "easing-plus",
@@ -296,16 +296,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "51",
+      "version": "52",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=51",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=51",
-      "integrity": "sha256-c9r7BOik11bqyUQmTU8Nw6gBhHOid+8siFQukvqcbqU="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=52",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=52",
+      "integrity": "sha256-gURvRG+KeQ5U+NaphIdwGsyj0bs9Q/V+9aiNrqPLQAQ="
     },
     {
       "id": "optical-flares",

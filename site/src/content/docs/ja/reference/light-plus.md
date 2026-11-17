@@ -31,4 +31,6 @@ Light+ はシーンの照明を追加します。Single Color、Image+、Matcap 
 
 Spot、Point、Directional のプリセットは Position を `0, 100, 100` で上書きします。Hemisphere には Position と Target の行がありません。
 
+Spot、Point、Directional の照明には **Cast shadows** スイッチがあり、初期値はオンです。影が不要な照明ではオフにします。このスイッチはアニメーションしません。
+
 [Light+ でネイティブの照明を追加する](/docs/ja/features/light-plus/)

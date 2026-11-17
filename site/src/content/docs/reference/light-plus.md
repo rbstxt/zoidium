@@ -31,4 +31,6 @@ Light+ adds scene lights. Single Color, Image+, and Matcap materials do not resp
 
 Spot, Point, and Directional presets override Position to `0, 100, 100`. Hemisphere has no Position or Target rows.
 
+Spot, point, and directional lights have a **Cast shadows** switch, on by default. Turn it off for a light that does not need shadows; the switch does not animate.
+
 [Add native lights with Light+](/docs/features/light-plus/)
