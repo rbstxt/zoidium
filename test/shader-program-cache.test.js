@@ -93,3 +93,35 @@ test("a restored WebGL context drops retained programs without destroying them",
   assert.equal(s.destroyed(), 0);
   assert.equal(lost.usedTimes, 2);
 });
+
+test("unchanged renders avoid scanning and same-size replacements are retained", () => {
+  const s = setup();
+  const first = s.acquire("valid");
+  let reads = 0, count = first.usedTimes;
+  Object.defineProperty(first, "usedTimes", { get() { reads++; return count; }, set(value) { count = value; } });
+  const failed = s.acquire("failed"); failed.diagnostics = {};
+  s.renderer.render(); reads = 0;
+  for (let i = 0; i < 10; i++) s.renderer.render();
+  assert.equal(reads, 0);
+  s.release(failed);
+  const replacement = s.acquire("replacement");
+  s.renderer.render();
+  assert.equal(replacement.usedTimes, 2);
+  s.cache.dispose();
+  assert.equal(Object.hasOwn(s.programs, "push"), false);
+});
+
+test("context replacement installs and removes its array observer", () => {
+  const s = setup();
+  const old = s.programs;
+  const next = [];
+  s.renderer.info.programs = next;
+  s.renderer.render();
+  assert.equal(Object.hasOwn(old, "push"), false);
+  const item = { usedTimes: 1, destroy() {} };
+  next.push(item);
+  s.renderer.render();
+  assert.equal(item.usedTimes, 2);
+  s.cache.dispose();
+  assert.equal(Object.hasOwn(next, "push"), false);
+});

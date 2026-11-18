@@ -10,6 +10,10 @@ function createFollowEvaluator({ PZ, THREE, store, trackEvaluator, report = cons
 
   function hasFollow(scene) {
     return sequenceScenes(scene, PZ).some(entry => {
+      if (typeof trackEvaluator.collect === "function") {
+        const index = trackEvaluator.collect(entry.scene);
+        if (index?.followers) return index.followers.length > 0;
+      }
       const pending = Array.from(entry.scene.objects || []);
       while (pending.length) {
         const host = pending.pop();

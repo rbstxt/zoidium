@@ -101,3 +101,30 @@ test("constraint evaluator leaves the shared update alone and wraps observed eve
   assert.notEqual(evaluator.collect(scene), before);
   assert.equal(PZ.observable.prototype.update, nativeUpdate);
 });
+
+test("Follow index tracks links and structural changes without rescanning stable scenes", { skip: !fs.existsSync(core) }, () => {
+  const { PZ, THREE } = host();
+  const { createFollowEvaluator } = require("../plugins/constraints/follow-evaluate");
+  let evaluator, reads = 0;
+  const base = createPropertyStore({ PZ, onStructureChanged: () => evaluator.invalidate() });
+  const store = { ...base, readFollow(object) { reads++; return base.readFollow(object); } };
+  evaluator = createEvaluator({ PZ, THREE, store, patch(holder, key, make) { holder[key] = make(holder[key]); } });
+  const follow = createFollowEvaluator({ PZ, THREE, store, trackEvaluator: evaluator });
+  const scene = new PZ.object3d.group(); scene.load({ objects: [] });
+  const object = new PZ.object3d.group(); object.load({ objects: [] }); store.attach(object); scene.objects.push(object);
+  assert.equal(follow.hasFollow(scene), false);
+  reads = 0;
+  for (let i = 0; i < 20; i++) assert.equal(follow.hasFollow(scene), false);
+  assert.equal(reads, 0);
+  object.properties.zoidiumFollow.set("target");
+  assert.equal(follow.hasFollow(scene), true);
+  object.properties.zoidiumFollow.set("");
+  assert.equal(follow.hasFollow(scene), false);
+  object.properties.zoidiumFollow.set("target");
+  scene.objects.splice(0, 1);
+  assert.equal(follow.hasFollow(scene), false);
+  scene.objects.push(object);
+  assert.equal(follow.hasFollow(scene), true);
+  store.detach(object);
+  assert.equal(follow.hasFollow(scene), false);
+});

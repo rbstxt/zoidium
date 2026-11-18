@@ -12,6 +12,27 @@
     const originals = new Map();
     let clock = 0;
     let disposed = false;
+    let dirty = true;
+    let restorePush = null;
+
+    function observePrograms() {
+      const array = programs;
+      const descriptor = Object.getOwnPropertyDescriptor(array, "push");
+      const original = array.push;
+      function push() {
+        const result = original.apply(this, arguments);
+        if (this === array) dirty = true;
+        return result;
+      }
+      Object.defineProperty(array, "push", { configurable: true, writable: true, value: push });
+      restorePush = () => {
+        if (array.push !== push) return;
+        if (descriptor) Object.defineProperty(array, "push", descriptor);
+        else delete array.push;
+      };
+      dirty = true;
+    }
+    observePrograms();
 
     function release(program) {
       retained.delete(program);
@@ -30,9 +51,14 @@
       if (disposed) return;
       if (renderer.info.programs !== programs) {
         // A restored context has new programs. The retained ones are gone.
+        restorePush();
         programs = renderer.info.programs;
         retained.clear();
+        if (!Array.isArray(programs)) return;
+        observePrograms();
       }
+      if (!dirty) return;
+      dirty = false;
       clock += 1;
       for (const program of programs) {
         // Diagnostics can retain the source material and its textures. Let
@@ -67,12 +93,14 @@
     }
     function clear() {
       for (const program of Array.from(retained.keys())) release(program);
+      dirty = true;
     }
     return {
       clear,
       dispose() {
         disposed = true;
         clear();
+        restorePush();
         for (const [method, { original, wrapped }] of originals) {
           if (renderer[method] === wrapped) renderer[method] = original;
         }

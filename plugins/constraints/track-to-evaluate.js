@@ -74,7 +74,7 @@ function createEvaluator(options) {
     let cacheable = Boolean(patch && PZ?.observable);
     const parents = new Map();
     const byId = new Map();
-    const trackers = [];
+    const trackers = [], followers = [];
     const pending = [];
     const roots = childObjects(scene);
     if (!roots) return null;
@@ -96,13 +96,18 @@ function createEvaluator(options) {
         if (id && !byId.has(id)) byId.set(id, object);
         if (store.readTarget(object)) trackers.push(object);
       }
+      if (typeof store.readFollow === "function") {
+        const property = object.properties?.[store.KEYS?.follow || "zoidiumFollow"];
+        if (property && !(PZ?.property?.static && property instanceof PZ.property.static && observe(property.onChanged))) cacheable = false;
+        if (store.readFollow(object)) followers.push(object);
+      }
       const children = childObjects(object);
       if (children) {
         if (!observe(children.onListChanged)) cacheable = false;
         for (let i = children.length - 1; i >= 0; i -= 1) pending.push([children[i], object]);
       }
     }
-    const result = { parents, byId, trackers, revision, cacheable };
+    const result = { parents, byId, trackers, followers, revision, cacheable };
     indexes.set(scene, result);
     return result;
   }
