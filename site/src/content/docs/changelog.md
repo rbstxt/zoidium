@@ -254,6 +254,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Playback does less work per frame in every project: the shader cache only
+  scans the program list when three.js adds a program, and Constraints finds
+  Follow links from its scene index instead of walking every object each
+  frame.
 - MP4 exports keep their brightness in After Effects, VLC, and other players
   that read only the H.264 stream. Some hardware encoders wrote full-range
   video tagged only in the MP4 box, so those players showed it darker with
