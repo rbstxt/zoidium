@@ -855,8 +855,7 @@
   }
 
   const inputEvents = ["pointerdown", "pointermove", "pointerup", "keydown", "keyup", "click",
-    "dblclick", "contextmenu", "wheel", "input", "change", "drop", "paste", "touchstart", "touchmove", "touchend",
-    "pointercancel", "touchcancel", "blur"];
+    "dblclick", "contextmenu", "wheel", "input", "change", "drop", "paste", "touchstart", "touchmove", "touchend", "pointercancel", "touchcancel", "blur"];
   function input(event) {
     if (event.type === "pointerdown" || event.type === "touchstart") gestureActive = true;
     if (["pointerup", "pointercancel", "touchend", "touchcancel", "blur"].includes(event.type)) gestureActive = false;
@@ -975,9 +974,7 @@
       for (const controller of controllers) reset(controller, "size");
     },
     clear() { store.clear(); for (const controller of controllers) reset(controller, "clear"); },
-    // Zoidium code that writes project state without a user gesture or a
-    // history operation calls this, so the next draw revalidates the key.
-    touch(reason) { signal(reason ? "api." + reason : "api"); },
+    touch(reason) { signal(reason ? "api." + reason : "api"); }, // for project writes made without an edit
     dispose() {
       disposed = true;
       captures.dispose();
