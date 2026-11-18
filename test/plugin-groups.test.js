@@ -61,6 +61,8 @@ test("every visible plugin belongs to a declared pack", () => {
       "openzoid-legacy",
       "magic-looks",
       "node-effect",
+      "smart-motion-blur-lite",
+      "sglow-hq-v2-preview",
     ],
     experimental: ["layer-input"],
   });
