@@ -3,16 +3,17 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "b087c1bfd12ef4d70ddd92b5e4d905876d6a18fe6bf398da9dec3283ed5916ec",
+  "fingerprint": "df37b73c4a1cfe5a667dd38ec61bd9b2864ceda8d7565d2bfa2abbb4070bee59",
   "plugins": {
     "native-fx": {
-      "version": "39",
+      "version": "40",
       "cases": [
         "radialblurspin",
         "colorcurves",
         "echo",
         "dropshadow",
         "timeoffset",
+        "timeremap",
         "posterizetime",
         "timedisplacement",
         "ccwidetime",
@@ -30,6 +31,8 @@
         "ccpixelpolly",
         "radialshadow",
         "smartmotionblur",
+        "timeremap-mix",
+        "timeremap-remap-freeze",
         "smartmotionblur-mode-1",
         "smartmotionblur-mode-2",
         "unrelated-bundle-error",
