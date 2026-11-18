@@ -72,6 +72,22 @@ The **Label ▸** menu sets one of 16 label colors or **None** on items and fold
 
 Dragging an item or folder onto a folder moves it there. Dropping on empty list space moves it to the root. Files dropped from the computer are imported. Supported footage can be dragged onto the timeline. Compatible asset items can be dropped onto asset-property rows.
 
+## Dropping and pasting files
+
+You can drop files on the Media panel, the timeline, or the preview. You can also paste files from the clipboard.
+
+| Target | Result |
+| --- | --- |
+| Media panel, including empty space | Imports the files into Project media. |
+| Timeline | Imports the files. Clips start at the drop frame on the track under the pointer. |
+| Preview | Imports the files. Clips start at the playhead on a new top track. |
+
+When the track under the pointer is occupied, the timeline uses a new track. A file drag changes only file drops. Internal drags, such as media tiles, clips, and layer rows, keep their own behavior.
+
+The supported kinds are images, video, audio, fonts, and `.pz` projects. Other files show the import error and are not imported. Multiple files import in order.
+
+Press `Ctrl+V` on Windows or Linux, or `Cmd+V` on macOS, to paste image, video, or audio files. Text fields keep their normal paste. A bitmap without a file name is saved as `Pasted image 1.png`, `Pasted image 2.png`, and so on. When the timeline has focus, the pasted media is placed at the playhead.
+
 ## Undo limits
 
 Import, replacement, unused-file removal, consolidation, folder edits, label edits, and asset-property assignment can be undone. Reload, collection, and download cannot.
