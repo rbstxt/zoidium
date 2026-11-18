@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "id": "smart-motion-blur-lite",
+  "name": "ZSMB (beta 1.0)",
+  "author": "Zoidium contributors",
+  "version": "47",
+  "kind": "native-fx",
+  "description": "High-quality, lightweight optical flow & vector-based motion blur",
+  "resources": [
+    {
+      "id": "reconstruct-shader",
+      "type": "text",
+      "source": "/plugins/smart-motion-blur-lite/shaders/reconstruct.glsl?v=47"
+    },
+    {
+      "id": "native-resolution",
+      "type": "text",
+      "source": "/plugins/smart-motion-blur-lite/native-resolution.js?v=47"
+    },
+    {
+      "id": "estimator",
+      "type": "text",
+      "source": "/plugins/smart-motion-blur-lite/estimator.js?v=47"
+    },
+    {
+      "id": "fast-filter",
+      "type": "text",
+      "source": "/plugins/smart-motion-blur-lite/fast-filter.js?v=47"
+    },
+    {
+      "id": "fast-score",
+      "type": "text",
+      "source": "/plugins/smart-motion-blur-lite/fast-score.js?v=47"
+    },
+    {
+      "id": "async-analysis",
+      "type": "text",
+      "source": "/plugins/smart-motion-blur-lite/async-analysis.js?v=47"
+    },
+    {
+      "id": "video-decoder",
+      "type": "text",
+      "source": "/plugins/smart-motion-blur-lite/video-decoder.js?v=47"
+    },
+    {
+      "id": "decoder-mediabunny",
+      "type": "text",
+      "source": "/plugins/mp4-export/vendor/mediabunny-1.62.0.cjs?v=47"
+    },
+    {
+      "id": "decoder-license",
+      "type": "text",
+      "source": "/plugins/mp4-export/vendor/LICENSE?v=47"
+    },
+    {
+      "id": "decoder-notice",
+      "type": "text",
+      "source": "/plugins/mp4-export/vendor/README.md?v=47"
+    },
+    {
+      "id": "native-particles",
+      "type": "text",
+      "source": "/plugins/smart-motion-blur-lite/native-particles.js?v=47"
+    },
+    {
+      "id": "tooltips",
+      "type": "text",
+      "source": "/plugins/smart-motion-blur-lite/tooltips.js?v=47"
+    }
+  ],
+  "nativeEffects": [
+    {
+      "id": "smart-motion-blur-lite",
+      "name": "ZSMB (beta 1.0)",
+      "description": "High-quality, lightweight optical flow & vector-based motion blur",
+      "source": "./plugins/smart-motion-blur-lite/effect.js?v=47",
+      "requiresApis": [
+        "defineFrameSampler"
+      ]
+    }
+  ]
+}
