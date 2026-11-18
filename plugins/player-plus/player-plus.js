@@ -484,7 +484,10 @@ const PlayerPlus = (() => {
     const extraBefore = before - base, extraAfter = after - base;
     const slack = Math.max(0, Math.floor(width - padding - spare - (right - extraBefore - extraAfter)));
     const center = playLeft - extraBefore + playWidth / 2;
-    const shift = Math.min(slack, Math.max(0, width / 2 - center));
+    // Whole pixels only: offsetLeft and offsetWidth are rounded, so a
+    // fractional separator measures differently on the next pass and the
+    // buttons shiver between two positions.
+    const shift = Math.min(slack, Math.max(0, Math.round(width / 2 - center)));
     return [base + shift, base + slack - shift];
   }
 
@@ -503,8 +506,12 @@ const PlayerPlus = (() => {
     const widths = playSpaces({ width: toolbar.clientWidth, right, before: before.offsetWidth, after: after.offsetWidth,
       playLeft: play.offsetLeft, playWidth: play.offsetWidth });
     for (const [span, width] of [[before, widths[0]], [after, widths[1]]]) {
-      const value = width.toFixed(1) + "px";
-      if (span.style.getPropertyValue("--zoidium-player-plus-space") !== value) span.style.setProperty("--zoidium-player-plus-space", value);
+      // Keep the current width unless it is at least a pixel off, so rounding
+      // in the next measurement can never start a back-and-forth.
+      const current = parseFloat(span.style.getPropertyValue("--zoidium-player-plus-space"));
+      if (Number.isFinite(current) && Math.abs(current - width) < 1) continue;
+      span.dataset.zoidiumPlayerPlusSpace = "true";
+      span.style.setProperty("--zoidium-player-plus-space", width + "px");
     }
   }
 
@@ -522,7 +529,13 @@ const PlayerPlus = (() => {
       state.layoutObservers.push(resize);
     }
     // Other plugins add, hide, and show toolbar buttons after Player+.
-    const mutations = new win.MutationObserver(scheduleCentering);
+    // Our own separator widths are style changes too; reacting to them would
+    // re-measure the layout we just set.
+    const mutations = new win.MutationObserver((records) => {
+      if (records.every(record => record.type === "attributes" && record.attributeName === "style" &&
+        record.target?.dataset?.zoidiumPlayerPlusSpace === "true")) return;
+      scheduleCentering();
+    });
     mutations.observe(toolbar, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "style", "class"] });
     state.layoutObservers.push(mutations);
     scheduleCentering();

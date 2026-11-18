@@ -10,7 +10,9 @@ test("separators put play at the toolbar center when there is room", () => {
   for (const width of [800, 1299, 2099]) {
     const [before, after] = playSpaces({ ...layout, width });
     const center = layout.playLeft + (before - 8) + layout.playWidth / 2;
-    assert.equal(center, width / 2);
+    // Separators are whole pixels, so play sits within half a pixel of center.
+    assert.ok(Math.abs(center - width / 2) <= 0.5);
+    assert.ok(Number.isInteger(before) && Number.isInteger(after));
     // The last control stays one pixel inside the padding, so fractional
     // control widths can never overflow into a scrollbar.
     assert.equal(layout.right + (before - 8) + (after - 8), width - 6);
@@ -40,4 +42,15 @@ test("separators never fill fractional room up to the edge", () => {
   const contentRight = layout.right + (before - 8) + (after - 8) + 5;
   assert.ok(contentRight <= 1299.4 - 1);
   assert.equal(Number.isInteger(before + after), true);
+});
+
+test("recomputing from the rounded layout it produced gives the same widths", () => {
+  // Offsets are measured as whole pixels; with whole-pixel separators the next
+  // pass sees exactly the layout it set, so it never alternates.
+  for (const width of [801, 1000, 1299, 1920, 2099]) {
+    const first = playSpaces({ ...layout, width });
+    const right = layout.right + (first[0] - 8) + (first[1] - 8);
+    const again = playSpaces({ width, before: first[0], after: first[1], right, playLeft: layout.playLeft + first[0] - 8, playWidth: 29 });
+    assert.deepEqual(again, first);
+  }
 });

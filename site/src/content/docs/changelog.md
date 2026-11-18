@@ -266,6 +266,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- The play controls under the preview no longer shiver by a pixel while the
+  playback toolbar keeps re-centering them.
 - Playback does less work per frame in every project: the shader cache only
   scans the program list when three.js adds a program, and Constraints finds
   Follow links from its scene index instead of walking every object each
