@@ -16,8 +16,14 @@ function loadCurves() {
   throw new Error("Easing+ dialog needs ./easing-curves.js.");
 }
 
+function loadClipboard() {
+  if (typeof require === "function") return require("./easing-clipboard.js");
+  throw new Error("Easing+ dialog needs ./easing-clipboard.js.");
+}
+
 module.exports = function createDialogApi(state, options) {
   const curves = (options && options.curves) || loadCurves();
+  const clipboard = (options && options.clipboard) || loadClipboard();
   const applyCurveToTarget = options && options.applyCurveToTarget;
   if (typeof applyCurveToTarget !== "function") {
     throw new Error("Easing+ dialog needs the host applyCurveToTarget.");
@@ -277,35 +283,106 @@ module.exports = function createDialogApi(state, options) {
   }
 
   function updateCoordinateInputs(session) {
-    const index = selectedSegment(session);
-    const start = session.points[index];
-    const end = session.points[index + 1];
-    const values = [
-      start.x + start.outX,
-      start.y + start.outY,
-      end.x + end.inX,
-      end.y + end.inY,
-    ];
-    session.coordinateControls.forEach((control, inputIndex) => control.set(curves.round(values[inputIndex], 4)));
+    const values = curves.readSegment(session.points, selectedSegment(session)) || [];
+    if (values.length !== 4) return;
+    session.coordinateControls.forEach((control, inputIndex) =>
+      control.set(curves.round(values[inputIndex], 4))
+    );
+  }
+
+  function applySegmentValues(session, index, values) {
+    if (!curves.writeSegment(session.points, index, values)) return false;
+    session.overshoot = overshootForPoints(session.points);
+    session.pendingOvershoot = { bottom: false, top: false };
+    session.dirty = true;
+    session.selectedPreset = -1;
+    renderGraph(session);
+    updatePresetSelection(session);
+    return true;
   }
 
   function updateSegmentFromInputs(session) {
     const values = session.coordinateControls.map((control) => Number(control.get()));
     if (values.some((value) => !Number.isFinite(value))) return;
-    const index = selectedSegment(session);
-    const start = session.points[index];
-    const end = session.points[index + 1];
-    values[0] = curves.clamp(values[0], start.x, end.x);
-    values[2] = curves.clamp(values[2], start.x, end.x);
-    start.outX = values[0] - start.x;
-    start.outY = values[1] - start.y;
-    end.inX = values[2] - end.x;
-    end.inY = values[3] - end.y;
-    session.overshoot = overshootForPoints(session.points);
-    session.dirty = true;
-    session.selectedPreset = -1;
-    renderGraph(session);
-    updatePresetSelection(session);
+    applySegmentValues(session, selectedSegment(session), values);
+  }
+
+  function clipboardView(session) {
+    const view = session.dialogWindow?.element?.ownerDocument?.defaultView;
+    if (view) return view;
+    return typeof window !== "undefined" ? window : null;
+  }
+
+  function setClipboardMessage(session, message) {
+    if (session.clipboardMessage) session.clipboardMessage.textContent = message || "";
+  }
+
+  // Copy always refreshes the in-memory curve, even when the platform refuses
+  // the asynchronous clipboard write.
+  async function copyCurve(session) {
+    const values = curves.readSegment(session.points, selectedSegment(session));
+    if (!values) return false;
+    clipboard.rememberCurve(values);
+    const api = clipboardView(session)?.navigator?.clipboard;
+    let copied = false;
+    if (api && typeof api.writeText === "function") {
+      try {
+        await api.writeText(clipboard.formatCurve(values));
+        copied = true;
+      } catch (_error) {
+        copied = false;
+      }
+    }
+    setClipboardMessage(
+      session,
+      copied ? "Curve copied." : "Curve copied inside Easing+."
+    );
+    return true;
+  }
+
+  function pasteCurveText(session, text) {
+    const values = clipboard.parseCurve(text);
+    if (!values) {
+      setClipboardMessage(
+        session,
+        "Paste cubic-bezier(x1, y1, x2, y2), four numbers, or a JSON array."
+      );
+      return false;
+    }
+    if (!applySegmentValues(session, selectedSegment(session), values)) return false;
+    setClipboardMessage(session, "Curve pasted.");
+    return true;
+  }
+
+  // A denied or empty clipboard read falls back to the curve this activation
+  // copied last, which is the usual path in the desktop shell.
+  async function pasteCurve(session) {
+    let text = null;
+    const api = clipboardView(session)?.navigator?.clipboard;
+    if (api && typeof api.readText === "function") {
+      try {
+        text = await api.readText();
+      } catch (_error) {
+        text = null;
+      }
+    }
+    if (typeof text !== "string" || !text.trim()) {
+      const remembered = clipboard.rememberedCurve();
+      text = remembered ? clipboard.formatCurve(remembered) : null;
+    }
+    return pasteCurveText(session, text);
+  }
+
+  function clipboardKeydown(session, event) {
+    const key = clipboard.shortcutFor(event);
+    if (!key) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (key === "c") {
+      void copyCurve(session);
+    } else {
+      void pasteCurve(session);
+    }
   }
 
   function graphPointerDown(session, event) {
@@ -395,16 +472,12 @@ module.exports = function createDialogApi(state, options) {
       entry.x = x;
       entry.y = y;
     } else if (kind === "in") {
-      const previous = session.points[index - 1];
-      x = curves.clamp(x, previous.x, entry.x);
-      entry.inX = x - entry.x;
-      entry.inY = y - entry.y;
+      // Shared with paste and the numeric fields, so all three write the same
+      // normalized handle values.
+      curves.writeHandle(session.points, index, "in", x, y);
       session.selectedSegment = index - 1;
     } else {
-      const next = session.points[index + 1];
-      x = curves.clamp(x, entry.x, next.x);
-      entry.outX = x - entry.x;
-      entry.outY = y - entry.y;
+      curves.writeHandle(session.points, index, "out", x, y);
       session.selectedSegment = index;
     }
     session.dirty = true;
@@ -605,6 +678,32 @@ module.exports = function createDialogApi(state, options) {
           handles.appendChild(control.element);
         }
 
+        // Copy and Paste sit under the numeric fields. The shortcut listener
+        // lives on the window so it only fires while this window has focus.
+        const clipboardRow = document.createElement("div");
+        clipboardRow.className = "easing-plus-clipboard";
+        const copyButton = controls.button({
+          title: "Copy",
+          hint: "Copy curve",
+          onClick: () => { void copyCurve(session); },
+        });
+        const pasteButton = controls.button({
+          title: "Paste",
+          hint: "Paste curve",
+          onClick: () => { void pasteCurve(session); },
+        });
+        const clipboardMessage = document.createElement("p");
+        clipboardMessage.className = "easing-plus-clipboard-message";
+        clipboardMessage.setAttribute("role", "status");
+        clipboardMessage.setAttribute("aria-live", "polite");
+        clipboardRow.appendChild(copyButton.element);
+        clipboardRow.appendChild(pasteButton.element);
+        clipboardRow.appendChild(clipboardMessage);
+        editor.appendChild(clipboardRow);
+        session.clipboardMessage = clipboardMessage;
+        session.clipboardKeydown = (event) => clipboardKeydown(session, event);
+        handle.element?.addEventListener("keydown", session.clipboardKeydown, true);
+
         graph.addEventListener("pointerdown", (event) => graphPointerDown(session, event));
         graph.addEventListener("pointermove", (event) => graphPointerMove(session, event));
         graph.addEventListener("pointerup", (event) => graphPointerUp(session, event));
@@ -646,6 +745,7 @@ module.exports = function createDialogApi(state, options) {
           session.resizeObserver?.disconnect();
           session.resizeObserver = null;
           releases.forEach(release => release?.());
+          handle.element?.removeEventListener("keydown", session.clipboardKeydown, true);
           graph.removeEventListener("lostpointercapture", session.pointerLost);
         };
       },
@@ -681,6 +781,9 @@ module.exports = function createDialogApi(state, options) {
     createDialog,
     finishDialog,
     closeDialog,
+    pasteCurveText,
+    pasteCurve,
+    copyCurve,
     graphBounds,
     miniGeometry,
     overshootForPoints,

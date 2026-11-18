@@ -20,6 +20,10 @@ The first keyframe has no incoming segment. Choose a later keyframe before openi
 
 The close button and Escape both commit the edit. To undo the committed curve, use the editor's undo command.
 
+## Copy and paste a curve
+
+**Copy** writes the edited segment as CSS `cubic-bezier(x1, y1, x2, y2)` text. **Paste** accepts that text, four numbers separated by commas or spaces, or a JSON array of four numbers. Press Ctrl+C to copy and Ctrl+V to paste. On macOS, use Cmd instead of Ctrl. The shortcuts work while the window has focus and no number field is active. Horizontal values clamp to 0 to 1. Vertical values stay as pasted. Easing+ remembers the last copied curve when the clipboard read is denied. Close the window to commit the pasted curve as one undoable edit.
+
 ## Cross the handles
 
 1. Drag either handle horizontally within the normalized 0 to 1 interval.

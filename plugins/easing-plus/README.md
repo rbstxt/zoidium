@@ -46,3 +46,12 @@ enables overshoot by accident. Once a side is armed, release to expand that side
 then drag again into the expanded area. Curves that already contain values
 outside 0–1 open with the matching side expanded. Changes are applied through
 `PZ.ui.properties`, so a complete apply is one undoable history operation.
+
+Copy and Paste reuse a curve. Copy writes the edited segment's handles as
+`cubic-bezier(x1, y1, x2, y2)`. Paste accepts that text, four numbers separated
+by commas or spaces, or a JSON array of four numbers. Ctrl+C and Ctrl+V
+(Cmd+C and Cmd+V on macOS) work while the window has focus and no number field
+is active. Horizontal values clamp to 0 to 1, and vertical values stay as
+pasted. Easing+ also remembers the last copied curve, so paste works when the
+platform denies a clipboard read, as in the desktop app. A pasted curve
+previews immediately and joins the window's single undoable edit.

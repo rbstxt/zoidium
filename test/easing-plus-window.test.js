@@ -125,6 +125,16 @@ test("Easing+ opens its curve editor as a floating window, not a fullscreen over
         numbers.push(control);
         return control;
       },
+      button(options) {
+        const element = new FakeElement("button");
+        element.textContent = options.title || "";
+        return {
+          element,
+          get: () => element.textContent,
+          set: (title) => { element.textContent = title; },
+          setDisabled() {},
+        };
+      },
       section() {
         return { element: new FakeElement("section"), body: new FakeElement("div") };
       },
@@ -197,6 +207,16 @@ test("Easing+ commits an edited curve once when its window closes", () => {
           control.set = (value) => { control.value = value; };
           numbers.push(control);
           return control;
+        },
+        button(options) {
+          const element = new FakeElement("button");
+          element.textContent = options.title || "";
+          return {
+            element,
+            get: () => element.textContent,
+            set: (title) => { element.textContent = title; },
+            setDisabled() {},
+          };
         },
         section() {
           return { element: new FakeElement("section"), body: new FakeElement("div") };

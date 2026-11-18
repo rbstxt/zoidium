@@ -40,6 +40,61 @@ const BEZIER_TWEEN = 257;
     return points.map((entry) => ({ ...entry }));
   }
 
+  function segmentIndex(points, index) {
+    if (!Array.isArray(points) || points.length < 2) return -1;
+    const raw = Number.isFinite(index) ? Math.trunc(index) : 0;
+    return clamp(raw, 0, points.length - 2);
+  }
+
+  // The four normalized handle values of one segment, in the same order as the
+  // editor's Out X / Out Y / In X / In Y fields.
+  function readSegment(points, index) {
+    const target = segmentIndex(points, index);
+    if (target < 0) return null;
+    const start = points[target];
+    const end = points[target + 1];
+    return [
+      start.x + start.outX,
+      start.y + start.outY,
+      end.x + end.inX,
+      end.y + end.inY,
+    ];
+  }
+
+  // Move one normalized handle. X stays between the two anchors, exactly like
+  // a handle drag; Y is written as given. Shared by pointer drags, the numeric
+  // fields and curve paste so all three commit the same points.
+  function writeHandle(points, index, kind, x, y) {
+    const entry = points?.[index];
+    if (!entry || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+    if (kind === "in") {
+      const previous = points[index - 1];
+      if (!previous) return null;
+      const next = clamp(x, previous.x, entry.x);
+      entry.inX = next - entry.x;
+      entry.inY = y - entry.y;
+      return next;
+    }
+    const nextPoint = points[index + 1];
+    if (!nextPoint) return null;
+    const next = clamp(x, entry.x, nextPoint.x);
+    entry.outX = next - entry.x;
+    entry.outY = y - entry.y;
+    return next;
+  }
+
+  // Write all four handle values of one segment through writeHandle, so pasting
+  // a curve lands on the same points an equivalent pair of handle drags does.
+  function writeSegment(points, index, values) {
+    const target = segmentIndex(points, index);
+    if (target < 0) return false;
+    if (!Array.isArray(values) || values.length !== 4) return false;
+    if (!values.every((value) => Number.isFinite(value))) return false;
+    writeHandle(points, target, "out", values[0], values[1]);
+    writeHandle(points, target + 1, "in", values[2], values[3]);
+    return true;
+  }
+
   const PRESETS = [
     { name: "Linear", points: cubic(0.333, 0.333, 0.667, 0.667) },
     { name: "Ease", points: cubic(0.25, 0.1, 0.25, 1) },
@@ -354,6 +409,9 @@ module.exports = {
   point,
   cubic,
   clonePoints,
+  readSegment,
+  writeHandle,
+  writeSegment,
   PRESETS,
   cubicValue,
   valueScaleFor,
