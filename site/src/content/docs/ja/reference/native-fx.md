@@ -1,12 +1,12 @@
 ---
 title: Native FX リファレンス
-description: 22 種類の Native FX エフェクトの一覧と、プロパティのリファレンス。
+description: 23 種類の Native FX エフェクトの一覧と、プロパティのリファレンス。
 sidebar:
   label: Native FX リファレンス
   order: 70
 ---
 Native FX は、CM3 の外部拡張レイヤーである Zoidium 内のエフェクトパックです。
-**Plugins** で **Native FX** が有効な場合、22 種類のエフェクトが **Effects** ピッカーの **NATIVE FX** に表示されます。
+**Plugins** で **Native FX** が有効な場合、23 種類のエフェクトが **Effects** ピッカーの **NATIVE FX** に表示されます。
 
 ## エフェクト
 
@@ -18,6 +18,7 @@ Native FX は、CM3 の外部拡張レイヤーである Zoidium 内のエフェ
 | [Radial Shadow](/docs/ja/reference/native-fx-image/#radial-shadow) | 点光源から離れる方向に入力を拡大投影し、着色した影を生成します。 |
 | [Echo](/docs/ja/reference/native-fx-time/#echo) | 明示的に取得した過去の入力を、不透明度を減衰させながら合成します。 |
 | [Time Offset](/docs/ja/reference/native-fx-time/#time-offset) | プロジェクトフレーム単位のオフセットを加えた時刻で、レイヤーの入力を評価します。 |
+| [Time Remap](/docs/ja/reference/native-fx-time/#time-remap) | 速度の積分またはキー化したソース時刻でレイヤーの入力を再タイミングし、必要に応じて前後のソースフレームを合成します。 |
 | [Posterize Time](/docs/ja/reference/native-fx-time/#posterize-time) | 低いフレームレートの時計に合わせて、レイヤーの入力を保持します。 |
 | [Time Displacement](/docs/ja/reference/native-fx-time/#time-displacement) | 輝度マップに基づいて、各ピクセルに使用する取得時刻を選択します。 |
 | [CC Wide Time](/docs/ja/reference/native-fx-time/#cc-wide-time) | 現在の入力と前後のプロジェクトフレームのサンプルを、平均または加算します。 |

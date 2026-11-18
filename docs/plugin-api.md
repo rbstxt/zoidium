@@ -56,9 +56,10 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
   The renderer stays inside CM3's property list and uses the normal history
   hooks. See plugins/native-fx/effects/colorcurves.js.
 - temporal (time operation): just call ZoidiumPluginApis.defineTemporal
-  with kind time-offset or posterize-time.
+  with kind time-offset, posterize-time or time-remap.
   The host (plugins/core/temporal-render.js) applies the operator, so authors
-  never touch frames directly. See timeoffset.js and posterizetime.js.
+  never touch frames directly. See timeoffset.js, posterizetime.js and
+  effects/timeremap.js (which also declares a frame sampler for blending).
   The host evaluates each concrete layer once at the mapped input time,
   including sequences with frame samplers. Composite and Precomp+ children
   inherit that clock, including each sampler tap.
@@ -78,8 +79,9 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
   sampler in serialized order. Prefix quantizers use the tap's time, rather
   than only quantizing the current image. Time offsets already included in
   the sampler's input clock are rebased before replaying the prefix, so they
-  are not added twice. Temporal operators after the sampler keep their
-  existing evaluation of the composed result. Adjustment prefixes use
+  are not added twice. A time remap is never replayed on a tap: the sampler's
+  control frame is already the remap's output. Temporal operators after the
+  sampler keep their existing evaluation of the composed result. Adjustment prefixes use
   project time and stop their lower-track scope at the sampler input.
   Nested preparation and rendering share the same eight-level depth limit.
 

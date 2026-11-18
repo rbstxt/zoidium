@@ -55,7 +55,7 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
   プロパティには標準の CM3 ストレージ型を保持します。その `zoidiumControl` フィールドに登録済み id を設定します。
   レンダラーは CM3 のプロパティリスト内に留まり、通常の履歴フックを使います。
   plugins/native-fx/effects/colorcurves.js を参照してください。
-- temporal（時間操作）: kind に time-offset または posterize-time を指定して ZoidiumPluginApis.defineTemporal
+- temporal（時間操作）: kind に time-offset、posterize-time、time-remap を指定して ZoidiumPluginApis.defineTemporal
   を呼び出すだけです。
   ホスト（plugins/core/temporal-render.js）が演算子を適用するため、作成者がフレームに直接触れることはありません。
   timeoffset.js と posterizetime.js を参照してください。
@@ -78,6 +78,7 @@ node tools/new-plugin.js --kind=native-fx --template=temporal --id=my-time-fx
   エフェクト入力を評価します。プレフィックス量子化子は、現在の画像だけを量子化するのではなく、
   タップの時刻を使います。サンプラーの入力時刻に既に含まれる時間オフセットは、
   プレフィックスの再実行前にリベースされるため、二重に加算されません。
+  タイムリマップはタップで再実行しません。サンプラーの制御フレームは既にリマップの出力です。
   サンプラーより後のテンポラル演算子は、合成結果に対する
   既存の評価を保持します。調整プレフィックスは
   プロジェクト時刻を使い、下位トラックのスコープをサンプラー入力で止めます。

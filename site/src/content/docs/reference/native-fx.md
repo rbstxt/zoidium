@@ -1,12 +1,12 @@
 ---
 title: Native FX reference
-description: Index and property references for all 22 Native FX effects.
+description: Index and property references for all 23 Native FX effects.
 sidebar:
   label: Native FX reference
   order: 70
 ---
 Native FX is an effect pack in Zoidium, an external extension layer around CM3.
-When **Plugins** has **Native FX** enabled, its 22 effects appear in the **Effects** picker under **NATIVE FX**.
+When **Plugins** has **Native FX** enabled, its 23 effects appear in the **Effects** picker under **NATIVE FX**.
 
 ## Effects
 
@@ -18,6 +18,7 @@ When **Plugins** has **Native FX** enabled, its 22 effects appear in the **Effec
 | [Radial Shadow](/docs/reference/native-fx-image/#radial-shadow) | Projects the input away from a point light to form a colored shadow. |
 | [Echo](/docs/reference/native-fx-time/#echo) | Composites explicitly sampled earlier inputs with decreasing opacity. |
 | [Time Offset](/docs/reference/native-fx-time/#time-offset) | Evaluates the layer input at an offset in project frames. |
+| [Time Remap](/docs/reference/native-fx-time/#time-remap) | Retimes the layer input with a speed integral or a keyed source time, and optionally mixes neighboring source frames. |
 | [Posterize Time](/docs/reference/native-fx-time/#posterize-time) | Holds the layer input on a lower frame-rate clock. |
 | [Time Displacement](/docs/reference/native-fx-time/#time-displacement) | Selects a sampled time for each pixel from a luminance map. |
 | [CC Wide Time](/docs/reference/native-fx-time/#cc-wide-time) | Averages or accumulates the current input and neighboring project-frame samples. |

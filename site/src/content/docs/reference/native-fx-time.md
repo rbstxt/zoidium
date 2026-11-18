@@ -9,7 +9,7 @@ sidebar:
 
 ## Time and input rules
 
-**Time Offset** and **Posterize Time** remap the input clock in effect-list order.
+**Time Offset**, **Posterize Time**, and **Time Remap** change the input clock in effect-list order.
 On an ordinary layer, they retime the whole layer: its transform and every effect in its list, before and after the operator.
 On an **Adjustment** layer, they remap the image from lower tracks. Effects before the operator use the mapped time, and effects after it keep the output time.
 Media-backed layers clamp mapped input time to the clip range, and video holds the clip's last frame. **3D Scene** and **Adjustment** layers can evaluate beyond their clip boundaries.
@@ -64,6 +64,52 @@ On an **Adjustment** layer above the footage, **Time Offset** followed by the Sh
 **Offset (frames)** reads its keys and its expression at the output frame, so the offset can change on every frame.
 An expression result that is not a finite number reads as 0, and the expression row shows the error.
 The no-argument `random()` needs a seed. Use `random(frame)`, or call `seedRandom(1)` first.
+
+## Time Remap
+
+Retimes the layer input with a keyframeable speed or a keyframeable source time.
+
+| Property | Type | Range or options | Default | Effect on output |
+| --- | --- | --- | --- | --- |
+| **Mode** | Option | **speed**, **remap** | **speed** | speed integrates **Speed (%)**. remap reads **Source time (s)**. |
+| **Speed (%)** | Number | -10000 to 10000 | 100 | Input speed. 100 keeps the source clock, 50 plays at half speed, 0 holds a frame, and a negative value runs backwards. |
+| **Remap source time** | Option | **off**, **on** | **off** | on uses **Source time (s)** in remap mode. off keeps the output clock. |
+| **Source time (s)** | Number | -100000 to 100000 | 0 | Absolute clip-local source time, read at the output frame. A static value holds one frame. |
+| **Frame blending** | Option | **off**, **frame mix** | **off** | frame mix blends the two source frames around a fractional source time. off keeps the nearest source frame. |
+
+### Temporal behavior and limits
+
+All value rows take keyframes, expressions, and Easing+ curves.
+A new effect keeps **Speed (%)** at 100 and **Frame blending** off, so it changes no pixels.
+In remap mode, **Remap source time** starts off for the same reason.
+Set it to on before you set a source time.
+
+Speed mode integrates the speed from the effect's clip start for every output frame.
+The source time depends only on the output frame and the curve, not on playback order.
+A zero section holds the frame it reached.
+A negative section runs backwards.
+Frames before the clip start clamp to the first frame, so reverse needs a positive speed section before the negative section.
+
+Remap mode reads **Source time (s)** at the output frame and multiplies it by the sequence frame rate.
+This is a classic time-remap ramp. Use Easing+ handles on **Source time (s)** for eased speed changes.
+A static value is a freeze frame.
+
+**Frame mix** requests both neighboring source frames and blends them by the fractional position.
+It uses the same quality settings and sampler pool as **Echo**.
+At an integer source time, and at the clip boundaries, it shows one frame.
+It does not estimate motion, so fast footage can show a double image.
+
+On an **Adjustment** layer, the remap moves the image from lower tracks and reads its curves in the adjustment clip's own time.
+**Time Offset** and **Posterize Time** before this effect keep their list order.
+On a **Precomp+** clip, the remap reaches the video inside the composition.
+
+Audio clips under a **Time Remap** effect are not retimed.
+CM3 has no temporal audio path, so the mix keeps its original timing.
+Retime audio clips separately to match the picture.
+
+Time Remap does not interpolate motion.
+The **Frame blending** row reserves a third mode for a future motion-interpolation sampler.
+That mode is not listed in the picker.
 
 ## Posterize Time
 
