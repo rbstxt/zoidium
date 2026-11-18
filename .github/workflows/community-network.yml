@@ -11,7 +11,9 @@ permissions:
 jobs:
   community-desktop:
     name: Electron desktop isolation
-    runs-on: ubuntu-latest
+    # Pinned: Playwright 1.56 cannot install browsers on the Ubuntu 26.04
+    # image that ubuntu-latest moved to. Move up with a Playwright upgrade.
+    runs-on: ubuntu-24.04
     env:
       ZOIDIUM_CM3_SNAPSHOT: r2://zoidium-cm3-cache/cm3-snapshot.zcs
       ZOIDIUM_R2_ACCOUNT_ID: 06a22facf684f7266a7e1722c236cd18
@@ -67,7 +69,7 @@ jobs:
 
   community-network:
     name: Chromium network isolation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out source
         uses: actions/checkout@v7
