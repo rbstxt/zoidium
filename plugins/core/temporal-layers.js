@@ -606,27 +606,60 @@
     document.addEventListener?.("zoidium:plugin-state-change", () => { pluginStateEpoch += 1; });
   }
 
+  // Shared edit signals. Without the module the memo below stays off and
+  // every call serializes, which is the safe fallback for a mis-ordered load.
+  var signals = global.ZoidiumEditSignals ||
+    (typeof module === "object" && module.exports && require("./edit-signals.js"));
+
+  // Cheap state captured before an awaited tap. The post-await check compares
+  // this stamp instead of trusting the epoch alone: a resize or an async
+  // follow-up write can change the serialization without a new signal.
+  function frameSamplerInputToken(sequence, compositor, stage, scope, preserveInputRGB) {
+    if (!signals) return null;
+    const parts = frameSamplerKeyParts(sequence, compositor, stage, scope, preserveInputRGB);
+    return {
+      epoch: signals.epoch,
+      fingerprint: frameSamplerKeyFingerprint(sequence, compositor, stage, scope, preserveInputRGB, parts),
+    };
+  }
+
   function frameSamplerReuseDisabled() {
     return typeof PZ !== "undefined" && PZ.zoidium?.debugDisableFrameSamplerInputReuse === true;
   }
 
-  // The input key is the serialized content itself. CM3 serializers derive
-  // their output from live model state that includes plain fields (for example
-  // a track's enabled flag) and plugin serializers, so no cheaper revision can
-  // cover every input. A second, fresh serialization compares equal unless a
-  // serializer reads state outside the project content.
-  function frameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB = false) {
-    const key = serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
-    if (typeof PZ === "undefined" || PZ.zoidium?.debugAssertTemporalKeyMemo !== true) return key;
-    const fresh = serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
-    if (fresh !== key) {
-      throw new Error("Temporal input key is not deterministic for the current project content");
+  // The serialized input key is memoized per sequence, composer, stage, scope
+  // and cheap settings while the edit epoch is unchanged and no signal
+  // happened inside the hot window. Between signals the project content cannot
+  // change, which is the same contract the preview cache uses.
+  var keyMemo = new WeakMap();
+  var KEY_MEMO_LIMIT = 24;
+
+  function frameSamplerKeyMemo(compositor) {
+    let memo = keyMemo.get(compositor);
+    if (!memo) {
+      memo = new Map();
+      keyMemo.set(compositor, memo);
     }
-    return key;
+    return memo;
   }
 
-  function serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB = false) {
-    const scoped = !frameSamplerReuseDisabled() && frameSamplerScopedContent(sequence, stage, scope);
+  function keyIdentity(value) {
+    return value && (typeof value === "object" || typeof value === "function") ?
+      frameSamplerIdentity(value) : 0;
+  }
+
+  function frameSamplerKeyFingerprint(sequence, compositor, stage, scope, preserveInputRGB, parts) {
+    return JSON.stringify([
+      compositor.readBuffer?.width, compositor.readBuffer?.height,
+      keyIdentity(sequence), keyIdentity(stage?.layer), keyIdentity(stage?.clip),
+      keyIdentity(stage?.effect), keyIdentity(scope?.effect),
+      stage?.effectIndex ?? null, stage?.trackIndex ?? null,
+      stage?.nested ? [finiteNumber(stage.clip?.start, 0), finiteNumber(stage.clip?.length, 0)] : null,
+      preserveInputRGB === true, parts.assets, parts.settings,
+    ]);
+  }
+
+  function frameSamplerKeyParts(sequence, compositor, stage, scope, preserveInputRGB) {
     const assets = Object.entries(sequence.parentProject?.assets?.list || {}).map(([id, asset]) =>
       [id, asset.url, asset.sha256, asset.filename, asset.size, frameSamplerIdentity(asset),
         asset.file ? frameSamplerIdentity(asset.file) : 0]);
@@ -637,6 +670,73 @@
       frameSamplerReuseDisabled(), math.temporalMode(stage?.effect), math.temporalMode(scope?.effect),
       preserveInputRGB === true];
     if (stage?.inputClips) settings.push(stage.inputClips.map(clip => clip ? frameSamplerIdentity(clip) : 0));
+    return { assets, settings };
+  }
+
+  // The input key is the serialized content itself. CM3 serializers derive
+  // their output from live model state that includes plain fields (for example
+  // a track's enabled flag) and plugin serializers, so no cheaper revision can
+  // cover every input. The memo reuses one serialization per edit epoch; the
+  // debug flag recomputes and rejects a missed signal.
+  function frameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB = false) {
+    const key = memoizedFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    if (typeof PZ === "undefined" || PZ.zoidium?.debugAssertTemporalKeyMemo !== true) return key;
+    PZ.zoidium.debug = PZ.zoidium.debug || {};
+    const stats = PZ.zoidium.debug.temporalKeyAssert =
+      PZ.zoidium.debug.temporalKeyAssert || { checks: 0, misses: 0 };
+    stats.checks += 1;
+    const fresh = serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    if (fresh !== key) {
+      stats.misses += 1;
+      throw new Error("Temporal input key is not deterministic for the current project content");
+    }
+    return key;
+  }
+
+  function memoizedFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB) {
+    if (!signals || frameSamplerReuseDisabled()) {
+      return serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    }
+    // While edits are hot every request serializes, exactly like the cache.
+    if (signals.isHot()) {
+      return serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    }
+    const parts = frameSamplerKeyParts(sequence, compositor, stage, scope, preserveInputRGB);
+    const fingerprint = frameSamplerKeyFingerprint(sequence, compositor, stage, scope, preserveInputRGB, parts);
+    const memo = frameSamplerKeyMemo(compositor);
+    const cached = memo.get(fingerprint);
+    if (cached && cached.epoch === signals.epoch) return cached.value;
+    const value = serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB, parts);
+    memo.delete(fingerprint);
+    memo.set(fingerprint, { epoch: signals.epoch, value });
+    while (memo.size > KEY_MEMO_LIMIT) memo.delete(memo.keys().next().value);
+    return value;
+  }
+
+  // True when the recorded revision still describes the live project. It
+  // follows the memo's own reuse rule: while edits are hot, after any signal,
+  // or when the cheap stamp differs, the serialized value is compared again.
+  // A runtime without the signal module always compares values.
+  function frameSamplerInputIsCurrent(revision, token, sequence, compositor, stage, scope, preserveInputRGB) {
+    if (!signals || !token) {
+      return revision === serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    }
+    if (signals.isHot() || signals.epoch !== token.epoch) {
+      return revision === serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    }
+    const parts = frameSamplerKeyParts(sequence, compositor, stage, scope, preserveInputRGB);
+    if (frameSamplerKeyFingerprint(sequence, compositor, stage, scope, preserveInputRGB, parts) !== token.fingerprint) {
+      return revision === serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    }
+    return true;
+  }
+
+  function serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB = false, parts) {
+    const scoped = !frameSamplerReuseDisabled() && frameSamplerScopedContent(sequence, stage, scope);
+    const context = parts || frameSamplerKeyParts(sequence, compositor, stage, scope, preserveInputRGB);
+    const assets = context.assets;
+    const settings = context.settings;
+
     if (scoped) {
       const serialized = JSON.stringify(["layer-prefix", compositor.readBuffer.width, compositor.readBuffer.height,
         scoped, sequence.videoTracks[stage.trackIndex].enabled, assets, settings]);
@@ -682,6 +782,8 @@
 
   registry.layers = {
     frameSamplerInputKey,
+    frameSamplerInputIsCurrent,
+    frameSamplerInputToken,
     frameSamplerIdentity,
     frameSamplerReuseDisabled,
     frameSamplerScopedContent,

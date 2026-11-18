@@ -273,6 +273,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Projects with ZSMB or other frame-sampling effects play much faster: the
+  temporal input key is reused until the next edit instead of re-serializing
+  the whole project on every frame.
 - Dropping media files anywhere on the Media panel imports them, not only on
   a preset tile. Dropping on the timeline imports and places a clip at the drop
   position, and dropping on the preview places it at the playhead. Text fields

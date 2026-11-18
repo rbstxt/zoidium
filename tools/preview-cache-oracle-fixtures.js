@@ -495,6 +495,9 @@ async function compareFixture(fixture) {
     const property = editor.project.sequence.videoTracks[0].clips[0].object.objects[1].properties.position.objects[0];
     if (!cache.usage().entries) throw new Error("Edit requires retained frames");
     property.expression = new PZ.expression("Math.counter = (Math.counter || 0) + 1; Math.counter");
+    // A UI expression edit arrives with an input event; without it the silent
+    // write can leave the cache "hot" or trip its assert depending on timing.
+    document.dispatchEvent(new Event("input", { bubbles: true }));
     await assertRejected();
     checks.push("stateful-edit-rejected");
   }

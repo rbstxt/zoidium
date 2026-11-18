@@ -29,6 +29,9 @@ async function acquire(lock) {
 
 async function run(options, test) {
   const lock = process.env.ZOIDIUM_BROWSER_LOCK;
+  // Opt-in signal-coverage check: every memoized temporal key is recomputed
+  // and compared. Any mismatch throws, so a missed edit signal fails a fixture.
+  const assertTemporalKeyMemo = process.env.ZOIDIUM_DEBUG_ASSERT_TEMPORAL_KEY_MEMO === "1";
   let runtime, server, browser, locked = false;
   try {
     if (lock) { await acquire(lock); locked = true; }
@@ -57,11 +60,21 @@ async function run(options, test) {
     }, Object.keys(options.candidates || {}));
     await page.goto("http://127.0.0.1:" + server.address().port);
     await page.waitForFunction(() => globalThis.CM?.mainViewport && globalThis.ZoidiumFrameCache);
+    if (assertTemporalKeyMemo) await page.evaluate(() => {
+      PZ.zoidium = PZ.zoidium || {};
+      PZ.zoidium.debugAssertTemporalKeyMemo = true;
+    });
     const skip = page.getByRole("button", { name: "Skip", exact: true });
     if (await skip.isVisible()) await skip.click();
     await page.locator('[title="Pause drawing"]').click();
     await page.locator('[aria-label="Preview quality"]').selectOption("0.125");
-    return await test(page);
+    const result = await test(page);
+    if (assertTemporalKeyMemo) {
+      const stats = await page.evaluate(() => PZ.zoidium?.debug?.temporalKeyAssert || null);
+      console.log("TEMPORAL KEY ASSERT " + JSON.stringify(stats));
+      if (stats && stats.misses !== 0) throw new Error("Temporal input key assert misses: " + JSON.stringify(stats));
+    }
+    return result;
   } finally {
     if (browser) await browser.close();
     if (server) await new Promise(resolve => server.close(resolve));

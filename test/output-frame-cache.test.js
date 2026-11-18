@@ -76,6 +76,33 @@ test("pointer movement without a pressed button is not an edit signal", async ()
   h.api.dispose();
 });
 
+test("touch() forwards a programmatic write to the shared edit epoch", async () => {
+  const h = harness();
+  await h.warm(); h.cool(); h.viewport._render();
+  const epoch = h.editSignals.epoch;
+  h.project.sequence.value = 3; // A write with no input event or history entry.
+  h.api.touch("layer-input-source");
+  assert.equal(h.editSignals.epoch, epoch + 1);
+  assert.equal(h.editSignals.lastSignalAt, h.clock.now);
+  const live = h.counts.live;
+  h.viewport._render();
+  assert.equal(h.counts.live, live + 1, "the changed project renders live");
+  assert.equal(h.api.debug.entries, 0);
+  assert.equal(h.api.debug.signals["api.layer-input-source"], 1);
+  h.api.dispose();
+});
+
+test("touch() without a project change keeps retained frames", async () => {
+  const h = harness();
+  await h.warm(); h.cool(); h.viewport._render();
+  const live = h.counts.live, serialized = h.counts.serialized;
+  h.api.touch("layer-input-source");
+  h.viewport._render();
+  assert.equal(h.counts.serialized, serialized + 1, "the signal revalidates once");
+  assert.equal(h.counts.live, live, "an unchanged project is a cache hit");
+  assert.equal(h.api.debug.entries, 1);
+  h.api.dispose();
+});
 test("an open native operation keeps revalidating on every draw", async () => {
   const h = harness();
   await h.warm(); h.cool(); h.viewport._render();
@@ -342,9 +369,14 @@ test("disposal restores every hook it installed", () => {
   h.api.dispose();
   const restored = [h.Viewport.prototype._render, h.Viewport.prototype.pickColor,
     h.Compositor.prototype.unload, h.History.prototype.undo];
-  for (let i = 0; i < hooked.length; i++) assert.notEqual(hooked[i], restored[i]);
+  for (let i = 0; i < 3; i++) assert.notEqual(hooked[i], restored[i]);
+  assert.equal(hooked[3], restored[3], "the shared edit-signal history hook stays installed");
+  assert.equal(h.events.size > 0, true, "the shared input listeners stay installed");
+  assert.equal(h.docEvents.size, 3, "the shared edit-signal sources stay installed");
+  h.editSignals.dispose();
   assert.equal(h.events.size, 0);
   assert.equal(h.docEvents.size, 0);
+  assert.notEqual(h.History.prototype.undo, hooked[3], "history hooks are restored with the sources");
 });
 
 test("the core module registers disposal with the plugin lifecycle", () => {

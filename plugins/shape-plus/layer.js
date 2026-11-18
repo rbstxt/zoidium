@@ -57,6 +57,8 @@ function createLayerClass(PZ, THREE, Content) {
       const resolution = project.sequence.properties.resolution.get(), current = this.properties.resolution.get();
       if (current[0] !== resolution[0] || current[1] !== resolution[1]) {
         this.properties.resolution.set(resolution.slice()); this.composite.quad.scale.set(...resolution, 1);
+        // The mirror is written during the draw, outside any history operation.
+        globalThis.ZoidiumFrameCache?.touch?.("shape-plus-resolution");
       }
       super.update(frame);
     }
