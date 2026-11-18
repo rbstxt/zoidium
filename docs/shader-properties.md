@@ -112,6 +112,20 @@ group gives it that group's condition; moving it out removes the condition. If
 the controller property is missing, for example after it is deleted or
 renamed, the group stays hidden until Show hidden is on.
 
+**Rename when** changes only the row label, never the property.
+Each rule selects a controller with the same picker as Visible when, accepts
+the same **Has value** syntax, and sets the name to show.
+Add several rules to one property; the first matching rule from the top wins,
+and the property's own name applies when no rule matches.
+Use Move up, Move down, and Remove to order or delete rules.
+The label follows the controller's evaluated value at the current frame,
+including keyframes and expressions.
+The uniform name, saved value, keyframes, expressions, links, and export output
+do not change.
+A rule whose controller is missing or deleted never matches.
+Rules are saved in `zoidiumShader.renameWhen`, so duplication and moves keep
+them, and older builds ignore the key.
+
 ## Keyframe data in shaders
 
 Slider and Point controls are native dynamic properties, so they accept

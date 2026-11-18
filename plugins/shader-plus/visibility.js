@@ -3,7 +3,7 @@ const { kindOf, items } = require("./kinds.js");
 const NUMBER = "[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?";
 const comparison = new RegExp("^(>=|<=|!=|>|<|=)\\s*(" + NUMBER + ")$");
 const range = new RegExp("^(" + NUMBER + ")\\s*\\.\\.\\s*(" + NUMBER + ")$");
-function parseConditions(text) {
+function parseConditions(text, emptyMessage = "Enter the values that show this property") {
   const values = [], conditions = [];
   for (const token of String(text).split(/[;\n]/).map(s => s.trim()).filter(Boolean)) {
     const match = comparison.exec(token), bounds = range.exec(token);
@@ -13,7 +13,7 @@ function parseConditions(text) {
     } else if (/^[<>=!]|\.\./.test(token)) throw new Error("Use a number after >, >=, <, <=, !=, or =, or an ordered range such as 1..5");
     else values.push(Number.isFinite(Number(token)) ? Number(token) : token);
   }
-  if (!values.length && !conditions.length) throw new Error("Enter the values that show this property");
+  if (!values.length && !conditions.length) throw new Error(emptyMessage);
   return { values, ...(conditions.length ? { conditions } : {}) };
 }
 function formatConditions(when) {

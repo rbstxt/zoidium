@@ -75,6 +75,18 @@ If the controller property is missing, for example after it is deleted or rename
 Visibility affects editor rows only.
 Hidden properties still supply their current values to shaders, Preview cache frames, and exports.
 
+## Rename when
+
+**Rename when** changes only the row label.
+It stores rules on the property definition beside **Visible when**.
+Each rule selects a controller with the same picker, accepts the same **Has value** syntax, and sets the name to show.
+A property can have several rules. The first matching rule from the top wins, and the property's own name applies when no rule matches.
+**Move up**, **Move down**, and **Remove** order and delete rules in the settings panel.
+Rename follows the controller's evaluated value at the current frame, including animation and expressions.
+A rule whose controller is missing or deleted never matches.
+The uniform name, saved value, keyframes, expressions, links, and export output never change.
+Rules are stored as `zoidiumShader.renameWhen` and survive save, reopen, duplication, and moves. Older builds ignore the key.
+
 ## Toggle display
 
 Toggle uses the **Off/on menu** display by default.
