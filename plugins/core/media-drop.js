@@ -70,9 +70,30 @@ function isEditableTarget(target) {
   return attribute !== null && attribute !== "false";
 }
 
+// Drops over a field that edits text keep the browser's native behaviour, the
+// same rule the paste handler follows. Only a file drag over a canvas-like
+// zone is claimed.
+function shouldHandleDrag(event, editor) {
+  if (!event || isEditableTarget(event.target)) return false;
+  return isFileDrag(event.dataTransfer, editor);
+}
+
+function pasteSupported(file) {
+  const kind = classifyFile(file);
+  return kind === "image" || kind === "video" || kind === "audio";
+}
+
 function pastedFilename(index, mime) {
   const extension = IMAGE_MIME_EXTENSIONS[String(mime || "").toLowerCase()] || "png";
   return "Pasted image " + index + "." + extension;
+}
+
+// A nameless pasted video or audio file still needs a usable name.
+function pastedMediaFilename(index, file) {
+  const mime = String(file?.type || "");
+  const fromType = /^[a-z]+\/([a-z0-9]{1,8})$/i.exec(mime)?.[1] || "";
+  const extension = extensionOf(file?.name) || fromType.toLowerCase() || "bin";
+  return "Pasted media " + index + "." + extension;
 }
 
 function nextPasteIndex(names) {
@@ -123,8 +144,7 @@ function unsupportedErrors(files) {
   const errors = [];
   for (const file of files || []) {
     if (classifyFile(file)) continue;
-    const name = String(file?.name || "This file");
-    errors.push({ name, message: name + " is not a supported media type." });
+    errors.push({ name: String(file?.name || "This file"), message: IMPORT_FAILURE });
   }
   return errors;
 }
@@ -154,6 +174,144 @@ function pasteableNames(project) {
     if (name) names.push(name);
   }
   return names;
+}
+
+function trackList(tracks, type) {
+  const sequence = tracks?.timeline?.editor?.project?.sequence;
+  if (!sequence) return null;
+  return type === 1 ? sequence.audioTracks : sequence.videoTracks;
+}
+
+function frameAt(tracks, clientX) {
+  const timeline = tracks?.timeline;
+  const rect = tracks?.container?.getBoundingClientRect?.();
+  if (!timeline || !rect || typeof timeline.pxToFrame !== "function") return 0;
+  const scroll = timeline.scrollBar?.scrollLeft || 0;
+  return Math.max(0, Math.round(timeline.pxToFrame(Math.max(0, clientX - rect.left) + scroll)));
+}
+
+function trackAt(tracks, clientY) {
+  for (const [type, container] of [[0, tracks?.videoContainer], [1, tracks?.audioContainer]]) {
+    const bounds = container?.getBoundingClientRect?.();
+    if (!bounds || clientY < bounds.top || clientY > bounds.bottom) continue;
+    const children = Array.from(container.children || []);
+    for (let index = 0; index < children.length; index += 1) {
+      const rect = children[index].getBoundingClientRect();
+      if (clientY >= rect.top && clientY <= rect.bottom) return { type, index };
+    }
+    return { type, index: null };
+  }
+  return null;
+}
+
+function revealTrack(tracks, type, index) {
+  const container = type === 1 ? tracks.audioContainer : tracks.videoContainer;
+  const element = container?.children?.[index];
+  if (!element || !container) return;
+  const top = parseFloat(element.style.top) || 0;
+  const height = parseFloat(element.style.height) || 0;
+  if (top < container.scrollTop) container.scrollTop = top;
+  else if (top + height > container.scrollTop + container.clientHeight) {
+    container.scrollTop = Math.max(0, top + height - container.clientHeight);
+  }
+}
+
+function chooseTrack(tracks, type, start, length, target, chosen, created) {
+  const list = trackList(tracks, type);
+  if (!list) return 0;
+  const remembered = chosen.get(type);
+  if (remembered !== undefined && trackFits(list[remembered], start, length)) return remembered;
+  const preferred = target && target.type === type && target.index !== null ? target.index : null;
+  if (preferred !== null && trackFits(list[preferred], start, length)) {
+    chosen.set(type, preferred);
+    return preferred;
+  }
+  // A new top track: DOM index 0 is the lowest track, so appending is above.
+  const index = list.length;
+  tracks.createTrack({ type, newTrackIdx: index, data: null });
+  chosen.set(type, index);
+  created.push({ type, index });
+  return index;
+}
+
+// Places one clip per media fragment (video and audio stay linked) and advances
+// the cursor by the file length, so several files keep their order. Tracks come
+// from CM3's own createTrack/createClip/linkAfterCreation primitives.
+function placeEntries(tracks, entries, start, target) {
+  if (!tracks) return 0;
+  let placed = 0;
+  let cursor = Math.max(0, Math.round(start) || 0);
+  const chosen = new Map();
+  const created = [];
+  const links = new Map();
+  for (const entry of entries) {
+    const media = entry && entry.media;
+    const fragments = Array.isArray(media?.data) ? media.data.filter(fragment =>
+      fragment && Array.isArray(fragment.clips) && fragment.clips.length) : [];
+    if (!fragments.length) continue;
+    let span = 1;
+    const positions = [];
+    for (const fragment of fragments) {
+      const type = fragment.type === 1 ? 1 : 0;
+      const clip = fragment.clips[0];
+      const length = Math.max(1, Math.round(clip.length || 0));
+      span = Math.max(span, length);
+      positions.push({ type, clip, length, start: cursor,
+        index: chooseTrack(tracks, type, cursor, length, target, chosen, created) });
+    }
+    for (const position of positions) {
+      const list = trackList(tracks, position.type);
+      const track = list && list[position.index];
+      if (!track) continue;
+      const params = {
+        type: position.type,
+        newTrackIdx: position.index,
+        newIdx: insertIndexFor(track.clips, position.start),
+        start: position.start,
+        length: position.length,
+        data: position.clip,
+      };
+      tracks.createClip(params);
+      tracks.linkAfterCreation(params, links);
+    }
+    placed += 1;
+    cursor += span;
+  }
+  for (const entry of created) revealTrack(tracks, entry.type, entry.index);
+  return placed;
+}
+
+// One history operation for the import and its placement. The asset registry
+// opens its own operation only when none is open, so it joins this one.
+function operationScope(editorInstance) {
+  const history = editorInstance.history;
+  const project = editorInstance.project;
+  const owned = !history.operation;
+  if (owned) history.startOperation();
+  const operation = history.operation;
+  return () => {
+    // A project change resets the native history. Never finish the old
+    // operation then, or later edits would merge into it.
+    if (owned && editorInstance.project === project && history.operation === operation && operation) {
+      history.finishOperation();
+    }
+  };
+}
+
+// The Media panel's Import button runs PZ.ui.media.list.project.importFiles,
+// which calls the panel's importFile() and createMedia(). Use the same two
+// methods so a .pz drop imports one media item and never replaces the project.
+async function importArchive(editorInstance, file, panel) {
+  if (!panel || typeof panel.importFile !== "function" || typeof panel.createMedia !== "function") {
+    throw new Error(IMPORT_FAILURE);
+  }
+  const data = await panel.importFile(file);
+  if (!data) throw new Error(IMPORT_FAILURE);
+  const index = editorInstance.project.media.length;
+  panel.createMedia({ address: [1, index], data });
+  const media = editorInstance.project.media[index];
+  if (media?.loading) await media.loading;
+  return media;
 }
 
 function activate(context) {
@@ -229,131 +387,13 @@ function activate(context) {
     return null;
   }
 
-  function trackList(tracks, type) {
-    const sequence = tracks?.timeline?.editor?.project?.sequence;
-    if (!sequence) return null;
-    return type === 1 ? sequence.audioTracks : sequence.videoTracks;
-  }
-
-  function frameAt(tracks, clientX) {
-    const timeline = tracks?.timeline;
-    const rect = tracks?.container?.getBoundingClientRect?.();
-    if (!timeline || !rect || typeof timeline.pxToFrame !== "function") return 0;
-    const scroll = timeline.scrollBar?.scrollLeft || 0;
-    return Math.max(0, Math.round(timeline.pxToFrame(Math.max(0, clientX - rect.left) + scroll)));
-  }
-
-  function trackAt(tracks, clientY) {
-    for (const [type, container] of [[0, tracks?.videoContainer], [1, tracks?.audioContainer]]) {
-      const bounds = container?.getBoundingClientRect?.();
-      if (!bounds || clientY < bounds.top || clientY > bounds.bottom) continue;
-      const children = Array.from(container.children || []);
-      for (let index = 0; index < children.length; index += 1) {
-        const rect = children[index].getBoundingClientRect();
-        if (clientY >= rect.top && clientY <= rect.bottom) return { type, index };
-      }
-      return { type, index: null };
+  function mediaPanelFor() {
+    const current = editor();
+    for (const element of Array.from(document.querySelectorAll(".editorpanel"))) {
+      const panel = element.pz_panel;
+      if (PZ?.ui?.media && panel instanceof PZ.ui.media && panel.editor === current) return panel;
     }
     return null;
-  }
-
-  function revealTrack(tracks, type, index) {
-    const container = type === 1 ? tracks.audioContainer : tracks.videoContainer;
-    const element = container?.children?.[index];
-    if (!element || !container) return;
-    const top = parseFloat(element.style.top) || 0;
-    const height = parseFloat(element.style.height) || 0;
-    if (top < container.scrollTop) container.scrollTop = top;
-    else if (top + height > container.scrollTop + container.clientHeight) {
-      container.scrollTop = Math.max(0, top + height - container.clientHeight);
-    }
-  }
-
-  function chooseTrack(tracks, type, start, length, target, chosen, created) {
-    const list = trackList(tracks, type);
-    if (!list) return 0;
-    const remembered = chosen.get(type);
-    if (remembered !== undefined && trackFits(list[remembered], start, length)) return remembered;
-    const preferred = target && target.type === type && target.index !== null ? target.index : null;
-    if (preferred !== null && trackFits(list[preferred], start, length)) {
-      chosen.set(type, preferred);
-      return preferred;
-    }
-    // A new top track: DOM index 0 is the lowest track, so appending is above.
-    const index = list.length;
-    tracks.createTrack({ type, newTrackIdx: index, data: null });
-    chosen.set(type, index);
-    created.push({ type, index });
-    return index;
-  }
-
-  function placeEntries(tracks, entries, start, target) {
-    if (!tracks) return 0;
-    let placed = 0;
-    let cursor = Math.max(0, Math.round(start) || 0);
-    const chosen = new Map();
-    const created = [];
-    const links = new Map();
-    for (const entry of entries) {
-      const media = entry && entry.media;
-      const fragments = Array.isArray(media?.data) ? media.data.filter(fragment =>
-        fragment && Array.isArray(fragment.clips) && fragment.clips.length) : [];
-      if (!fragments.length) continue;
-      let span = 1;
-      const positions = [];
-      for (const fragment of fragments) {
-        const type = fragment.type === 1 ? 1 : 0;
-        const clip = fragment.clips[0];
-        const length = Math.max(1, Math.round(clip.length || 0));
-        span = Math.max(span, length);
-        positions.push({ type, clip, length, start: cursor,
-          index: chooseTrack(tracks, type, cursor, length, target, chosen, created) });
-      }
-      for (const position of positions) {
-        const list = trackList(tracks, position.type);
-        const track = list && list[position.index];
-        if (!track) continue;
-        const params = {
-          type: position.type,
-          newTrackIdx: position.index,
-          newIdx: insertIndexFor(track.clips, position.start),
-          start: position.start,
-          length: position.length,
-          data: position.clip,
-        };
-        tracks.createClip(params);
-        tracks.linkAfterCreation(params, links);
-      }
-      placed += 1;
-      cursor += span;
-    }
-    for (const entry of created) revealTrack(tracks, entry.type, entry.index);
-    return placed;
-  }
-
-  function beginOperation(editorInstance) {
-    const history = editorInstance.history;
-    const project = editorInstance.project;
-    const owned = !history.operation;
-    if (owned) history.startOperation();
-    const operation = history.operation;
-    return () => {
-      if (owned && editorInstance.project === project && history.operation === operation && operation) {
-        history.finishOperation();
-      }
-    };
-  }
-
-  async function importArchive(editorInstance, file) {
-    if (!PZ?.ui?.media?.prototype) throw new Error(IMPORT_FAILURE);
-    const mediaOps = Object.assign(Object.create(PZ.ui.media.prototype), { editor: editorInstance });
-    const data = await mediaOps.importFile(file);
-    if (!data) throw new Error(IMPORT_FAILURE);
-    const index = editorInstance.project.media.length;
-    mediaOps.createMedia({ address: [1, index], data });
-    const media = editorInstance.project.media[index];
-    if (media?.loading) await media.loading;
-    return media;
   }
 
   async function importFiles(editorInstance, files, errors) {
@@ -364,7 +404,7 @@ function activate(context) {
     for (const file of files) {
       try {
         if (classifyFile(file) === "archive") {
-          entries.push({ file, media: await importArchive(editorInstance, file) });
+          entries.push({ file, media: await importArchive(editorInstance, file, mediaPanelFor()) });
           continue;
         }
         if (!api?.import) throw new Error(IMPORT_FAILURE);
@@ -389,10 +429,10 @@ function activate(context) {
     const errors = unsupportedErrors(files);
     const supported = files.filter(file => classifyFile(file));
     if (!supported.length) {
-      notifyImport(errors.map(error => error.message).join(" ") || IMPORT_FAILURE);
+      notifyImport(importFailure(errors));
       return;
     }
-    const finish = beginOperation(current);
+    const finish = operationScope(current);
     try {
       const project = current.project;
       const { entries } = await importFiles(current, supported, errors);
@@ -414,11 +454,21 @@ function activate(context) {
     } finally {
       finish();
     }
-    if (errors.length) notifyImport(errors.map(error => error.message || String(error)).join(" "));
+    if (errors.length) notifyImport(importFailure(errors));
+  }
+
+  function importFailure(errors) {
+    const messages = [];
+    for (const error of errors) {
+      const message = error?.message || String(error);
+      if (message && !messages.includes(message)) messages.push(message);
+    }
+    return messages.join(" ") || IMPORT_FAILURE;
   }
 
   function onDragOver(event) {
-    if (!isFileDrag(event.dataTransfer, editor())) return;
+    if (isEditableTarget(event?.target)) return unhighlightAll();
+    if (!shouldHandleDrag(event, editor())) return;
     const zone = zoneFor(event.target);
     if (!zone) return;
     event.preventDefault();
@@ -428,7 +478,8 @@ function activate(context) {
   }
 
   function onDragLeave(event) {
-    if (!isFileDrag(event.dataTransfer, editor())) return;
+    if (isEditableTarget(event?.target)) return unhighlightAll();
+    if (!shouldHandleDrag(event, editor())) return;
     const zone = zoneFor(event.target);
     if (!zone) return unhighlightAll();
     if (event.relatedTarget && zone.el.contains(event.relatedTarget)) return;
@@ -436,14 +487,15 @@ function activate(context) {
   }
 
   function onDrop(event) {
-    if (!isFileDrag(event.dataTransfer, editor())) return;
+    if (isEditableTarget(event?.target)) return unhighlightAll();
+    if (!shouldHandleDrag(event, editor())) return;
     const zone = zoneFor(event.target);
     if (!zone) return;
+    const files = Array.from(event.dataTransfer?.files || []);
+    if (!files.length) return;
     event.preventDefault();
     event.stopPropagation();
     unhighlightAll();
-    const files = Array.from(event.dataTransfer?.files || []);
-    if (!files.length) return;
     const point = { x: event.clientX, y: event.clientY };
     void handleFiles(zone, files, point, { placeAtPlayhead: zone.kind === "viewport" })
       .catch(error => notifyImport(error?.message || String(error)));
@@ -457,10 +509,16 @@ function activate(context) {
     event.stopPropagation();
     const current = editor();
     if (!current?.project) return;
+    const pasted = files.filter(file => pasteSupported(file));
+    if (!pasted.length) {
+      notifyImport(IMPORT_FAILURE);
+      return;
+    }
     let index = nextPasteIndex(pasteableNames(current.project));
-    const prepared = files.map(file => {
-      if (classifyFile(file) !== "image" || !needsPastedName(file)) return file;
-      const name = pastedFilename(index++, file.type);
+    const prepared = pasted.map(file => {
+      if (!needsPastedName(file)) return file;
+      const image = classifyFile(file) === "image";
+      const name = image ? pastedFilename(index++, file.type) : pastedMediaFilename(index++, file);
       try {
         return new host.File([file], name, { type: file.type || "image/png", lastModified: Date.now() });
       } catch (_error) { return file; }
@@ -501,9 +559,12 @@ module.exports = {
   IMPORT_FAILURE,
   classifyFile,
   isFileDrag,
+  shouldHandleDrag,
   resolveDropZone,
   isEditableTarget,
+  pasteSupported,
   pastedFilename,
+  pastedMediaFilename,
   nextPasteIndex,
   needsPastedName,
   clipboardFiles,
@@ -511,4 +572,9 @@ module.exports = {
   trackFits,
   unsupportedErrors,
   mediaForAssets,
+  frameAt,
+  trackAt,
+  chooseTrack,
+  placeEntries,
+  operationScope,
 };

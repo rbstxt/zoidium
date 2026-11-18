@@ -84,7 +84,7 @@ You can drop files on the Media panel, the timeline, or the preview. You can als
 
 When the track under the pointer is occupied, the timeline uses a new track. A file drag changes only file drops. Internal drags, such as media tiles, clips, and layer rows, keep their own behavior.
 
-The supported kinds are images, video, audio, fonts, and `.pz` projects. Other files show the import error and are not imported. Multiple files import in order.
+The supported kinds are images, video, audio, fonts, and `.pz` projects. A `.pz` drop imports the project as a media item, like **Import**. It does not replace the open project. Other files show the import error and are not imported. Multiple files import in order.
 
 Press `Ctrl+V` on Windows or Linux, or `Cmd+V` on macOS, to paste image, video, or audio files. Text fields keep their normal paste. A bitmap without a file name is saved as `Pasted image 1.png`, `Pasted image 2.png`, and so on. When the timeline has focus, the pasted media is placed at the playhead.
 
