@@ -10,6 +10,11 @@ each line describes one visible change.
 
 ### Added
 
+- Two contributed effects, both Zoidium only: ZSMB (beta 1.0), an optical-flow
+  motion blur with Full and 1/2 quality, Blur Amount, Motion Sensitivity, and
+  Previous or Next frame tracking; and S_Glow (beta 1.0), a glow with
+  customizable spread, blend modes, expanded borders, and atmosphere.
+  Enable them in the Plugins panel.
 - Easing+ can copy and paste a curve: Copy and Paste in the curve window, or
   Ctrl/Cmd+C and Ctrl/Cmd+V while the window has focus. Paste accepts
   `cubic-bezier(x1, y1, x2, y2)`, four plain numbers, or a JSON array.
