@@ -7,6 +7,11 @@ each line describes one visible change.
 
 ### Added
 
+- Native FX has a Time Remap effect for adjustment layers and clips. Speed
+  mode retimes with a keyframeable Speed (%) — 0 holds a frame and negative
+  values play backwards. Remap mode sets the Source time directly, so a static
+  value freezes a frame and Easing+ curves give speed ramps. Frame mix blends
+  the two nearest source frames when the time falls between them.
 - Two contributed effects, both Zoidium only: ZSMB (beta 1.0), an optical-flow
   motion blur with Full and 1/2 quality, Blur Amount, Motion Sensitivity, and
   Previous or Next frame tracking; and S_Glow (beta 1.0), a glow with

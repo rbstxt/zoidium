@@ -236,14 +236,14 @@
     }
   }
 
-  // Temporal effect: a deterministic time operator (offset / posterize).
+  // Temporal effect: a deterministic time operator (offset / posterize / remap).
   // The host (plugins/core/temporal-render.js) reads effect._zoidiumTemporal
   // and rewrites which frame is evaluated. Authors never touch frames.
   // spec: { kind, displayName, properties, getOperator(effect, frame) }
   function defineTemporal(spec) {
     var effect = this;
-    if (!isObject(spec) || (spec.kind !== "time-offset" && spec.kind !== "posterize-time")) {
-      throw new Error("ZoidiumPluginApis.defineTemporal requires kind time-offset or posterize-time");
+    if (!isObject(spec) || ["time-offset", "posterize-time", "time-remap"].indexOf(spec.kind) < 0) {
+      throw new Error("ZoidiumPluginApis.defineTemporal requires kind time-offset, posterize-time or time-remap");
     }
     if (!isObject(spec.properties)) {
       throw new Error("ZoidiumPluginApis.defineTemporal requires a properties object");

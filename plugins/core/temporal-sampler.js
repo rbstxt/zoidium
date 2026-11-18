@@ -67,7 +67,7 @@
     // side of the sampler. Lower tracks must not apply that scope again.
     return math.applyTemporalOperators(start + frame,
       getProjectRate(stage.layer, getSequenceForLayer(stage.layer)),
-      layers.readTemporalOperators(stage.layer, frame), undefined, true) - start;
+      layers.readTemporalOperators(stage.layer, frame, start), undefined, true) - start;
   }
 
   function ownsFrameSamplerScope(stage, frame) {
