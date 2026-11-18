@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "e71fc8baad8619a389328dacacd5fd3bf1a408dc0cf732a729d730c83d37f2b9",
+  "fingerprint": "e0a4d395bd2071b6a80fa2b8d56e55e7e5bf5f452ce5c22600101ea69e73007e",
   "plugins": {
     "native-fx": {
       "version": "39",
@@ -171,7 +171,7 @@
       ]
     },
     "expressions-plus": {
-      "version": "22",
+      "version": "23",
       "cases": [
         "seeded-time-fps",
         "mutable-realm",
