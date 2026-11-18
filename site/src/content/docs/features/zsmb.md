@@ -15,18 +15,16 @@ reconstructs trails from the current image.
 4. Move to a frame where the content moves.
 5. Set **Blur Amount** to a value above zero.
 
-## Choose quality
+## Preview quality
 
-**Quality** sets the resolution of the motion analysis.
-
-- **Full quality** analyses motion at source resolution for the most accurate
-  result and is performance-heavy.
-- **1/2 quality** is the default. It analyses motion at one eighth of the input
-  width and height and reconstructs at full image resolution. Fine detail and
-  the response to **Motion Sensitivity** can differ from Full quality.
-
-Both options keep the output at image resolution. Older projects that stored
-the removed Quarter or Eighth values load as **1/2 quality**.
+Motion analysis follows the size that Player+ renders for the preview.
+Set **Preview quality** in the player toolbar.
+At **Full quality** the effect analyses every rendered pixel.
+At **1/2 quality**, **1/4 quality**, and **1/8 quality**, it analyses a reduced
+motion field on the smaller rendered frame.
+Blur length stays proportional to the frame, so the look is the same at every
+preview size. Only the resolution is lower.
+Exports always use full analysis, whatever the preview quality is.
 
 ## Tune the blur
 
@@ -42,9 +40,10 @@ the removed Quarter or Eighth values load as **1/2 quality**.
 
 ## Limits
 
-**1/2 quality** keeps an approximate motion field. Detail and the response to
-**Motion Sensitivity** can differ from **Full quality**.
-**Full quality** is not guaranteed to match another motion blur tool on every
+A reduced preview keeps an approximate motion field.
+Detail and the response to **Motion Sensitivity** can differ from a full-size
+frame.
+Full analysis is not guaranteed to match another motion blur tool on every
 clip.
 
 Exports decode media with the native path. The faster preview decoder is used
