@@ -196,7 +196,11 @@
     return projectFrame >= start && projectFrame < start + length;
   }
 
-  function readTemporalOperatorsInRange(layer, start, end, controlFrame) {
+  // `anchor` is the frame offset of the clock the operators are applied to.
+  // Clip-local operators use 0. Operators read from an adjustment layer are
+  // applied to project time, so they carry that layer's clip start and a remap
+  // reads its curve in the adjustment's own local frames.
+  function readTemporalOperatorsInRange(layer, start, end, controlFrame, anchor) {
     const effects = layer?.effects;
     if (!effects || typeof effects.length !== "number") return [];
     const operators = [];
@@ -206,7 +210,7 @@
       if (!descriptor || typeof descriptor.getOperator !== "function") continue;
       try {
         const operator = descriptor.getOperator(effect, controlFrame);
-        if (operator) operators.push(operator);
+        if (operator) operators.push(anchor ? Object.assign({}, operator, { anchor }) : operator);
       } catch (error) {
         console.error("[Zoidium] temporal effect evaluation failed:", error);
       }
@@ -214,16 +218,16 @@
     return operators;
   }
 
-  function readTemporalOperators(layer, controlFrame) {
-    return readTemporalOperatorsInRange(layer, 0, Infinity, controlFrame);
+  function readTemporalOperators(layer, controlFrame, anchor) {
+    return readTemporalOperatorsInRange(layer, 0, Infinity, controlFrame, anchor);
   }
 
   function readTemporalOperatorsBeforeIndex(layer, index, controlFrame) {
     return readTemporalOperatorsInRange(layer, 0, index, controlFrame);
   }
 
-  function readTemporalOperatorsAfterIndex(layer, index, controlFrame) {
-    return readTemporalOperatorsInRange(layer, index + 1, Infinity, controlFrame);
+  function readTemporalOperatorsAfterIndex(layer, index, controlFrame, anchor) {
+    return readTemporalOperatorsInRange(layer, index + 1, Infinity, controlFrame, anchor);
   }
 
   function getFrameSamplerScope() {
@@ -238,10 +242,11 @@
     const index = effects?.indexOf?.(effect) ?? -1;
     if (index < 0) return frame;
 
-    const scopeOperators = readTemporalOperatorsAfterIndex(layer, index, frame);
+    const clip = getClipForLayer(layer);
+    const start = finiteNumber(clip?.start, 0);
+    const scopeOperators = readTemporalOperatorsAfterIndex(layer, index, frame, start);
     if (scopeOperators.length === 0) return frame;
 
-    const clip = getClipForLayer(layer);
     const sequence = getSequenceForLayer(layer);
     return mapTemporalFrameWithScopes(
       frame,
@@ -249,7 +254,7 @@
       [],
       scopeOperators,
       finiteNumber(clip?.length, 0),
-      finiteNumber(clip?.start, 0),
+      start,
       true,
     );
   }
@@ -309,7 +314,8 @@
       if (!isClipActiveAtProjectFrame(adjustmentClip, projectFrame)) continue;
 
       const controlFrame = projectFrame - finiteNumber(adjustmentClip.start, 0);
-      operators.push(...readTemporalOperators(adjustmentLayer, controlFrame));
+      operators.push(...readTemporalOperators(adjustmentLayer, controlFrame,
+        finiteNumber(adjustmentClip.start, 0)));
     }
     return operators;
   }

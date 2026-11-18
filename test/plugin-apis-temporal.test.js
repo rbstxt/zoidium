@@ -113,6 +113,13 @@ test("defineTemporal rejects unknown time kinds", () => {
   assert.throws(() => apis.defineTemporal.call(host, temporalSpec("freeze")), /kind/);
 });
 
+test("defineTemporal accepts the remap clock kind", () => {
+  const host = makeHostInstance();
+  apis.defineTemporal.call(host, temporalSpec("time-remap"));
+  assert.equal(host._zoidiumTemporal.kind, "time-remap");
+  assert.equal(host.defaultName, "Posterize Time");
+});
+
 test("defineFrameSampler installs a deterministic request descriptor", () => {
   const host = makeHostInstance();
   apis.defineFrameSampler.call(host, frameSamplerSpec());

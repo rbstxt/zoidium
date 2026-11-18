@@ -92,6 +92,14 @@
         result += finiteNumber(operator.offsetFrames, 0);
       } else if (operator.kind === "posterize-time") {
         result = quantizeLocalFrame(result, projectRate, operator.fps, extrapolate);
+      } else if (operator.kind === "time-remap") {
+        // The operator owns its mapping (speed integral or keyed source time)
+        // and stays pure: the same input frame always gives the same output.
+        // `anchor` is the frame offset of the clock this operator is applied
+        // to (0 for clip-local frames, the clip start for project frames).
+        if (typeof operator.map === "function") {
+          result = finiteNumber(operator.map(result, finiteNumber(operator.anchor, 0)), result);
+        }
       }
       result = clampLocalFrame(result, clipLength, extrapolate);
     }
@@ -100,13 +108,17 @@
 
   // A sampler's clock already includes the prefix's translations. Rebase
   // those translations before replaying its ordered quantizers on a tap.
-  // An offset-only prefix therefore leaves its taps unchanged.
+  // An offset-only prefix therefore leaves its taps unchanged. A time-remap
+  // operator is not a translation or an idempotent quantizer: the sampler's
+  // control frame is already its output, so replaying it would warp the tap a
+  // second time. Only offsets and quantizers are replayed.
   function mapFrameSamplerInputFrame(frame, projectRate, operators, clipLength, extrapolate) {
     const active = (operators || []).filter(operator => operator && operator.enabled !== false);
     if (!active.some(operator => operator.kind === "posterize-time")) return frame;
-    const translation = active.reduce((offset, operator) => offset +
+    const replay = active.filter(operator => operator.kind !== "time-remap");
+    const translation = replay.reduce((offset, operator) => offset +
       (operator.kind === "time-offset" ? finiteNumber(operator.offsetFrames, 0) : 0), 0);
-    return applyTemporalOperators(frame - translation, projectRate, active, clipLength, extrapolate);
+    return applyTemporalOperators(frame - translation, projectRate, replay, clipLength, extrapolate);
   }
 
   function clampUnit(value, fallback) {
