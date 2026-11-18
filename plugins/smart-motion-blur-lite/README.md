@@ -18,11 +18,12 @@ enabled only after a per-source pixel comparison with the native path.
 | Blur Amount | 0.5 | 0 to 10 | Trail length. 0 adds no blur. 0.5 approximates a 180-degree shutter. |
 | Motion Sensitivity | 70 | 0 to 100 | Motion estimation threshold. 0 bypasses the blur. |
 
-Motion analysis follows the frame size that the renderer produces.
-At, or above, the project resolution the effect analyses every pixel.
-A smaller preview uses a reduced motion field, and the blur length stays
-proportional to the frame, so the look matches the full-size frame at a lower
-resolution.
+Motion analysis follows the preview size that Player+ sets.
+At **Full quality** the effect analyses every rendered pixel.
+At **1/2 quality**, **1/4 quality**, and **1/8 quality** it uses a reduced motion
+field on the smaller frame.
+The blur length stays proportional to the frame, so the look matches the
+full-size frame at a lower resolution.
 Exports always use full analysis, whatever the Player+ preview quality is.
 
 The hidden **Quality** property is retained so that older projects load and save

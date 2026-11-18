@@ -28,6 +28,24 @@ test("a reduced preview frame uses half analysis", () => {
   }
 });
 
+test("the Player+ full-quality canvas size decides before the project size", () => {
+  assert.equal(chooseAnalysisMode({
+    width: 1259, height: 708, fullWidth: 1259, fullHeight: 708,
+    projectWidth: 1280, projectHeight: 720, exporting: false,
+  }), "full");
+  for (const quality of [0.5, 0.25, 0.125]) {
+    assert.equal(chooseAnalysisMode({
+      width: Math.round(1259 * quality),
+      height: Math.round(708 * quality),
+      fullWidth: 1259,
+      fullHeight: 708,
+      projectWidth: 1280,
+      projectHeight: 720,
+      exporting: false,
+    }), "half");
+  }
+});
+
 test("one-pixel rounding does not turn a full-size frame into a reduced one", () => {
   assert.equal(chooseAnalysisMode({
     width: 1919, height: 1079, projectWidth: 1920, projectHeight: 1080, exporting: false,

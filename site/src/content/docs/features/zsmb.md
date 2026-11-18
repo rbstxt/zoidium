@@ -19,11 +19,9 @@ reconstructs trails from the current image.
 
 Motion analysis follows the size that Player+ renders for the preview.
 Set **Preview quality** in the player toolbar.
-At **Full quality**, or whenever the rendered frame is at least the project
-resolution, the effect analyses every rendered pixel.
-At **1/2 quality**, **1/4 quality**, and **1/8 quality**, the frame is smaller
-than the project, so the effect analyses a reduced motion field on that smaller
-frame.
+At **Full quality** the effect analyses every rendered pixel.
+At **1/2 quality**, **1/4 quality**, and **1/8 quality**, it analyses a reduced
+motion field on the smaller rendered frame.
 Blur length stays proportional to the frame, so the look is the same at every
 preview size. Only the resolution is lower.
 Exports always use full analysis, whatever the preview quality is.

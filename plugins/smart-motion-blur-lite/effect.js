@@ -9,19 +9,32 @@ function projectResolution(){
   try{const size=effect.parentProject?.sequence?.properties?.resolution?.get?.();if(Array.isArray(size)&&size[0]>0&&size[1]>0)return size;}catch(_error){}
   return null;
 }
-function modeFor(width,height,exporting){
+function modeFor(width,height,full,exporting){
   const project=projectResolution();
-  return effect._smbChooseMode?effect._smbChooseMode({width,height,projectWidth:project?.[0],projectHeight:project?.[1],exporting}):"full";
+  return effect._smbChooseMode?effect._smbChooseMode({width,height,fullWidth:full?.[0],fullHeight:full?.[1],projectWidth:project?.[0],projectHeight:project?.[1],exporting}):"full";
+}
+function fullSize(compositor){
+  const canvas=compositor?.renderer?.domElement;
+  if(!canvas)return null;
+  const width=parseFloat(canvas.style?.width)||canvas.clientWidth;
+  const height=parseFloat(canvas.style?.height)||canvas.clientHeight;
+  const ratio=(typeof window!=="undefined"&&window.devicePixelRatio)||1;
+  if(!(width>0)||!(height>0))return null;
+  return [Math.round(width*ratio),Math.round(height*ratio)];
 }
 // The sampler request is prepared before the frame draws, so it follows the
 // last known render size. draw() recomputes the mode from the buffer it gets.
-function trackMode(width,height,exporting){
+function trackMode(width,height,exporting,full){
   if(exporting){effect._smbExporting=true;effect._smbMode="full";}
-  else if(width>0&&height>0){effect._smbExporting=false;effect._smbMode=modeFor(width,height,false);}
+  else if(width>0&&height>0){effect._smbExporting=false;effect._smbMode=modeFor(width,height,full,false);}
   return effect._smbMode;
 }
-function drawingForExport(){
-  try{const contexts=PZ.zoidium?.temporal?.contexts,context=contexts?.[contexts.length-1];if(context?.compositor)return Boolean(context.exportPolicy);}catch(_error){}
+function renderContext(){
+  try{const contexts=PZ.zoidium?.temporal?.contexts,context=contexts?.[contexts.length-1];if(context?.compositor)return context;}catch(_error){}
+  return null;
+}
+function drawingForExport(context){
+  if(context)return Boolean(context.exportPolicy);
   return effect._smbExporting===true;
 }
 // An older build patched PZ.compositor.prototype to force project-resolution
@@ -72,7 +85,7 @@ function draw(renderer,write,read){
   if(!previous)return copy();
   const w=Math.max(1,Math.round(read.width*uv.x)),h=Math.max(1,Math.round(read.height*uv.y));
   if(w<6||h<6||previous.width<w||previous.height<h)return copy();
-  const mode=trackMode(w,h,drawingForExport()),half=mode==="half";
+  const context=renderContext(),mode=trackMode(read.width,read.height,drawingForExport(context),fullSize(context?.compositor)),half=mode==="half";
   const factor=half?8:1,aw=Math.max(6,Math.floor(w/factor)),ah=Math.max(6,Math.floor(h/factor));
   // resolveFrameSamples validates the host's complete input revision before
   // returning a stamped sample. Within that revision the same exact current
@@ -135,7 +148,7 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
     enabled: { dynamic: true, name: "Enabled", type: PZ.property.type.OPTION, value: 1, items: "off;on", description: "Turn added motion blur on or off. Off passes through the current image without changing source timing." },
     trackFrame: { dynamic:true,name:"Track Frame",type:PZ.property.type.OPTION,value:0,items:"Previous;Next",description:"Choose the adjacent frame used for motion tracking. Previous compares against the preceding frame; Next compares against the following frame. Previous uses Next at frame 0 only. This does not shift the displayed source frame." },
     amount: { ...numeric("Blur Amount", 0.5, 0, 10, 0.5), decimals: 2, description: "Controls trail length after motion tracking. 0 adds no blur; the default 0.5 approximates a 180-degree shutter. Larger values produce longer trails. Identical neighboring frames may produce no added blur." },
-    sensitivity: { ...numeric("Motion Sensitivity", 0.7, 0, 100, 1), scaleFactor: 0.01, dragstep: 0.1, decimals: 2, description: "Controls motion estimation separately from trail length. Lower it to reduce false motion or background smearing; raise it when large movements are missed. 0 bypasses blur. Default: 70. Half uses a faster, approximate response." },
+    sensitivity: { ...numeric("Motion Sensitivity", 0.7, 0, 100, 1), scaleFactor: 0.01, dragstep: 0.1, decimals: 2, description: "Controls motion estimation separately from trail length. Lower it to reduce false motion or background smearing; raise it when large movements are missed. 0 bypasses blur. Default: 70. A reduced preview uses a faster, approximate response." },
   },
   getRequest(_effect, frame) {
     const c = settings(frame),half=effect._smbMode==="half";
@@ -178,7 +191,7 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
     update(frame) { effect._smbSettings = settings(frame); },
     prepare: async function (frame,context) {
       const compositor=context?.frameSamplerRoot||context?.compositor;
-      trackMode(compositor?.readBuffer?.width,compositor?.readBuffer?.height,Boolean(context?.exportPolicy));
+      trackMode(compositor?.readBuffer?.width,compositor?.readBuffer?.height,Boolean(context?.exportPolicy),fullSize(compositor));
       try{await effect._smbAsync?.prepare(frame,context,Object.assign(settings(frame),{mode:effect._smbMode}));}
       catch(error){context?.exportPolicy?.check?.();if(error?.name==="AbortError")return;if(!effect._smbAsyncWarned){effect._smbAsyncWarned=true;console.warn("ZSMB asynchronous analysis unavailable; using the exact synchronous path.",error);}}
     },
