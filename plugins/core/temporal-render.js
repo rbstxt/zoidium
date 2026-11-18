@@ -109,6 +109,15 @@
       prepareFrameSamples(effect, frame, context) {
         return prepareFrameSamples(this, effect, frame, context);
       },
+      // True when the main viewport owns an exact temporal preview for this
+      // frame, so the native paused-video seek gate must not wait for a media
+      // element the preview is not using. Layer-specific preview modes keep
+      // their normal path.
+      ownsExactPreview(viewport, frame) {
+        if (viewport.renderMode && viewport.layer) return false;
+        const sequence = viewport.compositor?._sequence;
+        return Boolean(sequence && collectPreviewRequest(this, viewport, sequence, frame));
+      },
       usesSingleEvaluation: layers.usesSingleEvaluation,
       mapLayerFrame(layer, localFrame) {
         const sequence = getSequenceForLayer(layer);
@@ -432,12 +441,21 @@
   // so every preparation targets the current playhead (latest-wins).
   function collectPreviewRequest(state, viewport, sequence, frame) {
     const effects = [];
+    const mediaDecoders = [];
+    let currentFramePreview = false;
     function visit(layer, clip, localFrame) {
       const sourceFrame = state.mapLayerFrame(layer, localFrame)?.sourceFrame ?? localFrame;
       for (const effect of layer.effects || []) {
         if (!effect._zoidiumFrameSampler || effect._zoidiumFrameSampler.preflight) continue;
         const controlFrame = getAdjustmentEffectFrame(layer, effect, sourceFrame);
         const request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
+        // A paused comparison must use the same current-frame decoder with
+        // the effect on or off. Returning to native video here can display a
+        // different presented frame even though the playhead did not move.
+        if (request?.lockCurrentFrame === true) {
+          currentFramePreview = true;
+          if (typeof request.decodeMedia === "function") mediaDecoders.push(request.decodeMedia);
+        }
         const tapCount = Array.isArray(request?.frames) ? request.frames.length : Number(request?.count);
         if (request && request.enabled !== false && tapCount > 0) {
           effects.push({ effect, clip, layer, sourceFrame });
@@ -472,12 +490,12 @@
         getTemporalLayerFrame(clip.object, frame - clip.start, sequence);
       return mapped && Math.abs(mapped.sourceFrame - mapped.localFrame) > EPSILON;
     });
-    if (effects.length === 0 && !temporalVideo) return null;
+    if (effects.length === 0 && !temporalVideo && !currentFramePreview) return null;
     // One bounded preparation per viewport. The serialization includes
     // clip timing, effect order, expressions, keys and sequence settings.
     const key = JSON.stringify([frame, frameSamplerInputKey(sequence, viewport.compositor),
       effects.map(({ effect }) => frameSamplerIdentity(effect))]);
-    return { frame, key, effects, temporalVideo };
+    return { frame, key, effects, temporalVideo, mediaDecoders };
   }
 
   async function preparePreviewRequest(state, viewport, sequence, runtime, generation, request) {
@@ -527,8 +545,12 @@
       await effect.prepare(sourceFrame,
         { sequence, frameSamplerRoot: viewport.compositor });
     }
+    const frameSamplerDecode = request.mediaDecoders?.[0] || effects.map(({ effect, sourceFrame }) =>
+      effect._zoidiumFrameSampler.getRequest(effect, sourceFrame)?.decodeMedia)
+      .find(fn => typeof fn === "function");
     runtime.previewMedia = await prepareLowerSchedules(sequence,
-      { layer: null, trackIndex: 0 }, frame, { sequence }, runtime, true);
+      { layer: null, trackIndex: 0 }, frame,
+      { sequence, frameSamplerRoot: viewport.compositor, frameSamplerDecode }, runtime, true);
     if (runtime.disposed || generation !== (runtime.previewGeneration || 0) || runtime.previewNeutral || key !== JSON.stringify([frame,
       frameSamplerInputKey(sequence, viewport.compositor),
       effects.map(({ effect }) => frameSamplerIdentity(effect))])) return false;

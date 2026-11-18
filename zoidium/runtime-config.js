@@ -44,6 +44,7 @@
       "./plugins/core/temporal-layers.js",
       "./plugins/core/temporal-capture.js",
       "./plugins/core/temporal-sampler.js",
+      "./plugins/core/temporal-preview.js",
       "./plugins/core/temporal-export.js",
       "./plugins/core/temporal-render.js",
       "./plugins/core/video-frame-export.js",

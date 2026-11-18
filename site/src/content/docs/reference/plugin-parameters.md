@@ -36,6 +36,7 @@ Find the control reference or guide for each plugin feature.
 | Particles+ | [Particles+ controls](/docs/reference/particle-sprites/) |
 | Player+ | [Player+ controls](/docs/reference/editor-controls/) |
 | Precomp+ | [Precomp+ controls](/docs/reference/precomp/) |
+| S_Glow | [S_Glow guide](/docs/features/s-glow/) |
 | Shader+ | [Shader+ guide](/docs/development/shader-properties/) |
 | Shape+ | [Shape+ controls](/docs/reference/shape-plus/) |
 | Text+ | [Text+ controls](/docs/reference/text-plus/) |
@@ -43,6 +44,7 @@ Find the control reference or guide for each plugin feature.
 | Trapcode Form | [Trapcode Form controls](/docs/reference/trapcode-form/) |
 | Plexus | [Plexus controls](/docs/reference/plexus/) |
 | Trapcode Lights | [Trapcode Lights controls](/docs/reference/trapcode-lights/) |
+| ZSMB | [ZSMB guide](/docs/features/zsmb/) |
 
 
 ## Ranges, defaults, and time

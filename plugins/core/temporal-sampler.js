@@ -384,21 +384,6 @@
     }
   }
 
-  function bindSampleTextures(mediaSamples) {
-    const restored = [];
-    for (const sample of mediaSamples) {
-      const item = sample.item;
-      const owner = item.obj?.threeObj || item.clip?.object;
-      const key = item.obj ? "map" : "texture";
-      if (!owner) continue;
-      restored.push({ owner, key, texture: owner[key] });
-      owner[key] = sample.texture;
-    }
-    return () => {
-      for (const entry of restored) entry.owner[entry.key] = entry.texture;
-    };
-  }
-
   function captureFrameSamplerInput(...args) {
     return registry.capture.captureFrameSamplerInput(...args);
   }
@@ -462,6 +447,19 @@
         context?.resourcePolicy?.assertMedia(item.media);
         const time = nested ? item.clip.path.at(-1).properties.time.get(source)
           : item.clip.properties.time.get(math.holdLastMediaFrame(sourceFrame - item.start, item.length));
+        if (!context?.exportPolicy && typeof context?.frameSamplerDecode === "function") {
+          // A preview decoder can return the exact sample without seeking the
+          // visible element. Unsupported media returns nothing and falls back.
+          const decoded = await context.frameSamplerDecode({
+            item, time, isolated, schedule, context,
+            renderer: context?.frameSamplerRoot?.renderer || context?.compositor?.renderer,
+          });
+          registry.capture.checkPolicy(context);
+          if (decoded?.texture) {
+            samples.push({ item, texture: decoded.texture });
+            continue;
+          }
+        }
         if (typeof ISNODE !== "undefined" && ISNODE) {
           await isolated.ffDecodeFrame(Math.round(time * getProjectRate(stage.layer, sequence)),
             getProjectRate(stage.layer, sequence));
@@ -658,6 +656,7 @@
           }
           const inputContext = Object.assign({}, context, {
             frameSamplerRoot: root, frameSamplerDepth: depth,
+            frameSamplerDecode: request.decodeMedia || context?.frameSamplerDecode,
             frameSamplerScope: ownsFrameSamplerScope(stage, sourceProjectFrame)
               ? stage : context?.frameSamplerScope || parentContext?.frameSamplerScope,
           });
@@ -939,31 +938,6 @@
     target.inputEntry = null;
   }
 
-  function renderPreparedPreview(viewport, runtime, frame) {
-    const sequence = viewport.compositor._sequence;
-    const liveFrame = finiteNumber(viewport.editor?.playback?.currentFrame, frame);
-    const restoreTextures = bindSampleTextures(runtime.previewMedia || []);
-    try {
-      sequence.update(frame);
-      viewport.compositor.renderSequence(frame);
-      viewport.lastFrame = frame;
-    } finally {
-      restoreTextures();
-      sequence.update(liveFrame);
-      if (!layers.usesSingleEvaluation(sequence)) {
-        for (const track of sequence.videoTracks || []) {
-          const layer = track.getCurrentClip?.(frame)?.object;
-          const stamp = layer?.__zoidiumTemporalEvaluationStamp;
-          const state = typeof PZ !== "undefined" ? PZ.zoidium?.temporal : null;
-          const localFrame = liveFrame - finiteNumber(getClipForLayer(layer)?.start, 0);
-          if (layer && (!stamp || stamp.frame !== localFrame || stamp.epoch !== state?.evaluationEpoch)) {
-            restoreLayerAtContextFrame(layer, liveFrame);
-          }
-        }
-      }
-    }
-  }
-
   registry.sampler = {
     drawAuthority,
     ownsFrameSamplerScope,
@@ -982,7 +956,6 @@
     copyRenderTarget: copyRenderTarget,
     forgetFrameSamplerInput,
     restoreLayerAtContextFrame: restoreLayerAtContextFrame,
-    bindSampleTextures: bindSampleTextures,
     captureFrameSamplerInput: captureFrameSamplerInput,
     frameSamplerMediaInputs,
     prepareLowerSchedules: prepareLowerSchedules,
@@ -990,7 +963,6 @@
     prepareFrameSamples: prepareFrameSamples,
     resolveFrameSamples: resolveFrameSamples,
     frameSamplerInputKey: frameSamplerInputKey,
-    renderPreparedPreview: renderPreparedPreview,
     frameSamplerIdentity: frameSamplerIdentity,
   };
   if (typeof module === "object" && module.exports) module.exports = registry.sampler;

@@ -291,6 +291,16 @@
         return originalRender.apply(this, arguments);
       }
       const PZRoot = (root && root.PZ) || (typeof PZ !== "undefined" ? PZ : null);
+      // Exact temporal preview decodes and binds its own current-frame media.
+      // Waiting for the unused native element delays controls and its late
+      // completion can redraw while those isolated inputs are being prepared.
+      if (PZRoot?.zoidium?.temporal?.ownsExactPreview?.(this, frame)) {
+        for (const schedule of this.editor.project.sequence.videoSchedules || []) {
+          if (schedule?.[PENDING_KEY]) cancelPending(schedule);
+          if (schedule) delete schedule[EXPIRED_KEY];
+        }
+        return originalRender.apply(this, arguments);
+      }
       if (shouldGate(PZRoot || root, this, frame)) return;
       return originalRender.apply(this, arguments);
     };

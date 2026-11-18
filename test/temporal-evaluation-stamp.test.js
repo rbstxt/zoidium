@@ -35,7 +35,7 @@ function host(count = 1) {
   const sandbox = { console, PZ: { layer: Layer, compositor: Compositor, schedule: class {}, sequence: class {}, clip: class {} } };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
-  for (const part of ["math", "layers", "sampler", "render"]) {
+  for (const part of ["math", "layers", "sampler", "preview", "render"]) {
     vm.runInContext(fs.readFileSync(`plugins/core/temporal-${part}.js`, "utf8"), sandbox);
   }
   const compositor = new Compositor(); compositor._sequence = sequence;
