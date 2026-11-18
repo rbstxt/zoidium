@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "148",
+      "version": "150",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=148",
-      "bundle": "./plugins/core/bundle.json?v=148",
-      "integrity": "sha256-irx62JFfGIwkpPkY5Ox8vsfqix2zyNyrl7uFBhURgPc="
+      "manifest": "./plugins/core/manifest.json?v=150",
+      "bundle": "./plugins/core/bundle.json?v=150",
+      "integrity": "sha256-A2v+Dmp5kOVQzPmijwUFf+/Vt8lzspIWoSIuaKl5WNo="
     },
     {
       "id": "easing-plus",
@@ -529,6 +529,36 @@
       "manifest": "./plugins/mp4-export/manifest.json?v=15",
       "integrity": "sha256-/rIYNeVGi09UVoztHzT5XBH0yWcgKnW6NMS/KVCwI70=",
       "bundle": "./plugins/mp4-export/bundle.json?v=15"
+    },
+    {
+      "id": "smart-motion-blur-lite",
+      "category": "adjustment",
+      "name": "ZSMB (beta 1.0)",
+      "author": "Zoidium contributors",
+      "version": "47",
+      "itemCount": 1,
+      "format": "native effect",
+      "tagline": "High-quality, lightweight optical flow & vector-based motion blur",
+      "description": "High-quality, lightweight optical flow & vector-based motion blur",
+      "manifest": "./plugins/smart-motion-blur-lite/manifest.json?v=47",
+      "bundle": "./plugins/smart-motion-blur-lite/bundle.json?v=47",
+      "integrity": "sha256-1C6AcfU3ioJ/YcXLY9xp3k6+yf82cStcYkNEF5uXcNQ=",
+      "zoidiumOnly": true
+    },
+    {
+      "id": "sglow-hq-v2-preview",
+      "category": "adjustment",
+      "name": "S_Glow (beta 1.0)",
+      "author": "MOUSEIIIIII",
+      "version": "16",
+      "itemCount": 1,
+      "format": "native effect",
+      "tagline": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
+      "description": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
+      "manifest": "./plugins/sglow-hq-v2-preview/manifest.json?v=16",
+      "bundle": "./plugins/sglow-hq-v2-preview/bundle.json?v=16",
+      "integrity": "sha256-Xl5JH2El0eqqPvm6BrdTp962/PwHL3HFz5LrPoOj5Dc=",
+      "zoidiumOnly": true
     }
   ]
 }

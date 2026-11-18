@@ -299,8 +299,12 @@ playback is running.
   prefix, so an unrelated track can be edited too. Prefix Time Offset and
   Posterize Time operators remain in the key. Other content uses the whole
   sequence; when expressions, layer sources or compositions could read the
-  cut effects, the cut is not applied. No edit-generation shortcut replaces
-  content serialization. Undo/redo can reuse still-resident entries.
+  cut effects, the cut is not applied. The key is the serialized content,
+  including plain model fields such as a track's enabled flag and any plugin
+  serializer, so no edit-generation shortcut replaces the serialization.
+  Undo/redo can reuse still-resident entries.
+  `PZ.zoidium.debugAssertTemporalKeyMemo = true` serializes the key twice and
+  throws when a serializer returns different content for the same project.
   Inputs without an earlier sampler share storage across depths; adjustment
   inputs retain their depth because lower tracks may recurse into samplers.
   `PZ.zoidium.debugDisableFrameSamplerInputReuse = true` disables reuse between
@@ -310,6 +314,15 @@ playback is running.
   Every built-in frame-sampler effect uses this mode. Requests that omit the
   option retain CM3's native transparent copy, which multiplies RGB by alpha
   again and darkens semi-transparent input.
+- A `defineFrameSampler` request can keep the exact current-frame preview
+  decoder with `lockCurrentFrame: true`. The request is collected even while
+  the effect is off or at zero sensitivity, so the paused preview does not
+  switch back to the native media element. Only these requests bypass the
+  native paused-video seek gate; other temporal effects keep its wait and late
+  redraw. `reuseCurrentInput: true` lets an
+  adjustment sampler that is first in its effect list reuse the input already
+  captured for analysis during preview. `decodeMedia` supplies a preview-only
+  media decoder that the sampler calls for each tap; exports ignore it.
 - The sampler allocates optional retained RGBA8 targets only while their total
   is at most 256 MiB per root compositor, with at most 128 slots per effect and
   input nesting depth. Single-tap requests reuse one target. Other plans

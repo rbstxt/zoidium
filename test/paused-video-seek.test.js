@@ -253,3 +253,48 @@ test("a removed layer's waiter leaves its texture alone but still redraws the fr
   assert.equal(host.viewport.renders, 1, "the remaining layers present the frame");
   api.timeoutMs = 1500;
 });
+
+test("exact temporal preview bypasses the unused native seek gate", () => {
+  const element = new FakeElement();
+  element.requestSeek(10 / 30);
+  const schedule = makeSchedule(element), host = makeHost([schedule]);
+  host.PZ.zoidium.temporal = { ownsExactPreview: () => true };
+  installFor(host);
+  host.viewport._render();
+  assert.equal(host.viewport.renders, 1);
+  assert.equal(schedule.__zoidiumPausedSeek, undefined);
+  assert.equal(element.seeks, 1, "the unused native clock is not changed");
+});
+
+test("exact temporal ownership cancels a native waiter's late redraw", () => {
+  const element = new FakeElement();
+  element.requestSeek(10 / 30);
+  const schedule = makeSchedule(element), host = makeHost([schedule]);
+  installFor(host);
+  host.viewport._render();
+  assert.ok(schedule.__zoidiumPausedSeek);
+  host.PZ.zoidium.temporal = { ownsExactPreview: () => true };
+  host.viewport._render();
+  assert.equal(host.viewport.renders, 1);
+  assert.equal(schedule.__zoidiumPausedSeek, undefined);
+  element.completeSeek();
+  assert.equal(host.viewport.renders, 1);
+});
+
+test("a temporal preview without its own decoder keeps the native gate", () => {
+  api.timeoutMs = 50;
+  const element = new FakeElement();
+  element.requestVideoFrameCallback = undefined;
+  element.requestSeek(10 / 30);
+  const schedule = makeSchedule(element), host = makeHost([schedule]);
+  // Echo and other temporal effects read native media, so they report false.
+  host.PZ.zoidium.temporal = { ownsExactPreview: () => false };
+  installFor(host);
+  host.viewport._render();
+  assert.equal(host.viewport.renders, 0, "the stale frame waits for the seek");
+  assert.ok(schedule.__zoidiumPausedSeek, "the native waiter stays registered");
+  element.completeSeek();
+  assert.equal(host.viewport.renders, 1, "the late redraw still presents the frame");
+  assert.equal(schedule.__zoidiumPausedSeek, undefined);
+  api.timeoutMs = 1500;
+});

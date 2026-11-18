@@ -36,6 +36,7 @@ sidebar:
 | Particles+ | [Particles+ のコントロール](/docs/ja/reference/particle-sprites/) |
 | Player+ | [Player+ のコントロール](/docs/ja/reference/editor-controls/) |
 | Precomp+ | [Precomp+ のコントロール](/docs/ja/reference/precomp/) |
+| S_Glow | [S_Glow のガイド](/docs/ja/features/s-glow/) |
 | Shader+ | [Shader+ のガイド](/docs/ja/development/shader-properties/) |
 | Shape+ | [Shape+ のコントロール](/docs/ja/reference/shape-plus/) |
 | Text+ | [Text+ のコントロール](/docs/ja/reference/text-plus/) |
@@ -43,6 +44,7 @@ sidebar:
 | Trapcode Form | [Trapcode Form のコントロール](/docs/ja/reference/trapcode-form/) |
 | Plexus | [Plexus のコントロール](/docs/ja/reference/plexus/) |
 | Trapcode Lights | [Trapcode Lights のコントロール](/docs/ja/reference/trapcode-lights/) |
+| ZSMB | [ZSMB のガイド](/docs/ja/features/zsmb/) |
 
 
 ## 範囲、初期値、時間

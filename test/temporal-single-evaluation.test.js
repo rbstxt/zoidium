@@ -53,7 +53,7 @@ function host({ composite = false, adjustment = false, operator = "offset" } = {
     clip: class {}, sequence: class {} } };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
-  for (const part of ["math", "layers", "sampler", "render"]) {
+  for (const part of ["math", "layers", "sampler", "preview", "render"]) {
     vm.runInContext(fs.readFileSync(`plugins/core/temporal-${part}.js`, "utf8"), sandbox);
   }
   const root = new Compositor();

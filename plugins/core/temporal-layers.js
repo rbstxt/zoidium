@@ -604,7 +604,22 @@
     return typeof PZ !== "undefined" && PZ.zoidium?.debugDisableFrameSamplerInputReuse === true;
   }
 
+  // The input key is the serialized content itself. CM3 serializers derive
+  // their output from live model state that includes plain fields (for example
+  // a track's enabled flag) and plugin serializers, so no cheaper revision can
+  // cover every input. A second, fresh serialization compares equal unless a
+  // serializer reads state outside the project content.
   function frameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB = false) {
+    const key = serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    if (typeof PZ === "undefined" || PZ.zoidium?.debugAssertTemporalKeyMemo !== true) return key;
+    const fresh = serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    if (fresh !== key) {
+      throw new Error("Temporal input key is not deterministic for the current project content");
+    }
+    return key;
+  }
+
+  function serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB = false) {
     const scoped = !frameSamplerReuseDisabled() && frameSamplerScopedContent(sequence, stage, scope);
     const assets = Object.entries(sequence.parentProject?.assets?.list || {}).map(([id, asset]) =>
       [id, asset.url, asset.sha256, asset.filename, asset.size, frameSamplerIdentity(asset),
