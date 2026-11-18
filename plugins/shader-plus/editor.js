@@ -5,6 +5,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const NUMERIC = ["slider", "seed"], OPTIONS = ["dropdown", "staticDropdown"];
 const list = text => String(text).split(/[\n;]/).map(s => s.trim()).filter(Boolean);
 const { parseConditions, formatConditions, matches, unreachable } = require("./visibility.js");
+const { renamed } = require("./rename.js");
 const { installReset } = require("./reset.js");
 function installEditor({ context, patch, presetFont }) {
   const { PZ, editor: CM, document: doc, window: win } = context;
@@ -36,6 +37,11 @@ function installEditor({ context, patch, presetFont }) {
   menu.push(...added);
   context.lifecycle.onDispose(() => { for (const entry of added) { const i = menu.indexOf(entry); if (i >= 0) menu.splice(i, 1); } });
   function effectOf(p) { return p?.parent instanceof PZ.objectList && p.parent.parent instanceof PZ.effect.shader ? p.parent.parent : null; }
+  // The row label only. The uniform name, saved value, keys, expression and
+  // export always use properties.name.
+  function displayName(effect, p, meta, frame) {
+    return renamed(meta?.renameWhen, name => effect?.customProperties.find(q => q.properties.name.get() === name), frame, p.properties.name.get());
+  }
   function notify(effect) { groups?.refresh?.(CM, effect?.customProperties); effect.fragmentShaderNeedsUpdate = true; CM.project.ui?.onChanged?.update(); CM.mainViewport?.requestRender?.(); }
   function historyDefinition(value) {
     const definition = clone(value), meta = definition.zoidiumPropertyGroup;
@@ -161,14 +167,80 @@ function installEditor({ context, patch, presetFont }) {
     const initialWhen = when.value, initialValues = values.value;
     const syncWhen = () => { values.closest(".zsp-settings-line").hidden = !when.value; };
     when.addEventListener("change", syncWhen); syncWhen();
+    // Rename rules are display-only and share the Visible when condition
+    // syntax. The first matching rule wins; rows reorder and remove in place.
+    const renameSection = doc.createElement("div"); renameSection.className = "zsp-rename";
+    const renameHead = doc.createElement("div"); renameHead.className = "zsp-settings-line"; renameHead.style.gridTemplateColumns = row.style.gridTemplateColumns;
+    const renameName = doc.createElement("span"); renameName.textContent = "Rename when"; renameName.title = "Rename when"; renameName.style.paddingLeft = indent + "px";
+    const renameCell = doc.createElement("div"); renameCell.className = "editbox";
+    const addRule = doc.createElement("button"); addRule.type = "button"; addRule.className = "zsp-settings-button"; addRule.textContent = "Add rule";
+    addRule.setAttribute("aria-label", "Add rename rule");
+    renameCell.append(addRule); renameHead.append(renameName, renameCell); renameSection.append(renameHead);
+    const rulesBox = doc.createElement("div"); rulesBox.className = "zsp-rename-rules"; renameSection.append(rulesBox);
+    common.append(renameSection);
+    const entries = [];
+    let drafts = (Array.isArray(meta.renameWhen) ? clone(meta.renameWhen) : []).map(rule => ({ property: rule?.property || "", text: formatConditions(rule), name: rule?.name || "" }));
+    function ruleControls(draft, index) {
+      const box = doc.createElement("div"); box.className = "zsp-rename-rule";
+      function line(label, control) {
+        const el = doc.createElement("div"); el.className = "zsp-settings-line"; el.style.gridTemplateColumns = row.style.gridTemplateColumns;
+        const name = doc.createElement("span"); name.textContent = label; name.title = label; name.style.paddingLeft = indent + 8 + "px";
+        const cell = doc.createElement("div"); cell.className = "editbox"; cell.append(control);
+        el.append(name, cell); box.append(el); return control;
+      }
+      const property = doc.createElement("select"); property.className = "pz-inputbox";
+      const names = [...others];
+      if (draft.property && !names.includes(draft.property)) names.push(draft.property);
+      for (const [v, text] of [["", "Choose a property"], ...names.map(name => [name, name])]) { const option = doc.createElement("option"); option.value = v; option.textContent = text; property.append(option); }
+      property.value = draft.property; if (property.selectedIndex < 0) property.selectedIndex = 0;
+      property.setAttribute("aria-label", "Rule property " + (index + 1)); line("When", property);
+      const values = doc.createElement("input"); values.className = "pz-inputbox"; values.type = "text";
+      values.value = draft.text; values.placeholder = "e.g. > 5.5; 1..5; != 3";
+      values.setAttribute("aria-label", "Rule values " + (index + 1)); line("Has value", values);
+      const shown = doc.createElement("input"); shown.className = "pz-inputbox"; shown.type = "text";
+      shown.value = draft.name; shown.placeholder = "Name to show";
+      shown.setAttribute("aria-label", "Rule name " + (index + 1)); line("Show name", shown);
+      values.addEventListener("input", () => showWarning()); property.addEventListener("change", () => showWarning());
+      const actions = doc.createElement("div"); actions.className = "zsp-rename-actions";
+      const move = (delta) => {
+        collect(); const target = index + delta;
+        if (target < 0 || target >= drafts.length) return;
+        [drafts[index], drafts[target]] = [drafts[target], drafts[index]];
+        render();
+      };
+      for (const [label, handler, disabled] of [
+        ["Move up", () => move(-1), index === 0],
+        ["Move down", () => move(1), index === drafts.length - 1],
+        ["Remove", () => { collect(); drafts.splice(index, 1); render(); }, false],
+      ]) {
+        const button = doc.createElement("button"); button.type = "button"; button.className = "zsp-settings-button";
+        button.textContent = label; button.setAttribute("aria-label", label + " rule " + (index + 1)); button.disabled = disabled;
+        button.onclick = handler; actions.append(button);
+      }
+      box.append(actions); entries.push({ property, values, name: shown }); return box;
+    }
+    function collect() { drafts = entries.map(entry => ({ property: entry.property.value, text: entry.values.value, name: entry.name.value })); }
+    function render() { entries.length = 0; rulesBox.replaceChildren(); drafts.forEach((draft, index) => rulesBox.append(ruleControls(draft, index))); }
+    addRule.onclick = () => { collect(); drafts.push({ property: "", text: "", name: "" }); render(); };
+    render();
     const error = doc.createElement("div"); error.className = "zsp-settings-error"; error.setAttribute("role", "status"); error.style.paddingLeft = indent + "px";
     function warning() {
-      if (!when.value) return "";
-      const controller = effect?.customProperties.find(q => q.properties.name.get() === when.value);
-      try {
-        const condition = when.value === initialWhen && values.value === initialValues ? meta.visibleWhen : parseConditions(values.value);
-        return unreachable(condition, controller) ? "This condition cannot match the controller's choices. Use Show hidden to edit the property." : "";
-      } catch (_error) { return ""; }
+      let message = "";
+      if (when.value) {
+        const controller = effect?.customProperties.find(q => q.properties.name.get() === when.value);
+        try {
+          const condition = when.value === initialWhen && values.value === initialValues ? meta.visibleWhen : parseConditions(values.value);
+          if (unreachable(condition, controller)) message = "This condition cannot match the controller's choices. Use Show hidden to edit the property.";
+        } catch (_error) {}
+      }
+      if (!message) for (const draft of drafts) {
+        if (!draft.property || !draft.text.trim()) continue;
+        try {
+          const controller = effect?.customProperties.find(q => q.properties.name.get() === draft.property);
+          if (unreachable(parseConditions(draft.text), controller)) { message = "This rename condition cannot match the controller's choices."; break; }
+        } catch (_error) {}
+      }
+      return message;
     }
     const showWarning = () => { error.textContent = warning(); error.classList.toggle("zsp-settings-warning", !!error.textContent); };
     when.addEventListener("change", showWarning); values.addEventListener("input", showWarning); showWarning();
@@ -196,7 +268,7 @@ function installEditor({ context, patch, presetFont }) {
       else if (snap < 0) throw new Error("Use a positive snap or leave it blank");
       else definition.snap = snap;
     }
-    const fieldState = () => JSON.stringify(Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.value])));
+    const fieldState = () => JSON.stringify([Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.value])), entries.map(entry => [entry.property.value, entry.values.value, entry.name.value])]);
     const initialFields = fieldState();
     ok.onclick = () => {
       try {
@@ -270,6 +342,14 @@ function installEditor({ context, patch, presetFont }) {
           if (peerWhen) definition.zoidiumPropertyGroup.visibleWhen = clone(peerWhen);
           else delete definition.zoidiumPropertyGroup.visibleWhen;
         }
+        collect();
+        const renameWhen = drafts.map(rule => {
+          if (!rule.property) throw new Error("Choose a property for each rename rule");
+          if (!rule.name.trim()) throw new Error("Enter the name to show for each rename rule");
+          return { property: rule.property, name: rule.name.trim(), ...parseConditions(rule.text, "Enter the values that rename this property") };
+        });
+        if (renameWhen.length) next.renameWhen = renameWhen;
+        else delete next.renameWhen;
         if (Object.keys(next).length) definition.zoidiumShader = next;
         else delete definition.zoidiumShader;
         const message = warning(), parent = row.parentElement;
@@ -399,6 +479,20 @@ function installEditor({ context, patch, presetFont }) {
     rowViews.set(row, view);
     row.classList.add("zsp-property");
     rows.add(new WeakRef(row));
+    // Native rename updates the label from properties.name. Keep that label
+    // in sync with the first matching rename rule instead.
+    if (typeof row.pz_renamed === "function" && p.properties?.name) {
+      const native = row.pz_renamed;
+      const update = () => {
+        native();
+        const frame = CM.playback ? CM.playback.currentFrame - p.frameOffset : 0;
+        const label = row.firstElementChild?.firstElementChild;
+        if (label) label.innerText = displayName(effectOf(p), p, p.definition.zoidiumShader || {}, frame);
+      };
+      try { p.properties.name.onChanged.unwatch(native); p.properties.name.onChanged.watch(update, true); }
+      catch (_error) { row.pz_renamed = update; }
+      row.pz_renamed = update;
+    }
     row.oncontextmenu = event => { event.preventDefault(); event.stopPropagation(); context.ui.openMenu({ owner: row, x: event.clientX, y: event.clientY, items: actions(view, row, p) }); };
     sync(); return row;
   });
@@ -447,6 +541,8 @@ function installEditor({ context, patch, presetFont }) {
       if (!effect) { rows.delete(ref); continue; }
       const frame = CM.playback.currentFrame - p.frameOffset;
       const meta = p.definition.zoidiumShader || {};
+      const shown = displayName(effect, p, meta, frame), label = row.firstElementChild?.firstElementChild;
+      if (label && label.innerText !== shown) label.innerText = shown;
       const when = meta.visibleWhen, controller = when && effect.customProperties.find(q => q.properties.name.get() === when.property);
       const own = !when || !!controller && matches(when, controller.get(frame));
       const group = groups ? groups.name(p) : "";

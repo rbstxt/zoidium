@@ -86,6 +86,11 @@
 .zsp-hidden-property { opacity: .5; }
 .zsp-show-hidden[aria-pressed=true] { color: var(--zui-accent); }
 .zsp-settings-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 8px 0; }
+.zsp-rename { border-top: 1px solid var(--zui-border); margin-top: 6px; padding-top: 2px; }
+.zsp-rename-rules:empty { display: none; }
+.zsp-rename-rule { border-left: 1px solid var(--zui-border); margin: 2px 0 2px 6px; padding: 2px 0; }
+.zsp-rename-actions { display: flex; justify-content: flex-end; gap: 6px; padding: 2px 8px; }
+.zsp-rename-actions .zsp-settings-button { padding: 1px 8px; }
 .zsp-settings-button { font: inherit; font-size: var(--zui-font-size-small); color: var(--zui-button-text); background: var(--zui-button-bg); border: 1px solid transparent; padding: 3px 14px; cursor: pointer; }
 .zsp-settings-button:hover { border-color: var(--zui-button-hover-border); }
 .zsp-settings-primary { background: var(--zui-accent); color: var(--zui-text-bright); }
