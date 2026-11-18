@@ -109,14 +109,15 @@
       prepareFrameSamples(effect, frame, context) {
         return prepareFrameSamples(this, effect, frame, context);
       },
-      // True when the main viewport owns an exact temporal preview for this
-      // frame, so the native paused-video seek gate must not wait for a media
-      // element the preview is not using. Layer-specific preview modes keep
-      // their normal path.
+      // True only when the main viewport owns exact decoding for this frame:
+      // a request that keeps its own current-frame decoder (`lockCurrentFrame`,
+      // as ZSMB does). Other temporal effects still use native media, so the
+      // paused-video seek gate keeps their normal wait and late redraw.
+      // Layer-specific preview modes keep their normal path.
       ownsExactPreview(viewport, frame) {
         if (viewport.renderMode && viewport.layer) return false;
         const sequence = viewport.compositor?._sequence;
-        return Boolean(sequence && collectPreviewRequest(this, viewport, sequence, frame));
+        return Boolean(sequence && collectPreviewRequest(this, viewport, sequence, frame)?.currentFramePreview);
       },
       usesSingleEvaluation: layers.usesSingleEvaluation,
       mapLayerFrame(layer, localFrame) {
@@ -495,7 +496,7 @@
     // clip timing, effect order, expressions, keys and sequence settings.
     const key = JSON.stringify([frame, frameSamplerInputKey(sequence, viewport.compositor),
       effects.map(({ effect }) => frameSamplerIdentity(effect))]);
-    return { frame, key, effects, temporalVideo, mediaDecoders };
+    return { frame, key, effects, temporalVideo, mediaDecoders, currentFramePreview };
   }
 
   async function preparePreviewRequest(state, viewport, sequence, runtime, generation, request) {

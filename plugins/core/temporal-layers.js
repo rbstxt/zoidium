@@ -604,137 +604,19 @@
     return typeof PZ !== "undefined" && PZ.zoidium?.debugDisableFrameSamplerInputReuse === true;
   }
 
-  // A sampler key serializes the whole scene when no scoped content applies.
-  // Large projects changed one property at a time, so the finished key is
-  // memoized against cheap model revisions instead. A revision misses only
-  // when an authored structure or property value changed; the serialized
-  // content still includes assets, compositor settings, scope and clip
-  // identity. Disable the memo with PZ.zoidium.debugDisableTemporalKeyMemo and
-  // compare it with a fresh serialization using
-  // PZ.zoidium.debugAssertTemporalKeyMemo.
-  const keyMemos = new WeakMap();
-  const watchedMutationPrototypes = new WeakSet();
-  let modelStructureEpoch = 0;
-  let modelInputEpoch = 0;
-
-  if (typeof document !== "undefined") {
-    for (const name of ["input", "change", "drop", "paste", "cut"]) {
-      document.addEventListener(name, () => { modelInputEpoch += 1; }, { capture: true });
-    }
-  }
-
-  // Native array-like object lists (effect groups, nested objects) mutate
-  // through their own methods, not through Array.prototype.
-  const listPrototype = typeof PZ !== "undefined" ? PZ.objectList?.prototype : null;
-  if (listPrototype) {
-    for (const name of ["splice", "push", "load"]) {
-      const original = listPrototype[name];
-      if (typeof original !== "function") continue;
-      listPrototype[name] = function temporalStructureEdit() {
-        modelStructureEpoch += 1;
-        return original.apply(this, arguments);
-      };
-    }
-  }
-
-  if (typeof PZ !== "undefined") {
-    for (const prototype of [PZ.property?.prototype, PZ.property?.static?.prototype,
-      PZ.property?.dynamic?.prototype]) {
-      if (!prototype) continue;
-      for (const name of ["set", "load"]) {
-        if (!Object.prototype.hasOwnProperty.call(prototype, name) ||
-          typeof prototype[name] !== "function") continue;
-        const original = prototype[name];
-        prototype[name] = function temporalInputEdit() {
-          modelInputEpoch += 1;
-          return original.apply(this, arguments);
-        };
-      }
-    }
-  }
-
-  function observeKeyModel(sequence) {
-    let memo = keyMemos.get(sequence);
-    if (!memo) {
-      memo = { epoch: 0, entries: new Map(), signals: new WeakSet(), structure: -1 };
-      keyMemos.set(sequence, memo);
-    }
-    if (memo.structure === modelStructureEpoch) return memo;
-    memo.structure = modelStructureEpoch;
-    memo.epoch += 1;
-    memo.entries.clear();
-    const visited = new Set();
-    function visit(value) {
-      if (!value || typeof value !== "object" || visited.has(value)) return;
-      visited.add(value);
-      if (Array.isArray(value) ||
-        (Number.isInteger(value.length) && typeof value.splice === "function")) {
-        for (let index = 0; index < value.length; index += 1) visit(value[index]);
-        return;
-      }
-      if (typeof PZ !== "undefined" && typeof PZ.property === "function" &&
-        value instanceof PZ.property) {
-        for (let prototype = Object.getPrototypeOf(value); prototype;
-          prototype = Object.getPrototypeOf(prototype)) {
-          if (watchedMutationPrototypes.has(prototype)) continue;
-          watchedMutationPrototypes.add(prototype);
-          for (const name of ["set", "load", "addKeyframe", "deleteKeyframe", "deleteKeyframeIdx",
-            "shiftKeyframes", "scaleKeyframes", "moveKeyframe"]) {
-            if (!Object.prototype.hasOwnProperty.call(prototype, name) ||
-              typeof prototype[name] !== "function") continue;
-            const original = prototype[name];
-            prototype[name] = function temporalKeyframeEdit() {
-              modelInputEpoch += 1;
-              return original.apply(this, arguments);
-            };
-          }
-        }
-      }
-      for (const [name, signal] of Object.entries(value)) {
-        if (!name.startsWith("on") || !signal || typeof signal.watch !== "function" ||
-          memo.signals.has(signal)) continue;
-        memo.signals.add(signal);
-        signal.watch(() => { memo.epoch += 1; memo.entries.clear(); });
-      }
-      for (const child of value.children || []) visit(child);
-      for (const property of Object.values(value.properties || {})) visit(property);
-      for (const key of value.keyframes || []) visit(key);
-    }
-    visit(sequence);
-    return memo;
-  }
-
+  // The input key is the serialized content itself. CM3 serializers derive
+  // their output from live model state that includes plain fields (for example
+  // a track's enabled flag) and plugin serializers, so no cheaper revision can
+  // cover every input. A second, fresh serialization compares equal unless a
+  // serializer reads state outside the project content.
   function frameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB = false) {
-    if (frameSamplerReuseDisabled() || typeof PZ === "undefined" ||
-      typeof PZ.property !== "function" || PZ.zoidium?.debugDisableTemporalKeyMemo) {
-      return serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    const key = serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    if (typeof PZ === "undefined" || PZ.zoidium?.debugAssertTemporalKeyMemo !== true) return key;
+    const fresh = serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    if (fresh !== key) {
+      throw new Error("Temporal input key is not deterministic for the current project content");
     }
-    const memo = observeKeyModel(sequence);
-    const assets = Object.entries(sequence.parentProject?.assets?.list || {}).map(([id, asset]) =>
-      [id, asset.url, asset.sha256, asset.filename, asset.size, frameSamplerIdentity(asset),
-        asset.file ? frameSamplerIdentity(asset.file) : 0]);
-    const key = JSON.stringify([memo.epoch, modelInputEpoch, pluginStateEpoch,
-      frameSamplerIdentity(compositor),
-      stage?.effect ? frameSamplerIdentity(stage.effect) : 0,
-      stage?.layer ? frameSamplerIdentity(stage.layer) : 0,
-      stage?.trackIndex, stage?.effectIndex, stage?.groupEffectIndex, stage?.selectionFrame,
-      stage?.inputClips?.map(clip => clip ? frameSamplerIdentity(clip) : 0),
-      scope?.effect ? frameSamplerIdentity(scope.effect) : 0,
-      compositor.readBuffer.width, compositor.readBuffer.height, compositor.__zoidiumRenderSettings,
-      compositor.renderer?.shadowMap?.type, compositor.renderer?.shadowMap?.enabled,
-      preserveInputRGB, assets]);
-    let value = memo.entries.get(key);
-    if (value !== undefined) {
-      if (PZ.zoidium?.debugAssertTemporalKeyMemo &&
-        value !== serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB)) {
-        throw new Error("Temporal input revision changed without a model invalidation");
-      }
-      return value;
-    }
-    value = serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
-    if (memo.entries.size >= 32) memo.entries.clear();
-    memo.entries.set(key, value);
-    return value;
+    return key;
   }
 
   function serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB = false) {

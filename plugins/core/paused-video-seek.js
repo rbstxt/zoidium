@@ -295,10 +295,15 @@
       // Waiting for the unused native element delays controls and its late
       // completion can redraw while those isolated inputs are being prepared.
       if (PZRoot?.zoidium?.temporal?.ownsExactPreview?.(this, frame)) {
-        for (const schedule of this.editor.project.sequence.videoSchedules || []) {
-          if (schedule?.[PENDING_KEY]) cancelPending(schedule);
-          if (schedule) delete schedule[EXPIRED_KEY];
-        }
+        // The preview decodes its own media, so the native waiters and their
+        // late redraws are no longer wanted. Cleanup failures must not stall
+        // the viewport.
+        try {
+          for (const schedule of this.editor.project.sequence.videoSchedules || []) {
+            if (schedule?.[PENDING_KEY]) cancelPending(schedule);
+            if (schedule) delete schedule[EXPIRED_KEY];
+          }
+        } catch (_error) { /* The preview still draws this frame. */ }
         return originalRender.apply(this, arguments);
       }
       if (shouldGate(PZRoot || root, this, frame)) return;

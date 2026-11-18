@@ -1,122 +1,155 @@
 "use strict";
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const test = require("node:test");
+const vm = require("node:vm");
+const { host } = require("./helpers/editor-identity-host.cjs");
 
-// The input-revision memo is browser-only work: it needs CM3's property and
-// object-list prototypes to observe edits. This file installs minimal stand-ins
-// before the core scripts load, then checks that a memoized key is reused until
-// the model reports a change.
-function signal() {
-  const listeners = [];
-  return {
-    watch(listener) { listeners.push(listener); },
-    update() { for (const listener of listeners.slice()) listener(); },
-  };
-}
+const root = path.resolve(__dirname, "..");
 
-class FakeProperty {
-  constructor(value) {
-    this.value = value;
-    this.onChanged = signal();
-  }
-  set(value) {
-    this.value = value;
-    this.onChanged.update();
-  }
-}
-FakeProperty.static = class extends FakeProperty {};
-FakeProperty.dynamic = class extends FakeProperty {};
-
-class FakeObjectList extends Array {
-  push(...items) { return super.push(...items); }
-  splice(...args) { return super.splice(...args); }
-  load(value) { return value; }
-}
-
-const documentListeners = new Map();
-global.document = {
-  addEventListener(name, listener) {
-    if (!documentListeners.has(name)) documentListeners.set(name, []);
-    documentListeners.get(name).push(listener);
-  },
-};
-
-global.PZ = { property: FakeProperty, objectList: FakeObjectList };
-
-const { frameSamplerInputKey } = require("../plugins/core/temporal-sampler.js");
-
+// The key is the serialized project content, so every authored edit must change
+// it. These cases use the staged CM3 model classes instead of stand-ins: a plain
+// field such as a track's enabled flag, a keyframe list mutation or a property
+// value is only visible if the real serializer sees it.
 function fixture() {
-  const rate = new FakeProperty(30);
-  const layer = { type: 2, properties: { rate }, objects: [], effects: [] };
-  const clip = { start: 0, length: 100, object: layer };
-  const sequence = {
-    properties: { rate },
-    videoTracks: new FakeObjectList({ enabled: true, clips: [clip] }),
-    parentProject: { assets: { list: {} } },
-    serializations: 0,
-    toJSON() {
-      this.serializations += 1;
-      return { properties: this.properties, videoTracks: this.videoTracks };
+  const c = host(), { PZ } = c;
+  vm.runInContext(fs.readFileSync(path.join(root, "plugins/core/temporal-math.js"), "utf8"), c);
+  vm.runInContext(fs.readFileSync(path.join(root, "plugins/core/temporal-layers.js"), "utf8"), c);
+  const project = new PZ.project();
+  project.sequence.properties.load();
+  const track = new PZ.track.video();
+  project.sequence.videoTracks.push(track);
+  const clip = new PZ.clip.video(6);
+  clip.start = 0;
+  clip.length = 100;
+  track.clips.push(clip);
+  const layer = clip.object;
+  layer.properties.load();
+  const effect = new PZ.effect();
+  effect.type = "echo";
+  layer.effects.push(effect);
+  const compositor = { readBuffer: { width: 80, height: 40 } };
+  const stage = { effect, trackIndex: 0, effectIndex: 0 };
+  const { frameSamplerInputKey } = c.__zoidiumTemporalParts.layers;
+  return {
+    c, PZ, project, track, clip, layer, effect, compositor, stage,
+    key() { return frameSamplerInputKey(project.sequence, compositor, stage, null); },
+    layerKey() {
+      return frameSamplerInputKey(project.sequence, compositor,
+        Object.assign({}, stage, { layer, clip }), null);
     },
   };
-  const root = { readBuffer: { width: 80, height: 40 } };
-  const effect = { type: "zoidium:test/sampler" };
-  // No layer or clip on the stage keeps the key on the whole-sequence path,
-  // which is the expensive serialization the memo exists for.
-  const stage = { effect, trackIndex: 0, effectIndex: 2 };
-  PZ.zoidium = {};
-  return {
-    rate, sequence, root, stage,
-    key() { return frameSamplerInputKey(sequence, root, stage, null); },
-    serializations() { return sequence.serializations; },
-  };
 }
 
-test("an unchanged project reuses the memoized input revision", () => {
-  const h = fixture();
-  const first = h.key();
-  assert.equal(h.serializations(), 1);
-  assert.equal(h.key(), first);
-  assert.equal(h.serializations(), 1, "the second read does not serialize the scene");
-});
-
-test("a property edit invalidates the memoized revision", () => {
-  const h = fixture();
+function changes(h, mutate) {
   const before = h.key();
-  h.rate.set(60);
+  mutate(h);
   const after = h.key();
   assert.notEqual(after, before);
-  assert.equal(h.serializations(), 2);
+  assert.equal(h.key(), after, "the new key is stable");
+}
+
+test("an unchanged project keeps one input key", () => {
+  const h = fixture();
+  const first = h.key();
+  assert.equal(h.key(), first);
 });
 
-test("a structural edit invalidates the memoized revision", () => {
+test("a track enabled toggle changes the input key", () => {
   const h = fixture();
-  const before = h.key();
-  h.sequence.videoTracks.push({ enabled: false, clips: [] });
-  assert.notEqual(h.key(), before);
-  assert.equal(h.serializations(), 2);
+  changes(h, x => { x.track.enabled = false; });
+  changes(h, x => { x.track.enabled = true; });
 });
 
-test("a native input event invalidates the memoized revision", () => {
+test("clip timing changes change the input key", () => {
   const h = fixture();
-  const before = h.key();
-  for (const listener of documentListeners.get("input") || []) listener({});
-  assert.equal(h.key(), before, "the content is unchanged");
-  assert.equal(h.serializations(), 2, "the revision is still re-read");
+  changes(h, x => { x.clip.start = 3; });
+  changes(h, x => { x.clip.length = 90; });
 });
 
-test("debugDisableTemporalKeyMemo serializes every read", () => {
+test("a plain layer field changes the input key", () => {
   const h = fixture();
-  PZ.zoidium.debugDisableTemporalKeyMemo = true;
+  changes(h, x => { x.layer.type = 3; });
+});
+
+test("a property set changes the input key", () => {
+  const h = fixture();
+  changes(h, x => { x.layer.properties.opacity.set(0.4); });
+});
+
+test("a vector property child changes the input key", () => {
+  const h = fixture();
+  changes(h, x => { x.layer.properties.position.x?.set?.(4) ?? x.layer.properties.position.set([4, 0]); });
+});
+
+test("a keyframe added through the property API changes the input key", () => {
+  const h = fixture();
+  changes(h, x => {
+    x.layer.properties.opacity.addKeyframe(new h.PZ.keyframe(0.2, 10));
+    assert.ok(x.layer.properties.opacity.hasKeyframe(10));
+  });
+});
+
+test("a keyframe pushed directly into the list changes the input key", () => {
+  const h = fixture();
+  changes(h, x => { x.layer.properties.opacity.keyframes.push(new h.PZ.keyframe(0.3, 20)); });
+});
+
+test("a keyframe value edited in place changes the input key", () => {
+  const h = fixture();
+  changes(h, x => {
+    const property = x.layer.properties.opacity;
+    property.addKeyframe(new h.PZ.keyframe(0.2, 10));
+    property.keyframes[property.keyframes.length - 1].value = 0.9;
+  });
+});
+
+test("shifted and deleted keyframes change the input key", () => {
+  const h = fixture();
+  changes(h, x => {
+    const property = x.layer.properties.opacity;
+    property.addKeyframe(new h.PZ.keyframe(0.2, 10));
+    property.shiftKeyframes(3);
+  });
+  changes(h, x => { x.layer.properties.opacity.deleteKeyframe(13); });
+});
+
+test("structural list edits change the input key", () => {
+  const h = fixture();
+  changes(h, x => {
+    const extra = new h.PZ.effect();
+    extra.type = "negative";
+    x.layer.effects.push(extra);
+  });
+  changes(h, x => { x.layer.effects.splice(0, x.layer.effects.length); });
+  changes(h, x => { x.project.sequence.videoTracks.push(new h.PZ.track.video()); });
+});
+
+test("the scoped key tracks an edit to its own layer", () => {
+  const h = fixture();
+  const before = h.layerKey();
+  h.layer.properties.position.set([5, 6]);
+  assert.notEqual(h.layerKey(), before);
+});
+
+test("the debug assert accepts a stable project", () => {
+  const h = fixture();
+  h.PZ.zoidium = Object.assign(h.PZ.zoidium || {}, { debugAssertTemporalKeyMemo: true });
   h.key();
+  h.layer.properties.opacity.set(0.6);
   h.key();
-  assert.equal(h.serializations(), 2);
 });
 
-test("debugAssertTemporalKeyMemo reports a content change that no revision observed", () => {
+test("the debug assert reports a serializer that reads outside the project content", () => {
   const h = fixture();
-  h.key();
-  PZ.zoidium.debugAssertTemporalKeyMemo = true;
-  h.sequence.properties.rate = { value: 60 };
-  assert.throws(() => h.key(), /changed without a model invalidation/);
+  h.PZ.zoidium = Object.assign(h.PZ.zoidium || {}, { debugAssertTemporalKeyMemo: true });
+  let reads = 0;
+  const toJSON = h.project.sequence.toJSON;
+  h.project.sequence.toJSON = function (frame) {
+    const data = toJSON.apply(this, arguments);
+    data.readCount = ++reads;
+    return data;
+  };
+  assert.throws(() => h.key(), /not deterministic/);
 });

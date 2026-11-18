@@ -299,13 +299,12 @@ playback is running.
   prefix, so an unrelated track can be edited too. Prefix Time Offset and
   Posterize Time operators remain in the key. Other content uses the whole
   sequence; when expressions, layer sources or compositions could read the
-  cut effects, the cut is not applied. A finished key is memoized against
-  model revisions: property `set` and keyframe edits, object-list mutations,
-  editor input events and plugin state changes invalidate it, and the content
-  is serialized again after a revision change. Undo/redo can reuse
-  still-resident entries. `PZ.zoidium.debugDisableTemporalKeyMemo = true`
-  serializes every read, and `PZ.zoidium.debugAssertTemporalKeyMemo = true`
-  throws when a memoized key would not match a fresh serialization.
+  cut effects, the cut is not applied. The key is the serialized content,
+  including plain model fields such as a track's enabled flag and any plugin
+  serializer, so no edit-generation shortcut replaces the serialization.
+  Undo/redo can reuse still-resident entries.
+  `PZ.zoidium.debugAssertTemporalKeyMemo = true` serializes the key twice and
+  throws when a serializer returns different content for the same project.
   Inputs without an earlier sampler share storage across depths; adjustment
   inputs retain their depth because lower tracks may recurse into samplers.
   `PZ.zoidium.debugDisableFrameSamplerInputReuse = true` disables reuse between
@@ -318,7 +317,9 @@ playback is running.
 - A `defineFrameSampler` request can keep the exact current-frame preview
   decoder with `lockCurrentFrame: true`. The request is collected even while
   the effect is off or at zero sensitivity, so the paused preview does not
-  switch back to the native media element. `reuseCurrentInput: true` lets an
+  switch back to the native media element. Only these requests bypass the
+  native paused-video seek gate; other temporal effects keep its wait and late
+  redraw. `reuseCurrentInput: true` lets an
   adjustment sampler that is first in its effect list reuse the input already
   captured for analysis during preview. `decodeMedia` supplies a preview-only
   media decoder that the sampler calls for each tap; exports ignore it.
