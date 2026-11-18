@@ -14,6 +14,7 @@ const STYLE_URL = "./plugins/easing-plus/easing-plus.css?v=21";
 const PART_ROOT = "./plugins/easing-plus/";
 const PART_FILES = {
   curves: "./easing-curves.js",
+  clipboard: "./easing-clipboard.js",
   host: "./easing-host.js",
   dialog: "./easing-dialog.js",
 };
@@ -57,6 +58,7 @@ const EasingPlus = (() => {
       const require = modules.createRequire(getAsset, { root: PART_ROOT });
       return {
         curves: require(PART_FILES.curves),
+        clipboard: require(PART_FILES.clipboard),
         hostFactory: require(PART_FILES.host),
         dialogFactory: require(PART_FILES.dialog),
       };
@@ -103,9 +105,10 @@ const EasingPlus = (() => {
     const host = parts.hostFactory(state, { curves, dispose: later });
     const dialog = parts.dialogFactory(state, {
       curves,
+      clipboard: parts.clipboard,
       applyCurveToTarget: host.applyCurveToTarget,
     });
-    state.parts = { curves, host, dialog };
+    state.parts = { curves, clipboard: parts.clipboard, host, dialog };
     later(uninstallStyle);
     installStyle();
     later(() => {
@@ -207,6 +210,7 @@ const EasingPlus = (() => {
     };
     const bundleRequire = createRequire(getAsset, { root: PART_ROOT });
     const curves = bundleRequire(PART_FILES.curves);
+    const clipboard = bundleRequire(PART_FILES.clipboard);
     const probe = {
       easeButtons: new Set(),
       displayRows: new Set(),
@@ -215,10 +219,12 @@ const EasingPlus = (() => {
     const host = bundleRequire(PART_FILES.host)(probe, { curves });
     const dialog = bundleRequire(PART_FILES.dialog)(probe, {
       curves,
+      clipboard,
       applyCurveToTarget: host.applyCurveToTarget,
     });
     return {
       ...curves,
+      ...clipboard,
       pickTargetForSet: host.pickTargetForSet,
       keyframesAround: host.keyframesAround,
       resolveTweenWrites: host.resolveTweenWrites,
@@ -229,6 +235,7 @@ const EasingPlus = (() => {
       graphBounds: dialog.graphBounds,
       miniGeometry: dialog.miniGeometry,
       overshootForPoints: dialog.overshootForPoints,
+      pasteCurveText: dialog.pasteCurveText,
     };
   }
 
