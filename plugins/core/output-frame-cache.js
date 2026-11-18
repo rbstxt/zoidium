@@ -14,16 +14,14 @@
 
   const model = global.ZoidiumOutputFrameStore;
   const videoFrames = global.ZoidiumOutputFrameVideo;
+  const editSignals = global.ZoidiumEditSignals;
   if (!model) throw new Error("[Zoidium] output-frame-store.js must load before output-frame-cache.js.");
+  if (!editSignals) throw new Error("[Zoidium] edit-signals.js must load before output-frame-cache.js.");
   const approvalsStale = global.ZoidiumOutputFrameApprovals?.stale === true;
   // The browser oracle records exact versions. Verification pins the render
   // sources and oracle, so a version or source edit cannot silently expire it.
   const approvedPlugins = new Map(Object.entries(global.ZoidiumOutputFrameApprovals?.plugins || {})
     .map(([id, record]) => [id, record.version]));
-  // Edits arrive through input events and native history operations. Their
-  // asynchronous follow-up work (file reads, imports) can land a little later,
-  // so the full serialization is rechecked on every draw for this long.
-  const HOT_MS = 1500;
   // Projects whose serialization takes longer than this are not serialized
   // on every draw: while input is recent or playback runs they draw live,
   // exactly as without the cache, and are validated once the editor is
@@ -42,11 +40,6 @@
   const identities = new WeakMap();
   let nextIdentity = 0;
   let controllerId = 0;
-  let signalEpoch = 0;
-  let lastSignal = -Infinity;
-  let gestureActive = false;
-  let pluginEpoch = 0;
-  let fontEpoch = 0;
   let disposed = false;
   let settings = {};
   try { settings = JSON.parse(global.localStorage.getItem("zoidium.editor-settings") || "{}"); }
@@ -105,7 +98,7 @@
 
   const captures = new global.ZoidiumOutputFrameCapture.CaptureQueue({ store,
     available: contextAvailable, failed: allocationFailed, host: global, THREE,
-    quiet: () => !gestureActive && performance.now() - lastSignal >= 100 &&
+    quiet: () => !editSignals.gestureActive() && editSignals.quietMs() >= 100 &&
       !Array.from(controllers).some(controller => controller.viewport.editor.history?.operation),
   });
 
@@ -116,16 +109,23 @@
   }
 
   function signal(source) {
-    const name = typeof source === "string" ? source : source?.type || "observable";
-    debug.signals[name] = (debug.signals[name] || 0) + 1;
-    signalEpoch += 1;
-    lastSignal = performance.now();
+    editSignals.signal(source);
+  }
+
+  // The shared signal sources live in edit-signals.js. Each signal stops the
+  // background video work; graph changes also drop retained frames.
+  function onEditSignal(reason) {
+    debug.signals[reason] = (debug.signals[reason] || 0) + 1;
     for (const controller of controllers) {
       controller.videoJob?.cancel();
       controller.videoSlow = 0;
       if (!controller.prefetching) endVideoQueue(controller);
     }
+    if (editSignals.graphReason(reason)) {
+      for (const controller of controllers) reset(controller, reason);
+    }
   }
+  const editSubscription = editSignals.subscribe(onEditSignal);
 
   // Cheap state that can change without an edit: asset replacement and
   // loading, fonts, plugin activation, drawing-buffer size and render settings.
@@ -142,9 +142,9 @@
       gl.drawingBufferWidth, gl.drawingBufferHeight,
       viewport.compositor.__zoidiumRenderSettings || null,
       renderer.shadowMap.enabled, renderer.shadowMap.type, renderer.toneMapping, renderer.toneMappingExposure,
-      pluginEpoch, global.PZ?.zoidium?.getDebugPlugins?.().map(plugin =>
+      editSignals.pluginEpoch, global.PZ?.zoidium?.getDebugPlugins?.().map(plugin =>
         [plugin.id, plugin.version, plugin.enabled, plugin.phase, plugin.activationStarted, !!plugin.lastError]),
-      fontEpoch, global.document.fonts?.status,
+      editSignals.fontEpoch, global.document.fonts?.status,
     ]);
   }
 
@@ -163,7 +163,7 @@
       return null;
     }
     try {
-      return model.revisionOf(viewport, plugins, identity, fontEpoch, approvedPlugins,
+      return model.revisionOf(viewport, plugins, identity, editSignals.fontEpoch, approvedPlugins,
         reason => { controller.keyReason = reason; });
     } catch (_error) {
       controller.keyReason = "Project state could not be validated";
@@ -177,20 +177,20 @@
   function keyFor(controller) {
     const viewport = controller.viewport;
     const cheap = cheapKey(viewport);
-    const hot = performance.now() - lastSignal < HOT_MS || viewport.editor.history?.operation;
-    if (hot || controller.validated !== signalEpoch || controller.cheap !== cheap) {
+    const hot = editSignals.isHot() || viewport.editor.history?.operation;
+    if (hot || controller.validated !== editSignals.epoch || controller.cheap !== cheap) {
       if ((hot || viewport.editor.playback.speed !== 0) && controller.keyCost > KEY_BUDGET_MS) {
         controller.reason = "Project validation is deferred until playback stops and editing is idle";
         debug.liveDraws += 1;
         return LIVE;
       }
-      const cause = hot ? "hot" : controller.validated !== signalEpoch ? "signal" : "cheap";
+      const cause = hot ? "hot" : controller.validated !== editSignals.epoch ? "signal" : "cheap";
       debug.validationCauses[cause] = (debug.validationCauses[cause] || 0) + 1;
       const start = performance.now();
       controller.full = fullKey(controller);
       controller.keyCost = performance.now() - start;
       controller.cheap = cheap;
-      controller.validated = signalEpoch;
+      controller.validated = editSignals.epoch;
       debug.validations += 1;
     } else if (debug.assertKeys) {
       const fresh = fullKey(controller);
@@ -440,7 +440,7 @@
   }
 
   function capture(controller, frame) {
-    return captures.capture(controller, frame, () => signalEpoch);
+    return captures.capture(controller, frame, () => editSignals.epoch);
   }
 
   function currentCapture(entry) {
@@ -642,9 +642,9 @@
 
   async function prefetchFrame(controller, key, frame, current) {
     const viewport = controller.viewport;
-    const epoch = signalEpoch;
+    const epoch = editSignals.epoch;
     const valid = () => !disposed && !controller.disposed && !debug.disabled && controller.key === key &&
-      signalEpoch === epoch && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
+      editSignals.epoch === epoch && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
       !plainTimeProject(viewport) && viewport.editor.playback.speed === 0 &&
       viewport.editor.playback.currentFrame === current && !viewport.renderMode;
     if (videoPrefetchBlocked(viewport.editor.project.sequence, frame)) return false;
@@ -698,9 +698,9 @@
   async function fillVideoFrame(controller, key, frame, current = frame) {
     const viewport = controller.viewport, temporal = PZ.zoidium.temporal;
     const sampler = global.__zoidiumTemporalParts.sampler;
-    const epoch = signalEpoch, generation = controller.generation, cheap = cheapKey(viewport);
+    const epoch = editSignals.epoch, generation = controller.generation, cheap = cheapKey(viewport);
     const valid = () => !disposed && !controller.disposed && !debug.disabled && !debug.prefetchDisabled &&
-      controller.key === key && controller.generation === generation && signalEpoch === epoch &&
+      controller.key === key && controller.generation === generation && editSignals.epoch === epoch &&
       viewport.editor.playback.speed === 0 && viewport.editor.playback.currentFrame === current &&
       !viewport.renderMode && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
       cheapKey(viewport) === cheap;
@@ -790,7 +790,7 @@
       for (const controller of controllers) if (!controller.prefetching) endVideoQueue(controller);
       return;
     }
-    const quiet = performance.now() - lastSignal;
+    const quiet = editSignals.quietMs();
     if (quiet < IDLE_MS) { scheduleIdle(IDLE_MS - quiet); return; }
     for (const controller of controllers) {
       const viewport = controller.viewport;
@@ -801,7 +801,7 @@
       if (controller.prefetching || controller.disposed || viewport.renderMode || viewport.editor.playback.speed !== 0) continue;
       // Draws that ran live left the key unvalidated; validate it now.
       if (currentKey(controller) === LIVE) {
-        scheduleIdle(Math.max(50, HOT_MS - quiet));
+        scheduleIdle(Math.max(50, editSignals.hotWindowMs - quiet));
         continue;
       }
       const key = controller.key;
@@ -852,41 +852,6 @@
       scheduleIdle(0);
       return;
     }
-  }
-
-  const inputEvents = ["pointerdown", "pointermove", "pointerup", "keydown", "keyup", "click",
-    "dblclick", "contextmenu", "wheel", "input", "change", "drop", "paste", "touchstart", "touchmove", "touchend", "pointercancel", "touchcancel", "blur"];
-  function input(event) {
-    if (event.type === "pointerdown" || event.type === "touchstart") gestureActive = true;
-    if (["pointerup", "pointercancel", "touchend", "touchcancel", "blur"].includes(event.type)) gestureActive = false;
-    // Hovering cannot edit; dragging moves with a pressed button.
-    if (event.type === "pointermove" && !event.buttons) return;
-    signal();
-  }
-  for (const event of inputEvents) global.addEventListener(event, input, true);
-  function invalidate(event) { signal(event?.type); for (const controller of controllers) reset(controller, event?.type || "invalidate"); }
-  function pluginsChanged() { pluginEpoch += 1; invalidate(); }
-  function fontsChanged(event) { fontEpoch += 1; signal(event?.type ? "fonts." + event.type : "fonts"); }
-  global.document.addEventListener("zoidium:plugin-state-change", pluginsChanged);
-  global.document.addEventListener("zoidium:project-load-start", invalidate);
-  global.document.addEventListener("zoidium:asset-reloaded", invalidate);
-  global.document.fonts?.addEventListener("loadingdone", fontsChanged);
-  global.document.fonts?.addEventListener("loadingerror", fontsChanged);
-
-  // Every native edit, undo and redo passes through the history object, also
-  // from pop-out editor windows whose input events this document never sees.
-  const historyPrototype = global.PZ?.ui?.history?.prototype;
-  const historyMethods = ["startOperation", "pushCommand", "finishOperation", "discardOperation", "undo", "redo"];
-  const originalHistory = new Map();
-  for (const name of historyMethods) {
-    const original = historyPrototype?.[name];
-    if (typeof original !== "function") continue;
-    originalHistory.set(name, original);
-    historyPrototype[name] = function signalHistory() {
-      signal("history." + name);
-      try { return original.apply(this, arguments); }
-      finally { signal("history." + name); }
-    };
   }
 
   function release(viewport) {
@@ -974,7 +939,7 @@
       for (const controller of controllers) reset(controller, "size");
     },
     clear() { store.clear(); for (const controller of controllers) reset(controller, "clear"); },
-    touch(reason) { signal(reason ? "api." + reason : "api"); }, // for project writes made without an edit
+    touch(reason) { editSignals.touch(reason); }, // for project writes made without an edit
     dispose() {
       disposed = true;
       captures.dispose();
@@ -982,16 +947,10 @@
       idleTimer = null;
       for (const controller of Array.from(controllers)) release(controller.viewport);
       store.clear();
+      editSubscription.unwatch();
       if (compositorPrototype.unload === unloadWithOutputFrames) compositorPrototype.unload = originalUnload;
       if (viewportPrototype._render === cachedViewportRender) viewportPrototype._render = originalViewportRender;
       if (viewportPrototype.pickColor === immediatePickColor) viewportPrototype.pickColor = originalPickColor;
-      for (const [name, original] of originalHistory) historyPrototype[name] = original;
-      for (const event of inputEvents) global.removeEventListener(event, input, true);
-      global.document.removeEventListener("zoidium:plugin-state-change", pluginsChanged);
-      global.document.removeEventListener("zoidium:project-load-start", invalidate);
-      global.document.removeEventListener("zoidium:asset-reloaded", invalidate);
-      global.document.fonts?.removeEventListener("loadingdone", fontsChanged);
-      global.document.fonts?.removeEventListener("loadingerror", fontsChanged);
     },
   };
   global.ZoidiumFrameCache = api;

@@ -113,7 +113,7 @@ function harness({ prefetch = false, stale = false, manualChecks = false } = {})
     window, PZ, THREE, performance: window.performance, console,
     setTimeout: fn => { timers.set(++nextTimer, fn); return nextTimer; }, clearTimeout: id => timers.delete(id),
   };
-  for (const file of ["output-frame-capture", "output-frame-cache"]) {
+  for (const file of ["edit-signals", "output-frame-capture", "output-frame-cache"]) {
     vm.runInNewContext(fs.readFileSync(require.resolve("../../plugins/core/" + file + ".js"), "utf8"), sandbox);
   }
   function check() { for (const [id, fn] of Array.from(checks)) { checks.delete(id); fn(); } }
@@ -126,7 +126,8 @@ function harness({ prefetch = false, stale = false, manualChecks = false } = {})
   // Leave the post-signal window in which every draw serializes the project.
   function cool() { clock.now += 5000; }
   return { api, viewport, project, history, counts, events, docEvents, clock, warm, cool, temporalRuntimes, timers,
-    check, checks, Viewport, Compositor, History, PZ, document, canvasEvents, notices, window, sampler: window.__zoidiumTemporalParts.sampler };
+    check, checks, Viewport, Compositor, History, PZ, document, canvasEvents, notices, window,
+    editSignals: window.ZoidiumEditSignals, sampler: window.__zoidiumTemporalParts.sampler };
 }
 
 module.exports = { harness, flush };

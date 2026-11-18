@@ -1,7 +1,16 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { frameSamplerInputKey: key } = require("../plugins/core/temporal-sampler.js");
+const { frameSamplerInputKey: rawKey } = require("../plugins/core/temporal-sampler.js");
+const signals = require("../plugins/core/edit-signals.js");
+
+// The input key is memoized per edit epoch. Every authored edit in the editor
+// arrives with an input or history signal, so each read here follows one.
+// test/temporal-input-revision.test.js covers the memo contract itself.
+function key(sequence, compositor, stage, scope, preserveInputRGB) {
+  signals.signal("test");
+  return rawKey(sequence, compositor, stage, scope, preserveInputRGB);
+}
 
 // Unscoped keys serialize the whole sequence, cut before the sampler unless
 // an expression, layer input or composition could read the cut effects.
