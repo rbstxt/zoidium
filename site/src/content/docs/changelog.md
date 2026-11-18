@@ -266,6 +266,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Dragging the edge of a clip that is part of a selection now trims every
+  selected clip by the same number of frames, in one undo step.
+- Clip edges are easier to grab: the trim handle is at least 8 pixels wide,
+  and short clips keep their middle third for moving.
 - The preview no longer keeps showing a Layer Input source after Layer Input
   clears it on its own, such as when a loaded project's source would form a
   circular reference.

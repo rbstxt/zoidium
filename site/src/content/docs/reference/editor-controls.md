@@ -12,6 +12,10 @@ Deleting a track removes its clips from their links. Clips on other tracks remai
 
 Opening a project removes link members that no longer belong to its sequence and links with fewer than two members. This repair adds no undo history and preserves valid links.
 
+## Timeline clip trimming
+
+Dragging a clip edge while several clips are selected moves the same edge of every selected clip by the same frame delta, and one undo restores all of them. A clip outside the selection trims alone. Each trim edge is at least 8 px wide, and short clips keep a third of their width for moving.
+
 ## Easing+ coordinates
 
 **Out X**, **Out Y**, **In X**, and **In Y** are numeric Bezier coordinates with a step of `0.001`. Initial values come from the incoming segment at the selected key. X coordinates lie between `0` and `1`. Y supports overshoot.
