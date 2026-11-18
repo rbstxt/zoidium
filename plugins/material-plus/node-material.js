@@ -507,6 +507,8 @@ function activate(context) {
           // The field only mirrors the selected image node. Keeping its value
           // after the node is gone would leave a reference to a removed image.
           material.properties.nodeImage.value = null;
+          // The field mirrors the selected node and is written asynchronously.
+          globalThis.ZoidiumFrameCache?.touch?.("material-plus-node-image");
           strip.replaceChildren(...previewChildren);
           const graph = nodes.parse(material.properties.graph.get());
           const node = graph.nodes.find(n => n.id === selectedId && ["image", "texture"].includes(n.type));
@@ -515,6 +517,7 @@ function activate(context) {
           assetView = context.ui.properties({ target: material, keys: ["nodeImage"] });
           material._selectedImageNode = node.id;
           material.properties.nodeImage.value = node.params.asset || null;
+          globalThis.ZoidiumFrameCache?.touch?.("material-plus-node-image");
           assetView.refresh();
           strip.replaceChildren(caption, canvas, assetView.element);
         });
@@ -530,7 +533,7 @@ function activate(context) {
         const image = material.pzGraphTextures?.color?.image;
         if (image) canvas.getContext("2d").drawImage(image, 0, 0, 128, 128);
       }, 250);
-      return () => { editorDisposed = true; clearInterval(timer); context.window.cancelAnimationFrame(fitRequest); material._selectedImageNode = null; material.properties.nodeImage.definition.visible = false; material.properties.nodeImage.value = null; material.properties.graph.onChanged.unwatch(syncGraph); assetView?.dispose(); editor.destroy(); };
+      return () => { editorDisposed = true; clearInterval(timer); context.window.cancelAnimationFrame(fitRequest); material._selectedImageNode = null; material.properties.nodeImage.definition.visible = false; material.properties.nodeImage.value = null; globalThis.ZoidiumFrameCache?.touch?.("material-plus-node-image"); material.properties.graph.onChanged.unwatch(syncGraph); assetView?.dispose(); editor.destroy(); };
     } });
   }
   context.ui?.registerEditor({ title: "Node Editor", match: target => target?.type === "nodes" || (target?.type === "pbrplus" && target.properties?.useNodeGraph?.get?.() === 1), open: openEditor });

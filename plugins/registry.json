@@ -229,16 +229,16 @@
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "37",
+      "version": "38",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=37",
-      "bundle": "./plugins/material-plus/bundle.json?v=37",
-      "integrity": "sha256-o48o6ldYwlQegm5j4OpFKm2DOWvEWVwoqjdfYeE4mHs="
+      "manifest": "./plugins/material-plus/manifest.json?v=38",
+      "bundle": "./plugins/material-plus/bundle.json?v=38",
+      "integrity": "sha256-JfHjBqfq+FFhAAVqH9O222RDSnenDHE69wf8aeAxfv4="
     },
     {
       "id": "text-plus",
@@ -478,14 +478,14 @@
       "id": "shape-plus",
       "name": "Shape+",
       "author": "Zoidium",
-      "version": "37",
+      "version": "38",
       "tagline": "Animated vector layers",
       "description": "Animated vector layers, procedural contents, pen masks for Scene and Adjustment layers, SVG import and native preview path editing.",
       "category": "scene",
       "defaultEnabled": true,
-      "manifest": "./plugins/shape-plus/manifest.json?v=37",
-      "bundle": "./plugins/shape-plus/bundle.json?v=37",
-      "integrity": "sha256-sdMOiz4XECBliVsAwM1t9S/xAqMvkWdOaZoJ0KEnfDc="
+      "manifest": "./plugins/shape-plus/manifest.json?v=38",
+      "bundle": "./plugins/shape-plus/bundle.json?v=38",
+      "integrity": "sha256-5CS1DlcvF6oX/z68LNGnNSC2KLtr+yUMgG2MRGNGPTQ="
     },
     {
       "id": "constraints",
