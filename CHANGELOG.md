@@ -7,6 +7,8 @@ each line describes one visible change.
 
 ### Added
 
+- Ctrl/Cmd+V pastes images, video, and audio from the clipboard into Project
+  media; with the timeline focused, the clip is placed at the playhead.
 - Native FX has a Time Remap effect for adjustment layers and clips. Speed
   mode retimes with a keyframeable Speed (%) — 0 holds a frame and negative
   values play backwards. Remap mode sets the Source time directly, so a static
@@ -202,6 +204,13 @@ each line describes one visible change.
 
 ### Fixed
 
+- Dropping media files anywhere on the Media panel imports them, not only on
+  a preset tile. Dropping on the timeline imports and places a clip at the drop
+  position, and dropping on the preview places it at the playhead. Text fields
+  keep their normal drop behaviour.
+- ZSMB no longer overrides the player's Preview quality: preview size follows
+  Player+, and ZSMB picks its analysis detail from it (exports always use full
+  analysis). ZSMB's own Quality setting is gone.
 - Dragging the edge of a clip that is part of a selection now trims every
   selected clip by the same number of frames, in one undo step.
 - Clip edges are easier to grab: the trim handle is at least 8 pixels wide,
