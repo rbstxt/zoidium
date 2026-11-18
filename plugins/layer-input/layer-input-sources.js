@@ -293,6 +293,9 @@ module.exports = function createSources(state, deps) {
     sourceState._zoidiumSourceUpdating = true;
     try {
       property.set("");
+      // A cycle clears the source without an edit signal; tell the preview
+      // cache so it does not keep showing the frame with the old source.
+      globalThis.ZoidiumFrameCache?.touch?.("layer-input-source");
     } finally {
       sourceState._zoidiumSourceUpdating = false;
     }
@@ -333,6 +336,7 @@ module.exports = function createSources(state, deps) {
       sourceState._zoidiumSourceUpdating = true;
       try {
         property.set(sourceValue);
+        globalThis.ZoidiumFrameCache?.touch?.("layer-input-source");
       } finally {
         sourceState._zoidiumSourceUpdating = false;
       }

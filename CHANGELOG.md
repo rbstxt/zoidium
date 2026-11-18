@@ -197,6 +197,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- The preview no longer keeps showing a Layer Input source after Layer Input
+  clears it on its own, such as when a loaded project's source would form a
+  circular reference.
 - The play controls under the preview no longer shiver by a pixel while the
   playback toolbar keeps re-centering them.
 - Playback does less work per frame in every project: the shader cache only

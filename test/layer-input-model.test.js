@@ -194,3 +194,35 @@ test("image sources preserve the empty label, clear track state, and serialize w
     LayerInput.deactivate();
   }
 });
+
+test("source writes made without an edit tell the preview cache", () => {
+  const { project, context, trackA, trackB } = createProject();
+  const touched = [];
+  const previous = globalThis.ZoidiumFrameCache;
+  globalThis.ZoidiumFrameCache = { touch: reason => touched.push(reason) };
+  const api = LayerInput.activate(context);
+  try {
+    const first = makeConsumer(project, trackA);
+    const second = makeConsumer(project, trackB);
+    api.registerConsumer(first.consumer);
+    api.registerConsumer(second.consumer);
+    const tokenA = api.getSourceOptions(second.consumer)[1].value;
+    const tokenB = api.getSourceOptions(first.consumer)[2].value;
+    assert.equal(api.setSource(second.consumer, tokenA), true);
+    const afterSet = touched.length;
+    assert.ok(afterSet >= 1, "a changed source value signals the cache");
+    // A loaded project can already hold a source that now forms a cycle;
+    // re-registering clears it without a user edit.
+    first.property.set(tokenB);
+    const beforeClear = touched.length;
+    api.registerConsumer(first.consumer);
+    assert.equal(api.getSourceToken(first.consumer), "");
+    assert.ok(touched.length > beforeClear, "the cycle clear signals the cache");
+    assert.ok(afterSet >= 1);
+    assert.ok(touched.every(reason => reason === "layer-input-source"));
+  } finally {
+    LayerInput.deactivate();
+    if (previous === undefined) delete globalThis.ZoidiumFrameCache;
+    else globalThis.ZoidiumFrameCache = previous;
+  }
+});

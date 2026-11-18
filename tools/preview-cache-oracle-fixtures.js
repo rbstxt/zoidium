@@ -518,11 +518,13 @@ async function compareFixture(fixture) {
     const before = await draw(11, false);
     const toggle = fixture.sourceEdit === "material" ? effect.properties.opacity : effect.properties.enabled;
     toggle.set(0, 11);
+    document.dispatchEvent(new Event("input", { bubbles: true }));
     const withoutSource = await draw(11, false);
     let contributed = false;
     try { equal(before, withoutSource, "source contribution control"); } catch (_error) { contributed = true; }
     if (!contributed) throw new Error("Layer source did not change pixels");
     toggle.set(1, 11);
+    document.dispatchEvent(new Event("input", { bubbles: true }));
     const sourceBox = tracks.find(track => track._zoidiumLayerInputId === "oracle-source").clips[0].object.objects[1];
     async function checkEdit(label, edit) {
       const original = await draw(11, true);
@@ -560,11 +562,13 @@ async function compareFixture(fixture) {
     const before = await draw(11, false);
     const toggle = fixture.imageEdit === "material" ? consumer.properties.opacity : consumer.properties.enabled;
     toggle.set(0, 11);
+    document.dispatchEvent(new Event("input", { bubbles: true }));
     const disabled = await draw(11, false);
     let changed = false;
     try { equal(before, disabled, "image contribution"); } catch (_error) { changed = true; }
     if (!changed) throw new Error("Image source did not change pixels");
     toggle.set(1, 11);
+    document.dispatchEvent(new Event("input", { bubbles: true }));
     const retained = await draw(11, true);
     await replay(11);
     consumer.properties.sourceImage.set("oracle-image-b");
@@ -591,11 +595,13 @@ async function compareFixture(fixture) {
     if (PZ.layerInput.getSourceToken(effect) !== "track:id:oracle-source") throw new Error("Nested source was not resolved");
     const before = await draw(11, false);
     effect.properties.enabled.set(0, 11);
+    document.dispatchEvent(new Event("input", { bubbles: true }));
     const disabled = await draw(11, false);
     let changed = false;
     try { equal(before, disabled, "nested contribution"); } catch (_error) { changed = true; }
     if (!changed) throw new Error("Nested source did not change pixels");
     effect.properties.enabled.set(1, 11);
+    document.dispatchEvent(new Event("input", { bubbles: true }));
     for (const kind of ["property", "keyframe"]) {
       const retained = await draw(11, true);
       await replay(11);

@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "150",
+      "version": "151",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=150",
-      "bundle": "./plugins/core/bundle.json?v=150",
-      "integrity": "sha256-fNdCQzJwZEv71KsEINcKq2CWu+2g9oyFZNodhmX7wZo="
+      "manifest": "./plugins/core/manifest.json?v=151",
+      "bundle": "./plugins/core/bundle.json?v=151",
+      "integrity": "sha256-Bromb6NZYHgKXAfKadeWHZAG8bf0pLaChBqIt/MJ3Y0="
     },
     {
       "id": "easing-plus",
@@ -462,7 +462,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "16",
+      "version": "17",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -470,9 +470,9 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=16",
-      "bundle": "./plugins/layer-input/bundle.json?v=16",
-      "integrity": "sha256-tbbObC3ByMI/5TPsSOErBmZshJ4gNZR8O715YYsnt78="
+      "manifest": "./plugins/layer-input/manifest.json?v=17",
+      "bundle": "./plugins/layer-input/bundle.json?v=17",
+      "integrity": "sha256-2/CdbiYROW62nsxDjF0j1Whlq0DgNdL1oDrYkKVHNgk="
     },
     {
       "id": "shape-plus",

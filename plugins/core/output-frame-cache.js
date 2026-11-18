@@ -975,6 +975,9 @@
       for (const controller of controllers) reset(controller, "size");
     },
     clear() { store.clear(); for (const controller of controllers) reset(controller, "clear"); },
+    // Zoidium code that writes project state without a user gesture or a
+    // history operation calls this, so the next draw revalidates the key.
+    touch(reason) { signal(reason ? "api." + reason : "api"); },
     dispose() {
       disposed = true;
       captures.dispose();
