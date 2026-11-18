@@ -233,3 +233,10 @@ test("row labels follow the first matching rule and return to the property name"
   level.set(3, 0); installed.sync(); assert.equal(label.innerText, "Scale");
   assert.equal(target.properties.name.get(), "Rotation", "the property name is unchanged");
 });
+
+test("settings text tolerates malformed stored conditions", () => {
+  const { formatConditions } = require("../plugins/shader-plus/visibility.js");
+  assert.equal(formatConditions({ values: 3, conditions: [null, { op: ">", value: 2 }] }), "> 2");
+  assert.equal(formatConditions({ values: ["a", 1] }), "a; 1");
+  assert.equal(formatConditions(null), "");
+});

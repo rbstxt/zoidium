@@ -17,7 +17,11 @@ function parseConditions(text, emptyMessage = "Enter the values that show this p
   return { values, ...(conditions.length ? { conditions } : {}) };
 }
 function formatConditions(when) {
-  return [...(when?.values || []), ...(when?.conditions || []).map(c => c.op === "range" ? c.min + ".." + c.max : c.op + " " + c.value)].join("; ");
+  // Hand-edited or damaged projects can hold non-array members; show what is
+  // readable instead of failing to open the settings panel.
+  const values = Array.isArray(when?.values) ? when.values : [];
+  const conditions = Array.isArray(when?.conditions) ? when.conditions.filter(c => c && typeof c === "object") : [];
+  return [...values, ...conditions.map(c => c.op === "range" ? c.min + ".." + c.max : c.op + " " + c.value)].join("; ");
 }
 function matches(when, value) {
   if (when.values?.includes(value)) return true;

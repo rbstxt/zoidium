@@ -7,6 +7,13 @@ each line describes one visible change.
 
 ### Added
 
+- Easing+ can copy and paste a curve: Copy and Paste in the curve window, or
+  Ctrl/Cmd+C and Ctrl/Cmd+V while the window has focus. Paste accepts
+  `cubic-bezier(x1, y1, x2, y2)`, four plain numbers, or a JSON array.
+- Shader+ custom properties have Rename when: rules that show another name for
+  a property while a chosen property has a matching value, using the same
+  conditions as Visible when. Only the label changes; values, keyframes, and
+  the shader do not.
 - Lights have a Cast shadows switch in their properties. Turning it off for a
   light that does not need shadows removes its shadow pass, which is the main
   cost of a shadowed point light. Spot, point, directional, and the Trapcode

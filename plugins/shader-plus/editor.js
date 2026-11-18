@@ -200,7 +200,7 @@ function installEditor({ context, patch, presetFont }) {
       const shown = doc.createElement("input"); shown.className = "pz-inputbox"; shown.type = "text";
       shown.value = draft.name; shown.placeholder = "Name to show";
       shown.setAttribute("aria-label", "Rule name " + (index + 1)); line("Show name", shown);
-      values.addEventListener("input", () => showWarning()); property.addEventListener("change", () => showWarning());
+      values.addEventListener("input", () => { collect(); showWarning(); }); property.addEventListener("change", () => { collect(); showWarning(); });
       const actions = doc.createElement("div"); actions.className = "zsp-rename-actions";
       const move = (delta) => {
         collect(); const target = index + delta;
