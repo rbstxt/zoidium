@@ -605,8 +605,16 @@
   var signals = global.ZoidiumEditSignals ||
     (typeof module === "object" && module.exports && require("./edit-signals.js"));
 
-  function editSignalEpoch() {
-    return signals ? signals.epoch : -1;
+  // Cheap state captured before an awaited tap. The post-await check compares
+  // this stamp instead of trusting the epoch alone: a resize or an async
+  // follow-up write can change the serialization without a new signal.
+  function frameSamplerInputToken(sequence, compositor, stage, scope, preserveInputRGB) {
+    if (!signals) return null;
+    const parts = frameSamplerKeyParts(sequence, compositor, stage, scope, preserveInputRGB);
+    return {
+      epoch: signals.epoch,
+      fingerprint: frameSamplerKeyFingerprint(sequence, compositor, stage, scope, preserveInputRGB, parts),
+    };
   }
 
   function frameSamplerReuseDisabled() {
@@ -667,8 +675,13 @@
   function frameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB = false) {
     const key = memoizedFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
     if (typeof PZ === "undefined" || PZ.zoidium?.debugAssertTemporalKeyMemo !== true) return key;
+    PZ.zoidium.debug = PZ.zoidium.debug || {};
+    const stats = PZ.zoidium.debug.temporalKeyAssert =
+      PZ.zoidium.debug.temporalKeyAssert || { checks: 0, misses: 0 };
+    stats.checks += 1;
     const fresh = serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
     if (fresh !== key) {
+      stats.misses += 1;
       throw new Error("Temporal input key is not deterministic for the current project content");
     }
     return key;
@@ -694,12 +707,22 @@
     return value;
   }
 
-  // True when the recorded revision still describes the live project. The
-  // caller also records the edit epoch; a moved epoch (or a runtime without
-  // the signal module) compares values instead of trusting the memo.
-  function frameSamplerInputIsCurrent(revision, epoch, sequence, compositor, stage, scope, preserveInputRGB) {
-    if (signals && signals.epoch === epoch) return true;
-    return revision === serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+  // True when the recorded revision still describes the live project. It
+  // follows the memo's own reuse rule: while edits are hot, after any signal,
+  // or when the cheap stamp differs, the serialized value is compared again.
+  // A runtime without the signal module always compares values.
+  function frameSamplerInputIsCurrent(revision, token, sequence, compositor, stage, scope, preserveInputRGB) {
+    if (!signals || !token) {
+      return revision === serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    }
+    if (signals.isHot() || signals.epoch !== token.epoch) {
+      return revision === serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    }
+    const parts = frameSamplerKeyParts(sequence, compositor, stage, scope, preserveInputRGB);
+    if (frameSamplerKeyFingerprint(sequence, compositor, stage, scope, preserveInputRGB, parts) !== token.fingerprint) {
+      return revision === serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB);
+    }
+    return true;
   }
 
   function serializeFrameSamplerInputKey(sequence, compositor, stage, scope, preserveInputRGB = false, parts) {
@@ -754,7 +777,7 @@
   registry.layers = {
     frameSamplerInputKey,
     frameSamplerInputIsCurrent,
-    editSignalEpoch,
+    frameSamplerInputToken,
     frameSamplerIdentity,
     frameSamplerReuseDisabled,
     frameSamplerScopedContent,

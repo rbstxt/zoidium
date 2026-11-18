@@ -33,7 +33,7 @@
   var getAdjustmentEffectFrame = layers.getAdjustmentEffectFrame;
   var frameSamplerInputKey = layers.frameSamplerInputKey;
   var frameSamplerInputIsCurrent = layers.frameSamplerInputIsCurrent;
-  var editSignalEpoch = layers.editSignalEpoch;
+  var frameSamplerInputToken = layers.frameSamplerInputToken;
   var frameSamplerIdentity = layers.frameSamplerIdentity;
   var frameSamplerReuseDisabled = layers.frameSamplerReuseDisabled;
 
@@ -603,7 +603,7 @@
         // Reuse neighbouring taps and segment anchors across output frames.
         // A target stamp prevents reading a slot after it has been overwritten.
         const scope = context?.frameSamplerScope || parentContext?.frameSamplerScope;
-        const revisionEpoch = editSignalEpoch();
+        const inputToken = frameSamplerInputToken(sequence, root, stage, scope, request.preserveInputRGB);
         const revision = frameSamplerInputKey(sequence, root, stage, scope, request.preserveInputRGB);
         if (Array.from(runtime.targets).some(target => target.width !== width || target.height !== height)) {
           clearFrameSamplerTargets(runtime);
@@ -670,7 +670,7 @@
           const mediaSamples = await prepareLowerSchedules(sequence, stage, inputFrame, inputContext,
             runtime, false, state);
           if (runtime.disposed || runtime.generation !== generation ||
-            !frameSamplerInputIsCurrent(revision, revisionEpoch, sequence, root, stage, scope,
+            !frameSamplerInputIsCurrent(revision, inputToken, sequence, root, stage, scope,
               request.preserveInputRGB)) {
             if (context.exportPolicy) throw new Error("Sample input changed during export preparation");
             return;

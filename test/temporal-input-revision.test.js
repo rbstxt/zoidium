@@ -43,12 +43,17 @@ function fixture() {
     serializations += 1;
     return sequenceToJSON.apply(this, arguments);
   };
-  const { frameSamplerInputKey } = c.__zoidiumTemporalParts.layers;
+  const { frameSamplerInputKey, frameSamplerInputToken, frameSamplerInputIsCurrent } =
+    c.__zoidiumTemporalParts.layers;
   return {
     c, PZ, project, track, clip, layer, effect, compositor, stage, clock, signals,
     get serializations() { return serializations; },
     signal() { signals.signal("test"); },
     key() { return frameSamplerInputKey(project.sequence, compositor, stage, null); },
+    token() { return frameSamplerInputToken(project.sequence, compositor, stage, null, false); },
+    current(token, revision) {
+      return frameSamplerInputIsCurrent(revision, token, project.sequence, compositor, stage, null, false);
+    },
     layerKey() {
       return frameSamplerInputKey(project.sequence, compositor,
         Object.assign({}, stage, { layer, clip }), null);
@@ -217,4 +222,45 @@ test("the debug assert reports a serializer that reads outside the project conte
     return data;
   };
   assert.throws(() => h.key(), /not deterministic/);
+  assert.equal(h.PZ.zoidium.debug.temporalKeyAssert.checks, 1);
+  assert.equal(h.PZ.zoidium.debug.temporalKeyAssert.misses, 1);
+});
+
+test("the post-await check re-serializes when a resize lands during the await", () => {
+  const h = fixture();
+  h.clock.now += 5000;
+  const revision = h.key();
+  const token = h.token();
+  const serialized = h.serializations;
+  // A viewport resize updates the read buffer without an edit signal.
+  h.compositor.readBuffer.width = 160;
+  assert.equal(h.current(token, revision), false);
+  assert.equal(h.serializations, serialized + 1, "the changed stamp forces a comparison");
+});
+
+test("the post-await check re-serializes for a follow-up write inside the hot window", () => {
+  const h = fixture();
+  h.clock.now += 5000;
+  h.signal(); // the edit that started this tap preparation
+  const revision = h.key();
+  const token = h.token();
+  const serialized = h.serializations;
+  // Asynchronous follow-up work from the same edit, without a second signal.
+  h.layer.properties.opacity.set(0.9);
+  assert.equal(h.current(token, revision), false);
+  assert.equal(h.serializations, serialized + 1);
+});
+
+test("the post-await check trusts an unchanged stamp and a moved epoch with unchanged content", () => {
+  const h = fixture();
+  h.clock.now += 5000;
+  const revision = h.key();
+  const token = h.token();
+  const serialized = h.serializations;
+  assert.equal(h.current(token, revision), true);
+  assert.equal(h.serializations, serialized, "an unchanged stamp does not serialize");
+  h.signals.signal("history.pushCommand");
+  h.clock.now += 5000; // outside the hot window again; only the epoch moved
+  assert.equal(h.current(token, revision), true, "unchanged content still matches");
+  assert.equal(h.serializations > serialized, true, "a moved epoch compares values");
 });

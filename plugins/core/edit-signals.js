@@ -101,6 +101,9 @@
 
   // Every native edit, undo and redo passes through the history object, also
   // from pop-out editor windows whose input events this document never sees.
+  // Hooks install on the first subscribe (and here): the history prototype can
+  // appear after this module if the load order changes, and the subscription
+  // is the point where a consumer starts depending on the epoch.
   const historyMethods = ["startOperation", "pushCommand", "finishOperation", "discardOperation", "undo", "redo"];
   const originalHistory = new Map();
   let historyPrototype = null;

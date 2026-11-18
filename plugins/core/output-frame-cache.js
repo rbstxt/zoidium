@@ -947,6 +947,8 @@
       idleTimer = null;
       for (const controller of Array.from(controllers)) release(controller.viewport);
       store.clear();
+      // The shared edit-signal sources and history hooks stay installed: the
+      // temporal input key memo still needs them after the cache goes away.
       editSubscription.unwatch();
       if (compositorPrototype.unload === unloadWithOutputFrames) compositorPrototype.unload = originalUnload;
       if (viewportPrototype._render === cachedViewportRender) viewportPrototype._render = originalViewportRender;
