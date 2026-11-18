@@ -4,7 +4,45 @@ const effect=this,root="/plugins/smart-motion-blur-lite/";
 const number=(key,frame,fallback,min,max)=>{let v;try{v=Number(effect._smbDebugSettings?.[key]??effect.properties[key]?.get(frame));}catch(_error){v=fallback;}return Math.min(max,Math.max(min,Number.isFinite(v)?v:fallback));};
 const numeric=(name,value,min,max,step=.05)=>({dynamic:true,name,type:PZ.property.type.NUMBER,value,min,max,step,decimals:3});
 const uniform=value=>({value}),v2=()=>uniform(new THREE.Vector2(1,1));
-function settings(frame){return {enabled:number("enabled",frame,1,0,1)>=.5,quality:Math.round(number("quality",frame,1,0,1)),trackFrame:Math.round(number("trackFrame",frame,0,0,1)),sensitivity:number("sensitivity",frame,.7,0,1),strength:number("amount",frame,.5,0,10),radius:1270,debugVectors:0};}
+function settings(frame){return {enabled:number("enabled",frame,1,0,1)>=.5,trackFrame:Math.round(number("trackFrame",frame,0,0,1)),sensitivity:number("sensitivity",frame,.7,0,1),strength:number("amount",frame,.5,0,10),radius:1270,debugVectors:0};}
+function projectResolution(){
+  try{const size=effect.parentProject?.sequence?.properties?.resolution?.get?.();if(Array.isArray(size)&&size[0]>0&&size[1]>0)return size;}catch(_error){}
+  return null;
+}
+function modeFor(width,height,exporting){
+  const project=projectResolution();
+  return effect._smbChooseMode?effect._smbChooseMode({width,height,projectWidth:project?.[0],projectHeight:project?.[1],exporting}):"full";
+}
+// The sampler request is prepared before the frame draws, so it follows the
+// last known render size. draw() recomputes the mode from the buffer it gets.
+function trackMode(width,height,exporting){
+  if(exporting){effect._smbExporting=true;effect._smbMode="full";}
+  else if(width>0&&height>0){effect._smbExporting=false;effect._smbMode=modeFor(width,height,false);}
+  return effect._smbMode;
+}
+function drawingForExport(){
+  try{const contexts=PZ.zoidium?.temporal?.contexts,context=contexts?.[contexts.length-1];if(context?.compositor)return Boolean(context.exportPolicy);}catch(_error){}
+  return effect._smbExporting===true;
+}
+// An older build patched PZ.compositor.prototype to force project-resolution
+// previews. Restoring it on load makes an in-place plugin update return to
+// Player+'s sizes without waiting for a page reload.
+const LEGACY_PATCH="__zoidiumSmbLiteNative";
+function removeLegacyResolutionPatch(){
+  let proto,state;
+  try{proto=PZ.compositor?.prototype;state=proto?.[LEGACY_PATCH];}catch(_error){return false;}
+  if(!proto||!state)return false;
+  try{
+    if(proto.setSize===state.sizeHook)proto.setSize=state.setSize;
+    if(proto.renderSequence===state.renderHook)proto.renderSequence=state.renderSequence;
+    if(proto.unload===state.unloadHook)proto.unload=state.unload;
+    delete proto[LEGACY_PATCH];
+    for(const [root,requested] of state.roots||[]){
+      try{state.setSize.call(root,...requested);}catch(_error){}
+    }
+  }catch(_error){}
+  return true;
+}
 function createRuntime(){
   const material=new THREE.ShaderMaterial({vertexShader:"varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",fragmentShader:effect._zoidiumGetAsset("text",root+"shaders/reconstruct.glsl"),uniforms:{tCurrent:uniform(null),tFlow:uniform(null),uvScale:v2(),resolution:v2(),levelSize:v2(),strength:uniform(.5)},blending:THREE.NoBlending,premultipliedAlpha:true,depthTest:false,depthWrite:false});
   const analysisCopy=ZoidiumPluginApis.gl.createCopyPass(THREE);analysisCopy.material.blending=THREE.NoBlending;
@@ -34,7 +72,8 @@ function draw(renderer,write,read){
   if(!previous)return copy();
   const w=Math.max(1,Math.round(read.width*uv.x)),h=Math.max(1,Math.round(read.height*uv.y));
   if(w<6||h<6||previous.width<w||previous.height<h)return copy();
-  const factor=c.quality===0?1:8,aw=Math.max(6,Math.floor(w/factor)),ah=Math.max(6,Math.floor(h/factor));
+  const mode=trackMode(w,h,drawingForExport()),half=mode==="half";
+  const factor=half?8:1,aw=Math.max(6,Math.floor(w/factor)),ah=Math.max(6,Math.floor(h/factor));
   // resolveFrameSamples validates the host's complete input revision before
   // returning a stamped sample. Within that revision the same exact current
   // frame has the same input. Reuse only its field, never an old color frame.
@@ -44,14 +83,14 @@ function draw(renderer,write,read){
     token&&token.stamp===sample.stamp&&token.target===previous&&token.frame===frame&&
     token.w===w&&token.h===h&&token.factor===factor&&token.sensitivity===c.sensitivity&&
     token.uvX===uv.x&&token.uvY===uv.y&&token.renderer===renderer;
-  const asyncField=effect._smbAsync?.field(renderer,samples,c,w,h);
+  const asyncField=effect._smbAsync?.field(renderer,samples,c.sensitivity,w,h,mode);
   if(asyncField){
     if(runtime.cache?.field!==asyncField){uploadField(runtime,asyncField);runtime.cache={w,h,factor,sensitivity:c.sensitivity,field:asyncField};}
     runtime.inputToken=null;
   }else if(!reusable){
-  if(c.quality>0&&effect._smbAsync)effect._smbAsync.stats.fallbacks=(effect._smbAsync.stats.fallbacks||0)+1;
+  if(half&&effect._smbAsync)effect._smbAsync.stats.fallbacks=(effect._smbAsync.stats.fallbacks||0)+1;
   let analysisRead=read,analysisPrevious=previous;
-  if(c.quality>0){
+  if(half){
     if(!runtime.analysisAtlas||runtime.analysisAtlas.width!==aw||runtime.analysisAtlas.height!==ah*2){
       runtime.analysisAtlas?.dispose();
       runtime.analysisAtlas=ZoidiumPluginApis.gl.createRenderTarget(THREE,aw,ah*2,{format:THREE.RGBAFormat,type:THREE.UnsignedByteType,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,depthBuffer:false,stencilBuffer:false});
@@ -67,12 +106,12 @@ function draw(renderer,write,read){
     runtime.pairedStorage=readImage(renderer,atlas,runtime.pairedStorage);
     const bytes=aw*ah*4;runtime.current=runtime.pairedStorage.subarray(0,bytes);runtime.previous=runtime.pairedStorage.subarray(bytes);
   }
-  const iw=c.quality>0?aw:w,ih=c.quality>0?ah:h;
-  if(c.quality===0){runtime.current=readImage(renderer,analysisRead,runtime.current);runtime.previous=readImage(renderer,analysisPrevious,runtime.previous);}
-  const current=crop(runtime.current,c.quality>0?aw:analysisRead.width,iw,ih),prior=crop(runtime.previous,c.quality>0?aw:analysisPrevious.width,iw,ih),cache=runtime.cache;
+  const iw=half?aw:w,ih=half?ah:h;
+  if(!half){runtime.current=readImage(renderer,analysisRead,runtime.current);runtime.previous=readImage(renderer,analysisPrevious,runtime.previous);}
+  const current=crop(runtime.current,half?aw:analysisRead.width,iw,ih),prior=crop(runtime.previous,half?aw:analysisPrevious.width,iw,ih),cache=runtime.cache;
   if(!cache||cache.w!==w||cache.h!==h||cache.factor!==factor||cache.sensitivity!==c.sensitivity||!equal(cache.current,current)||!equal(cache.previous,prior)){
-    const field=(c.quality>0?effect._smbHalfEstimator:effect._smbEstimator).estimate(current,prior,iw,ih,c.sensitivity,w,h);
-    if(c.quality>0){const sx=(w-1)/(iw-1),sy=(h-1)/(ih-1);for(let i=0;i<field.data.length;i+=4){field.data[i]*=sx;field.data[i+1]*=sy;}}
+    const field=(half?effect._smbHalfEstimator:effect._smbEstimator).estimate(current,prior,iw,ih,c.sensitivity,w,h);
+    if(half){const sx=(w-1)/(iw-1),sy=(h-1)/(ih-1);for(let i=0;i<field.data.length;i+=4){field.data[i]*=sx;field.data[i+1]*=sy;}}
     uploadField(runtime,field);
     const savedCurrent=cache?.current?.length===current.length?cache.current:new Uint8Array(current.length);
     const savedPrevious=cache?.previous?.length===prior.length?cache.previous:new Uint8Array(prior.length);
@@ -81,8 +120,8 @@ function draw(renderer,write,read){
   }
   runtime.inputToken={stamp:sample?.stamp,target:previous,frame,w,h,factor,sensitivity:c.sensitivity,uvX:uv.x,uvY:uv.y,renderer};
   }
-  // Do not trade appearance for a quality setting without a measured saving.
-  // Legacy Quarter/Eighth values retain Half's stable field and native blur.
+  // The reduced path keeps the established smooth field; only its analysis
+  // resolution follows the render size. Both paths reconstruct the full image.
   const p=runtime.reconstruct,u=p.uniforms;u.tCurrent.value=read.texture;u.tFlow.value=runtime.texture;u.uvScale.value.copy(uv);u.resolution.value.set(w,h);u.levelSize.value.set(runtime.cache.field.width,runtime.cache.field.height);u.strength.value=c.strength;
   p.renderToScreen=effect.pass.renderToScreen;p.render(renderer,write,null,true);
 }
@@ -91,22 +130,26 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
   displayName: "ZSMB (beta 1.0)",
   properties: {
     qualityPresetVersion: {visible:false,name:"Quality preset version",type:PZ.property.type.NUMBER,value:1},
-    quality: { dynamic:true,name:"Quality",type:PZ.property.type.OPTION,value:1,items:"Full quality;1/2 quality",description:"Full quality analyses motion at source resolution for the most accurate result and is performance-heavy. Half (default) uses reduced motion analysis for faster playback; fine detail and sensitivity response may differ. Both preserve image resolution." },
+    // Kept only so older projects load and save with the same property set.
+    quality: { visible:false,dynamic:true,name:"Quality",type:PZ.property.type.OPTION,value:1,items:"Full quality;1/2 quality",description:"Not used. Motion analysis follows the render size that Player+ sets." },
     enabled: { dynamic: true, name: "Enabled", type: PZ.property.type.OPTION, value: 1, items: "off;on", description: "Turn added motion blur on or off. Off passes through the current image without changing source timing." },
     trackFrame: { dynamic:true,name:"Track Frame",type:PZ.property.type.OPTION,value:0,items:"Previous;Next",description:"Choose the adjacent frame used for motion tracking. Previous compares against the preceding frame; Next compares against the following frame. Previous uses Next at frame 0 only. This does not shift the displayed source frame." },
     amount: { ...numeric("Blur Amount", 0.5, 0, 10, 0.5), decimals: 2, description: "Controls trail length after motion tracking. 0 adds no blur; the default 0.5 approximates a 180-degree shutter. Larger values produce longer trails. Identical neighboring frames may produce no added blur." },
     sensitivity: { ...numeric("Motion Sensitivity", 0.7, 0, 100, 1), scaleFactor: 0.01, dragstep: 0.1, decimals: 2, description: "Controls motion estimation separately from trail length. Lower it to reduce false motion or background smearing; raise it when large movements are missed. 0 bypasses blur. Default: 70. Half uses a faster, approximate response." },
   },
   getRequest(_effect, frame) {
-    const c = settings(frame);
+    const c = settings(frame),half=effect._smbMode==="half";
     const offset=c.trackFrame===1||frame===0?1:-1;
-    return { enabled: c.enabled && c.sensitivity > 0 && (offset>0||frame>=1) && (c.debugVectors > 0 || (c.strength > 0 && c.radius > 0)), preserveInputRGB: true, lockCurrentFrame: true, reuseCurrentInput:c.quality>0, frames: c.quality>0?[offset,0]:[offset],decodeMedia:c.quality>0?effect._smbDecodeMedia:null };
+    return { enabled: c.enabled && c.sensitivity > 0 && (offset>0||frame>=1) && (c.debugVectors > 0 || (c.strength > 0 && c.radius > 0)), preserveInputRGB: true, lockCurrentFrame: true, reuseCurrentInput:half, frames: half?[offset,0]:[offset],decodeMedia:half?effect._smbDecodeMedia:null };
   },
   lifecycle: {
     load(data) {
+      removeLegacyResolutionPatch();
+      effect._smbMode="full";effect._smbExporting=false;
       effect._smbCopy = ZoidiumPluginApis.gl.createCopyPass(THREE);
       effect._smbCopy.material.blending = THREE.NoBlending;
       const requireEstimator=ZoidiumPluginApis.modules.createRequire(effect._zoidiumGetAsset.bind(effect),{root});
+      effect._smbChooseMode=requireEstimator("./analysis-mode.js").chooseAnalysisMode;
       effect._smbEstimator=requireEstimator("./estimator.js").createEstimator();
       effect._smbTooltips=requireEstimator("./tooltips.js").install(PZ,effect);
       effect._smbHalfEstimator=requireEstimator("./estimator.js").createSmoothEstimator();
@@ -131,23 +174,18 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
       if(typeof savedName === "string" && /^(?:Smart Motion Blur Lite|ZSMB)(?: v\d+| \(beta [\d.]+\))?$/.test(savedName)) {
         effect.properties.name?.set("ZSMB (beta 1.0)");
       }
-      if (PZ.compositor && ZoidiumPluginApis.modules?.createRequire) {
-        const require = ZoidiumPluginApis.modules.createRequire(effect._zoidiumGetAsset.bind(effect), { root });
-        effect._smbNative = require("./native-resolution.js").install(effect, PZ);
-        effect._smbNative.ensure();
-      }
     },
     update(frame) { effect._smbSettings = settings(frame); },
     prepare: async function (frame,context) {
-      try{await effect._smbAsync?.prepare(frame,context,settings(frame));}
+      const compositor=context?.frameSamplerRoot||context?.compositor;
+      trackMode(compositor?.readBuffer?.width,compositor?.readBuffer?.height,Boolean(context?.exportPolicy));
+      try{await effect._smbAsync?.prepare(frame,context,Object.assign(settings(frame),{mode:effect._smbMode}));}
       catch(error){context?.exportPolicy?.check?.();if(error?.name==="AbortError")return;if(!effect._smbAsyncWarned){effect._smbAsyncWarned=true;console.warn("ZSMB asynchronous analysis unavailable; using the exact synchronous path.",error);}}
     },
     resize() { effect._smbAsync?.invalidate();if (effect._smbLite) clearTargets(effect._smbLite); },
     unload() {
       effect._smbTooltips?.release();effect._smbTooltips=null;
       effect._smbParticles?.release();effect._smbParticles=null;
-      effect._smbNative?.release();
-      effect._smbNative = null;
       effect._smbAsync?.dispose();effect._smbAsync=null;
       effect._smbVideo?.dispose();effect._smbVideo=null;effect._smbDecodeMedia=null;
       const runtime = effect._smbLite;
@@ -157,7 +195,8 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
         ZoidiumPluginApis.gl.disposePass(runtime.analysisCopy);
       }
       ZoidiumPluginApis.gl.disposePass(effect._smbCopy);
-      effect._smbEstimator = effect._smbHalfEstimator = null;
+      effect._smbEstimator = effect._smbHalfEstimator = effect._smbChooseMode = null;
+      effect._smbMode = "full";
       effect._smbLite = effect._smbCopy = effect.pass = null;
     },
   },
@@ -167,7 +206,6 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
 // context even when CM3's layer.prepare() omits it.
 const prepare = effect.prepare;
 effect.prepare = function (frame, context) {
-  effect._smbNative?.ensure();
   return prepare.call(this, frame, context?.sequence ? context :
     Object.assign({}, context, { sequence: this.parentProject.sequence }));
 };

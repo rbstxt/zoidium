@@ -70,7 +70,7 @@ function create(effect,THREE,PZ,root) {
     return {previous:previous.stamp,current:current.stamp,renderer,w,h,sensitivity};
   }
   async function run(frame,context,settings){
-    if(disposed||settings.quality===0||!settings.enabled||!settings.sensitivity||!settings.strength||(frame<1&&frame!==0&&settings.trackFrame!==1))return;
+    if(disposed||settings.mode!=="half"||!settings.enabled||!settings.sensitivity||!settings.strength||(frame<1&&frame!==0&&settings.trackFrame!==1))return;
     const compositor=context?.frameSamplerRoot||context?.compositor;
     const host=PZ.zoidium?.temporal?.frameSamplerRuntimes?.get(compositor);
     const prepared=host?.prepared?.get(effect),renderer=compositor?.renderer;
@@ -100,8 +100,8 @@ function create(effect,THREE,PZ,root) {
   return {
     stats,
     prepare(frame,context,settings){const task=()=>run(frame,context,settings);const pending=queue.then(task);queue=pending.catch(()=>{});return pending;},
-    field(renderer,samples,settings,w,h){const key=token(renderer,samples,settings.sensitivity);
-      return settings.quality>0&&same(key,result?.token)&&key.w===w&&key.h===h?result.field:null;},
+    field(renderer,samples,sensitivity,w,h,mode){const key=token(renderer,samples,sensitivity);
+      return mode==="half"&&same(key,result?.token)&&key.w===w&&key.h===h?result.field:null;},
     invalidate(){generation++;result=null;},
     dispose(){disposed=true;generation++;result=null;worker?.dispose();atlas?.dispose();ZoidiumPluginApis.gl.disposePass(pass);},
   };

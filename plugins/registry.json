@@ -535,14 +535,14 @@
       "category": "adjustment",
       "name": "ZSMB (beta 1.0)",
       "author": "Zoidium contributors",
-      "version": "47",
+      "version": "48",
       "itemCount": 1,
       "format": "native effect",
       "tagline": "High-quality, lightweight optical flow & vector-based motion blur",
       "description": "High-quality, lightweight optical flow & vector-based motion blur",
-      "manifest": "./plugins/smart-motion-blur-lite/manifest.json?v=47",
-      "bundle": "./plugins/smart-motion-blur-lite/bundle.json?v=47",
-      "integrity": "sha256-1C6AcfU3ioJ/YcXLY9xp3k6+yf82cStcYkNEF5uXcNQ=",
+      "manifest": "./plugins/smart-motion-blur-lite/manifest.json?v=48",
+      "bundle": "./plugins/smart-motion-blur-lite/bundle.json?v=48",
+      "integrity": "sha256-L19v5V1vfOQIlMUiaucXE2EmfEFFY++SwQXBvpvF/0E=",
       "zoidiumOnly": true
     },
     {
