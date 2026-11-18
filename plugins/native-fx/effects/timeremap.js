@@ -69,6 +69,40 @@ function timeRemapSpeedCache(effect) {
   return cache;
 }
 
+// Expression-driven speed must not reuse a prefix across evaluations: the
+// expression can read other animated project values that the keyframe data
+// does not contain. It shares one table only inside the current host
+// evaluation token, which the host changes as layers are evaluated.
+function timeRemapSpeedMemo(effect) {
+  let memo = effect._zoidiumTimeRemapMemo;
+  if (!memo) {
+    memo = { token: undefined, signature: null, prefix: [0] };
+    effect._zoidiumTimeRemapMemo = memo;
+  }
+  return memo;
+}
+
+function timeRemapEvaluationToken() {
+  try {
+    const temporal = PZ.zoidium?.temporal;
+    const epoch = Number(temporal?.evaluationEpoch);
+    // Without a host evaluation counter, integrate per call instead of
+    // risking a table from another evaluation.
+    if (!Number.isFinite(epoch)) return undefined;
+    const context = temporal.contexts?.[temporal.contexts.length - 1];
+    const output = Number(context?.outputFrame);
+    return epoch + ":" + (Number.isFinite(output) ? output : "");
+  } catch (_error) {
+    return undefined;
+  }
+}
+
+function timeRemapIsAdjustmentLayer(effect) {
+  const Adjustment = PZ.layer?.adjustment;
+  const layer = effect.parentLayer || effect.tryGetParentOfType?.(PZ.layer);
+  return Boolean(Adjustment && layer instanceof Adjustment);
+}
+
 function timeRemapBlendWeights(frame) {
   const taps = timeRemapMath.blendTaps(frame);
   return { taps, first: 1 - taps.fraction, second: taps.fraction };
@@ -137,12 +171,19 @@ const timeRemapLifecycle = {
     timeRemapEffect.properties.load(data && data.properties);
   },
   update(frame) {
-    // The pass stays enabled for the whole blend mode: whether the source
-    // clock is fractional (and therefore needs taps) is known only to the
-    // mapped clock, and an unavailable sample must copy the input.
-    timeRemapEffect.pass && (timeRemapEffect.pass.enabled =
-      timeRemapOption(timeRemapEffect.properties.enabled, frame, 1) === 1 &&
-      timeRemapOption(timeRemapEffect.properties.blend, frame, 0) !== 0);
+    const pass = timeRemapEffect.pass;
+    if (!pass) return;
+    const enabled = timeRemapOption(timeRemapEffect.properties.enabled, frame, 1) === 1;
+    const blend = timeRemapOption(timeRemapEffect.properties.blend, frame, 0);
+    let active = enabled && blend !== 0;
+    // On an ordinary layer the update frame is the mapped source clock, so an
+    // integer source time needs no taps and the pass can be skipped. An
+    // adjustment layer's mapped clock is known only to the host, so its pass
+    // stays enabled and copies the input when no taps exist.
+    if (active && blend === 1 && !timeRemapIsAdjustmentLayer(timeRemapEffect)) {
+      active = timeRemapMath.blendTaps(frame).fraction > timeRemapMath.EPSILON;
+    }
+    pass.enabled = active;
   },
   prepare: async function prepare() {},
   resize() {},
@@ -219,6 +260,8 @@ ZoidiumPluginApis.defineTemporal.call(timeRemapEffect, {
     if (timeRemapOption(effect.properties.mode, frame, 0) === 0) {
       const mapper = timeRemapMath.speedMap(effect.properties.speed, {
         cache: timeRemapSpeedCache(effect),
+        memo: timeRemapSpeedMemo(effect),
+        token: timeRemapEvaluationToken(),
       });
       // The default row is exactly identity: no operator, no extra clock work.
       if (mapper.constant !== null && Math.abs(mapper.constant - timeRemapMath.IDENTITY_SPEED) < 1e-9) {

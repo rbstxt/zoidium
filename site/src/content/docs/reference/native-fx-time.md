@@ -96,10 +96,12 @@ A static value is a freeze frame.
 
 **Frame mix** requests both neighboring source frames and blends them by the fractional position.
 It uses the same quality settings and sampler pool as **Echo**.
-At an integer source time, and at the clip boundaries, it shows one frame.
+At an integer source time it shows one frame.
+Near a clip boundary, both taps clamp to the same edge frame.
 It does not estimate motion, so fast footage can show a double image.
 
 On an **Adjustment** layer, the remap moves the image from lower tracks and reads its curves in the adjustment clip's own time.
+**Source time (s)** counts from the adjustment clip's start, so a value of 0 holds the composite at the adjustment clip's first frame.
 **Time Offset** and **Posterize Time** before this effect keep their list order.
 On a **Precomp+** clip, the remap reaches the video inside the composition.
 

@@ -41,16 +41,25 @@ function keyframe(frame, value, controlPoints = [[-10, 0], [10, 0]]) {
 
 // Loads the real effect source with the two plugin API contracts recorded on a
 // fake effect instance. Lifecycle methods are not invoked, so no GPU state is
-// needed.
-function loadEffect(values = {}) {
+// needed. `options.epoch` seeds the host evaluation counter that expression
+// speed memos are scoped to.
+function loadEffect(values = {}, options = {}) {
   const effect = {
     _zoidiumGetAsset: () => undefined,
     parentLayer: { parentProject: { sequence: { properties: { rate: { get: () => 30 } } } } },
     properties: { load() {} },
   };
+  const temporal = {
+    evaluationEpoch: Number.isFinite(options.epoch) ? options.epoch : 1,
+    contexts: [{ outputFrame: 0 }],
+  };
   const sandbox = {
     console,
-    PZ: { property: { type: { OPTION: 6, NUMBER: 0 } }, layer: class {}, sequence: class {}, clip: class {} },
+    PZ: {
+      property: { type: { OPTION: 6, NUMBER: 0 } },
+      layer: class {}, sequence: class {}, clip: class {},
+      zoidium: { temporal },
+    },
     THREE: {},
     ZoidiumPluginApis: {
       defineTemporal(spec) {
@@ -79,6 +88,7 @@ function loadEffect(values = {}) {
     if (override && typeof override.get === "function") return [name, override];
     return [name, property(override === undefined ? definition.value : override)];
   }));
+  effect.__temporal = temporal;
   return effect;
 }
 
@@ -145,6 +155,81 @@ test("curve handle edits change the signature even at equal values", () => {
   speed.keyframes[1].controlPoints = [[-5, 3], [5, -3]];
   const second = math.propertySignature(speed);
   assert.notEqual(first, second);
+});
+
+test("expression speed does not reuse a prefix from an earlier evaluation", () => {
+  const dependency = { percent: 100 };
+  let reads = 0;
+  const speed = {
+    expression: "dependency.percent",
+    keyframes: [{ frame: 0, value: 100, tween: 1 }],
+    get() {
+      reads += 1;
+      return dependency.percent;
+    },
+  };
+  const effect = loadEffect({ speed }, { epoch: 10 });
+  assert.ok(Math.abs(operator(effect, 20).map(20) - 20) < 1e-9);
+
+  // A second read inside the same host evaluation reuses the memo.
+  const before = reads;
+  assert.ok(Math.abs(operator(effect, 20).map(20) - 20) < 1e-9);
+  assert.equal(reads, before);
+
+  // The referenced row changes without touching this row's keyframes or
+  // expression text. The next evaluation has a new host epoch and must
+  // integrate again.
+  dependency.percent = 50;
+  effect.__temporal.evaluationEpoch += 1;
+  const next = operator(effect, 20).map(20);
+  assert.ok(reads > before, "the changed dependency was never read again");
+  assert.ok(Math.abs(next - 10) < 1e-9, "stale prefix reused: " + next);
+});
+
+test("a flat multi-key speed curve is proven identity", () => {
+  const flat = property(100, { keyframes: [keyframe(0, 100), keyframe(20, 100)] });
+  assert.equal(math.constantSpeed(flat), 100);
+  const effect = loadEffect({ speed: flat });
+  assert.equal(operator(effect, 12), null);
+  // A handle with a vertical offset bows the curve away from its endpoints,
+  // so the same values are no longer a constant.
+  flat.keyframes[1].controlPoints = [[-10, 4], [10, 0]];
+  assert.equal(math.constantSpeed(flat), null);
+  assert.notEqual(operator(effect, 12), null);
+});
+
+test("an expression that reads 100 is not treated as proven identity", () => {
+  const speed = { expression: "100", keyframes: [{ frame: 0, value: 100, tween: 1 }], get: () => 100 };
+  const effect = loadEffect({ speed });
+  const op = operator(effect, 20);
+  assert.notEqual(op, null);
+  assert.equal(op.map(20), 20);
+});
+
+test("the blend pass is skipped at integer source times", () => {
+  const mixed = loadEffect({ blend: 1 });
+  mixed.pass = { enabled: null };
+  mixed.temporalSpec.lifecycle.update(10);
+  assert.equal(mixed.pass.enabled, false);
+  mixed.temporalSpec.lifecycle.update(10.5);
+  assert.equal(mixed.pass.enabled, true);
+
+  const off = loadEffect({ blend: 0 });
+  off.pass = { enabled: null };
+  off.temporalSpec.lifecycle.update(10.5);
+  assert.equal(off.pass.enabled, false);
+
+  const disabled = loadEffect({ enabled: 0, blend: 1 });
+  disabled.pass = { enabled: null };
+  disabled.temporalSpec.lifecycle.update(10.5);
+  assert.equal(disabled.pass.enabled, false);
+
+  // The reserved interpolator slot keeps its pass: its taps do not depend on
+  // the source clock's fraction.
+  const reserved = loadEffect({ blend: 2 });
+  reserved.pass = { enabled: null };
+  reserved.temporalSpec.lifecycle.update(10);
+  assert.equal(reserved.pass.enabled, true);
 });
 
 test("mapping does not depend on request order and repeated calls match", () => {

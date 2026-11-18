@@ -28,6 +28,7 @@ function fixtures() {
   for (const effect of native.nativeEffects) {
     const properties = { enabled: scalar(1) };
     const overrides = { timeoffset: { offset: 3 }, posterizetime: { rate: 12 },
+      timeremap: { speed: 50 },
       echo: { echoes: 3, delay: 2 }, timedifference: { offset: 0.1 }, ccwidetime: { forwardSteps: 2, backwardSteps: 2 },
       smartmotionblur: { amount: 0.5 }, cardwipe: { transition: 35 }, ccpageturn: { foldPosition: 0.4 } };
     for (const [key, value] of Object.entries(overrides[effect.id] || {})) properties[key] = scalar(value);
@@ -35,6 +36,14 @@ function fixtures() {
       liveOnly: ["timeoffset", "posterizetime"].includes(effect.id),
     });
   }
+  // Time Remap must run its remap, freeze and frame-mix paths in the oracle,
+  // not only the identity defaults the manifest entry generates.
+  const timeRemapProperties = settings => Object.fromEntries(
+    Object.entries({ enabled: 1, ...settings }).map(([key, value]) => [key, scalar(value)]));
+  add(native.id, "timeremap-mix", project([box()], [{ type: "timeremap",
+    properties: timeRemapProperties({ speed: 50, blend: 1 }) }], true));
+  add(native.id, "timeremap-remap-freeze", project([box()], [{ type: "timeremap",
+    properties: timeRemapProperties({ mode: 1, remap: 1, sourceTime: 0.4 }) }], true));
   for (const mode of [1, 2]) {
     add(native.id, "smartmotionblur-mode-" + mode, project([box()], [{ type: "smartmotionblur",
       properties: { reconstruction: scalar(mode), amount: scalar(0.5), quality: scalar(0) } }], true));

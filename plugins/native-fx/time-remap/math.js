@@ -39,13 +39,28 @@ function propertySignature(property) {
     "|" + expression;
 }
 
+function hasExpression(property) {
+  return typeof property?.expression === "string" && property.expression.length > 0;
+}
+
+// A keyframed row is constant only when every key holds the same value and
+// every Bezier handle keeps its vertical offset at zero. A handle with a
+// nonzero offset bows the curve away from its endpoints even when the values
+// are equal.
 function constantSpeed(property) {
-  if (typeof property?.expression === "string" && property.expression) return null;
+  if (hasExpression(property)) return null;
   const keys = Array.isArray(property?.keyframes) ? property.keyframes : null;
   if (!keys) return speedPercent(property, 0);
   if (keys.length === 0) return IDENTITY_SPEED;
-  if (keys.length > 1) return null;
-  return finiteNumber(keys[0]?.value, IDENTITY_SPEED);
+  const value = Number(keys[0]?.value);
+  if (!Number.isFinite(value)) return null;
+  for (const key of keys) {
+    if (Number(key?.value) !== value) return null;
+    for (const point of Array.isArray(key?.controlPoints) ? key.controlPoints : []) {
+      if (finiteNumber(point?.[1], 0) !== 0) return null;
+    }
+  }
+  return value;
 }
 
 // One frame of speed is a percentage; the integral is in local frames. The
@@ -98,6 +113,20 @@ function integrateSpeed(speedAt, frame, cache, signature) {
   return area;
 }
 
+// Expressions can read live project values, so a prefix table from an earlier
+// evaluation is not reusable. Such a curve shares a table only inside the
+// caller's current evaluation token (one host evaluation range), which resets
+// when the token changes.
+function tokenCache(memo, token) {
+  if (!memo || token === undefined || token === null) return null;
+  if (memo.token !== token) {
+    memo.token = token;
+    memo.signature = null;
+    memo.prefix = [0];
+  }
+  return memo;
+}
+
 // map(frame, anchor) returns the source frame for an input frame. `anchor` is
 // the frame offset of the clock being mapped: 0 for clip-local frames and the
 // clip start when an adjustment layer's operator is applied to project time.
@@ -115,7 +144,9 @@ function speedMap(property, options) {
       },
     };
   }
-  const cache = options?.cache || null;
+  const cache = hasExpression(property)
+    ? tokenCache(options?.memo, options?.token)
+    : options?.cache || null;
   const speedAt = frame => speedPercent(property, frame);
   return {
     signature,
@@ -152,6 +183,7 @@ module.exports = {
   blendTaps,
   constantSpeed,
   finiteNumber,
+  hasExpression,
   integrateSpeed,
   propertySignature,
   remapSeconds,
