@@ -42,3 +42,18 @@ test("rebuilding a view closes the inline Group form before native list teardown
   const { rows, open, view } = setup(); rows[0].classList.add("selected"); const form = open();
   assert.ok(form.parentElement); view.objectsChanged(); assert.equal(form.parentElement, null);
 });
+test("group name composition does not submit or dismiss the form", () => {
+  const { rows, open, api, list } = setup();
+  rows[0].classList.add("selected");
+  const form = open();
+  form.querySelectorAll("input")[0].value = "Controls";
+  const apply = form.querySelectorAll("button").find(button => button.textContent === "Apply");
+  apply.click = () => apply.onclick();
+  for (const key of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    form.dispatch("keydown", { key, ...composition });
+    assert.ok(form.parentElement);
+    assert.equal(api.name(list[0]), "");
+  }
+  form.dispatch("keydown", { key: "Enter" });
+  assert.equal(api.name(list[0]), "Controls");
+});
