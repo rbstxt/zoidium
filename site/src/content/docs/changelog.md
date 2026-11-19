@@ -189,6 +189,10 @@ each line describes one visible change.
 
 ### Changed
 
+- ZSMB's Quality setting is back with Full, 1/2, 1/4, and 1/8. It sets how
+  finely motion is analysed and also applies to exports, so 1/2 exports render
+  much faster than Full. The preview size still follows Player+; the analysis
+  never exceeds what the preview frame holds.
 - Existing projects, new look: a light whose Enabled switch is off no longer
   lights Trapcode Form and Particular particles.
 - Projects that use Camera+, Layer Input, or Expressions+ can now use the
