@@ -218,6 +218,8 @@ ZoidiumPluginApis.defineFrameSampler.call(timeDifferenceEffect, {
       timeDifferenceEffect._zoidiumTimeDifferenceMaterial?.dispose?.();
       timeDifferenceEffect._zoidiumTimeDifferenceCopyMaterial?.dispose?.();
       timeDifferenceEffect._zoidiumTimeDifferenceMaterial = null;
+      timeDifferenceEffect._zoidiumTimeDifferencePass?.quad?.geometry?.dispose?.();
+      timeDifferenceEffect._zoidiumTimeDifferenceCopyPass?.quad?.geometry?.dispose?.();
       timeDifferenceEffect._zoidiumTimeDifferencePass = null;
       timeDifferenceEffect._zoidiumTimeDifferenceCopyMaterial = null;
       timeDifferenceEffect._zoidiumTimeDifferenceCopyPass = null;

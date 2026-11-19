@@ -22,7 +22,7 @@ function makeTexture(counter) {
   };
 }
 
-function loadEffect() {
+function loadEffect(resources) {
   const source = readPack("looks-fx.js");
   const PZ = { asset: { type: { MISC: 5 } }, property: { type: { NUMBER: 0, OPTION: 6, TEXT: 7, ASSET: 8 } } };
   const counter = { uploads: 0 };
@@ -39,6 +39,13 @@ function loadEffect() {
     LinearFilter: 1,
     ClampToEdgeWrapping: 1,
   };
+  if (resources) {
+    THREE.ShaderMaterial = resources.track(class { constructor(opts) { this.uniforms = opts.uniforms; } }, "material");
+    THREE.DataTexture = resources.track(THREE.DataTexture, "texture");
+    const Pass = THREE.ShaderPass;
+    const Geometry = resources.track(class {}, "geometry");
+    THREE.ShaderPass = class extends Pass { constructor(material) { super(material); this.quad = { geometry: new Geometry() }; this.render = () => {}; } };
+  }
   const store = {};
   function FakeProp(def) {
     this.def = def;
@@ -228,4 +235,28 @@ test("each authored instance evaluates only its own tool and preserves legacy cl
     assert.deepEqual(stage._looksScurveBytes, reference._looksScurveBytes);
     effect.unload(); reference.unload();
   }
+});
+
+test("legacy Magic Looks releases pass geometry after rendering", async () => {
+  const { resourceCounter } = require("./helpers/resource-counter.js");
+  const resources = resourceCounter();
+  const { fakeThis: effect } = loadEffect(resources);
+  await effect.load({});
+  effect.pass.render();
+  effect.unload();
+  resources.assertDisposed();
+});
+
+test("instance Magic Looks releases the initial pass and stage resources", async () => {
+  const { resourceCounter } = require("./helpers/resource-counter.js");
+  const resources = resourceCounter();
+  const { fakeThis: effect } = loadEffect(resources);
+  effect.parentLayer = { properties: { resolution: { get: () => [16, 16] } } };
+  await effect.load({ looksInstances: { version: 1, nextId: 2, order: [{ id: "i1", tool: "contrast" }] } });
+  await effect.prepare(0);
+  effect.properties.ml_i1_conContrast.set(0.6);
+  effect.update(0);
+  effect.pass.render({}, {}, { width: 16, height: 16, texture: {} });
+  effect.unload();
+  resources.assertDisposed();
 });

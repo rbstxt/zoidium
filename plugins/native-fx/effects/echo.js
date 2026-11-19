@@ -254,6 +254,8 @@ ZoidiumPluginApis.defineFrameSampler.call(echoEffect, {
       echoEffect._zoidiumEchoTargets = [];
       echoEffect._zoidiumEchoBlendMaterial = null;
       echoEffect._zoidiumEchoCopyMaterial = null;
+      echoEffect._zoidiumEchoBlendPass?.quad?.geometry?.dispose?.();
+      echoEffect._zoidiumEchoCopyPass?.quad?.geometry?.dispose?.();
       echoEffect._zoidiumEchoBlendPass = null;
       echoEffect._zoidiumEchoCopyPass = null;
       echoEffect.pass = null;

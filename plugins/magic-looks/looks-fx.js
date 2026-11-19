@@ -207,6 +207,7 @@ this.unload = function () {
     if (this.pass && this.pass.material && typeof this.pass.material.dispose === "function") {
         this.pass.material.dispose();
     }
+    this.pass?.quad?.geometry?.dispose();
     this.pass = null;
 };
 

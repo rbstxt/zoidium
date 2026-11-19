@@ -246,6 +246,8 @@ ZoidiumPluginApis.defineFrameSampler.call(ccWideTimeEffect, {
       ccWideTimeEffect._zoidiumWideTimeCopyMaterial?.dispose?.();
       ccWideTimeEffect._zoidiumWideTimeTargets = [];
       ccWideTimeEffect._zoidiumWideTimeMaterial = null;
+      ccWideTimeEffect._zoidiumWideTimePass?.quad?.geometry?.dispose?.();
+      ccWideTimeEffect._zoidiumWideTimeCopyPass?.quad?.geometry?.dispose?.();
       ccWideTimeEffect._zoidiumWideTimePass = null;
       ccWideTimeEffect._zoidiumWideTimeCopyMaterial = null;
       ccWideTimeEffect._zoidiumWideTimeCopyPass = null;

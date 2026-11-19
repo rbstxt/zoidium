@@ -360,16 +360,16 @@
       "category": "adjustment",
       "name": "Native FX",
       "author": "Zoidium",
-      "version": "42",
+      "version": "43",
       "itemCount": 6,
       "format": "native effects",
       "tagline": "Native Effects and Time Tools",
       "color": "#c56b3d",
       "description": "Adds native filters, direct visual controls, and time effects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/native-fx/manifest.json?v=42",
-      "bundle": "./plugins/native-fx/bundle.json?v=42",
-      "integrity": "sha256-hMu1eIEXYLVbj3vDQI6zOm7/rYZKSIcyJ/mmxJpyAzA="
+      "manifest": "./plugins/native-fx/manifest.json?v=43",
+      "bundle": "./plugins/native-fx/bundle.json?v=43",
+      "integrity": "sha256-CP4QVgtsFmI5Rzj6snvKjd192Kbvv3CfqKzmWENxhnc="
     },
     {
       "id": "afterclip",
@@ -446,16 +446,16 @@
       "category": "adjustment",
       "name": "Magic Looks",
       "author": "DaviFX",
-      "version": "24",
+      "version": "25",
       "itemCount": 29,
       "format": "setup",
       "tagline": "Looks-style color grading",
       "color": "#f7941d",
       "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain with look presets and a floating setup window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/magic-looks/manifest.json?v=24",
-      "bundle": "./plugins/magic-looks/bundle.json?v=24",
-      "integrity": "sha256-psSFE8AImRijEtUxximWt4nJ7grHVuRJmHpwBddm91k="
+      "manifest": "./plugins/magic-looks/manifest.json?v=25",
+      "bundle": "./plugins/magic-looks/bundle.json?v=25",
+      "integrity": "sha256-BwZa19DT2qvEHuQvLflF9cyOf3SY+pp8bFbGUDh5GmY="
     },
     {
       "id": "layer-input",

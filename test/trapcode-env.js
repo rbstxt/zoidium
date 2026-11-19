@@ -408,9 +408,12 @@ function expandSuiteFiles(files) {
 }
 
 // Builds PZ + THREE and evaluates the requested Trapcode sources into them.
-function loadSuite(files) {
+function loadSuite(files, counter) {
   const PZ = createPZ();
   const THREE = createTHREE();
+  if (counter) for (const name of ["BufferGeometry", "ShaderMaterial", "LineBasicMaterial", "DataTexture"]) {
+    THREE[name] = counter.track(THREE[name], name);
+  }
   for (const file of expandSuiteFiles(files)) {
     new Function("PZ", "THREE", readSource(file))(PZ, THREE);
   }
