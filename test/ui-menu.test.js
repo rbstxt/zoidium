@@ -136,6 +136,19 @@ test("outside pointer, Esc, blur, pagehide, host scroll/resize, abort and owner 
   }
 });
 
+test("repeated menu open and close releases listeners and observers", () => {
+  const { api, doc, view, observers, resizers } = load();
+  const owner = doc.createElement("section"); owner.isConnected = true;
+  for (let i = 0; i < 20; i++) {
+    const menu = api.openMenu({ owner, items: [item("One")] });
+    menu.close();
+    assert.ok(Object.values(view.listeners).every(list => !list.length));
+    assert.ok(Object.values(doc.listeners).every(list => !list.length));
+    assert.ok(observers.every(observer => observer.disconnected));
+    assert.ok(resizers.every(observer => observer.disconnected));
+  }
+});
+
 test("Shape+ forwards its full menu contract to the kit", () => {
   const { api, doc } = load();
   const owner = doc.createElement("canvas");
