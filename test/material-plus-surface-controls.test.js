@@ -239,3 +239,37 @@ test("Node Editor opens and closes for native option values", () => {
   target.props.nodeEditor.changed.call(property);
   assert.deepEqual(calls, [["open", material], ["close", material]]);
 });
+
+test("surface options preserve string values and control graph, shading and reflection", async () => {
+  const h = harness(); NodeMaterial.activate(h.context); Pbr.activate(h.context);
+  const m = h.material("nodes");
+  try {
+    (await h.PZ.material.fnList.nodes).call(m); m.load();
+    for (const key of ["useNodeGraph", "rampEnabled", "fresnel", "aoEnabled", "celEnabled", "reflSpecular", "reflReflection", "projLockAspect", "bumpNoise", "bumpMipFalloff"]) m.properties[key].set("1");
+    m.properties.graph.set(JSON.stringify(graph("color")));
+    await m.prepare(0); m.update(0);
+    assert.ok(m.pzGraphTextures.color, "string option enables the graph");
+    for (const key of ["PZ_RAMP", "PZ_FRESNEL", "PZ_AO", "PZ_CEL"]) assert.equal(m.threeObj.defines[key], 1, key);
+    assert.equal(m.pzUniforms.uPzSpecularEnabled.value, 1);
+    assert.ok(m.pzNoiseTexture);
+    assert.equal(m.threeObj.bumpMap, m.pzNoiseTexture);
+    assert.equal(m.pzNoiseTexture.generateMipmaps, true);
+    const previousNoise = m.pzNoiseTexture;
+    m.properties.bumpNoiseScale.set(9);
+    assert.notEqual(m.pzNoiseTexture, previousNoise);
+    assert.equal(m.threeObj.bumpMap, m.pzNoiseTexture);
+    m.properties.rampInterpolation.set(1); m.syncRamp();
+    const ramp = Array.from(m.pzRampTexture.image.data);
+    m.properties.rampInterpolation.set("1"); m.syncRamp();
+    assert.deepEqual(Array.from(m.pzRampTexture.image.data), ramp);
+    assert.equal(m.threeObj.clearCoat, m.properties.reflReflectionStrength.get() * m.properties.reflReflectionOpacity.get());
+    for (const key of ["useNodeGraph", "rampEnabled", "bumpNoise", "reflReflection"]) assert.equal(JSON.parse(JSON.stringify(m.toJSON())).properties[key], "1");
+    m.properties.shadowSide.set("0"); m.properties.side.set("2"); m.pzSyncShadowSide();
+    assert.equal(m.threeObj.shadowSide, h.context.window.THREE.BackSide);
+    m.properties.useNodeGraph.set("0"); await m.prepare(0); m.update(0);
+    assert.equal(m.pzGraphTextures.color, null);
+    assert.equal(JSON.parse(JSON.stringify(m.toJSON())).properties.useNodeGraph, "0");
+    const editor = h.editors.find(entry => entry.title === "Node Editor");
+    assert.equal(editor.match({ type: "pbrplus", properties: { useNodeGraph: { get: () => "1" } } }), true);
+  } finally { m.unload(); for (const dispose of h.dispose.reverse()) dispose(); }
+});

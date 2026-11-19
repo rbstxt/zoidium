@@ -26,9 +26,9 @@ module.exports = function installSurfaceControls(target, { PZ, THREE, document }
             } },
     });
     target.pzSyncShadowSide = function () {
-        const side = this.properties.shadowSide.get();
+        const side = Number(this.properties.shadowSide.get());
         this.threeObj.shadowSide = side ? [null, THREE.FrontSide, THREE.BackSide, THREE.DoubleSide][side]
-            : this.properties.side.get() === 2 ? THREE.BackSide : null;
+            : Number(this.properties.side.get()) === 2 ? THREE.BackSide : null;
     };
     target.pzDisposeEnvironment = function () {
         const entry = this.pzEnvironment;
@@ -84,7 +84,7 @@ module.exports = function installSurfaceControls(target, { PZ, THREE, document }
     target.pzUpdateSurfaceControls = function (frame) {
         const props = this.properties;
         const t = this.threeObj;
-        if (props.reflReflection.get() !== 1) {
+        if (Number(props.reflReflection.get()) !== 1) {
             t.clearCoat = props.clearcoat.get(frame);
             t.clearCoatRoughness = props.clearcoatRoughness.get(frame);
         }

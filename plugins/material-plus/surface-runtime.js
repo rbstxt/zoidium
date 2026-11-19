@@ -46,7 +46,7 @@ this.update = function (e) {
     t.color.setRGB(1, 1, 1);
     t.opacity = props.opacity.get(e);
     t.bumpScale = props.bumpStrength.get(e);
-    t.clearCoat = props.reflReflection.get() === 1 ? props.reflReflectionStrength.get(e) * props.reflReflectionOpacity.get(e) : 0;
+    t.clearCoat = Number(props.reflReflection.get()) === 1 ? props.reflReflectionStrength.get(e) * props.reflReflectionOpacity.get(e) : 0;
     t.clearCoatRoughness = props.reflReflectionRoughness.get(e);
     t.envMapIntensity = props.reflGlobalReflectionBrightness.get(e);
     var v = props.color.get(e);
@@ -65,7 +65,7 @@ this.update = function (e) {
     uniforms.uPzRotation.value = rotation;
     uniforms.uPzProjRotation.value.set(...props.projRotation.get(e));
     var scale = props.projScale.get(e);
-    uniforms.uPzProjScale.value.set(...(props.projLockAspect.get() === 1 ? [scale[0], scale[0], scale[0]] : scale));
+    uniforms.uPzProjScale.value.set(...(Number(props.projLockAspect.get()) === 1 ? [scale[0], scale[0], scale[0]] : scale));
     uniforms.uPzProjTranslate.value.set(...props.projTranslate.get(e));
     v = props.emissive.get(e);
     t.emissive.setRGB(v[0], v[1], v[2]);
@@ -84,7 +84,7 @@ this.update = function (e) {
     uniforms.uPzCelSmoothness.value = props.celSmoothness.get(e);
     uniforms.uPzCelSpecularSteps.value = props.celSpecularSteps.get(e);
     uniforms.uPzSpecularStrength.value = props.reflSpecularStrength.get(e);
-    uniforms.uPzSpecularEnabled.value = props.reflSpecular.get() === 1 ? 1 : 0;
+    uniforms.uPzSpecularEnabled.value = Number(props.reflSpecular.get()) === 1 ? 1 : 0;
     uniforms.uPzSpecularOpacity.value = props.reflSpecularOpacity.get(e);
 };
     installSurfaceProps(this, env);

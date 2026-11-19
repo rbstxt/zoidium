@@ -185,7 +185,7 @@ target.props = {
         decimals: 0,
         changed: function () {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
-            if (this.parentObject.properties.bumpNoise.get() === 1) {
+            if (Number(this.parentObject.properties.bumpNoise.get()) === 1) {
                 this.parentObject.updateBumpMap();
             }
         },

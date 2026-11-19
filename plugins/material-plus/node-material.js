@@ -134,7 +134,7 @@ function activate(context) {
         this.pzUniforms.uPzGraphColor.value = nodeMode ? null : texture;
         return nodeMode ? this.pzAssignMap("map", texture || this.pzTextures.texture) : false;
       }
-      if (slot === "bump" && this.properties.bumpNoise.get() === 1) return this.pzAssignMap(map, this.pzNoiseTexture);
+      if (slot === "bump" && Number(this.properties.bumpNoise.get()) === 1) return this.pzAssignMap(map, this.pzNoiseTexture);
       return this.pzAssignMap(map, texture || this._zoidiumTextureSlots?.[map]?.texture);
     };
     material.refreshBindings = function () {
@@ -144,7 +144,7 @@ function activate(context) {
     };
     let environmentSource = null;
     if (nodeMode) material.initReflection = function () {
-      const enabled = this.properties.reflection.get() === 1 || this.properties.reflReflection.get() === 1;
+      const enabled = Number(this.properties.reflection.get()) === 1 || Number(this.properties.reflReflection.get()) === 1;
       const custom = this.pzEnvironment?.texture;
       const source = !custom && enabled ? this.parentLayer?.envMap : null;
       if (source === environmentSource) {
@@ -244,7 +244,7 @@ function activate(context) {
         }
         // A completed preview remains useful even when a newer frame is pending.
         // Disabled graphs and export preparations must never receive stale maps.
-        if (!disposed && material.properties.useNodeGraph.get() === 1 && (!preparing || latestKey === job.key)) {
+        if (!disposed && Number(material.properties.useNodeGraph.get()) === 1 && (!preparing || latestKey === job.key)) {
           apply(outputs, job.size);
           material.pzBakeKey = job.key;
           trace("applied", job);
@@ -269,7 +269,7 @@ function activate(context) {
       if (!disposed) legacyUv.ensureMaterial(this, uvLayout);
       if (!this._surfaceReady || disposed || (preparing && !exact)) return;
       this._surfaceFrame = frame;
-      const enabled = this.properties.useNodeGraph.get() === 1;
+      const enabled = Number(this.properties.useNodeGraph.get()) === 1;
       const graph = nodes.parse(enabled ? this.properties.graph.get(frame) : { nodes: [], links: [] });
       const chosenSize = [128, 256, 512, 1024, 2048][this.properties.bakeResolution.get()] || 256;
       const size = exact ? chosenSize : Math.min(chosenSize, 128);
@@ -345,7 +345,7 @@ function activate(context) {
         if (disposed) return;
         preparing = true;
         try {
-          const graph = nodes.parse(this.properties.useNodeGraph.get() === 1 ? this.properties.graph.get(frame) : { nodes: [], links: [] });
+          const graph = nodes.parse(Number(this.properties.useNodeGraph.get()) === 1 ? this.properties.graph.get(frame) : { nodes: [], links: [] });
           await nodes.prepareImages(graph, this);
           if (disposed) return;
           this._surfaceUpdate(frame, true);
@@ -536,7 +536,7 @@ function activate(context) {
       return () => { editorDisposed = true; clearInterval(timer); context.window.cancelAnimationFrame(fitRequest); material._selectedImageNode = null; material.properties.nodeImage.definition.visible = false; material.properties.nodeImage.value = null; globalThis.ZoidiumFrameCache?.touch?.("material-plus-node-image"); material.properties.graph.onChanged.unwatch(syncGraph); assetView?.dispose(); editor.destroy(); };
     } });
   }
-  context.ui?.registerEditor({ title: "Node Editor", match: target => target?.type === "nodes" || (target?.type === "pbrplus" && target.properties?.useNodeGraph?.get?.() === 1), open: openEditor });
+  context.ui?.registerEditor({ title: "Node Editor", match: target => target?.type === "nodes" || (target?.type === "pbrplus" && Number(target.properties?.useNodeGraph?.get?.()) === 1), open: openEditor });
   active = api;
 }
 
