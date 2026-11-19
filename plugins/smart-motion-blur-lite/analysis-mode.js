@@ -19,26 +19,27 @@ function positiveSize(value) {
   return Number.isFinite(size) && size > 0 ? size : 0;
 }
 
-// The analysis input is the smaller of the rendered frame and the project
-// frame. A preview buffer cannot provide more detail than it holds, and the
-// selected level then divides that input. A reduced preview therefore caps
-// the analysis size without changing the selected level. Exports pass their
-// output frame, so the same rule gives the author's pre-quality export sizes
-// at every output resolution up to the project resolution.
-function analysisPlan({ quality, width, height, projectWidth, projectHeight } = {}) {
+// The Quality level is the analysis size relative to the project resolution.
+// A preview buffer can hold less detail than the level asks for, so it caps
+// the analysis size. An export applies the level to its output frame, which
+// keeps the author's export sizes at every output resolution up to the project
+// resolution and never analyses upscaled pixels.
+function analysisPlan({ quality, width, height, projectWidth, projectHeight, exporting } = {}) {
   const frameWidth = positiveSize(width);
   const frameHeight = positiveSize(height);
   if (!frameWidth || !frameHeight) return null;
   const level = qualityLevel(quality);
   const divisor = QUALITY_DIVISORS[level];
-  const baseWidth = Math.min(frameWidth, positiveSize(projectWidth) || frameWidth);
-  const baseHeight = Math.min(frameHeight, positiveSize(projectHeight) || frameHeight);
+  const projectW = positiveSize(projectWidth) || frameWidth;
+  const projectH = positiveSize(projectHeight) || frameHeight;
+  const targetWidth = exporting ? Math.min(frameWidth, projectW) : projectW;
+  const targetHeight = exporting ? Math.min(frameHeight, projectH) : projectH;
   return {
     level,
     divisor,
     exact: divisor === 1,
-    width: Math.max(MIN_ANALYSIS_SIZE, Math.floor(baseWidth / divisor)),
-    height: Math.max(MIN_ANALYSIS_SIZE, Math.floor(baseHeight / divisor)),
+    width: Math.max(MIN_ANALYSIS_SIZE, Math.min(frameWidth, Math.floor(targetWidth / divisor))),
+    height: Math.max(MIN_ANALYSIS_SIZE, Math.min(frameHeight, Math.floor(targetHeight / divisor))),
   };
 }
 

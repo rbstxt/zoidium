@@ -9,13 +9,20 @@ function projectResolution(){
   try{const size=effect.parentProject?.sequence?.properties?.resolution?.get?.();if(Array.isArray(size)&&size[0]>0&&size[1]>0)return size;}catch(_error){}
   return null;
 }
-// The Quality level is the analysis detail relative to the project resolution.
-// The rendered frame is the input, so a reduced preview caps the analysis size
-// without changing the level. Exports pass their output frame, which keeps the
-// author's export sizes at every output resolution up to the project size.
-function analysisPlan(quality,width,height){
+// The Quality level is the analysis size relative to the project resolution.
+// The preview buffer caps it, so the effect never analyses more pixels than the
+// preview holds. An export applies the level to its output frame.
+function analysisPlan(quality,width,height,exporting){
   const project=projectResolution();
-  return effect._smbAnalysisPlan?effect._smbAnalysisPlan({quality,width,height,projectWidth:project?.[0],projectHeight:project?.[1]}):null;
+  return effect._smbAnalysisPlan?effect._smbAnalysisPlan({quality,width,height,projectWidth:project?.[0],projectHeight:project?.[1],exporting}):null;
+}
+function renderContext(){
+  try{const contexts=PZ.zoidium?.temporal?.contexts,context=contexts?.[contexts.length-1];if(context?.compositor)return context;}catch(_error){}
+  return null;
+}
+function drawingForExport(context){
+  if(context)return Boolean(context.exportPolicy);
+  return effect._smbExporting===true;
 }
 // An older build patched PZ.compositor.prototype to force project-resolution
 // previews. Restoring it on load makes an in-place plugin update return to
@@ -65,7 +72,7 @@ function draw(renderer,write,read){
   if(!previous)return copy();
   const w=Math.max(1,Math.round(read.width*uv.x)),h=Math.max(1,Math.round(read.height*uv.y));
   if(w<6||h<6||previous.width<w||previous.height<h)return copy();
-  const plan=analysisPlan(c.quality,w,h);
+  const plan=analysisPlan(c.quality,w,h,drawingForExport(renderContext()));
   if(!plan)return copy();
   const iw=plan.width,ih=plan.height,atFrame=iw===w&&ih===h;
   // resolveFrameSamples validates the host's complete input revision before
@@ -104,7 +111,7 @@ function draw(renderer,write,read){
   const current=crop(runtime.current,atFrame?read.width:iw,iw,ih),prior=crop(runtime.previous,atFrame?previous.width:iw,iw,ih),cache=runtime.cache;
   if(!cache||cache.w!==w||cache.h!==h||cache.level!==plan.level||cache.iw!==iw||cache.ih!==ih||cache.sensitivity!==c.sensitivity||!equal(cache.current,current)||!equal(cache.previous,prior)){
     const field=(plan.exact?effect._smbEstimator:effect._smbHalfEstimator).estimate(current,prior,iw,ih,c.sensitivity,w,h);
-    if(!plan.exact){const sx=(w-1)/(iw-1),sy=(h-1)/(ih-1);for(let i=0;i<field.data.length;i+=4){field.data[i]*=sx;field.data[i+1]*=sy;}}
+    if(iw!==w||ih!==h){const sx=(w-1)/(iw-1),sy=(h-1)/(ih-1);for(let i=0;i<field.data.length;i+=4){field.data[i]*=sx;field.data[i+1]*=sy;}}
     uploadField(runtime,field);
     const savedCurrent=cache?.current?.length===current.length?cache.current:new Uint8Array(current.length);
     const savedPrevious=cache?.previous?.length===prior.length?cache.previous:new Uint8Array(prior.length);
@@ -137,6 +144,7 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
   lifecycle: {
     load(data) {
       removeLegacyResolutionPatch();
+      effect._smbExporting=false;
       effect._smbCopy = ZoidiumPluginApis.gl.createCopyPass(THREE);
       effect._smbCopy.material.blending = THREE.NoBlending;
       const requireEstimator=ZoidiumPluginApis.modules.createRequire(effect._zoidiumGetAsset.bind(effect),{root});
@@ -174,7 +182,8 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
     update(frame) { effect._smbSettings = settings(frame); },
     prepare: async function (frame,context) {
       const c=settings(frame),compositor=context?.frameSamplerRoot||context?.compositor,exporting=Boolean(context?.exportPolicy);
-      const plan=analysisPlan(c.quality,compositor?.readBuffer?.width,compositor?.readBuffer?.height);
+      effect._smbExporting=exporting;
+      const plan=analysisPlan(c.quality,compositor?.readBuffer?.width,compositor?.readBuffer?.height,exporting);
       try{ if(!exporting) await effect._smbAsync?.prepare(frame,context,Object.assign({},c,{plan})); }
       catch(error){context?.exportPolicy?.check?.();if(error?.name==="AbortError")return;if(!effect._smbAsyncWarned){effect._smbAsyncWarned=true;console.warn("ZSMB asynchronous analysis unavailable; using the exact synchronous path.",error);}}
     },

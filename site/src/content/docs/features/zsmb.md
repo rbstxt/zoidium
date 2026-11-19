@@ -18,24 +18,23 @@ reconstructs trails from the current image.
 
 ## Set the quality
 
-**Quality** sets the width of the motion analysis as a part of the rendered
-frame.
+**Quality** sets the width of the motion analysis relative to the project.
 
 | Quality | Analysis width | Use |
 | --- | --- | --- |
-| Full | The full frame | The reference result. The slowest level. |
-| 1/2 | One eighth of the frame | The default. Less detail than Full, and much faster. |
-| 1/4 | One sixteenth of the frame | Faster than 1/2, with softer detail. |
-| 1/8 | One thirty-second of the frame | The fastest level. |
+| Full | The project width | The reference result. The slowest level. |
+| 1/2 | One eighth of the project width | The default. Less detail than Full, and much faster. |
+| 1/4 | One sixteenth of the project width | Faster than 1/2, with softer detail. |
+| 1/8 | One thirty-second of the project width | The fastest level. |
 
-The effect analyses the smaller of the project frame and the rendered frame.
-In the preview, Player+ sets the rendered frame. When the preview is 1/8
-quality, ZSMB analyses at most the pixels of that 1/8 frame, whatever
-**Quality** you select. **Full** at 1/8 preview quality analyses the whole 1/8
-frame. **1/2** at Full preview quality analyses one eighth of the frame.
+The analysis never uses more pixels than the rendered frame holds. In the
+preview, Player+ sets that frame. A reduced preview quality therefore caps the
+analysis width. **Full** analyses the whole preview frame. The reduced levels
+keep their project-relative width while the frame is at least that large.
 
-Export uses the same **Quality** value. A 1/2 export at the project resolution
-analyses the same pixels as a 1/2 preview at Full preview quality. A 1/2 export
+Export uses the same **Quality** value on its output frame. A 1/2 export at the
+project resolution analyses one eighth of the project width. An export larger
+than the project never analyses more than the project frame. A 1/2 export
 renders much faster than a Full export. The blur keeps its length and position
 at every level, because the effect scales the motion field to the frame.
 
