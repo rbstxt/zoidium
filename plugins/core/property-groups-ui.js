@@ -128,7 +128,7 @@
       ok.onclick = () => { const message = apply(); if (message) error.textContent = message; else close(); };
       actions.append(cancel, ok); el.append(error, actions); anchor.after(el); open = new WeakRef(el);
       el.addEventListener("mousedown", event => event.stopPropagation());
-      el.addEventListener("keydown", event => { event.stopPropagation(); if (event.key === "Escape") close(); if (event.key === "Enter") { event.preventDefault(); ok.click(); } });
+      el.addEventListener("keydown", event => { event.stopPropagation(); if (event.isComposing || event.keyCode === 229) return; if (event.key === "Escape") close(); if (event.key === "Enter") { event.preventDefault(); ok.click(); } });
       el.querySelector("input")?.focus();
     }
     return { field, finish };
