@@ -81,6 +81,7 @@ test("pasted bitmaps receive an unused name", () => {
   assert.equal(pastedFilename(2, ""), "Pasted image 2.png");
   assert.equal(nextPasteIndex([]), 1);
   assert.equal(nextPasteIndex(["Pasted image 1.png", "Pasted image 7.png", "photo.png"]), 8);
+  assert.equal(nextPasteIndex(["Pasted media 7.mp4"]), 8);
   assert.equal(needsPastedName({ name: "image.png" }), true);
   assert.equal(needsPastedName({ name: "" }), true);
   assert.equal(needsPastedName({ name: "screenshot" }), true);

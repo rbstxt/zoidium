@@ -99,7 +99,7 @@ function pastedMediaFilename(index, file) {
 function nextPasteIndex(names) {
   let highest = 0;
   for (const name of names || []) {
-    const match = /^Pasted image (\d+)\.[a-z0-9]+$/i.exec(String(name || ""));
+    const match = /^Pasted (?:image|media) (\d+)\.[a-z0-9]+$/i.exec(String(name || ""));
     if (match) highest = Math.max(highest, Number(match[1]));
   }
   return highest + 1;
