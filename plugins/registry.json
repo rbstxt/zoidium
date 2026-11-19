@@ -166,15 +166,15 @@
       "category": "utilities",
       "name": "Motion Paths",
       "author": "Zoidium",
-      "version": "5",
+      "version": "6",
       "itemCount": 1,
       "format": "viewport tool",
       "tagline": "Editable motion paths in the preview",
       "description": "After Effects style motion paths for animated Position in the preview, with draggable keyframes and bezier handles.",
       "defaultEnabled": true,
-      "manifest": "./plugins/motion-path/manifest.json?v=5",
-      "bundle": "./plugins/motion-path/bundle.json?v=5",
-      "integrity": "sha256-QGPh4IHzCskepKaU1QACl19t0riqwojLTyA9PhnDKRQ="
+      "manifest": "./plugins/motion-path/manifest.json?v=6",
+      "bundle": "./plugins/motion-path/bundle.json?v=6",
+      "integrity": "sha256-SpJTyAhaWSbfMH7oWfFfKVSofUTSCCGHqZggee11FKU="
     },
     {
       "id": "light-plus",
