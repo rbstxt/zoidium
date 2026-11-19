@@ -421,7 +421,10 @@ function pollyNumber(value, fallback) {
     if (effect.pollyMesh && effect.pollyMesh.geometry) effect.pollyMesh.geometry.dispose();
     effect.pollyGeometry = null;
     if (effect.pollyMaterial) effect.pollyMaterial.dispose();
-    if (effect.pollyCopy) effect.pollyCopy.material.dispose();
+    if (effect.pollyCopy) {
+      effect.pollyCopy.material.dispose();
+      effect.pollyCopy.quad.geometry.dispose();
+    }
     effect.pollyCopy = null;
   };
 
