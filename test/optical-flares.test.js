@@ -521,3 +521,15 @@ test("blend mode changes apply as draw state without recompiling the program", (
   assert.equal(flare.material.blendDst, THREE.OneFactor, "additive blending restores");
   assert.equal(flare.material.needsUpdate, undefined, "no recompile on blend change");
 });
+
+test("reloading a flare restores additive blending on the occlusion underlay", () => {
+  const { PZ, THREE } = buildEnv();
+  const flare = createFlare(PZ);
+  flare.update(0);
+  flare.unload();
+  flare.load({ objectType: 0 });
+  flare.update(0);
+  assert.equal(flare.underMaterial.blending, THREE.CustomBlending);
+  assert.equal(flare.underMaterial.blendSrc, THREE.OneFactor);
+  assert.equal(flare.underMaterial.blendDst, THREE.OneFactor);
+});

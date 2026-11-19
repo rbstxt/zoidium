@@ -403,6 +403,7 @@ module.exports = function installOptflares(PZ, THREE) {
                 depthWrite: false,
             });
             this.underQuad = new THREE.Mesh(this.quad.geometry, this.underMaterial);
+            this.underQuad.__zoidiumOpticalFlareQuad = true;
             this.underQuad.frustumCulled = false;
             this.underQuad.matrixAutoUpdate = false;
             this.underQuad.renderOrder = 9998;
@@ -411,6 +412,7 @@ module.exports = function installOptflares(PZ, THREE) {
                 self.prepareFrame(camera, true);
             });
             this.threeObj.add(this.underQuad);
+            this._appliedBlend = undefined;
             this.applyGlobalBlending(0);
         }
         applyGlobalBlending(mode) {
