@@ -274,3 +274,14 @@ test("project replacement releases GPU resources owned by parked composition tim
   assert.equal(active.disposed, 1);
   assert.equal(parked.disposed, 1);
 });
+
+test("retirement traverses objects with an isGeometry method", async () => {
+  const h = setup(), gpu = geometry(), warnings = [];
+  h.context.console = { warn(...args) { warnings.push(args); } };
+  const old = h.project({ isGeometry() { return true; }, children: [{ gpu }] });
+  h.open(old);
+  h.open(h.project());
+  await h.tick();
+  assert.equal(gpu.disposed, 1);
+  assert.equal(warnings.length, 0);
+});
