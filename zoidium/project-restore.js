@@ -723,13 +723,13 @@
         input.title = input.value;
       });
       input.addEventListener("blur", function () {
-        var currentName = projectFiles.getProjectName(editor);
-        var displayName = projectFiles.displayNameForUi(currentName);
-        if (input.value !== displayName) {
-          currentName = projectFiles.setProjectName(editor, input.value);
-        }
         var edit = nameEdit;
         nameEdit = null;
+        var currentName = projectFiles.getProjectName(editor);
+        var displayName = projectFiles.displayNameForUi(currentName);
+        if ((!edit || editor.project === edit.project) && input.value !== displayName) {
+          currentName = projectFiles.setProjectName(editor, input.value);
+        }
         var history = editor.history;
         if (edit && editor.project === edit.project && currentName !== edit.before && history) {
           if (history.operation !== null) {
