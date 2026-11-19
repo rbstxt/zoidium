@@ -20,7 +20,14 @@ for (const kind of ["particular", "form", "plexus"]) test(`${kind} retains autho
   const create = data => { const object = new PZ.object3d[kind](); object.type = `zoidium:trapcode-suite/${kind}`; object.load(data); return object; };
   const seed = create(), authored = plain(seed);
   if (kind !== "plexus") author(authored);
-  else authored.properties.name = "Edited Plexus";
+  else {
+    authored.properties.name = "Edited Plexus";
+    for (const object of authored.objects) {
+      author(object.properties.geometry.primitiveCount);
+      author(object.properties.effector.noiseAmount);
+      author(object.properties.renderer.opacity);
+    }
+  }
   const original = create(authored), saved = plain(original);
   assert.deepEqual(saved, authored);
   const packageData = plain(new PZ.package([original])).data[0];
@@ -33,6 +40,12 @@ for (const kind of ["particular", "form", "plexus"]) test(`${kind} retains autho
     const key = kind === "particular" ? "ratePercent" : "rotationX";
     const group = kind === "particular" ? "emitter" : "transform";
     for (const frame of [0, 7, 20]) assert.deepEqual(plain(left.properties[group][key].get(frame)), plain(right.properties[group][key].get(frame)));
+  } else {
+    for (const frame of [0, 7, 20]) {
+      assert.equal(left.properties.geometry.primitiveCount.get(frame), right.properties.geometry.primitiveCount.get(frame));
+      assert.equal(left.properties.renderer.opacity.get(frame), right.properties.renderer.opacity.get(frame));
+    }
+    right.properties.geometry.primitiveCount.keyframes[0].value = 23;
   }
   right.properties.name.set("Duplicate child");
   duplicate.properties.name.set("Duplicate");
