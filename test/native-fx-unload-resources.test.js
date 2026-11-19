@@ -36,3 +36,20 @@ for (const filename of ["echo", "timeremap", "timedifference", "timedisplacement
     counter.assertDisposed();
   });
 }
+
+for (const filename of ["timeoffset", "posterizetime"]) {
+  test(`${filename} evaluates without allocating render resources`, () => {
+    const vm = require("node:vm");
+    const counter = resourceCounter();
+    const THREE = new Proxy({}, { get(_target, name) { return counter.track(class {}, String(name)); } });
+    const effect = { properties: { addAll(definitions) { for (const [name, definition] of Object.entries(definitions)) this[name] = { get: () => definition.value }; }, load() {} } };
+    const context = vm.createContext({ PZ: { property: { type: {} } }, THREE, effect });
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "../zoidium/plugin-apis.js"), "utf8"), context);
+    vm.runInContext(`(function(){${fs.readFileSync(path.join(__dirname, "../plugins/native-fx/effects", `${filename}.js`), "utf8")}\n}).call(effect)`, context);
+    effect.load();
+    effect.update(0);
+    effect._zoidiumTemporal.getOperator(effect, 0);
+    effect.unload();
+    counter.assertDisposed();
+  });
+}
