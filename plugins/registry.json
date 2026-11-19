@@ -205,7 +205,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/geometry-plus/manifest.json?v=10",
       "bundle": "./plugins/geometry-plus/bundle.json?v=10",
-      "integrity": "sha256-oppdRWPbejCuVBNKSPsjNCKhsvsAgX+I4Ph2hnfrA1o="
+      "integrity": "sha256-lpr9qQClh1K2WD5v35Tk6NkyXfQMqPitpDAwnN3XGAY="
     },
     {
       "id": "repeater",

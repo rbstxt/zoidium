@@ -343,3 +343,29 @@ test("open B-splines with three points produce a quadratic curve", () => {
   }
 });
 
+test("round spline caps connect each ring without twisting", () => {
+  activateForMath();
+  try {
+    const mesh = plugin._test.createSplineTubeGeometry(
+      [[0, 0, 0], [10, 0, 0]], [2, 2], 8, "Both", "Round"
+    );
+    // The first cap ring follows the two body rings. Matching vertices must
+    // point in the same radial direction from the spline axis.
+    for (let j = 0; j < 8; j++) {
+      const body = mesh.vertices[j];
+      const cap = mesh.vertices[16 + j];
+      assert.ok(body.y * cap.y + body.z * cap.z > 0, `vertex ${j}`);
+    }
+    for (const face of mesh.faces.slice(16)) {
+      const [a, b, c] = [face.a, face.b, face.c].map(index => mesh.vertices[index]);
+      const u = [b.x - a.x, b.y - a.y, b.z - a.z];
+      const v = [c.x - a.x, c.y - a.y, c.z - a.z];
+      const normal = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+      const center = [(a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3, (a.z + b.z + c.z) / 3];
+      const origin = center[0] < 5 ? 0 : 10;
+      assert.ok(normal[0] * (center[0] - origin) + normal[1] * center[1] + normal[2] * center[2] > 0);
+    }
+  } finally {
+    plugin.deactivate();
+  }
+});

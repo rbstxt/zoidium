@@ -292,9 +292,9 @@ function createSplineTubeGeometry(THREE, centerline, radii, radialSegments, caps
         geometry.vertices.push(new THREE.Vector3(capCenter[0], capCenter[1], capCenter[2]));
         for (let j = 0; j < segmentCount; j++) {
           const next = (j + 1) % segmentCount;
-          geometry.faces.push(
-            new THREE.Face3(poleIndex, previousRing[next], previousRing[j])
-          );
+          geometry.faces.push(direction < 0
+            ? new THREE.Face3(poleIndex, previousRing[j], previousRing[next])
+            : new THREE.Face3(poleIndex, previousRing[next], previousRing[j]));
         }
         return;
       }
@@ -302,7 +302,7 @@ function createSplineTubeGeometry(THREE, centerline, radii, radialSegments, caps
       for (let j = 0; j < segmentCount; j++) {
         const theta = (Math.PI * 2 * j) / segmentCount;
         const cos = Math.cos(theta);
-        const sin = Math.sin(theta) * direction;
+        const sin = Math.sin(theta);
         ring.push(geometry.vertices.length);
         geometry.vertices.push(
           new THREE.Vector3(
@@ -314,10 +314,17 @@ function createSplineTubeGeometry(THREE, centerline, radii, radialSegments, caps
       }
       for (let j = 0; j < segmentCount; j++) {
         const next = (j + 1) % segmentCount;
-        geometry.faces.push(
-          new THREE.Face3(previousRing[j], ring[j], ring[next]),
-          new THREE.Face3(previousRing[j], ring[next], previousRing[next])
-        );
+        if (direction < 0) {
+          geometry.faces.push(
+            new THREE.Face3(previousRing[j], ring[next], ring[j]),
+            new THREE.Face3(previousRing[j], previousRing[next], ring[next])
+          );
+        } else {
+          geometry.faces.push(
+            new THREE.Face3(previousRing[j], ring[j], ring[next]),
+            new THREE.Face3(previousRing[j], ring[next], previousRing[next])
+          );
+        }
       }
       previousRing = ring;
     }
