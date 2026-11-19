@@ -405,6 +405,20 @@ test("project name Enter does not blur during composition", () => {
   assert.equal(blurs, 1);
 });
 
+test("finishing an old name edit cannot rename a newly opened project", () => {
+  const h = loadToolbarHarness(), input = h.fieldInput();
+  let name = "old";
+  h.projectFiles.getProjectName = () => name;
+  h.projectFiles.setRawProjectName = (_editor, value) => { name = value; };
+  h.projectFiles.setProjectName = (_editor, value) => (name = value.trim() || "project");
+  input.listeners.focus[0]();
+  input.value = "unfinished"; input.listeners.input[0]();
+  h.editor.project = { id: "new" }; name = "new project";
+  input.listeners.blur[0]();
+  assert.equal(name, "new project");
+  assert.equal(input.value, "new project");
+});
+
 test("the single name-changed listener resolves the input at event time", () => {
   const harness = loadToolbarHarness();
   const input = harness.fieldInput();

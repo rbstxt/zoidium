@@ -712,16 +712,21 @@
       input.setAttribute("aria-label", "Project name");
       input.value = projectFiles.displayNameForUi(projectFiles.getProjectName(editor));
       input.title = input.value;
+      var nameEditProject = null;
+      input.addEventListener("focus", function () { nameEditProject = editor.project; });
       input.addEventListener("input", function () {
+        if (nameEditProject && nameEditProject !== editor.project) return;
+        if (!nameEditProject) nameEditProject = editor.project;
         projectFiles.setRawProjectName(editor, input.value);
         input.title = input.value;
       });
       input.addEventListener("blur", function () {
         var currentName = projectFiles.getProjectName(editor);
         var displayName = projectFiles.displayNameForUi(currentName);
-        if (input.value !== displayName) {
+        if (nameEditProject === editor.project && input.value !== displayName) {
           currentName = projectFiles.setProjectName(editor, input.value);
         }
+        nameEditProject = null;
         input.value = projectFiles.displayNameForUi(currentName);
         input.title = input.value;
       });

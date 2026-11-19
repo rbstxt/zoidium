@@ -144,6 +144,41 @@ test("audio track labels add an eye-like audio toggle", () => {
   assert.equal(combined[0], audioTrack);
 });
 
+test("audio mute is one undoable and redoable project edit", () => {
+  const { Tracks, analyzeCalls } = loadPatch();
+  const track = { type: 1, clips: [], getAddress: () => ["track"] };
+  const sequence = { audioTracks: [track] };
+  const undo = [], redo = [];
+  const history = { operation: null,
+    startOperation() { this.operation = []; },
+    pushCommand(fn, arg) { this.operation.push(() => fn(arg)); },
+    finishOperation() { if (this.operation.length) undo.push(this.operation); this.operation = null; },
+    replay(from, to) { const commands = from.pop(); this.operation = []; commands.slice().reverse().forEach(fn => fn()); to.push(this.operation); this.operation = null; } };
+  const editor = { history, project: { addressLookup: () => track, ui: { onChanged: { update() {} } } } };
+  const tracks = new Tracks(); tracks.timeline = { editor, sequence };
+  const button = tracks.createTrackLabel(track, 1, 0).children[1];
+  button.onclick();
+  assert.equal(track.enabled, false);
+  assert.equal(undo.length, 1);
+  history.replay(undo, redo);
+  assert.equal(track.enabled, true);
+  assert.equal(button.title, "disable track");
+  history.replay(redo, undo);
+  assert.equal(track.enabled, false);
+  assert.equal(button.title, "enable track");
+  assert.equal(analyzeCalls.length, 3);
+  const restored = { ...track };
+  editor.project.addressLookup = () => restored;
+  sequence.audioTracks = [restored];
+  const restoredButton = tracks.createTrackLabel(restored, 1, 0).children[1];
+  history.replay(undo, redo);
+  assert.equal(restored.enabled, true);
+  assert.equal(restoredButton.title, "disable track");
+  history.replay(redo, undo);
+  assert.equal(restored.enabled, false);
+  assert.equal(restoredButton.title, "enable track");
+});
+
 test("reenabling audio restores the current clip position immediately", () => {
   const { Tracks, state } = loadPatch();
   const sequence = { audioSchedules: [] };

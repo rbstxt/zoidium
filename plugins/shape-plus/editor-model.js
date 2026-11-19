@@ -39,14 +39,18 @@ function createEditorModel(s) {
   };
   const read = (history = false) => {
     const target = resolve();
-    if (host) return target && host.owns(target) ? clone(liveContents()) : null;
+    if (host) {
+      if (history) return host.readHistory(target);
+      return target && host.owns(target) ? clone(liveContents()) : null;
+    }
     if (!history && target !== layer) return null;
     return target && target.type === layer.type ? clone(target.contents) : null;
   };
   const write = (data, history = false) => {
     const target = resolve();
     if (host) {
-      if (target && host.owns(target)) host.write(data);
+      if (history) host.writeHistory(target, data);
+      else if (target && host.owns(target)) host.write(data);
       return;
     }
     if (!history && target !== layer) return;

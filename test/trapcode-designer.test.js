@@ -476,6 +476,38 @@ test("adding a system is undoable and selects the new system", () => {
   });
 });
 
+test("designer add history follows an object restored after deletion", () => {
+  withGlobals(({ history }) => {
+    const { designer, root } = setup();
+    const win = designer.open(root);
+    byClass(win.body, "tc-system add")[0].onclick();
+    const restored = { ...root, systems: root.systems.map(item => ({ ...item })) };
+    CM.project.addressLookup = () => restored;
+    const undo = history.commands.pop();
+    undo.fn(undo.payload);
+    assert.equal(restored.systems.length, 1);
+    const redo = history.commands.pop();
+    redo.fn(redo.payload);
+    assert.equal(restored.systems.length, 2);
+  });
+});
+
+test("designer add undo follows the added item when the list is reordered", () => {
+  withGlobals(({ history }) => {
+    const { designer, root } = setup();
+    const win = designer.open(root), original = root.systems[0];
+    byClass(win.body, "tc-system add")[0].onclick();
+    const added = root.systems[1];
+    root.systems.reverse();
+    const undo = history.commands.pop(); undo.fn(undo.payload);
+    assert.equal(root.systems.length, 1);
+    assert.equal(root.systems[0], original);
+    const redo = history.commands.pop(); redo.fn(redo.payload);
+    assert.equal(root.systems[0], added);
+    assert.equal(root.systems[1], original);
+  });
+});
+
 test("transport moves the frame and pauses playback", () => {
   withGlobals(({ playback }) => {
     const { designer, root } = setup();

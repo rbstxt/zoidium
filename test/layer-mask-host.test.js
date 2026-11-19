@@ -170,6 +170,19 @@ test("undo restores the previous mask collection", () => {
   assert.deepEqual(getMasks(nativeLayer), []);
 });
 
+test("mask history follows a layer restored after deletion", () => {
+  const { s, nativeLayer, editor } = harness();
+  s.gesture.begin();
+  s.addItem("path", [1, 1]);
+  s.gesture.finish();
+  const restored = { ...nativeLayer, [FIELD]: clone(nativeLayer[FIELD]) };
+  editor.project.target = restored;
+  editor.history.undo();
+  assert.deepEqual(getMasks(restored), []);
+  editor.history.undo(); // The stub records the inverse as the next entry.
+  assert.equal(getMasks(restored).length, 1);
+});
+
 test("host goes invalid when the layer leaves the project", () => {
   const { s, nativeLayer, editor } = harness([pathMask("m1", [0, 0, 0, 0, 0, 0, 10, 10, 0, 0, 0, 0])]);
   assert.equal(s.valid(), true);

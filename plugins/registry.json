@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "158",
+      "version": "159",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=158",
-      "bundle": "./plugins/core/bundle.json?v=158",
-      "integrity": "sha256-nC/KgF+2D49Fkxi/9yXQwgmVeWPA/SAGTA4P3vZWlZA="
+      "manifest": "./plugins/core/manifest.json?v=159",
+      "bundle": "./plugins/core/bundle.json?v=159",
+      "integrity": "sha256-4zVguxGun6DIYarbFf8VLai7rv37ma+7xMjT1GscBuA="
     },
     {
       "id": "easing-plus",
@@ -103,16 +103,16 @@
       "category": "utilities",
       "name": "Assets",
       "author": "Zoidium",
-      "version": "16",
+      "version": "17",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Project panel for every asset",
       "color": "#6f8f5a",
       "description": "An After Effects style Project panel: every file, font, image, model and composition in the project, where each is used, and which are missing or failed.",
-      "manifest": "./plugins/asset-manager/manifest.json?v=16",
-      "bundle": "./plugins/asset-manager/bundle.json?v=16",
-      "integrity": "sha256-6NO6xXUhDt01HUEnCBnA0aTdPkecrcYmZBG0V3+PNNs="
+      "manifest": "./plugins/asset-manager/manifest.json?v=17",
+      "bundle": "./plugins/asset-manager/bundle.json?v=17",
+      "integrity": "sha256-mEJ/XzZbGv1Q8YbZf2PyWCnzPvTBBabjUQ7QTUcMhYA="
     },
     {
       "id": "precomp-plus",
@@ -229,16 +229,16 @@
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "40",
+      "version": "41",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=40",
-      "bundle": "./plugins/material-plus/bundle.json?v=40",
-      "integrity": "sha256-85cBfP9Xu/zdecCg81/j3Eb/KqBb24Xuh44nYsv+fTQ="
+      "manifest": "./plugins/material-plus/manifest.json?v=41",
+      "bundle": "./plugins/material-plus/bundle.json?v=41",
+      "integrity": "sha256-7h5CO+C3eTBRH7Dch5p4dkGUeZYdkA35F/2inNMEUjw="
     },
     {
       "id": "text-plus",
@@ -296,16 +296,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "53",
+      "version": "54",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=53",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=53",
-      "integrity": "sha256-f9VaZvoqZJeiCS0EgBlTHWZDtshqZTMBkLwBVQlQtV8="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=54",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=54",
+      "integrity": "sha256-8FbQuO+PXjafz5b1W7oWLxvfcepYx6CTIR4yj9DsvUk="
     },
     {
       "id": "optical-flares",
@@ -462,7 +462,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "18",
+      "version": "19",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -470,22 +470,22 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=18",
-      "bundle": "./plugins/layer-input/bundle.json?v=18",
-      "integrity": "sha256-K/8Ca/+S+3qs+TXUrni+Pl1ngaD66i8fm2/hb3BW7A8="
+      "manifest": "./plugins/layer-input/manifest.json?v=19",
+      "bundle": "./plugins/layer-input/bundle.json?v=19",
+      "integrity": "sha256-ykSHyR9iDvcdKrQa5/Fo+PrDWQzdYsR/S7x3/U4LKI0="
     },
     {
       "id": "shape-plus",
       "name": "Shape+",
       "author": "Zoidium",
-      "version": "40",
+      "version": "41",
       "tagline": "Animated vector layers",
       "description": "Animated vector layers, procedural contents, pen masks for Scene and Adjustment layers, SVG import and native preview path editing.",
       "category": "scene",
       "defaultEnabled": true,
-      "manifest": "./plugins/shape-plus/manifest.json?v=40",
-      "bundle": "./plugins/shape-plus/bundle.json?v=40",
-      "integrity": "sha256-83LNMlmhQqBpETcFRT4fgxicuu557PxzctFNopFzqNQ="
+      "manifest": "./plugins/shape-plus/manifest.json?v=41",
+      "bundle": "./plugins/shape-plus/bundle.json?v=41",
+      "integrity": "sha256-EByPhMTqVLzqQ44vfJjiyot1SQdpfbtS6i4JpG0D+EQ="
     },
     {
       "id": "constraints",

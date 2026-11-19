@@ -46,6 +46,7 @@ function createResolveFonts(session) {
     let rows = [];
     let body = null;
     let win = null;
+    let applying = false;
 
     function render() {
       if (!body) return;
@@ -95,19 +96,40 @@ function createResolveFonts(session) {
     }
 
     async function apply() {
-      let replaced = 0;
-      for (const item of rows) {
+      if (applying) return;
+      const selected = rows.filter((item) => {
         const choice = choices.get(item.id);
-        if (!choice || (!choice.file && choice.builtIn === KEEP)) continue;
-        const target = choice.file ? { file: choice.file } : { itemId: choice.builtIn };
-        await session.actions.replace(item, target);
-        choices.delete(item.id);
-        replaced += 1;
-      }
-      if (!replaced) {
+        return choice && (choice.file || choice.builtIn !== KEEP);
+      });
+      if (!selected.length) {
         session.notify({ title: "Resolve Fonts", message: "Choose a replacement for at least one font." });
         return;
       }
+      const editor = session.editor();
+      const history = editor?.history;
+      const project = editor?.project;
+      if (!history || !project || history.operation !== null) {
+        session.notify({ title: "Resolve Fonts", message: "Finish the current edit before replacing fonts." });
+        return;
+      }
+      let replaced = 0;
+      applying = true;
+      history.startOperation();
+      const operation = history.operation;
+      try {
+        for (const item of selected) {
+          if (editor.project !== project || history.operation !== operation) break;
+          const choice = choices.get(item.id);
+          const target = choice.file ? { file: choice.file } : { itemId: choice.builtIn };
+          await session.actions.replace(item, target);
+          choices.delete(item.id);
+          replaced += 1;
+        }
+      } finally {
+        if (editor.project === project && history.operation === operation) history.finishOperation();
+        applying = false;
+      }
+      if (!replaced) return;
       if (!problemFonts().length) win.close();
       else render();
     }
@@ -129,7 +151,7 @@ function createResolveFonts(session) {
         };
       },
       footer: [
-        { title: "Replace", variant: "primary", onClick: () => { apply(); } },
+        { title: "Replace", variant: "primary", onClick: apply },
         { title: "Cancel", onClick: () => win.close() },
       ],
     });

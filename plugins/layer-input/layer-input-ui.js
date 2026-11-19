@@ -221,7 +221,30 @@ module.exports = function createUi(state, deps) {
         const consumer = property.parentObject;
         const frame = container.pz_frame;
         const value = modeSelect.value;
-        deps.setSourceMode(consumer, value, { sourceProperty: property });
+        const editor = state.editor;
+        const history = editor?.history;
+        const project = editor?.project;
+        const previous = deps.getSourceMode(consumer, property);
+        if (history && project && previous !== value) {
+          const exchange = (command) => {
+            if (editor.project !== project) return;
+            const target = project.addressLookup(command.address, 0);
+            const current = deps.getSourceMode(target.parentObject, target);
+            deps.setSourceMode(target.parentObject, command.mode, { sourceProperty: target });
+            history.pushCommand(exchange, { address: command.address, mode: current });
+            project.ui?.onChanged?.update?.();
+          };
+          const opened = history.operation === null;
+          if (opened) history.startOperation();
+          try {
+            deps.setSourceMode(consumer, value, { sourceProperty: property });
+            history.pushCommand(exchange, { address: property.getAddress(), mode: previous });
+            project.ui?.onChanged?.update?.();
+          } finally { if (opened) history.finishOperation(); }
+        } else if (!history || !project) {
+          state.window?.ZoidiumUI?.notify?.({ title: "Layer Input", message: "The input mode could not be changed without an active project." });
+        }
+        modeSelect.value = deps.getSourceMode(consumer, property);
         refresh(frame);
       };
     }

@@ -93,7 +93,7 @@ function activate(context) {
     extra.nodeImage = { name: "Selected node image", visible: false, type: PZ.property.type.ASSET, assetType: PZ.asset.type.IMAGE, accept: "image/*", value: null, changed: function () {
       const owner = this.parentObject;
       if (!owner._selectedImageNode) return;
-      const graph = nodes.parse(owner.properties.graph.get());
+      const graph = nodes.parse(nodes.parse(owner.properties.graph.get()));
       const node = graph.nodes.find(n => n.id === owner._selectedImageNode);
       if (!node) return;
       node.params.asset = this.value || "";
@@ -524,7 +524,14 @@ function activate(context) {
         });
       } });
       let assetView = null;
-      const syncGraph = () => editor.setGraph(editorGraph(material));
+      const syncGraph = () => {
+        editor.setGraph(editorGraph(material));
+        const node = nodes.parse(material.properties.graph.get()).nodes.find(n => n.id === material._selectedImageNode);
+        if (node && ["image", "texture"].includes(node.type)) {
+          material.properties.nodeImage.value = node.params.asset || null;
+          assetView?.refresh();
+        }
+      };
       material.properties.graph.onChanged.watch(syncGraph);
       host.appendChild(editor.element);
       let fitRequest = context.window.requestAnimationFrame(() => {
