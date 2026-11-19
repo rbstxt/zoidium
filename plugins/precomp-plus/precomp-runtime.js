@@ -849,7 +849,7 @@ module.exports = {
     }
     if (!context.editor) throw new Error("Precomp+ needs the open editor.");
     const engine = installEngine(context, PZ);
-    context.lifecycle.onDispose(engine.install());
+    context.lifecycle.onDispose(engine.install(context.editor));
     session = { context: context, PZ: PZ, editor: context.editor, engine: engine, kit: kitOf(context) };
     context.lifecycle.onDispose(function () { session = null; sceneReturn = null; });
     context.lifecycle.onDispose(installClipMenu(context, engine, context.editor));

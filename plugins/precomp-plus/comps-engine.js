@@ -43,6 +43,8 @@ const cmdRemoveComp = timeline.cmdRemoveComp;
 const cmdRenameComp = timeline.cmdRenameComp;
 const sessions = new WeakMap();
 const listeners = new Set();
+const mediaWaits = new WeakMap();
+let activeEditor = null;
 
 let renderDepth = 0;
 
@@ -474,6 +476,36 @@ function reanalyze(project) {
   }
 }
 
+function setEditor(editor) {
+  activeEditor = editor;
+  return function () { if (activeEditor === editor) activeEditor = null; };
+}
+
+function waitForMedia(project, media) {
+  const loading = media.loading;
+  if (!loading || typeof loading.then !== "function" || mediaWaits.get(media) === loading) return;
+  mediaWaits.set(media, loading);
+  const editorAtWait = activeEditor;
+  loading.then(function () {
+    if (mediaWaits.get(media) !== loading || !media.loaded || !project.media.includes(media)) return;
+    if (editorAtWait && editorAtWait !== activeEditor) return;
+    if (activeEditor && activeEditor.project !== project) return;
+    reanalyze(project);
+    const editor = activeEditor;
+    if (!editor || editor.project !== project) return;
+    globalThis.ZoidiumFrameCache?.touch("composition-media-loaded");
+    globalThis.ZoidiumFrameCache?.clear();
+    const viewport = editor.mainViewport;
+    if (editor.playback?.speed !== 0 || !viewport || viewport.enabled === false || viewport.__zoidiumPlayerPlusPaused) return;
+    try {
+      viewport.lastFrame = -1;
+      viewport._render();
+    } catch (error) {
+      console.error("[Precomp+] could not refresh the preview:", error);
+    }
+  }, function () { /* The host reports media loading failures. */ });
+}
+
 Object.assign(CompLayer, {
   // Builds the composition's video tracks once per layer. Audio tracks are
   // built by nestedAudioTracks below and scheduled as proxies.
@@ -484,9 +516,7 @@ Object.assign(CompLayer, {
     const media = findComp(project, this.compId);
     if (!media) return EMPTY;
     if (!media.loaded) {
-      if (media.loading && typeof media.loading.then === "function") {
-        media.loading.then(function () { reanalyze(project); });
-      }
+      waitForMedia(project, media);
       return EMPTY;
     }
     const tracks = [];
@@ -512,9 +542,7 @@ Object.assign(CompLayer, {
     const media = findComp(project, this.compId);
     if (!media) return EMPTY;
     if (!media.loaded) {
-      if (media.loading && typeof media.loading.then === "function") {
-        media.loading.then(function () { reanalyze(project); });
-      }
+      waitForMedia(project, media);
       return EMPTY;
     }
     const tracks = [];
@@ -814,6 +842,7 @@ function activeName(editor) {
 }
 
 module.exports = {
+  setEditor,
   sessionOf: sessionOf,
   timingState: timingState,
   restoreTimingState: restoreTimingState,

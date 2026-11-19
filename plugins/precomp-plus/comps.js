@@ -62,7 +62,7 @@ function patch(target, key, makeWrapper) {
   };
 }
 
-function install() {
+function install(editor) {
   const restores = [];
   try {
     restores.push(patch(PZ.layer.composite.prototype, "load", function (original) {
@@ -208,7 +208,9 @@ function install() {
     restores.reverse().forEach(function (restore) { restore(); });
     throw error;
   }
+  const releaseEditor = engine.setEditor(editor || null);
   return function uninstall() {
+    releaseEditor();
     restores.reverse().forEach(function (restore) { restore(); });
     timeline.clearTimelineCache();
     engine.resetRenderDepth();
