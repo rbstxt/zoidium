@@ -309,3 +309,27 @@ test("Echo Repeater retains completed render clones at the same frame and rebuil
   echo.clearInstances();echo.rebuildEchoInstances(7);
   assert.equal(echo._instanceRoots.length, 2, "explicit clearing also invalidates the retained frame");
 });
+
+test("Echo Repeater refreshes when evaluated controls change at the same frame", () => {
+  class Node {
+    constructor() { this.children = []; }
+    add(node) { this.children.push(node); }
+    remove(node) { this.children = this.children.filter(child => child !== node); }
+    traverse(callback) { callback(this); for (const child of this.children) child.traverse(callback); }
+  }
+  const PZ = { object3d: { group: class {} }, property: { type: { NUMBER: 0, VECTOR3: 2 } } };
+  const Echo = _test.createRepeaterClass(PZ, { Object3D: Node }, "echo", "echo");
+  let count = 2, delay = 5;
+  const echo = Object.assign(Object.create(Echo.prototype), {
+    threeObj: new Node(), _instanceRoots: [], _cloneDirty: true, objects: [],
+    repeaterProperties: { count: { get: () => count }, delay: { get: () => delay } },
+  });
+  echo.rebuildEchoInstances(20);
+  assert.deepEqual(echo._instanceRoots.map(item => item.sourceFrame), [20, 15]);
+  count = 3;
+  echo.rebuildEchoInstances(20);
+  assert.deepEqual(echo._instanceRoots.map(item => item.sourceFrame), [20, 15, 10]);
+  delay = 2;
+  echo.rebuildEchoInstances(20);
+  assert.deepEqual(echo._instanceRoots.map(item => item.sourceFrame), [20, 18, 16]);
+});

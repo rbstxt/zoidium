@@ -123,15 +123,15 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       // Preparation and rendering evaluate the same frame. Reuse those clones
       // so a completed asynchronous deformation survives the render update.
       // Authored source data catches edits to earlier animated keys as well.
-      const echoKey = JSON.stringify([frame, this.objects]);
-      if (!this._cloneDirty && this._echoKey === echoKey) return;
-      this.clearInstances();
       const currentFrame = Math.max(0, numberValue(frame, 0));
       const count = getCount(this.repeaterProperties.count, currentFrame);
       const delay = Math.max(
         0,
         numberValue(this.repeaterProperties.delay?.get?.(currentFrame), 0),
       );
+      const echoKey = JSON.stringify([frame, this.objects, count, delay]);
+      if (!this._cloneDirty && this._echoKey === echoKey) return;
+      this.clearInstances();
       const sources = this.objects.filter((source) => source?.threeObj);
       const echoFrames = getEchoFrames(currentFrame, count, delay);
 
