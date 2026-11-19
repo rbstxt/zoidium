@@ -41,7 +41,7 @@ function installActions(s, root, options = {}) {
     }
     if (path)
       entries.push(
-        { label: item.properties.closed.get() ? "Open Path" : "Close Path", action: s.closePath },
+        { label: Number(item.properties.closed.get()) === 1 ? "Open Path" : "Close Path", action: s.closePath },
         { label: "Reverse Path Direction", action: s.reverse },
         { separator: true },
         ...["corner", "smooth", "symmetric", "independent"].map((mode) => ({

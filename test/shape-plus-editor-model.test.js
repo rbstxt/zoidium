@@ -241,3 +241,10 @@ test("Path key toggle removes only the explicit current key and retains the fina
     s.active().properties.path.objects.every((p) => p.keyframes.length === 1),
   );
 });
+
+test("Close Path toggles a saved string option", () => {
+  const { s, path } = host();
+  path.properties.closed.set("0");
+  s.closePath();
+  assert.equal(path.properties.closed.get(), 1);
+});
