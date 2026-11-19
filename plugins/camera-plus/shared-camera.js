@@ -20,6 +20,7 @@ parts.shared = function (options) {
       function walk(objects) {
         for (const object of objects || []) {
           if (object.properties?.enabled && object.properties.enabled.get(time) !== 1) continue;
+          if (object.__zoidiumRepeater) continue;
           if (object.threeObj && (object.type === 6 || object.type === TYPE && object.isActive())) return object;
           const child = object.objects && walk(object.objects);
           if (child) return child;
