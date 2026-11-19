@@ -164,3 +164,17 @@ test("references format, parse and reject garbage", () => {
 test("modes list is stable and documented", () => {
   assert.deepEqual(MODES, ["add", "subtract", "intersect"]);
 });
+
+test("sampling duplicate vertices stays finite and follows arc length", () => {
+  const vertex = (x, y) => ({ point: [x, y], in: [0, 0], out: [0, 0] });
+  const open = samplePoints({ vertices: [vertex(2, 3), vertex(2, 3), vertex(12, 3)], closed: false }, 256);
+  assert.equal(open.length, 10);
+  assert.equal(open.points.length, 256);
+  for (let i = 0; i < 256; i++) {
+    assert.ok(Math.abs(open.points[i][0] - (2 + 10 * i / 255)) < 1e-9);
+    assert.equal(open.points[i][1], 3);
+  }
+  const zero = samplePoints({ vertices: [vertex(2, 3), vertex(2, 3)], closed: true }, 256);
+  assert.equal(zero.length, 0);
+  assert.ok(zero.points.every(point => point[0] === 2 && point[1] === 3));
+});
