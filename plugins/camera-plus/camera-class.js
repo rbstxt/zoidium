@@ -344,7 +344,7 @@ parts.camera = (function () {
       // Depth-of-field settings at time t, or null when DOF is off.
       readDepthOfField(time) {
         const d = this.properties.depthOfField;
-        if (readNumber(d.enabled, time, 0) !== 1) return null;
+        if (Number(d.enabled.get(time)) !== 1) return null;
         return {
           orthographic: Boolean(this.threeObj.isOrthographicCamera),
           near: this.threeObj.near,
