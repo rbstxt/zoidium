@@ -712,40 +712,21 @@
       input.setAttribute("aria-label", "Project name");
       input.value = projectFiles.displayNameForUi(projectFiles.getProjectName(editor));
       input.title = input.value;
-      var nameEdit = null;
-      function beginNameEdit() {
-        if (!nameEdit) nameEdit = { project: editor.project, before: projectFiles.getProjectName(editor) };
-      }
-      input.addEventListener("focus", beginNameEdit);
+      var nameEditProject = null;
+      input.addEventListener("focus", function () { nameEditProject = editor.project; });
       input.addEventListener("input", function () {
-        beginNameEdit();
+        if (nameEditProject && nameEditProject !== editor.project) return;
+        if (!nameEditProject) nameEditProject = editor.project;
         projectFiles.setRawProjectName(editor, input.value);
         input.title = input.value;
       });
       input.addEventListener("blur", function () {
-        var edit = nameEdit;
-        nameEdit = null;
         var currentName = projectFiles.getProjectName(editor);
         var displayName = projectFiles.displayNameForUi(currentName);
-        if ((!edit || editor.project === edit.project) && input.value !== displayName) {
+        if (nameEditProject === editor.project && input.value !== displayName) {
           currentName = projectFiles.setProjectName(editor, input.value);
         }
-        var history = editor.history;
-        if (edit && editor.project === edit.project && currentName !== edit.before && history) {
-          if (history.operation !== null) {
-            currentName = projectFiles.setProjectName(editor, edit.before);
-          } else {
-            function exchange(value) {
-              if (editor.project !== edit.project) return;
-              var previous = projectFiles.getProjectName(editor);
-              projectFiles.setProjectName(editor, value);
-              history.pushCommand(exchange, previous);
-            }
-            history.startOperation();
-            try { history.pushCommand(exchange, edit.before); }
-            finally { history.finishOperation(); }
-          }
-        }
+        nameEditProject = null;
         input.value = projectFiles.displayNameForUi(currentName);
         input.title = input.value;
       });

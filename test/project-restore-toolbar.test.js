@@ -392,29 +392,6 @@ test("the project-name field installs once and survives toolbar rebuilds", () =>
   assert.equal(harness.globalListeners["zoidium:project-name-changed"].length, 1);
 });
 
-test("a project name edit is one undoable and redoable operation", () => {
-  const h = loadToolbarHarness(), input = h.fieldInput(), undo = [], redo = [];
-  let name = "project";
-  h.projectFiles.getProjectName = () => name;
-  h.projectFiles.setRawProjectName = (_editor, value) => { name = value; };
-  h.projectFiles.setProjectName = (_editor, value) => (name = value.trim() || "project");
-  const history = h.editor.history = { operation: null,
-    startOperation() { this.operation = []; },
-    pushCommand(fn, arg) { this.operation.push(() => fn(arg)); },
-    finishOperation() { if (this.operation.length) undo.push(this.operation); this.operation = null; },
-    replay(from, to) { const commands = from.pop(); this.operation = []; commands.slice().reverse().forEach(fn => fn()); to.push(this.operation); this.operation = null; } };
-  input.listeners.focus?.[0]();
-  input.value = "New name";
-  input.listeners.input[0]();
-  input.listeners.blur[0]();
-  assert.equal(name, "New name");
-  assert.equal(undo.length, 1);
-  history.replay(undo, redo);
-  assert.equal(name, "project");
-  history.replay(redo, undo);
-  assert.equal(name, "New name");
-});
-
 test("finishing an old name edit cannot rename a newly opened project", () => {
   const h = loadToolbarHarness(), input = h.fieldInput();
   let name = "old";
