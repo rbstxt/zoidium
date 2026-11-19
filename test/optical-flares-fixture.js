@@ -3,7 +3,7 @@ function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
-function buildEnv() {
+function buildEnv(counter) {
   class Observable {
     constructor() { this.watchers = []; }
     watch(fn) { this.watchers.push(fn); }
@@ -69,9 +69,9 @@ function buildEnv() {
     Vector3,
     Object3D,
     Mesh,
-    ShaderMaterial,
-    DataTexture: class extends Disposable {},
-    PlaneBufferGeometry: class extends Disposable {},
+    ShaderMaterial: counter ? counter.track(ShaderMaterial, "material") : ShaderMaterial,
+    DataTexture: counter ? counter.track(Disposable, "texture") : class extends Disposable {},
+    PlaneBufferGeometry: counter ? counter.track(Disposable, "geometry") : class extends Disposable {},
   };
 
   // Property and list stubs. Enough behaviour for load(), get(), set(),
