@@ -277,6 +277,40 @@ each line describes one visible change.
 
 ### Fixed
 
+- Trimming several selected clips together keeps every clip edge on a whole
+  frame, also when a clip's media starts between frames.
+- Dropping or pasting several files in quick succession gives each import its
+  own undo step, and pasted media without a name get distinct names. A slow
+  import is never cancelled; after a minute a notice says later drops will
+  follow when it finishes.
+- Changing a Layer Input source mode from a script now refreshes the cached
+  preview frame.
+- Opening another project after one with Plexus no longer logs cleanup errors
+  or skips releasing the objects below Plexus.
+- In the graph editor, arrow-key nudges and vertical value drags keep
+  keyframes on fractional frames instead of rounding their time.
+- When a Follow target is deleted, channels that were not set to copy keep
+  their own animation instead of freezing.
+- Geometry+ B-Spline works on open splines with three points, and round start
+  caps on spline tubes are no longer twisted.
+- Muted audio tracks inside a composition stay silent in Main.
+- Assets with equal values in the sorted column are ordered by name.
+- Constraints data is kept when a project is opened with Constraints disabled
+  and comes back when the plugin is enabled.
+- Node Effect keeps values you edited in the Effects panel when the graph's
+  default changes; untouched values, including colours and vectors, still
+  follow the new default.
+- Easing+ Copy keeps the full precision of the curve.
+- Expressions+: a numeric expression that returns NaN, Infinity, or a
+  non-number now uses the keyed value for that frame, as documented.
+- Particular secondary systems with continuous emission emit at their doubled
+  density, like counted and burst emission already did.
+- The Particles+ texture picker shows the right texture after undo.
+- Echo Repeater updates when Count or Offset change through expressions on the
+  same frame.
+- Camera layers ignore cameras inside repeaters and use the next camera.
+- ZSMB with Previous tracking blurs frames between 0 and 1, and removing ZSMB
+  while its video is opening releases the video.
 - Projects with ZSMB or other frame-sampling effects play much faster: the
   temporal input key is reused until the next edit instead of re-serializing
   the whole project on every frame.
