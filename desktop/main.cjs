@@ -751,7 +751,15 @@ function installPopupPolicy(contents) {
   });
 }
 
+let creatingWindow = null;
 async function createWindow() {
+  if (!creatingWindow) {
+    creatingWindow = createWindowOnce().finally(() => { creatingWindow = null; });
+  }
+  return creatingWindow;
+}
+
+async function createWindowOnce() {
   const port = server ? Number(new URL(serverOrigin).port) : await startServer();
   const state = readWindowState();
   const window = new BrowserWindow({
