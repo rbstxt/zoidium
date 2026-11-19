@@ -198,6 +198,9 @@ test("shortcutFor ignores copy and paste while a field is edited", () => {
   assert.equal(clipboard.shortcutFor({ key: "c", ctrlKey: true, shiftKey: true, target: graph }), null);
   assert.equal(clipboard.shortcutFor({ key: "c", ctrlKey: true, altKey: true, target: graph }), null);
   assert.equal(clipboard.shortcutFor({ key: "x", ctrlKey: true, target: graph }), null);
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    assert.equal(clipboard.shortcutFor({ key: "v", ctrlKey: true, target: graph, ...composition }), null);
+  }
 });
 
 test("paste applies the same normalized points as an equivalent handle drag", () => {

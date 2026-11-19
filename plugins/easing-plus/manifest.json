@@ -3,39 +3,39 @@
   "id": "easing-plus",
   "name": "Easing+",
   "author": "Zoidium",
-  "version": "30",
+  "version": "31",
   "kind": "extension",
   "resources": [
     {
       "id": "style",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-plus.css?v=30"
+      "source": "./plugins/easing-plus/easing-plus.css?v=31"
     },
     {
       "id": "easing-curves",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-curves.js?v=30"
+      "source": "./plugins/easing-plus/easing-curves.js?v=31"
     },
     {
       "id": "easing-clipboard",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-clipboard.js?v=30"
+      "source": "./plugins/easing-plus/easing-clipboard.js?v=31"
     },
     {
       "id": "easing-host",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-host.js?v=30"
+      "source": "./plugins/easing-plus/easing-host.js?v=31"
     },
     {
       "id": "easing-dialog",
       "type": "text",
-      "source": "./plugins/easing-plus/easing-dialog.js?v=30"
+      "source": "./plugins/easing-plus/easing-dialog.js?v=31"
     }
   ],
   "modules": [
     {
       "id": "curve-editor",
-      "source": "./plugins/easing-plus/easing-plus.js?v=30"
+      "source": "./plugins/easing-plus/easing-plus.js?v=31"
     }
   ]
 }
