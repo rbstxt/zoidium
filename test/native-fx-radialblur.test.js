@@ -61,3 +61,17 @@ test("Overbright off restores normalized brightness after a native option change
   spec.properties.overbright.changed.call(property);
   assert.equal(material.defines.CONSTANT_BRIGHTNESS, undefined);
 });
+
+test("zero Weight keeps the normalized blur finite", () => {
+  const spec = loadFilterSpec();
+  assert.equal(spec.properties.weight.min, 0);
+  const shader = fs.readFileSync(path.join(projectRoot, "plugins/native-fx/shaders/fx_radialblurspin.glsl"), "utf8");
+  assert.match(shader, /#ifdef CONSTANT_BRIGHTNESS\s+if \(wt == 0\.0\) wt = 1\.0;\s+#endif/);
+  const normalize = (weight, decay, samples) => {
+    let wt = weight === 0 ? 1 : weight, sum = wt, color = wt * samples[0];
+    wt *= decay;
+    for (let i = 1; i < samples.length; i++) { color += wt * samples[i]; sum += wt; wt *= decay; }
+    return color / sum;
+  };
+  assert.equal(normalize(0, 0.9, [0.2, 0.8]), normalize(1, 0.9, [0.2, 0.8]));
+});
