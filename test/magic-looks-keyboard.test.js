@@ -17,6 +17,13 @@ test("color wheel and curve pad ignore composing navigation keys", () => {
   }
   canvases[0].dispatch("keydown", { key: "ArrowUp" }); assert.equal(commits, 1);
   wheel.destroy(); pad.destroy();
+  assert.equal((view.listeners["zoidium:theme-changed"] || []).length, 0);
+  for (let i = 0; i < 15; i++) {
+    const nextWheel = sandbox.Looks.widgets.ColorWheel(container), nextPad = sandbox.Looks.widgets.CurvesPad(container);
+    assert.equal(view.listeners["zoidium:theme-changed"].length, 2);
+    nextWheel.destroy(); nextPad.destroy();
+    assert.equal(view.listeners["zoidium:theme-changed"].length, 0);
+  }
 });
 
 test("tool chain navigation ignores composing arrow keys", () => {
