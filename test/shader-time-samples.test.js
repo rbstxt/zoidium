@@ -33,6 +33,17 @@ function record(value, name = "Past", units = "frames") {
   return { type, properties: { name }, keyframes: [{ frame: 0, value, tween: 1 }] };
 }
 const needsCache = { skip: !fs.existsSync(core) };
+test("time sample requests honor string enabled keys", needsCache, async () => {
+  const h = setup();
+  try {
+    const fx = await h.effect();
+    fx.properties.enabled.set("0");
+    assert.equal(fx._zoidiumFrameSampler.getRequest(fx, 0).enabled, false);
+    fx.properties.enabled.set("1");
+    assert.equal(fx._zoidiumFrameSampler.getRequest(fx, 0).enabled, true);
+    assert.equal(fx.properties.enabled.get(0), "1");
+  } finally { h.dispose(); }
+});
 test("time samples retain native keys and bind sampler uniforms, including seconds", needsCache, async () => {
   const h = setup();
   try {
