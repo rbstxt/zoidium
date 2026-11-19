@@ -192,6 +192,8 @@ const timeRemapLifecycle = {
     timeRemapEffect._zoidiumTimeRemapCopyMaterial?.dispose?.();
     timeRemapEffect._zoidiumTimeRemapMaterial = null;
     timeRemapEffect._zoidiumTimeRemapCopyMaterial = null;
+    timeRemapEffect._zoidiumTimeRemapBlendPass?.quad?.geometry?.dispose?.();
+    timeRemapEffect._zoidiumTimeRemapCopyPass?.quad?.geometry?.dispose?.();
     timeRemapEffect._zoidiumTimeRemapBlendPass = null;
     timeRemapEffect._zoidiumTimeRemapCopyPass = null;
     timeRemapEffect._zoidiumTimeRemapTaps = null;
