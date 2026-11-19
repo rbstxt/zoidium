@@ -204,6 +204,12 @@ function fixtures() {
         _zoidiumLayerSource: true, _zoidiumShaderLayerSource: true, _zoidiumLayerInputMode: mode },
       properties: { name: "Input" }, value: "track:id:oracle-source" }] }];
     add("layer-input", "shader-" + mode, shader, { sourceEdit: "shader", sourceMode: mode });
+    if (mode === "source") {
+      const modeEdit = copy(shader);
+      modeEdit.sequence.videoTracks[0].clips[0].object.effects = [{ type: "radialblurspin",
+        properties: { enabled: scalar(1), amount: scalar(1) } }];
+      add("layer-input", "shader-source-mode-edit", modeEdit, { sourceModeEdit: true });
+    }
   }
 
   const expr = project();
@@ -519,6 +525,21 @@ async function compareFixture(fixture) {
     const camera = fixture.cameraCheck === "scene" ? scene.objects[1] : tracks[1].clips[0].object.objects[0];
     if (scene.pass.camera !== camera.threeObj) throw new Error("Fixture did not select Camera+");
     checks.push("camera-selected");
+  }
+  if (fixture.sourceModeEdit && !fixture.full) {
+    const effect = editor.project.sequence.videoTracks[1].clips[0].object.effects[0];
+    const property = effect.customProperties[0];
+    await pause(1600);
+    const original = await draw(11, true);
+    await replay(11);
+    PZ.layerInput.setSourceMode(effect, "effects-masks", { sourceProperty: property });
+    const edited = await draw(11, false);
+    let changed = false;
+    try { equal(original, edited, "source mode control"); } catch (_error) { changed = true; }
+    if (!changed) throw new Error("Source mode did not change pixels");
+    equal(edited, await draw(11, true), "source mode vs cached");
+    equal(edited, await replay(11), "source mode replay");
+    checks.push("source-mode-invalidation");
   }
   if (fixture.sourceEdit && !fixture.full) {
     const tracks = editor.project.sequence.videoTracks;
