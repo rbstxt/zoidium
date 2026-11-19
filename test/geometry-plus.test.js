@@ -328,3 +328,18 @@ test("geometry registers eight namespaced object classes in picker order", () =>
     plugin.deactivate();
   }
 });
+
+test("open B-splines with three points produce a quadratic curve", () => {
+  activateForMath();
+  try {
+    const points = [[-20, 0, 0], [0, 20, 0], [20, 0, 0]];
+    closeEnough(plugin._test.sampleSplineCurve(points, "B-Spline", 0, false, 1), points[0]);
+    closeEnough(plugin._test.sampleSplineCurve(points, "B-Spline", 0.5, false, 1), [0, 10, 0]);
+    const end = plugin._test.sampleSplineCurve(points, "B-Spline", 1, false, 1);
+    assert.ok(Math.abs(end[0] - points[2][0]) < 1e-6);
+    assert.ok(Math.abs(end[1] - points[2][1]) < 1e-6);
+  } finally {
+    plugin.deactivate();
+  }
+});
+
