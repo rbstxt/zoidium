@@ -216,6 +216,7 @@
         input.disabled = cx.readOnly;
         input.addEventListener("change", function () { commit(input.value); });
         input.addEventListener("keydown", function (event) {
+          if (event.isComposing || event.keyCode === 229) return;
           if (event.key === "Escape") {
             event.preventDefault();
             input.value = value == null ? "" : String(value);
