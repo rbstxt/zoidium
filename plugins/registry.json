@@ -55,15 +55,15 @@
       "category": "utilities",
       "name": "Expressions+",
       "author": "Zoidium",
-      "version": "25",
+      "version": "26",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "expressions",
       "tagline": "Modern expressions and property links",
       "description": "Modern deterministic expressions, property links and Sequence Controls in native CM3 panels.",
-      "manifest": "./plugins/expressions-plus/manifest.json?v=25",
-      "bundle": "./plugins/expressions-plus/bundle.json?v=25",
-      "integrity": "sha256-9y8KApJBLvX0pPu78GKwBJcylBSFJ1KrFu8yiviA45A=",
+      "manifest": "./plugins/expressions-plus/manifest.json?v=26",
+      "bundle": "./plugins/expressions-plus/bundle.json?v=26",
+      "integrity": "sha256-QrAJYVmeMi9K1hv7f7z3hcp7K6OPPxBXcQ8a7FcNP5c=",
       "zoidiumOnly": true,
       "warning": "Extended expressions and controls require Zoidium with Expressions+."
     },
@@ -72,15 +72,15 @@
       "category": "utilities",
       "name": "Shader+",
       "author": "Zoidium",
-      "version": "33",
+      "version": "34",
       "defaultEnabled": true,
       "itemCount": 12,
       "format": "shader controls",
       "tagline": "Custom shader property editors",
       "description": "Native custom shader controls with optional baked texture inputs.",
-      "manifest": "./plugins/shader-plus/manifest.json?v=33",
-      "bundle": "./plugins/shader-plus/bundle.json?v=33",
-      "integrity": "sha256-/H9gzXE3qu1s8dDELacC5XIsRSqhb7l6mzm/QG5JrsU="
+      "manifest": "./plugins/shader-plus/manifest.json?v=34",
+      "bundle": "./plugins/shader-plus/bundle.json?v=34",
+      "integrity": "sha256-kWZ3v/CesMXFnSuI0Z9NUN1bbOuTtWgZ2atoMjKys10="
     },
     {
       "id": "player-plus",
@@ -305,23 +305,23 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/trapcode-suite/manifest.json?v=54",
       "bundle": "./plugins/trapcode-suite/bundle.json?v=54",
-      "integrity": "sha256-8FbQuO+PXjafz5b1W7oWLxvfcepYx6CTIR4yj9DsvUk="
+      "integrity": "sha256-DujSWLahmdcK1Z5BKIaJrMqJb2TbwiqItZspbcq8t8g="
     },
     {
       "id": "optical-flares",
       "category": "scene",
       "name": "Optical Flares",
       "author": "DaviFX",
-      "version": "22",
+      "version": "23",
       "itemCount": 5,
       "format": "3D objects",
       "tagline": "3D lens flares",
       "color": "#4a90d9",
       "description": "Video Copilot style lens flares placed in 3D space and projected through the scene camera, edited in one floating window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/optical-flares/manifest.json?v=22",
-      "bundle": "./plugins/optical-flares/bundle.json?v=22",
-      "integrity": "sha256-ERbPxZNP5+/zfvYIdz0Cf4+8LJ+R4gpFCXHwFud7B3E="
+      "manifest": "./plugins/optical-flares/manifest.json?v=23",
+      "bundle": "./plugins/optical-flares/bundle.json?v=23",
+      "integrity": "sha256-rn4lVqdTZD8QZUkuXlvXEdrh8PzuCWcKI9Uuh6/FaXQ="
     },
     {
       "id": "effector-plus",
@@ -344,16 +344,16 @@
       "category": "scene",
       "name": "Camera+",
       "author": "DaviFX",
-      "version": "23",
+      "version": "24",
       "itemCount": 1,
       "format": "camera rig",
       "tagline": "Camera layers, 3D tracks and DOF",
       "color": "#3d7bc5",
       "description": "Adds a separate Camera+ object with depth of field, seeded vibrate and focus tools, Camera layers, and a 3D switch on video tracks that lets scenes and flat layers follow the shared camera. The default CM3 camera is left unchanged.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/camera-plus/manifest.json?v=23",
-      "bundle": "./plugins/camera-plus/bundle.json?v=23",
-      "integrity": "sha256-wP85U6ahK5q6O+OMwEDrePP0LkbyOaY7RWpEmmz33y8="
+      "manifest": "./plugins/camera-plus/manifest.json?v=24",
+      "bundle": "./plugins/camera-plus/bundle.json?v=24",
+      "integrity": "sha256-1Q3LQg1o/hKS2mY76rkZfpkOHxIY3Ddd9fj+4AGYqnI="
     },
     {
       "id": "native-fx",
@@ -369,7 +369,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/native-fx/manifest.json?v=43",
       "bundle": "./plugins/native-fx/bundle.json?v=43",
-      "integrity": "sha256-CP4QVgtsFmI5Rzj6snvKjd192Kbvv3CfqKzmWENxhnc="
+      "integrity": "sha256-ebTAIB3BlPfF2gig3Hmv+eOrtJxdot1MRCZEyQbXtm4="
     },
     {
       "id": "afterclip",
@@ -430,16 +430,16 @@
       "category": "adjustment",
       "name": "OpenZoid Legacy",
       "author": "DaviFX",
-      "version": "30",
+      "version": "31",
       "itemCount": 12,
       "format": "native effects",
       "tagline": "Echo, Posterize Time, JPEG, VHS, Datamosh, Tracery",
       "color": "#8f6bc5",
       "description": "OpenZoid effects on Zoidium deterministic rendering: Echo and Posterize Time (Legacy), Jpeg Damage, VHS, Datamosh, Tracery and ASCII, with floating setup windows.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/openzoid-legacy/manifest.json?v=30",
-      "bundle": "./plugins/openzoid-legacy/bundle.json?v=30",
-      "integrity": "sha256-HGgNhdCLjo2dxmWmSrG3mnQGk4zozjsZ2sWK/WaZtcc="
+      "manifest": "./plugins/openzoid-legacy/manifest.json?v=31",
+      "bundle": "./plugins/openzoid-legacy/bundle.json?v=31",
+      "integrity": "sha256-u+LCfHwv2GePt6+REg0ehW8jmlYmu/ZPgsz4j8nPCTU="
     },
     {
       "id": "magic-looks",
@@ -455,7 +455,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/magic-looks/manifest.json?v=25",
       "bundle": "./plugins/magic-looks/bundle.json?v=25",
-      "integrity": "sha256-BwZa19DT2qvEHuQvLflF9cyOf3SY+pp8bFbGUDh5GmY="
+      "integrity": "sha256-GhR/ObL70t5UB+RARy+kpno2RxXIAZ5+JnU1fqCy1pk="
     },
     {
       "id": "layer-input",

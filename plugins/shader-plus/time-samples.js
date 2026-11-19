@@ -72,7 +72,7 @@ function installTimeSamples({ PZ, patch, pipeline, onDispose, editor = () => nul
           const procedural = Boolean((PZ.layer?.scene && layer instanceof PZ.layer.scene) ||
             (PZ.layer?.adjustment && layer instanceof PZ.layer.adjustment));
           const frames = samples.filter(sample => sample.offset !== 0).map(sample => sample.offset);
-          return { enabled: !!owner.properties.enabled.get(frame) && frames.length > 0,
+          return { enabled: Number(owner.properties.enabled.get(frame)) === 1 && frames.length > 0,
             frames, preserveInputRGB: true, extrapolate: procedural, outputClips: true };
         },
       };

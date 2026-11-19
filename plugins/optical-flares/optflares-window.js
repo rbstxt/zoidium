@@ -160,7 +160,7 @@ module.exports = function installWindow(PZ) {
         }
 
         function toggleProp(prop) {
-            var next = read(prop) === 1 ? 0 : 1;
+            var next = Number(read(prop)) === 1 ? 0 : 1;
             commit(prop, next);
         }
 
@@ -231,10 +231,10 @@ module.exports = function installWindow(PZ) {
                 var check = ctl.checkbox({
                     label: spec.label,
                     hint: spec.hint,
-                    value: read(prop) === 1,
+                    value: Number(read(prop)) === 1,
                     onChange: function (v) { commit(prop, v ? 1 : 0); },
                 });
-                sync = function () { check.set(read(prop) === 1); };
+                sync = function () { check.set(Number(read(prop)) === 1); };
                 element = check.element;
             } else if (spec.kind === "select") {
                 var select = ctl.select({
@@ -592,8 +592,8 @@ module.exports = function installWindow(PZ) {
             if (!view.rows) return;
             view.rows.forEach(function (entry, index) {
                 var element = entry.element;
-                var enabled = safeRead(element.properties.element.enabled) === 1;
-                var solo = safeRead(element.properties.element.solo) === 1;
+                var enabled = Number(safeRead(element.properties.element.enabled)) === 1;
+                var solo = Number(safeRead(element.properties.element.solo)) === 1;
                 var typeName = types[safeType(element)].name;
                 var label = (index + 1) + ". " + typeName + (enabled ? "" : " (off)");
                 entry.name.textContent = label;

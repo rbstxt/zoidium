@@ -65,6 +65,22 @@ function constantProps(defs, overrides) {
   return props;
 }
 
+test("ASCII option state accepts string keys", async () => {
+  const { fakeThis } = loadEffectThis();
+  const defs = fakeThis.propertyDefinitions;
+  for (const key of ["fontFamily", "charset", "colorMode", "randomCharacters", "sineEnable", "sineRadial",
+    "noiseEnable", "noiseType", "scrollEnable", "glitchEnable"]) for (const value of [0, 1]) {
+    const inst = { properties: constantProps(defs, { [key]: value }) };
+    await fakeThis.load.call(inst, {});
+    fakeThis.update.call(inst, 0);
+    const expected = JSON.parse(JSON.stringify(inst.pass.asciiState));
+    inst.properties[key] = { get: () => String(value) };
+    fakeThis.update.call(inst, 0);
+    assert.deepEqual(inst.pass.asciiState, expected, key);
+    fakeThis.unload.call(inst, {});
+  }
+});
+
 // Recording 2D context and renderer, enough for the overlay pass.
 function recordingEnvironment(footageAt) {
   const calls = [];
@@ -215,6 +231,9 @@ test("ascii effect loads, collects state, and toggles", async () => {
   assert.equal(inst.pass.enabled, true);
   assert.ok(inst.pass.asciiState, "state collected");
   assert.equal(inst.pass.asciiState.blockSize, 23);
+  inst.properties.enabled = { get: () => "1" };
+  fakeThis.update.call(inst, 0);
+  assert.equal(inst.pass.enabled, true);
   inst.properties.enabled = { get: () => 0 };
   fakeThis.update.call(inst, 0);
   assert.equal(inst.pass.enabled, false, "effect toggle disables the pass");

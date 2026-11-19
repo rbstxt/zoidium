@@ -164,7 +164,7 @@ function activateCameraPlus(context, teardown) {
   function findActiveCamera(scene, time) {
     function walk(objects) {
       for (const object of objects || []) {
-        if (object.properties?.enabled && object.properties.enabled.get(time) !== 1) continue;
+        if (object.properties?.enabled && Number(object.properties.enabled.get(time)) !== 1) continue;
         if (isCameraPlusObject(object) && object.threeObj && object.isActive()) return object;
         // Repeater clones do not represent a single authored camera pose.
         if (object.__zoidiumRepeater) continue;

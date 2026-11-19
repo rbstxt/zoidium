@@ -121,7 +121,7 @@ ZoidiumPluginApis.defineFilter.call(this, {
   },
   update(frame) {
     if (!this.pass) return;
-    this.pass.enabled = this.properties.enabled.get(frame) === 1;
+    this.pass.enabled = Number(this.properties.enabled.get(frame)) === 1;
     var uniforms = this.pass.uniforms;
     var fold = this.properties.foldPosition.get(frame);
     uniforms.foldPos.value.set(Number(fold[0]) || 0, Number(fold[1]) || 0);

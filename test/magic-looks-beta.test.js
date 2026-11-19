@@ -22,8 +22,10 @@ function makeTexture(counter) {
   };
 }
 
-function loadEffect(resources) {
-  const source = readPack("looks-fx.js");
+function loadEffect(fileOrResources) {
+  const file = typeof fileOrResources === "string" ? fileOrResources : "looks-fx.js";
+  const resources = typeof fileOrResources === "string" ? undefined : fileOrResources;
+  const source = readPack(file);
   const PZ = { asset: { type: { MISC: 5 } }, property: { type: { NUMBER: 0, OPTION: 6, TEXT: 7, ASSET: 8 } } };
   const counter = { uploads: 0 };
   const THREE = {
@@ -55,7 +57,10 @@ function loadEffect(resources) {
   FakeProp.prototype.set = function (v) { this.v = v; };
   FakeProp.prototype.load = function (v) { if (v !== undefined) this.v = v; };
   const fakeThis = {
-    _zoidiumGetAsset: (kind, url) => readPack(String(url).split("/").pop().split("?")[0]),
+    _zoidiumGetAsset: (kind, url) => {
+      const name = String(url).split("/").pop().split("?")[0];
+      return readPack(file.startsWith("davidium-") ? "davidium-" + name : name);
+    },
     properties: {
       addAll(defs) {
         for (const k of Object.keys(defs)) {
@@ -73,6 +78,31 @@ function loadEffect(resources) {
   new Function("PZ", "THREE", source).call(fakeThis, PZ, THREE);
   return { fakeThis, PZ, THREE, store, counter };
 }
+
+test("master option accepts string keys without changing stored values", async () => {
+  const { fakeThis: effect, store } = loadEffect();
+  await effect.load({});
+  store.ccEnable.v = 1;
+  store.enabled.v = "1";
+  effect.update(0);
+  assert.equal(effect.pass.enabled, true);
+  assert.equal(store.enabled.v, "1");
+  store.enabled.v = "0";
+  effect.update(0);
+  assert.equal(effect.pass.enabled, false);
+});
+
+test("historical master option accepts string keys", async () => {
+  const { fakeThis: effect, store } = loadEffect("davidium-looks-fx.js");
+  await effect.load({});
+  store.enabled.v = "1";
+  effect.update(0);
+  assert.equal(effect.pass.enabled, true);
+  assert.equal(store.enabled.v, "1");
+  store.enabled.v = "0";
+  effect.update(0);
+  assert.equal(effect.pass.enabled, false);
+});
 
 test("enabling Color Contrast runs its fixed contrast without editing another value", async () => {
   const { fakeThis: effect, store } = loadEffect();

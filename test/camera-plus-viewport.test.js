@@ -78,3 +78,18 @@ test("the runtime sources reference no viewport render path", () => {
     assert.equal(/renderToScreen/.test(source), false, `${name} has no viewport-only composite`);
   }
 });
+
+test("scene selection accepts string-valued object Enabled keys", () => {
+  const { ctx, runtime, scene, vanilla } = setup();
+  runtime.activate(ctx.context);
+  try {
+    const camera = addCameraPlus(ctx, scene, { active: 1 });
+    camera.properties.add("enabled", { value: 1 });
+    camera.properties.enabled.set("1");
+    scene.update(0);
+    assert.equal(scene.pass.camera, camera.threeObj);
+    camera.properties.enabled.set("0");
+    scene.update(0);
+    assert.equal(scene.pass.camera, vanilla.threeObj);
+  } finally { runtime.deactivate(); }
+});

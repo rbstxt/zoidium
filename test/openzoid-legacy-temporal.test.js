@@ -133,6 +133,14 @@ test("posterize time legacy is a core temporal operator with its saved property 
   assert.equal(posterize.pass, undefined, "no held buffer or shader pass");
 });
 
+test("posterize time legacy accepts string enabled keys", () => {
+  const { apis, PZ } = loadPluginApis();
+  for (const value of [0, 1, "0", "1"]) {
+    const effect = evaluateEffect("effects/posterizetime-legacy.js", fakeEffect({ enabled: value }), apis, PZ);
+    assert.equal(effect._zoidiumTemporal.getOperator(effect, 4).enabled, Number(value) === 1);
+  }
+});
+
 function fakeJpegEnvironment() {
   const disposed = [];
   const created = [];

@@ -33,6 +33,103 @@ function lineMeshKey(x, y, z) {
   return [x, y, z].map((v) => v.toFixed(3)).join(",");
 }
 
+test("Plexus renderer type accepts string-valued animated keys", () => {
+  const { root } = setup();
+  const renderer = root.objects[1];
+  for (const value of [0, 1, 2, 3, 4]) {
+    renderer.properties.renderer.rendererType.set(value);
+    const numeric = {}; renderer.applyToState(numeric);
+    renderer.properties.renderer.rendererType.set(String(value));
+    const string = {}; renderer.applyToState(string);
+    assert.deepEqual(string, numeric);
+    assert.equal(renderer.properties.renderer.rendererType.get(0), String(value));
+  }
+});
+
+test("Plexus geometry type and enabled accept string keys", () => {
+  const { root } = setup();
+  const geometry = root.objects[0];
+  geometry.properties.geometry.primitiveCount.set(12);
+  geometry.properties.geometry.geometryType.set(3);
+  const expected = Array.from(geometry.sourcePoints());
+  geometry.properties.geometry.geometryType.set("3");
+  geometry._sourceKey = null;
+  const generate = geometry.generatePoints;
+  geometry.generatePoints = function (type) { assert.equal(type, 3); return generate.call(this, type); };
+  assert.deepEqual(Array.from(geometry.sourcePoints()), expected);
+  geometry.properties.common.enabled.set("1");
+  root.update(0);
+  assert.ok(root._count > 0);
+  geometry.properties.common.enabled.set("0");
+  root.update(0);
+  assert.equal(root._count, 0);
+});
+
+test("Plexus color map mode accepts string keys", () => {
+  const { PZ, root } = setup();
+  const effector = addEffector(PZ, root, 4, "Color Map");
+  const e = effector.properties.effector;
+  const pos = new Float32Array([0, 100, 0, 100, 200, 0]);
+  for (const value of [0, 1, 2]) {
+    e.colorMapMode.set(value);
+    const expected = new Float32Array(6); effector.applyColorMap(pos, expected, 2, e);
+    e.colorMapMode.set(String(value));
+    const actual = new Float32Array(6); effector.applyColorMap(pos, actual, 2, e);
+    assert.deepEqual(actual, expected);
+  }
+});
+
+test("Plexus primitive shapes accept string keys", () => {
+  const { root } = setup();
+  const geometry = root.objects[0], props = geometry.properties.geometry;
+  props.primitiveCount.set(12);
+  for (const value of [0, 1, 2, 3, 4]) {
+    props.primitiveShape.set(value);
+    geometry._sourceKey = null;
+    const expected = Array.from(geometry.sourcePoints());
+    props.primitiveShape.set(String(value));
+    geometry._sourceKey = null;
+    assert.deepEqual(Array.from(geometry.sourcePoints()), expected);
+  }
+});
+
+test("Plexus effectors, renderers and asset requests accept string enabled keys", () => {
+  const { PZ, root } = setup();
+  const geometry = root.objects[0];
+  const renderer = root.objects[1];
+  const effector = addEffector(PZ, root, 4, "Color Map");
+  let calls = 0;
+  effector.applyTo = () => { calls++; };
+  effector.properties.common.enabled.set("1");
+  root.applyEffectors(0);
+  assert.equal(calls, 1);
+  renderer.properties.common.enabled.set(1);
+  const expected = root.rendererState();
+  renderer.properties.common.enabled.set("1");
+  assert.deepEqual(root.rendererState(), expected);
+  geometry.properties.common.enabled.set("1");
+  geometry.properties.geometry.geometryType.set("2");
+  geometry._assets.request = (kind) => kind;
+  assert.deepEqual(geometry.requestAssets(), ["obj"]);
+});
+
+test("Terrain preset reuses renderers with string type keys", () => {
+  const { PZ } = loadSuite(["trapcode-common.js", "designer.js", "plexus.js"]);
+  const root = new PZ.object3d.plexus();
+  root.load(null);
+  const lines = root.objects.find(object => object.isRenderer());
+  lines.properties.renderer.rendererType.set("1");
+  const points = new PZ.object3d.plexus.object();
+  root.objects.push(points);
+  points.load({ objectKind: 2, subType: 0, properties: {} });
+  points.properties.renderer.rendererType.set("0");
+  root.update = () => {};
+  const config = PZ.object3d.plexus.designer;
+  config.applyPreset(root, root, { preset: "terrain" });
+  assert.equal(root.objects.filter(object => object.isRenderer()).length, 2);
+  assert.ok(root.objects.includes(lines) && root.objects.includes(points));
+});
+
 test("line renderer links exactly the pairs a brute-force search finds", () => {
   const { root } = setup();
   const lines = root.objects[1];

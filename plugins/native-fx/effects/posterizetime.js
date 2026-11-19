@@ -28,7 +28,7 @@ ZoidiumPluginApis.defineTemporal.call(this, {
   getOperator(effect, frame) {
     return {
       kind: "posterize-time",
-      enabled: effect.properties.enabled.get(frame) === 1,
+      enabled: Number(effect.properties.enabled.get(frame)) === 1,
       fps: Number(effect.properties.fps.get(frame)) || 1,
     };
   },

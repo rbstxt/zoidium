@@ -2,6 +2,7 @@
 // camera-layer.js and sequence-tracking.js; no render-history buffers are used.
 parts.sharedShutterOffset = function (sample, count, shutter, direction) {
   if (count <= 1) return 0;
+  direction = Number(direction);
   const start = direction === 1 ? -shutter : direction === 2 ? 0 : -.5 * shutter;
   return start + sample / count * shutter;
 };
@@ -19,7 +20,7 @@ parts.shared = function (options) {
     getCamera(time) {
       function walk(objects) {
         for (const object of objects || []) {
-          if (object.properties?.enabled && object.properties.enabled.get(time) !== 1) continue;
+          if (object.properties?.enabled && Number(object.properties.enabled.get(time)) !== 1) continue;
           if (object.__zoidiumRepeater) continue;
           if (object.threeObj && (object.type === 6 || object.type === TYPE && object.isActive())) return object;
           const child = object.objects && walk(object.objects);

@@ -388,7 +388,7 @@ this.update = function (e) {
     u.offsetDarks.value = jpegNumOr(this.properties.offsetDarks.get(e), 0);
     u.saturation.value = Math.max(0, jpegNumOr(this.properties.saturation.get(e), 1));
     this.pass.enabled =
-        this.properties.enabled.get(e) === 1 && u.amount.value !== 0;
+        Number(this.properties.enabled.get(e)) === 1 && u.amount.value !== 0;
 };
 
 this.resize = function () {

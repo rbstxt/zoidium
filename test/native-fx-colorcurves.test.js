@@ -50,6 +50,18 @@ function identityState() {
   };
 }
 
+test("Color Curves accepts string enabled keys", () => {
+  const { spec } = loadColorCurves();
+  let value = "1";
+  const effect = { properties: { enabled: { get: () => value }, curves: { get: () => "same" } },
+    pass: {}, _zoidiumCurveValue: "same", _zoidiumCurvesDirty: false };
+  spec.update.call(effect, 0, {});
+  assert.equal(effect.pass.enabled, true);
+  value = "0";
+  spec.update.call(effect, 0, {});
+  assert.equal(effect.pass.enabled, false);
+});
+
 test("Color Curves builds an exact identity LUT by default", () => {
   const { curves, spec } = loadColorCurves();
   const lut = curves.buildLut(curves.defaultValue);

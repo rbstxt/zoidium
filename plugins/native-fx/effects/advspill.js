@@ -146,8 +146,8 @@ ZoidiumPluginApis.defineFilter.call(this, {
   update(frame) {
     if (!this.pass) return;
     var uniforms = this.pass.uniforms;
-    this.pass.enabled = this.properties.enabled.get(frame) === 1;
-    var ultra = this.properties.method.get(frame) === 1;
+    this.pass.enabled = Number(this.properties.enabled.get(frame)) === 1;
+    var ultra = Number(this.properties.method.get(frame)) === 1;
     var key = this.properties.keyColor.get(frame);
     var order = aspPrimary(key);
     uniforms.keyPrimary.value = order[0];

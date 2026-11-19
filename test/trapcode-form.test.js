@@ -27,6 +27,79 @@ function positions(instance) {
   return Array.from(instance.points.geometry.attributes.position.array);
 }
 
+test("Form asset requests accept string map and audio switches", () => {
+  const { instance } = makeForm();
+  instance._assets.request = (kind, value) => `${kind}:${value}`;
+  const maps = instance.properties.layerMaps;
+  for (const name of ["colorAlpha", "displacement", "size", "fractalStrength", "disperse", "rotate"]) {
+    maps[name + "Layer"].set(name);
+    maps[name + "Enabled"].set("1");
+  }
+  instance.properties.audio.audioLayer.set("sound");
+  instance.properties.audio.reactor3.set("1");
+  assert.equal(instance.audioReactorsOn(0), true);
+  assert.deepEqual(instance.requestAssets().sort(),
+    ["audio:sound", ...["colorAlpha", "displacement", "size", "fractalStrength", "disperse", "rotate"].map(name => `layer:${name}`)].sort());
+});
+
+test("Form rendering reads animated map and audio switches as numbers", () => {
+  const { instance } = makeForm();
+  const maps = instance.properties.layerMaps;
+  const names = ["colorAlpha", "displacement", "size", "fractalStrength", "disperse", "rotate"];
+  const samples = [];
+  instance.layerSample = property => { samples.push(property); return null; };
+  instance.audioLevel = () => 0.5;
+  instance.properties.particle.opacity.set(40);
+  let multipliers;
+  const apply = instance.applyDeformations;
+  instance.applyDeformations = function (count, value) {
+    multipliers = { ...value };
+    return apply.call(this, count, value);
+  };
+  for (const name of names) maps[name + "Enabled"].set(1);
+  for (let i = 1; i <= 5; i++) instance.properties.audio["reactor" + i].set(1);
+  instance.update(0);
+  const expected = { samples: samples.slice(), multipliers, size: instance.material.uniforms.size.value,
+    opacity: instance.material.uniforms.opacity.value };
+  samples.length = 0;
+  for (const name of names) maps[name + "Enabled"].set("1");
+  for (let i = 1; i <= 5; i++) instance.properties.audio["reactor" + i].set("1");
+  instance.update(0);
+  assert.deepEqual({ samples, multipliers, size: instance.material.uniforms.size.value,
+    opacity: instance.material.uniforms.opacity.value }, expected);
+  for (let i = 1; i <= 5; i++) {
+    for (let j = 1; j <= 5; j++) instance.properties.audio["reactor" + j].set(0);
+    const reactor = instance.properties.audio["reactor" + i];
+    const snapshot = () => { instance.update(0); return { multipliers, size: instance.material.uniforms.size.value,
+      opacity: instance.material.uniforms.opacity.value }; };
+    reactor.set(1);
+    const numeric = snapshot();
+    reactor.set("1");
+    assert.deepEqual(snapshot(), numeric);
+  }
+});
+
+test("Form rendering reads animated fluid, mirror, shading and blend switches as numbers", () => {
+  const { instance } = makeForm();
+  const props = instance.properties;
+  props.base.particlesX.set(3); props.base.particlesY.set(3); props.base.particlesZ.set(1);
+  props.fluid.vortexStrength.set(80);
+  const switches = [props.fluid.fluidMotion, props.kaleidospace.mirrorX, props.kaleidospace.mirrorY,
+    props.kaleidospace.mirrorZ, props.shading.shading, props.particle.blending];
+  const snapshot = () => {
+    instance.update(3);
+    return { positions: Array.from(instance.outPositions), blending: instance.material.blending,
+      shading: Object.keys(instance.material.defines).sort() };
+  };
+  for (const prop of switches) {
+    for (const other of switches) other.set(0);
+    prop.set(1);
+    const expected = snapshot();
+    prop.set("1");
+    assert.deepEqual(snapshot(), expected);
+  }
+});
+
 test("Form Transform rotates the whole form in degrees without rebuilding its geometry", () => {
   const { instance } = makeForm();
   instance.update(0);

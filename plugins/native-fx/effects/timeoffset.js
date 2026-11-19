@@ -28,7 +28,7 @@ ZoidiumPluginApis.defineTemporal.call(this, {
   getOperator(effect, frame) {
     return {
       kind: "time-offset",
-      enabled: effect.properties.enabled.get(frame) === 1,
+      enabled: Number(effect.properties.enabled.get(frame)) === 1,
       offsetFrames: Number(effect.properties.offset.get(frame)) || 0,
     };
   },

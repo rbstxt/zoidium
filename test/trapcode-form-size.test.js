@@ -20,6 +20,22 @@ function lattice(form, frame = 0) {
   return Array.from(form.basePositions);
 }
 
+test("Form base types accept string-valued keys", () => {
+  const { form, base } = setup();
+  for (const value of [0, 1, 2, 3, 4, 5, 6, 7]) {
+    base.baseFormType.set(value);
+    form.fillBase(form.gridCounts());
+    const expected = Array.from(form.basePositions);
+    base.baseFormType.set(String(value));
+    form.fillBase(form.gridCounts());
+    assert.deepEqual(Array.from(form.basePositions), expected);
+  }
+  base.baseFormType.set("6");
+  base.modelAsset.set("model");
+  form._assets.request = kind => kind;
+  assert.deepEqual(form.requestAssets().filter(Boolean), ["model"]);
+});
+
 // The pre-mode samplers, pinned independently of the new axis selection.
 function legacyPoint(type, x, y, z, counts, size) {
   if (type === 1) {

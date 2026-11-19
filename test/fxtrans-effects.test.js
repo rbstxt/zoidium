@@ -106,6 +106,21 @@ test("CC Page Turn spec keeps EffectCraft names and defaults", () => {
   assert.match(p.backSource.items, /Mirrored Layer/);
 });
 
+test("CC Page Turn and Radial Shadow accept string enabled keys", () => {
+  for (const file of ["ccpageturn.js", "radialshadow.js"]) {
+    const { spec } = loadFilterEffect(file, {});
+    const properties = Object.fromEntries(Object.entries(spec.properties).map(([key, def]) =>
+      [key, { get: () => def.group ? def.objects.map(item => item.value) : def.value }]));
+    const uniforms = Object.fromEntries(Object.entries(spec.uniforms).map(([key]) => [key, { value: { set() {} } }]));
+    const bound = { properties, pass: { uniforms } };
+    for (const value of [0, 1, "0", "1"]) {
+      properties.enabled.get = () => value;
+      spec.update.call(bound, 0);
+      assert.equal(bound.pass.enabled, Number(value) === 1, `${file}: ${value}`);
+    }
+  }
+});
+
 test("CC Page Turn shader samples through uvScale and shades the curl", () => {
   const shader = fs.readFileSync(
     path.join(projectRoot, "plugins/native-fx/shaders/fx_ccpageturn.glsl"), "utf8");
@@ -168,6 +183,12 @@ test("Card Wipe update() uploads the math-module random texture", () => {
     properties: Object.fromEntries(Object.entries(values).map(([k, v]) => [k, { get: () => v }])),
   };
   spec.update.call(bound, 0);
+  bound.properties.enabled.get = () => "1";
+  spec.update.call(bound, 0);
+  assert.equal(bound.pass.enabled, true);
+  bound.properties.enabled.get = () => "0";
+  spec.update.call(bound, 0);
+  assert.equal(bound.pass.enabled, false);
   assert.equal(uniforms.rows.value, 4);
   assert.equal(uniforms.columns.value, 4);
   assert.equal(uniforms.completion.value, 0);
@@ -253,6 +274,16 @@ test("Radial Shadow and Pixel Polly specs keep parameter names", () => {
   assert.match(shadow.properties.render.items, /Glass Edge/);
   assert.equal(shadow.properties.shadowOnly.value, 0);
   const polly = seen["ccpixelpolly.js"].effect.propertyDefinitions;
+  const pollyEffect = seen["ccpixelpolly.js"].effect;
+  pollyEffect.properties = Object.fromEntries(Object.entries(polly).map(([key, def]) =>
+    [key, { get: () => def.group ? def.objects.map(item => item.value) : def.value }]));
+  pollyEffect.pass = {};
+  pollyEffect.properties.enabled.get = () => "1";
+  pollyEffect.update(0);
+  assert.equal(pollyEffect.pass.enabled, true);
+  pollyEffect.properties.enabled.get = () => "0";
+  pollyEffect.update(0);
+  assert.equal(pollyEffect.pass.enabled, false);
   assert.equal(polly.force.value, 100);
   assert.equal(polly.gravity.value, 1);
   assert.equal(polly.gridSpacing.value, 10);

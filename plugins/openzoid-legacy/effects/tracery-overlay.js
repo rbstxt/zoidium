@@ -315,7 +315,7 @@ function trCollectState(props, e) {
         (function (n) {
             var on = false;
             try {
-                on = props["point" + n + "Enable"].get(e) === 1;
+                on = Number(props["point" + n + "Enable"].get(e)) === 1;
             } catch (err) {}
             if (!on) return;
             var at = function (key, fb) {
@@ -350,8 +350,12 @@ function trCollectState(props, e) {
         return fb;
     };
     var opt = function (key, fb) {
-        var v = num(key, fb);
-        return Math.round(v);
+        try {
+            var v = props[key].get(e);
+            if (typeof v === "string" && v.trim()) v = Number(v);
+            if (typeof v === "number" && isFinite(v)) return Math.round(v);
+        } catch (err) {}
+        return Math.round(fb);
     };
     var col = function (key, fb) {
         return trNum3(props[key], e, fb);
@@ -407,7 +411,7 @@ function trCollectState(props, e) {
     st.showMask = opt("showMask", 0) === 1;
     st.blurStrength = Math.max(0, Math.min(6, num("blurStrength", 5)));
     st.alphaLayer = opt("alphaLayer", 0) === 1;
-    st.detectionQuality = Math.max(0, Math.min(3, Math.round(num("detectionQuality", 2))));
+    st.detectionQuality = Math.max(0, Math.min(3, opt("detectionQuality", 2)));
     return st;
 }
 

@@ -378,7 +378,7 @@ var PZ = PZ || {};
             var total = 0;
             for (var i = 0; i < this.objects.length; i++) {
                 var object = this.objects[i];
-                if (!object.isGeometry() || object.properties.common.enabled.get(t) !== 1) continue;
+                if (!object.isGeometry() || Number(object.properties.common.enabled.get(t)) !== 1) continue;
                 var points = object.sourcePoints();
                 sources.push(points);
                 total += points.length / 3;
@@ -407,7 +407,7 @@ var PZ = PZ || {};
             var t = PZ.trapcode.currentTime;
             for (var i = 0; i < this.objects.length; i++) {
                 var object = this.objects[i];
-                if (object.isEffector() && object.properties.common.enabled.get(t) === 1) {
+                if (object.isEffector() && Number(object.properties.common.enabled.get(t)) === 1) {
                     object.applyTo(this._work, this._colors, count);
                 }
             }
@@ -432,7 +432,7 @@ var PZ = PZ || {};
             var t = PZ.trapcode.currentTime;
             for (var i = 0; i < this.objects.length; i++) {
                 var object = this.objects[i];
-                if (object.isRenderer() && object.properties.common.enabled.get(t) === 1) {
+                if (object.isRenderer() && Number(object.properties.common.enabled.get(t)) === 1) {
                     object.applyToState(state);
                 }
             }

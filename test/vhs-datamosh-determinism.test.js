@@ -622,6 +622,16 @@ test("new temporal damage effects use clip-local seconds and a numeric offset", 
   }
 });
 
+test("VHS accepts string enabled keys", () => {
+  const effect = createVhs();
+  effect.properties.enabled.set("1");
+  effect.update(0);
+  assert.equal(effect.pass.enabled, true);
+  effect.properties.enabled.set("0");
+  effect.update(0);
+  assert.equal(effect.pass.enabled, false);
+});
+
 test("saved explicit clocks remain absolute and save their compatibility mode", () => {
   for (const make of [createDatamosh, createVhs]) {
     const effect = make();

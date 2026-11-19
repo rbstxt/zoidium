@@ -180,11 +180,19 @@ function createAPI(options) {
   const controls = Object.create(null);
   const controlIds = new Map();
   let controlsReady = false;
+  function readControl(p) {
+    const value = read(p, absolute);
+    if (p.definition?.zoidiumControlKind === "Checkbox" && typeof value === "string" && value.trim()) {
+      const number = Number(value);
+      if (Number.isFinite(number)) return number;
+    }
+    return copy(value);
+  }
   function loadControls() {
     if (controlsReady) return controls;
     controlsReady = true;
     for (const p of options.controls?.(sequence) || []) {
-      Object.defineProperty(controls, named(p) || p.definition?.name, { enumerable: true, get: () => copy(read(p, absolute)) });
+      Object.defineProperty(controls, named(p) || p.definition?.name, { enumerable: true, get: () => readControl(p) });
       if (p.definition?.zoidiumControlId) controlIds.set(p.definition.zoidiumControlId, p);
     }
     return controls;
@@ -198,7 +206,7 @@ function createAPI(options) {
       loadControls();
       if (id) {
         if (!controlIds.has(id)) throw new Error("Expression control was not found: " + name);
-        return copy(read(controlIds.get(id), absolute));
+        return readControl(controlIds.get(id));
       }
       if (!Object.hasOwn(controls, name)) throw new Error("Expression control was not found: " + name);
       return controls[name];

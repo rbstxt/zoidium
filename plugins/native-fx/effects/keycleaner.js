@@ -69,8 +69,8 @@ ZoidiumPluginApis.defineFilter.call(this, {
   update(frame) {
     if (!this.pass) return;
     var uniforms = this.pass.uniforms;
-    this.pass.enabled = this.properties.enabled.get(frame) === 1;
-    uniforms.chatter.value = this.properties.reduceChatter.get(frame) === 1 ? 1 : 0;
+    this.pass.enabled = Number(this.properties.enabled.get(frame)) === 1;
+    uniforms.chatter.value = Number(this.properties.reduceChatter.get(frame)) === 1 ? 1 : 0;
     uniforms.contrast.value = this.properties.alphaContrast.get(frame) / 100;
     uniforms.strength.value = this.properties.strength.get(frame) / 100;
     var radius = Math.max(0, this.properties.additionalEdgeRadius.get(frame));

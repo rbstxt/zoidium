@@ -78,12 +78,12 @@ ZoidiumPluginApis.defineFilter.call(this, {
   update(frame) {
     if (!this.pass) return;
     var uniforms = this.pass.uniforms;
-    this.pass.enabled = this.properties.enabled.get(frame) === 1;
+    this.pass.enabled = Number(this.properties.enabled.get(frame)) === 1;
     uniforms.view.value = this.properties.view.get(frame);
     uniforms.matchMode.value = this.properties.matchColors.get(frame);
     uniforms.tolerance.value = this.properties.tolerance.get(frame) / 100;
     uniforms.softness.value = this.properties.softness.get(frame) / 100;
-    uniforms.keep.value = this.properties.keyOperation.get(frame) === 1 ? 1 : 0;
+    uniforms.keep.value = Number(this.properties.keyOperation.get(frame)) === 1 ? 1 : 0;
     var key = this.properties.keyColor.get(frame);
     uniforms.keyColor.value.set(key[0], key[1], key[2]);
   },

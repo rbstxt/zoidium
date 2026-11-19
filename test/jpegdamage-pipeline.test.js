@@ -107,6 +107,9 @@ test("four JPEG stages never sample their output target and restore renderer sta
   const h = harness();
   await h.effect.load({});
   h.effect.update(0);
+  h.effect.properties.enabled.value = "1";
+  h.effect.update(0);
+  assert.equal(h.effect.pass.enabled, true);
   const pass = h.effect.pass;
   const read = { texture: {}, width: 1920, height: 1080 }, write = { texture: {}, width: 1920, height: 1080 };
   pass.render(h.renderer, write, read, true);

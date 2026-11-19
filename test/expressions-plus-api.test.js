@@ -28,6 +28,17 @@ test('API crosses layers/effects/parents and paths using copied values',()=>{
  assert.equal(Object.getPrototypeOf(api),null);assert.equal(Object.getPrototypeOf(api.thisObject),null);
  assert.equal(api.thisObject.parentObject,undefined);assert.equal(api.thisObject.threeObj,undefined);
 });
+test('checkbox controls return numeric values for saved string keys',()=>{
+ const {api,control}=graph();
+ control.definition.zoidiumControlKind='Checkbox';
+ for(const value of ['0','1']){
+  control.get=()=>value;
+  assert.equal(api.control('Amount'),Number(value));
+  assert.equal(api.control('Amount','c1'),Number(value));
+  assert.equal(api.controls.Amount,Number(value));
+  assert.equal(control.get(),value);
+ }
+});
 test('property timing, derivatives and key records use seconds and one-based indices',()=>{
  const {property,layer,sequence}=graph();property.keyframes=[{frame:0,value:0},{frame:30,value:10}];
  const {api}=createAPI({PZ,owner:layer,property,sequence,frame:15,time:.5,base:5,read:(_p,f)=>f/3,baseAt:(_p,f)=>f/3,methods:{random:()=>0,clamp(){}}});

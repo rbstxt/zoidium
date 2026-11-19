@@ -251,7 +251,7 @@ var PZ = PZ || {};
         var maps = this.properties.layerMaps;
         var project = T.findParent(this, PZ.project);
         var entries = [];
-        var type = base.baseFormType.get(t);
+        var type = Number(base.baseFormType.get(t));
         if (type === 6) {
             entries.push(this._assets.request("model", base.modelAsset.get(t), function (value) {
                 return T.loadGeometryPositions(project, value);
@@ -263,7 +263,7 @@ var PZ = PZ || {};
             }));
         }
         for (var i = 0; i < LAYER_MAPS.length; i++) {
-            if (maps[LAYER_MAPS[i][0]].get(t) !== 1) continue;
+            if (Number(maps[LAYER_MAPS[i][0]].get(t)) !== 1) continue;
             var layer = maps[LAYER_MAPS[i][1]].get(t);
             entries.push(this._assets.request("layer", layer, function (value) {
                 return T.sampleImageAsset(project, value, 128);
@@ -289,7 +289,7 @@ var PZ = PZ || {};
         var audio = this.properties.audio;
         if (!audio) return false;
         for (var i = 1; i <= 5; i++) {
-            if (audio["reactor" + i] && audio["reactor" + i].get(t) === 1) return true;
+            if (audio["reactor" + i] && Number(audio["reactor" + i].get(t)) === 1) return true;
         }
         return false;
     };
@@ -349,7 +349,7 @@ var PZ = PZ || {};
         var count = counts[0] * counts[1] * counts[2];
         var size = base.baseFormSize.get(t);
         var perAxis = base.baseSizeMode.get(t) === 0;
-        var type = base.baseFormType.get(t);
+        var type = Number(base.baseFormType.get(t));
         if (!this.basePositions || this.basePositions.length !== count * 3) {
             this.basePositions = new Float32Array(count * 3);
         }

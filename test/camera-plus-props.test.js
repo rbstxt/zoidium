@@ -18,6 +18,21 @@ function definitions() {
   return parts.camera.createDefinitions(ctx.PZ);
 }
 
+test("animated depth of field accepts string option keys", () => {
+  const ctx = harness.createContext(), runtime = harness.loadRuntime();
+  runtime.activate(ctx.context);
+  try {
+    const camera = ctx.registry.instantiate("zoidium:camera-plus/camera");
+    camera.properties.depthOfField.enabled.set("1");
+    assert.ok(camera.readDepthOfField(0));
+    assert.equal(camera.properties.depthOfField.enabled.get(0), "1");
+    camera.properties.depthOfField.enabled.set("0");
+    assert.equal(camera.readDepthOfField(0), null);
+    camera.properties.depthOfField.enabled.get = () => { throw new Error("unavailable"); };
+    assert.equal(camera.readDepthOfField(0), null);
+  } finally { runtime.deactivate(); }
+});
+
 test("short display names keep their property keys", () => {
   const defs = definitions();
   assert.equal(defs.filmGate.name, "Sensor");

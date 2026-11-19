@@ -319,7 +319,7 @@ this.update = function (e) {
         }
     });
     looksRefreshLUT(this, e);
-    this.pass.enabled = this.properties.enabled.get(e) === 1 && anyOn;
+    this.pass.enabled = Number(this.properties.enabled.get(e)) === 1 && anyOn;
 };
 
 this.resize = function () {

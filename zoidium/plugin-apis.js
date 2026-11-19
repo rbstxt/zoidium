@@ -467,8 +467,8 @@
         spec.update.call(effect, frame, effect.pass.uniforms);
         return;
       }
-      var enabled = effect.properties.enabled && effect.properties.enabled.get(frame);
-      if (typeof enabled !== "undefined") effect.pass.enabled = enabled;
+      var property = effect.properties.enabled, enabled = property && property.get(frame), types = global.PZ?.property?.type;
+      if (typeof enabled !== "undefined") effect.pass.enabled = types?.OPTION !== undefined && property?.definition?.type === types.OPTION ? Number(enabled) === 1 : enabled;
     };
 
     effect.resize = function resize() {

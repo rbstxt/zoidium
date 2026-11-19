@@ -758,6 +758,32 @@ test("row toggles refresh the row from the commit notification", () => {
   }
 });
 
+test("string option keys update flare checkboxes and row toggles", () => {
+  const env = setup();
+  try {
+    const { body } = openAndMount(env);
+    const occlude = env.root.properties.positioning.foreground.occlude;
+    occlude.set("1");
+    const check = findControl(env, "Occlude");
+    assert.equal(check.value, true);
+    buttonNamed(env, "Add").onClick();
+    const element = env.root.stack[0];
+    element.properties.element.enabled.set("1");
+    element.properties.element.solo.set("1");
+    const rows = [];
+    const visit = node => { if (node?.classList?.contains("of-row")) rows.push(node); for (const child of node?.children || []) visit(child); };
+    for (const child of body.children) visit(child);
+    const first = rows[0], rowBody = first.children.find(c => c.classList?.contains("of-row-body"));
+    const solo = rowBody.children[0].children[1].children[1];
+    assert.ok(solo.classList.contains("on"));
+    solo.onclick(clickEvent);
+    assert.equal(element.properties.element.solo.get(), 0);
+    const canvas = first.children.find(c => c.tag === "canvas");
+    canvas.onclick(clickEvent);
+    assert.equal(element.properties.element.enabled.get(), 0);
+  } finally { env.restore(); }
+});
+
 test("the Elements tab adds types and custom layers", () => {
   const env = setup();
   try {
