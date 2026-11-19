@@ -392,6 +392,19 @@ test("the project-name field installs once and survives toolbar rebuilds", () =>
   assert.equal(harness.globalListeners["zoidium:project-name-changed"].length, 1);
 });
 
+test("project name Enter does not blur during composition", () => {
+  const input = loadToolbarHarness().fieldInput();
+  let blurs = 0;
+  input.blur = () => { blurs++; };
+  const keydown = input.listeners.keydown[0];
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    keydown({ key: "Enter", ...composition, preventDefault() {}, stopPropagation() {} });
+    assert.equal(blurs, 0);
+  }
+  keydown({ key: "Enter", preventDefault() {}, stopPropagation() {} });
+  assert.equal(blurs, 1);
+});
+
 test("the single name-changed listener resolves the input at event time", () => {
   const harness = loadToolbarHarness();
   const input = harness.fieldInput();

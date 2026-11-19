@@ -726,7 +726,7 @@
         input.title = input.value;
       });
       input.addEventListener("keydown", function (event) {
-        if (event.key === "Enter" && !event.isComposing) {
+        if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229) {
           event.preventDefault();
           input.blur();
         }
