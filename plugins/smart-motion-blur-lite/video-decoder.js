@@ -16,8 +16,12 @@ function create(effect,THREE,root) {
     if(source)return source;
     const b=loadBunny(),file=item.media.file instanceof Blob?item.media.file:await(await fetch(url)).blob();
     if(disposed)return null;
-    const input=new b.Input({formats:b.ALL_FORMATS,source:new b.BlobSource(file)}),track=await input.getPrimaryVideoTrack();
-    if(!track||!await track.canDecode()){input.dispose();return null;}
+    const input=new b.Input({formats:b.ALL_FORMATS,source:new b.BlobSource(file)});
+    let track;
+    try {
+      track=await input.getPrimaryVideoTrack();
+      if(disposed||!track||!await track.canDecode()||disposed){input.dispose();return null;}
+    } catch(error) { input.dispose(); throw error; }
     source={input,sink:new b.VideoSampleSink(track),frames:[],verified:new WeakSet(),failed:false};
     sources.set(url,source);
     if(sources.size>8){const [key,old]=sources.entries().next().value;if(old!==source){sources.delete(key);closeSource(old);}}
@@ -59,9 +63,10 @@ function create(effect,THREE,root) {
     context?.resourcePolicy?.assertMedia?.(item.media);
     let source;
     try{
-      source=await open(item);if(!source||source.failed)return null;
+      source=await open(item);if(disposed||!source||source.failed)return null;
       const verifying=!source.verified.has(renderer);
       if(verifying)await isolated.decodeFrame(time,context);
+      if(disposed)return null;
       const video=isolated.el;
       const clamped=Math.min(Math.max(0,time),Number.isFinite(video.duration)?Math.max(0,video.duration-1e-7):Infinity);
       const target=globalThis.ZoidiumVideoSeekPolicy?.seekTime(video,clamped)??clamped;
@@ -73,6 +78,7 @@ function create(effect,THREE,root) {
         stats.reused++;source.frames.splice(source.frames.indexOf(entry),1);source.frames.push(entry);return {texture:entry.texture};
       }
       const start=performance.now(),sample=await sampleAt(source,target);stats.decodeMs=performance.now()-start;
+      if(disposed){sample?.close();source.peek?.close();source.peek=null;return null;}
       if(!sample)return null;
       if(sample.rotation||sample.flip){sample.close();source.failed=true;stats.rejected++;return null;}
       const pts=sample.timestamp,end=source.peek?.timestamp??(sample.timestamp+sample.duration);
