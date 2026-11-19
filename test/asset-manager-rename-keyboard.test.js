@@ -29,3 +29,20 @@ test("asset rename stays open while Enter or Escape belongs to an IME", () => {
     assert.deepEqual(names, ["New"]);
   } finally { global.CSS = previousCSS; }
 });
+
+test("composing Enter does not activate the selected asset", () => {
+  class Element extends FakeElement { append(...nodes) { nodes.forEach(node => this.appendChild(node)); } }
+  const previous = global.Node; global.Node = Element;
+  try {
+    const doc = { createElement: tag => new Element(tag) }, calls = [];
+    const table = createTable(doc, () => new Element("span"), { sort: { column: "name", direction: "asc" } },
+      { selectedId: () => "item", activate: row => calls.push(row.id) });
+    table.render({ items: [{ id: "item", name: "Item", kind: "file", status: "ready" }] });
+    for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+      table.wrap.dispatch("keydown", { key: "Enter", ...composition });
+      assert.deepEqual(calls, []);
+    }
+    table.wrap.dispatch("keydown", { key: "Enter" });
+    assert.deepEqual(calls, ["item"]);
+  } finally { global.Node = previous; }
+});
