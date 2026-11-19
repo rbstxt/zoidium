@@ -403,6 +403,7 @@ module.exports = function installOptflares(PZ, THREE) {
                 depthWrite: false,
             });
             this.underQuad = new THREE.Mesh(this.quad.geometry, this.underMaterial);
+            this.underQuad.__zoidiumOpticalFlareQuad = true;
             this.underQuad.frustumCulled = false;
             this.underQuad.matrixAutoUpdate = false;
             this.underQuad.renderOrder = 9998;

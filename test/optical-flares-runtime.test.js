@@ -398,3 +398,30 @@ test("velocity updates preserve the flare projection callback even on failure", 
   dispose();
   assert.equal(Velocity.prototype.update, original);
 });
+
+test("the real occlusion underlay is excluded from auxiliary renders and keeps its projection callback", () => {
+  const host = buildHost();
+  let flare;
+  class Pass {
+    constructor() { this.scene = { traverse(fn) { fn(flare.quad); fn(flare.underQuad); } }; }
+    update() { this.scene.traverse(node => { node.onBeforeRender = () => "velocity"; }); }
+    render() { return [flare.quad.visible, flare.underQuad.visible]; }
+  }
+  host.PZ.motionBlur = Pass;
+  host.PZ.envMap = class extends Pass {};
+  const runtime = loadRuntimeModule();
+  const { context, dispose } = makeContext(host, bundledSources());
+  runtime.activate(context);
+  flare = host.PZ.object3d.create(13);
+  flare.load({ objectType: 0 });
+  flare.underQuad.visible = true;
+  const projection = flare.underQuad.onBeforeRender;
+  const pass = new Pass();
+  pass.update();
+  assert.equal(flare.underQuad.onBeforeRender, projection);
+  assert.deepEqual(pass.render(), [false, false]);
+  assert.deepEqual(new host.PZ.envMap().render(), [false, false]);
+  assert.equal(flare.underQuad.visible, true);
+  flare.unload();
+  dispose();
+});

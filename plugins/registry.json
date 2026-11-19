@@ -321,7 +321,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/optical-flares/manifest.json?v=22",
       "bundle": "./plugins/optical-flares/bundle.json?v=22",
-      "integrity": "sha256-ajS1n3nJ5rpam4jMaI0rZy31wClsYH07uBHrAwEzIWo="
+      "integrity": "sha256-ERbPxZNP5+/zfvYIdz0Cf4+8LJ+R4gpFCXHwFud7B3E="
     },
     {
       "id": "effector-plus",
