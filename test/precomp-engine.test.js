@@ -693,3 +693,32 @@ test("muted composition audio tracks do not enter the audio schedule", () => {
   assert.equal(proxies.length, 1);
   assert.equal(proxies[0].media, nested[1].clips[0].media);
 });
+
+test("pre-compose keeps visible clips visible when the top selected track is muted", () => {
+  const env = createEnvironment();
+  const muted = addClip(env, 0, { start: 0, length: 30, name: "Muted" });
+  const visible = addClip(env, 1, { start: 0, length: 30, name: "Visible" });
+  env.project.sequence.videoTracks[0].enabled = false;
+  env.tracks.selectedClips = [muted, visible];
+
+  const result = env.engine.precompose(env.editor, "Together");
+  assert.equal(result.ok, true, result.message);
+  const track = env.project.sequence.videoTracks.find((item) => item.clips.some((clip) => clip.object.compId === result.id));
+  assert.equal(track.enabled, true);
+  track.update(10);
+  track.layer.update(10);
+  assert.equal(track.layer.activeClips.length, 1);
+  assert.equal(track.layer.activeClips[0].properties.name.v, "Visible");
+});
+
+test("pre-compose refuses a muted destination when enabled selected tracks are blocked", () => {
+  const env = createEnvironment();
+  const muted = addClip(env, 0, { start: 0, length: 10, name: "Muted" });
+  const visible = addClip(env, 1, { start: 20, length: 10, name: "Visible" });
+  addClip(env, 1, { start: 0, length: 10, name: "Other" });
+  env.project.sequence.videoTracks[0].enabled = false;
+  env.tracks.selectedClips = [muted, visible];
+  assert.equal(env.engine.precompose(env.editor, "Together").ok, false);
+  assert.equal(env.project.media.length, 0);
+  assert.equal(env.project.sequence.videoTracks[0].clips[0], muted);
+});

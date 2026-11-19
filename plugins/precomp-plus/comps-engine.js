@@ -260,8 +260,10 @@ function precompose(editor, rawName) {
 function freeTrackFor(seq, picked, minStart, maxEnd) {
   const selectedClips = new Set(picked.map(function (p) { return p.clip; }));
   const candidates = Array.from(new Set(picked.map(function (p) { return p.trackIdx; }))).sort(function (a, b) { return a - b; });
+  const hasEnabled = candidates.some(function (index) { return seq.videoTracks[index].enabled !== false; });
   for (let i = 0; i < candidates.length; i++) {
     const track = seq.videoTracks[candidates[i]];
+    if (hasEnabled && track.enabled === false) continue;
     const blocked = track.clips.some(function (clip) {
       return !selectedClips.has(clip) && clip.start < maxEnd && clip.start + clip.length > minStart;
     });
