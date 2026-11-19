@@ -241,6 +241,13 @@
     this.parentProject.assets.unload(this.fragShader);
     if (this.shadowBuffer) this.shadowBuffer.dispose();
     if (this.blurBuffer) this.blurBuffer.dispose();
+    if (this.blurMaterial_h) this.blurMaterial_h.dispose();
+    if (this.blurMaterial_v) this.blurMaterial_v.dispose();
+    if (this.shadowMaterial) this.shadowMaterial.dispose();
+    if (this.compositeMaterial) this.compositeMaterial.dispose();
+    if (this.blurQuad) this.blurQuad.geometry.dispose();
+    if (this.shadowPass) this.shadowPass.quad.geometry.dispose();
+    if (this.compositePass) this.compositePass.quad.geometry.dispose();
   }),
   (this.update = function (frame) {
     if (!this.pass) return;
