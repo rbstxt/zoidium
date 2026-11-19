@@ -46,41 +46,25 @@ function makeFakeCanvas(width = 0, height = 0) {
 function lzwEncode(minCodeSize, indices) {
   const clear = 1 << minCodeSize;
   const end = clear + 1;
-  let codeSize = minCodeSize + 1;
-  const dict = new Map();
-  for (let i = 0; i < clear; i++) dict.set(String(i), i);
-  let next = end + 1;
+  const codeSize = minCodeSize + 1;
   const out = [];
   let acc = 0;
   let bits = 0;
-  const emit = (code, size) => {
+  const emit = (code) => {
     acc |= code << bits;
-    bits += size;
+    bits += codeSize;
     while (bits >= 8) {
       out.push(acc & 0xff);
       acc >>= 8;
       bits -= 8;
     }
   };
-  emit(clear, codeSize);
-  let prefix = null;
-  const keyOf = (arr) => arr.join(",");
+  // Reset the dictionary for each pixel. This keeps code widths fixed.
   for (const px of indices) {
-    const candidate = prefix === null ? [px] : prefix.concat(px);
-    if (dict.has(keyOf(candidate))) {
-      prefix = candidate;
-    } else {
-      emit(dict.get(keyOf(prefix)), codeSize);
-      if (next < 4096) {
-        dict.set(keyOf(candidate), next);
-        next++;
-        if (next === 1 << codeSize && codeSize < 12) codeSize++;
-      }
-      prefix = [px];
-    }
+    emit(clear);
+    emit(px);
   }
-  if (prefix !== null) emit(dict.get(keyOf(prefix)), codeSize);
-  emit(end, codeSize);
+  emit(end);
   if (bits > 0) out.push(acc & 0xff);
   return Uint8Array.from(out);
 }

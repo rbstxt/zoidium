@@ -141,7 +141,7 @@ const GifSupport = (() => {
       }
       previous = entry;
     }
-    return output;
+    return outputIndex === pixelCount ? output : null;
   }
 
   // Note: OpenZoid used a step of 8 for every pass, which drops rows for
@@ -281,6 +281,7 @@ const GifSupport = (() => {
       if (minCodeSize < 1 || minCodeSize > 8) return null;
       const data = readSubBlocks();
       let indices = lzwDecode(minCodeSize, data, frameWidth * frameHeight);
+      if (!indices) return null;
       if (interlaced) indices = deinterlace(indices, frameWidth, frameHeight);
 
       const snapshot = disposal === 3 ? pixels.slice() : null;

@@ -219,6 +219,16 @@ test("decoder: rejects corrupt input and enforces caps", () => {
   assert.equal(GifSupport.MAX_PIXELS, 67108864);
 });
 
+test("decoder: rejects a frame whose compressed pixels are truncated", () => {
+  const { GifSupport } = loadGifSupport();
+  const gif = twoFrameGifBytes();
+  const image = gif.indexOf(0x2c, 19);
+  const dataSize = image + 11;
+  const truncated = gif.slice(0, dataSize + 1);
+  truncated[dataSize] = 0;
+  assert.equal(GifSupport.decode(truncated, fakeFactory), null);
+});
+
 test("decoder: frame count capped at 512", () => {
   const { GifSupport } = loadGifSupport();
   const palette = [
