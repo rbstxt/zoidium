@@ -140,6 +140,7 @@ function createTracks(scene) {
     operations: 0,
     open: false,
     undos: [],
+    redos: [],
     startOperation() {
       this.operations += 1;
       this.open = true;
@@ -147,12 +148,16 @@ function createTracks(scene) {
     finishOperation() {
       this.open = false;
     },
-    pushUndo(undo) {
-      this.undos.push(undo);
+    pushUndo(undo, redo) {
+      this.undos.push({ undo, redo });
     },
     undo() {
-      const undo = this.undos.pop();
-      if (undo) undo();
+      const entry = this.undos.pop();
+      if (entry) { entry.undo(); this.redos.push(entry); }
+    },
+    redo() {
+      const entry = this.redos.pop();
+      if (entry) { entry.redo(); this.undos.push(entry); }
     },
   };
 
@@ -214,21 +219,26 @@ function createTracks(scene) {
 
   Tracks.prototype.moveClipProxies = function moveClipProxies(proxies) {
     this.moveCalls = (this.moveCalls || 0) + 1;
-    const before = proxies.map(proxy => ({
+    const snapshot = () => proxies.map(proxy => ({
       clip: proxy.pz_object,
       start: proxy.pz_object.start,
       length: proxy.pz_object.length,
+      times: proxy.pz_object.properties.time.keyframes.map(key => key.value),
     }));
+    const restore = states => states.forEach(state => {
+      state.clip.start = state.start;
+      state.clip.length = state.length;
+      state.times.forEach((value, index) => { state.clip.properties.time.keyframes[index].value = value; });
+    });
+    const before = snapshot();
     for (const proxy of proxies) {
       if (Number.isFinite(proxy.pz_start)) proxy.pz_object.start = proxy.pz_start;
       if (Number.isFinite(proxy.pz_length)) proxy.pz_object.length = proxy.pz_length;
+      if (Number.isFinite(proxy.pz_timeStart)) proxy.pz_object.properties.time.keyframes[0].value = proxy.pz_timeStart;
+      if (Number.isFinite(proxy.pz_timeEnd)) proxy.pz_object.properties.time.keyframes[1].value = proxy.pz_timeEnd;
     }
-    this.history.pushUndo(() => {
-      for (const state of before) {
-        state.clip.start = state.start;
-        state.clip.length = state.length;
-      }
-    });
+    const after = snapshot();
+    this.history.pushUndo(() => restore(before), () => restore(after));
 
     // CM3 resolves overlaps after applying the moves by shortening or
     // removing the clips that follow on each track.
@@ -578,4 +588,28 @@ test("trimBounds reports the limits for one clip", () => {
   const clip = makeClip({ start: 10, length: 50, mediaLength: 80, timeStart: 0.5, timeEnd: 1.5 });
   assert.deepEqual(trimBounds(clip, "start", RATE, true), { lower: -10, upper: 49 });
   assert.deepEqual(trimBounds(clip, "end", RATE, true), { lower: -49, upper: 35 });
+});
+
+
+test("multi-trim undo and redo restore start, length, and source times", () => {
+  const scene = buildScene([
+    { start: 30, length: 60, selected: true, timeStart: 1, timeEnd: 3 },
+    { start: 120, length: 90, selected: true, timeStart: 2, timeEnd: 5 },
+  ]);
+  const { tracks, history } = createTracks(scene);
+  const state = () => scene.elements.map(({ clip }) => ({ start: clip.start, length: clip.length,
+    times: clip.properties.time.keyframes.map(key => key.value) }));
+  const before = state();
+  const drag = beginTrim(tracks, scene.elements[0], HANDLE_LEFT);
+  moveTrim(drag, 40);
+  tracks.handleDragEnd.call(drag, {});
+  const after = state();
+  assert.deepEqual(after, [
+    { start: 40, length: 50, times: [1 + 10 / RATE, 3] },
+    { start: 130, length: 80, times: [2 + 10 / RATE, 5] },
+  ]);
+  history.undo();
+  assert.deepEqual(state(), before);
+  history.redo();
+  assert.deepEqual(state(), after);
 });
