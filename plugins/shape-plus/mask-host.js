@@ -120,6 +120,9 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
     state.source = null;
     sync();
   }
+  function historyTarget(target) {
+    return target && target.type === nativeLayer.type && Object.getPrototypeOf(target) === Object.getPrototypeOf(nativeLayer);
+  }
   const adapter = { Content, type: "zoidium:layer-mask/host", signature: null };
   Object.defineProperty(adapter, "contents", { configurable: true, get: sync });
   Object.defineProperty(adapter, "layerSpaceMatrix", { configurable: true, get: layerSpaceMatrix });
@@ -136,6 +139,17 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
     owns,
     valid,
     write,
+    readHistory(target) {
+      return historyTarget(target) ? clone(readField(target)) : null;
+    },
+    writeHistory(target, data) {
+      if (!historyTarget(target)) return;
+      if (target === nativeLayer) { write(data); return; }
+      const normalized = normalize(clone(data));
+      validate(normalized);
+      validateMasks(normalized);
+      target[FIELD] = normalized;
+    },
     persist() {
       write(clone(sync()));
     },
