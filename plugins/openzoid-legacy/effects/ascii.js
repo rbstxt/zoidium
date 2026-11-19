@@ -283,7 +283,12 @@ function asciiCollectState(props, e, frame) {
         return fb;
     };
     var opt = function (key, fb) {
-        return Math.round(num(key, fb));
+        try {
+            var v = props[key].get(e);
+            if (typeof v === "string" && v.trim()) v = Number(v);
+            if (typeof v === "number" && isFinite(v)) return Math.round(v);
+        } catch (err) {}
+        return Math.round(fb);
     };
     var col = function (key, fb) {
         try {

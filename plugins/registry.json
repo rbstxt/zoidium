@@ -439,7 +439,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/openzoid-legacy/manifest.json?v=30",
       "bundle": "./plugins/openzoid-legacy/bundle.json?v=30",
-      "integrity": "sha256-QSeJrnJ012VkdFkXgkl6TS/zz+ScqqoPFaXlTutYzEo="
+      "integrity": "sha256-ow3jAmijYoOvbzvZeAIvZpF0ROmQf+V6IJ7c0gMU5LE="
     },
     {
       "id": "magic-looks",

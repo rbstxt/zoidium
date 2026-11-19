@@ -94,6 +94,23 @@ function constantProps(defs, overrides) {
   return props;
 }
 
+test("Tracery option state accepts string keys", async () => {
+  const { fakeThis } = loadEffectThis();
+  const defs = fakeThis.propertyDefinitions;
+  for (const key of ["detectEnable", "showMask", "alphaLayer", "detectionQuality", "boxEnable", "boxShape",
+    "boxFill", "markerShape", "markerFilled", "gridEnable", "gridMode", "linesEnable", "lineType",
+    "showHandles", "dashEnable", "arrowEnable", "arrowFilled", "labelsEnable", "labelMode"]) for (const value of [0, 1]) {
+    const inst = { properties: constantProps(defs, { [key]: value }) };
+    await fakeThis.load.call(inst, {});
+    fakeThis.update.call(inst, 0);
+    const expected = JSON.parse(JSON.stringify(inst.pass.overlayState));
+    inst.properties[key] = { get: () => String(value) };
+    fakeThis.update.call(inst, 0);
+    assert.deepEqual(inst.pass.overlayState, expected, key);
+    fakeThis.unload.call(inst, {});
+  }
+});
+
 test("tracery effect declares its full property surface", () => {
   const { fakeThis } = loadEffectThis();
   assert.equal(fakeThis.defaultName, "Tracery");
