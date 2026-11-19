@@ -90,7 +90,7 @@ ZoidiumPluginApis.defineFilter.call(this, {
       changed: function () {
         const effect = this.parentObject;
         if (!effect.pass) return;
-        if (this.value === 0) effect.pass.material.defines.CONSTANT_BRIGHTNESS = 1;
+        if (Number(this.value) === 0) effect.pass.material.defines.CONSTANT_BRIGHTNESS = 1;
         else delete effect.pass.material.defines.CONSTANT_BRIGHTNESS;
         effect.pass.material.needsUpdate = true;
       },

@@ -50,3 +50,14 @@ test("Radial Blur shader cancels Weight unless CONSTANT_BRIGHTNESS is off", () =
   assert.match(shader, /#else[\s\S]*color \*= 1\.0 - dot\(tuv, tuv\)/,
     "the Overbright path keeps the raw weighted sum");
 });
+
+test("Overbright off restores normalized brightness after a native option change", () => {
+  const spec = loadFilterSpec();
+  const material = { defines: {} };
+  const property = { value: "0", parentObject: { pass: { material } } };
+  spec.properties.overbright.changed.call(property);
+  assert.equal(material.defines.CONSTANT_BRIGHTNESS, 1);
+  property.value = "1";
+  spec.properties.overbright.changed.call(property);
+  assert.equal(material.defines.CONSTANT_BRIGHTNESS, undefined);
+});
