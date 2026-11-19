@@ -175,3 +175,18 @@ test("a successful activation registers rollback steps and undoes everything", (
     fakes.restore();
   }
 });
+
+test("repeated activation and disposal restores the patched host", () => {
+  const fakes = installFakes(false);
+  try {
+    for (let i = 0; i < 10; i++) {
+      const disposers = [];
+      EasingPlus.activate(makeContext(disposers));
+      EasingPlus.deactivate();
+      for (const step of disposers.splice(0).reverse()) step();
+      assert.equal(fakes.tween.correctCurve, fakes.originals.correctCurve);
+      assert.equal(fakes.editor.showEaseDropDown, fakes.originals.showEaseDropDown);
+      assert.equal(fakes.propertiesPrototype.setValue, fakes.originals.setValue);
+    }
+  } finally { EasingPlus.deactivate(); fakes.restore(); }
+});
