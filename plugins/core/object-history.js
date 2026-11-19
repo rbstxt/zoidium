@@ -128,6 +128,7 @@
   const keydown = prototype.keydown;
   if (typeof keydown === "function") {
     prototype.keydown = function (event) {
+      if (event.isComposing || event.keyCode === 229) return;
       const key = event.key.toLowerCase();
       const removes = ["delete", "del", "backspace"].includes(key);
       const copies = event.ctrlKey && ["c", "x"].includes(key);

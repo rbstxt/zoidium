@@ -96,3 +96,12 @@ test("copy in a text input leaves the tree selection alone", { skip: !fs.existsS
   assert.equal(state.edit.selection.length, 4);
   assert.equal(state.clipboard(), undefined);
 });
+
+test("composing copy leaves nested object selection and clipboard untouched", { skip: !fs.existsSync(core) }, async () => {
+  const state = fixture();
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    await state.edit.keydown({ key: "c", ctrlKey: true, target: { tagName: "DIV" }, stopPropagation() {}, ...composition });
+    assert.equal(state.edit.selection.length, 4);
+    assert.equal(state.clipboard(), undefined);
+  }
+});
