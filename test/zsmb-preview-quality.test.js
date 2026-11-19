@@ -240,3 +240,18 @@ test("Previous samples the clip edge at a fractional frame before frame one", ()
   assert.deepEqual(planExplicitFrameSamples(0.5, Array.from(request.frames), 0, 9).map(sample => sample.frame), [0, 0.5]);
   definition.lifecycle.unload.call(sandbox);
 });
+
+test("tracking requests preserve clip-start behavior for both directions", () => {
+  const { definition, sandbox } = loadDefinition();
+  definition.lifecycle.load.call(sandbox, { properties: {} });
+  for (const trackFrame of [0, 1]) {
+    sandbox._smbDebugSettings = { trackFrame };
+    for (const frame of [-1, -0.5, 0, 0.5, 1]) {
+      const request = definition.getRequest(sandbox, frame);
+      assert.equal(request.enabled, trackFrame === 1 || frame >= 0,
+        `trackFrame=${trackFrame}, frame=${frame}`);
+      assert.equal(request.frames[0], trackFrame === 1 || frame === 0 ? 1 : -1);
+    }
+  }
+  definition.lifecycle.unload.call(sandbox);
+});

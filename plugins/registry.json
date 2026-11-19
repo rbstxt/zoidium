@@ -542,7 +542,7 @@
       "description": "High-quality, lightweight optical flow & vector-based motion blur",
       "manifest": "./plugins/smart-motion-blur-lite/manifest.json?v=50",
       "bundle": "./plugins/smart-motion-blur-lite/bundle.json?v=50",
-      "integrity": "sha256-hurQXxqFEa/PL0dcgl23/8B/VwMQMhlYUdaguanYiI8=",
+      "integrity": "sha256-HT2u6h6swR9aRfDjMHO+BwuKpb77ZkEgK66ZPJGqWuA=",
       "zoidiumOnly": true
     },
     {

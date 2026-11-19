@@ -71,7 +71,7 @@ function create(effect,THREE,PZ,root) {
   }
   async function run(frame,context,settings){
     const plan=settings.plan;
-    if(disposed||!plan||plan.exact||!settings.enabled||!settings.sensitivity||!settings.strength)return;
+    if(disposed||!plan||plan.exact||!settings.enabled||!settings.sensitivity||!settings.strength||(frame<0&&settings.trackFrame!==1))return;
     const compositor=context?.frameSamplerRoot||context?.compositor;
     const host=PZ.zoidium?.temporal?.frameSamplerRuntimes?.get(compositor);
     const prepared=host?.prepared?.get(effect),renderer=compositor?.renderer;
