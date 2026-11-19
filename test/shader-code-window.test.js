@@ -26,6 +26,26 @@ test("code window does not apply a composing shortcut", () => {
   input.onkeydown({ key: "Enter", ctrlKey: true, preventDefault() {}, stopPropagation() {} });
   assert.equal(edits, 1);
 });
+test("repeated code window opens release timers and property watchers", () => {
+  class Element extends FakeElement { append(...items) { items.forEach(item => this.appendChild(item)); } }
+  const doc = { createElement: tag => new Element(tag) }, watchers = new Set(), timers = new Set(), disposers = [];
+  const property = { expression: { source: "old" }, parentObject: {}, getAddress: () => [0],
+    onExpressionChanged: { watch: fn => watchers.add(fn), unwatch: fn => watchers.delete(fn) } };
+  const editor = { project: { addressLookup: () => property }, history: { operation: null } };
+  const PZ = { ui: { controls: {} }, sequence: class {} };
+  const context = { PZ, editor, document: doc, window: { setInterval(fn) { timers.add(fn); return fn; }, clearInterval(id) { timers.delete(id); } },
+    lifecycle: { onDispose: fn => disposers.push(fn) }, ui: { openWindow(options) {
+      const cleanup = options.mount(new Element("div")); return { close() { cleanup(); } };
+    } } };
+  const api = installCodeWindows({ context, patch() {}, presetFont() {} });
+  for (let i = 0; i < 15; i++) {
+    const win = api.open(property, true);
+    assert.equal(timers.size, 1); assert.equal(watchers.size, 1);
+    win.close(); assert.equal(timers.size, 0); assert.equal(watchers.size, 0);
+  }
+  api.open(property, true); disposers[0]();
+  assert.equal(timers.size, 0); assert.equal(watchers.size, 0);
+});
 test("code editor indentation preserves multiline selection and removes only one level", () => {
   assert.deepEqual(indentCode("a\nb\nc", 0, 4), { text: "  a\n  b\nc", start: 2, end: 8 });
   assert.deepEqual(indentCode("  a\n\tb\nc", 0, 7, true), { text: "a\nb\nc", start: 0, end: 4 });
