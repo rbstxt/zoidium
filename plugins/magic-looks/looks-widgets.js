@@ -218,6 +218,7 @@ var Looks = Looks || {};
       if (commitFn) commitFn(snapshotDot(), rgbNow());
     }
     function onKey(e) {
+      if (e.isComposing || e.keyCode === 229) return;
       if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home"].includes(e.key)) return;
       e.preventDefault();
       if (e.key === "Home") { dot.angle = 0; dot.radius = 0; }
@@ -414,6 +415,7 @@ var Looks = Looks || {};
       emit(true);
     }
     function onKey(e) {
+      if (e.isComposing || e.keyCode === 229) return;
       if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "Insert", "Delete", "Backspace", "PageUp", "PageDown"].includes(e.key)) return;
       e.preventDefault();
       var pts = points();
