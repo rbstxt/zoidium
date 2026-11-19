@@ -114,15 +114,17 @@ function commitSession(api, session) {
   api.dialog.finishDialog(session);
 }
 
-test("formatCurve writes CSS cubic-bezier text with up to four decimals", () => {
+test("formatCurve preserves curve coordinates through clipboard text", () => {
   assert.equal(
     clipboard.formatCurve([0.25, 0.1, 0.25, 1]),
     "cubic-bezier(0.25, 0.1, 0.25, 1)"
   );
   assert.equal(
     clipboard.formatCurve([0.3333333, 0.00004, 0.6666666, 1.23456]),
-    "cubic-bezier(0.3333, 0, 0.6667, 1.2346)"
+    "cubic-bezier(0.3333333, 0.00004, 0.6666666, 1.23456)"
   );
+  const values = [0.3333333, 0.00004, 0.6666666, 1.23456];
+  assert.deepEqual(clipboard.parseCurve(clipboard.formatCurve(values)), values);
 });
 
 test("parseCurve accepts CSS, plain and JSON text", () => {

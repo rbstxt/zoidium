@@ -39,10 +39,6 @@ function clampUnit(value) {
   return Math.max(0, Math.min(1, value));
 }
 
-function roundValue(value) {
-  return Number(Number(value).toFixed(4));
-}
-
 function validValues(values) {
   if (!Array.isArray(values) || values.length !== 4) return null;
   if (!values.every((value) => typeof value === "number" && Number.isFinite(value))) {
@@ -83,7 +79,7 @@ function formatCurve(values) {
   if (!Array.isArray(values) || values.length !== 4) {
     throw new TypeError("Easing+ needs four curve values to format a curve.");
   }
-  return `cubic-bezier(${values.map(roundValue).join(", ")})`;
+  return `cubic-bezier(${values.join(", ")})`;
 }
 
 function rememberCurve(values) {

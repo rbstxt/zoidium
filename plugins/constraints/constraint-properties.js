@@ -344,6 +344,12 @@ function createPropertyStore(options) {
 
   function attach(object, data) {
     if (!isObject3d(object) || attached.has(object)) return false;
+    if (!data && typeof object.toJSON === "function") {
+      try {
+        data = object.toJSON();
+        if (data?.properties?.toJSON) data = { ...data, properties: data.properties.toJSON() };
+      } catch (_error) { /* A partially loaded object may not serialize yet. */ }
+    }
     const kind = classify(object);
     const properties = object.properties;
     if (!properties || typeof properties.addAll !== "function") return false;
