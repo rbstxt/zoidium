@@ -33,7 +33,7 @@
         targetTextures.add(value.texture);
         return;
       }
-      if (value.isTexture || value.isGeometry || value.isBufferGeometry) { resources.add(value); return; }
+      if (value.isTexture || value.isGeometry === true || value.isBufferGeometry) { resources.add(value); return; }
       if (value.isMaterial) resources.add(value);
       for (const key of Object.keys(value)) {
         if (skip.has(key)) continue;
