@@ -71,6 +71,15 @@ test('Camera layer enabled keyframes and local clip time are evaluated on every 
   assert.deepEqual(camera.calls, [9, 10, 10]);
 });
 
+test('Camera layers skip cameras inside repeaters', () => {
+  const h = host(); const group = new h.PZ.object3d.group();
+  group.__zoidiumRepeater = true;
+  group.objects.push(h.camera(h.parts.camera.OBJECT_TYPE));
+  const camera = h.camera();
+  const sequence = { videoTracks: [h.track(h.scene([group, camera], 'Camera', true))] };
+  assert.equal(h.shared.masterAt(sequence, 0).camera, camera);
+});
+
 test('parented cameras update their ancestor transforms without updating unrelated siblings', () => {
   const h = host(); const camera = h.camera(); const sibling = h.object(); const group = new h.PZ.object3d.group();
   group.objects.push(sibling, camera); group.threeObj.add(camera.threeObj);
