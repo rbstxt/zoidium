@@ -2,7 +2,7 @@
 // Display-only display names driven by another property, stored beside
 // visibleWhen as zoidiumShader.renameWhen. Each rule carries the same
 // condition shape as Visible when; the first matching rule wins.
-const { matches } = require("./visibility.js");
+const { matchesController } = require("./visibility.js");
 function conditionOf(rule) {
   if (!rule || typeof rule !== "object") return null;
   const values = Array.isArray(rule.values) ? rule.values : null;
@@ -20,7 +20,7 @@ function rulesOf(value) {
 function renamed(rules, controllerOf, frame, originalName) {
   for (const rule of rulesOf(rules)) {
     const controller = controllerOf(rule.property);
-    if (controller && typeof controller.get === "function" && matches(conditionOf(rule), controller.get(frame))) return rule.name;
+    if (controller && typeof controller.get === "function" && matchesController(conditionOf(rule), controller, controller.get(frame))) return rule.name;
   }
   return originalName;
 }
