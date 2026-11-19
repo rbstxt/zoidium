@@ -27,6 +27,7 @@ function properties(types) {
     items,
   });
   return {
+    enabled: { ...option("Enabled", "off;on"), value: 1 },
     amount: number("Blur Amount", 0.5, 0, 1, 0.01, 2),
     sensitivity: number("Motion Sensitivity", 70, 0, 100, 1, 0),
     smoothness: number("Vector Smoothness", 50, 0, 100, 1, 0),

@@ -37,7 +37,7 @@ ZoidiumPluginApis.defineFrameSampler.call(this, {
     const settings = smartMotionBlurMath.readSettings(effect.properties, frame);
     const shutter = smartMotionBlurUsesShutter(effect, settings);
     return {
-      enabled: settings.amount > 0 && settings.sensitivity > 0,
+      enabled: settings.enabled === 1 && settings.amount > 0 && settings.sensitivity > 0,
       preserveInputRGB: true,
       reduceSamples: shutter ? smartMotionBlurReduce : undefined,
       frames: shutter
@@ -119,7 +119,9 @@ ZoidiumPluginApis.defineFrameSampler.call(this, {
       };
       this.properties.load(data?.properties);
     },
-    update() {},
+    update(frame) {
+      if (this.pass) this.pass.enabled = smartMotionBlurMath.readSettings(this.properties, frame).enabled === 1;
+    },
     async prepare() {},
     resize() {}, // Allocation is keyed by physical input size and active UV region at render time.
     unload() {
