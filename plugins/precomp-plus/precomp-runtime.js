@@ -459,6 +459,7 @@ function renameClipElement(PZ, editor, doc, clipEl) {
   };
   input.onmousedown = input.onclick = input.ontouchstart = function (e) { e.stopPropagation(); };
   input.onkeydown = function (e) {
+    if (e.isComposing || e.keyCode === 229) { e.stopPropagation(); return; }
     if (e.key === "Enter") {
       this.blur();
       e.preventDefault();

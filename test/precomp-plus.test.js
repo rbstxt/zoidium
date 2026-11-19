@@ -521,6 +521,25 @@ test("Rename edits the layer name in one undo step", () => {
   assert.equal(clip.properties.name.v, "A");
 });
 
+test("composing keys do not finish inline layer rename", () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  const clip = addVideo(h, 0, 30, "A");
+  const el = rightClick(h, clip);
+  clickItem(openMenu(h), "Rename layer");
+  const input = el.appended.at(-1);
+  let blurs = 0;
+  input.blur = () => { blurs++; };
+  input.value = "Titles";
+  for (const key of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    input.onkeydown({ key, ...composition, preventDefault() {}, stopPropagation() {} });
+    assert.equal(blurs, 0);
+    assert.equal(input.value, "Titles");
+  }
+  input.onkeydown({ key: "Enter", preventDefault() {}, stopPropagation() {} });
+  assert.equal(blurs, 1);
+});
+
 test("Escape closes the menu; disposal restores the host menu", async () => {
   const h = createHarness();
   const before = h.PZ.ui.timeline.tracks.prototype.clipContextMenu;
