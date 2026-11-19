@@ -363,6 +363,7 @@ function installEditor({ context, patch, presetFont }) {
     panel.append(title, body, error, actionsRow);
     panel.addEventListener("keydown", e => {
       e.stopPropagation();
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.key === "Escape") { e.preventDefault(); closeSettings(); }
       else if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); ok.click(); }
     });
@@ -444,6 +445,7 @@ function installEditor({ context, patch, presetFont }) {
     };
     panel.addEventListener("keydown", e => {
       e.stopPropagation();
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.key === "Escape") { e.preventDefault(); closeSettings(); }
       else if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); ok.click(); }
     });

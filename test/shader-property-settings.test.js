@@ -41,8 +41,17 @@ function setup(definition, controllers = []) {
   const submit = () => all(panel).find(node => node.textContent === "Apply").onclick();
   const error = () => all(panel).find(node => node.classList.contains("zsp-settings-error")).textContent;
   const apply = () => { submit(); assert.equal(error(), ""); };
-  return { PZ, p, api, editor, find, apply, submit, error, edits: () => edits };
+  return { PZ, p, api, editor, find, panel, apply, submit, error, edits: () => edits };
 }
+test("property settings stay open during composition", () => {
+  const { panel, find, edits } = setup({ custom: true, dynamic: true, type: 0, value: 1 });
+  const input = find("Tooltip");
+  for (const key of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    panel.dispatch("keydown", { key, target: input, ...composition });
+    assert.ok(panel.parentElement);
+    assert.equal(edits(), 0);
+  }
+});
 test("native numeric settings show Slider ranges and untouched Apply preserves the exact definition", () => {
   const { p, find, apply, edits } = setup({ custom: true, dynamic: true, type: 0, value: .375, decimals: 5 });
   const before = JSON.stringify(p);
