@@ -220,7 +220,7 @@ var PZ = PZ || {};
             } else if (type === 5) {
                 points = this.generateSlicer(count, size);
             } else {
-                points = this.generatePrimitive(count, seed, size, g.primitiveShape.get(t));
+                points = this.generatePrimitive(count, seed, size, Number(g.primitiveShape.get(t)));
             }
             for (var i = 0; i < points.length; i++) {
                 points[i][0] += offset[0];

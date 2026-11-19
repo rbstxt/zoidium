@@ -79,6 +79,20 @@ test("Plexus color map mode accepts string keys", () => {
   }
 });
 
+test("Plexus primitive shapes accept string keys", () => {
+  const { root } = setup();
+  const geometry = root.objects[0], props = geometry.properties.geometry;
+  props.primitiveCount.set(12);
+  for (const value of [0, 1, 2, 3, 4]) {
+    props.primitiveShape.set(value);
+    geometry._sourceKey = null;
+    const expected = Array.from(geometry.sourcePoints());
+    props.primitiveShape.set(String(value));
+    geometry._sourceKey = null;
+    assert.deepEqual(Array.from(geometry.sourcePoints()), expected);
+  }
+});
+
 test("Plexus effectors, renderers and asset requests accept string enabled keys", () => {
   const { PZ, root } = setup();
   const geometry = root.objects[0];
