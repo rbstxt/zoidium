@@ -188,6 +188,19 @@ test("disable restores prototype hooks and row attributes, removes menu/shortcut
   delete Edit.prototype.selectItems;
 });
 
+test("repeated graph enable and disable removes document listeners and watchers", () => {
+  for (let i = 0; i < 15; i++) {
+    const f = fixture();
+    assert.equal(f.listeners.size, 4);
+    assert.equal(f.editor.onProjectChanged.listeners.size, 1);
+    assert.equal(f.editor.onSequenceChanged.listeners.size, 1);
+    f.host.dispose();
+    assert.equal(f.listeners.size, 0);
+    assert.equal(f.editor.onProjectChanged.listeners.size, 0);
+    assert.equal(f.editor.onSequenceChanged.listeners.size, 0);
+  }
+});
+
 test("timeline key selection coalesces recursive native changes and layer selection shows animated properties", async () => {
   Keys.prototype.selectKeyframe = function (key) { key.classList.add("selected"); };
   Keys.prototype.deselectAll = function () { for (const key of this.keys) key.classList.remove("selected"); };
