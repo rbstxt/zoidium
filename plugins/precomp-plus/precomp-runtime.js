@@ -744,7 +744,7 @@ function installClipMenu(context, engine, editor) {
       detachClipMenu(menu);
     };
     const keyCleanup = (ev) => {
-      if (ev.key === "Escape") {
+      if (ev.key === "Escape" && !ev.isComposing && ev.keyCode !== 229) {
         menu.remove();
         detachClipMenu(menu);
         ev.stopPropagation();

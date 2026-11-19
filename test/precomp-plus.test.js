@@ -564,6 +564,10 @@ test("Escape closes the menu; disposal restores the host menu", async () => {
 
   rightClick(h, addVideo(h, 0, 30, "A"));
   const menu = openMenu(h);
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    h.document.listeners.keydown.forEach(fn => fn({ key: "Escape", ...composition, stopPropagation() {} }));
+    assert.equal(menu.removed, undefined);
+  }
   h.document.listeners.keydown.forEach((fn) => fn({ key: "Escape", stopPropagation() {} }));
   assert.equal(menu.removed, true, "Escape closes the menu");
 
