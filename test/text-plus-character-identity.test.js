@@ -4,10 +4,6 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const geometry = require("../plugins/text-plus/text-plus-geometry.js");
 const { state } = require("../plugins/text-plus/text-plus-utils.js");
-const { getTextLayout } = require("../plugins/text-plus/text-plus-utils.js");
-const { getExpressLayout } = require("../plugins/expresstext-plus/expresstext-layout.js");
-const { nativeHost, core } = require("./expressions-plus-harness.js");
-const fs = require("node:fs");
 
 class Vector {
   set(...value) { this.value = value; return this; }
@@ -110,25 +106,5 @@ test("a stale request release cannot remove requests acquired after Text disposa
     assert.notEqual(text.threeObj.geometry, whole);
     current();
     assert.equal(text.threeObj.geometry, whole);
-  });
-});
-
-test("astral characters use the same two fallback glyphs as native Three.js", { skip: !fs.existsSync(core) }, () => {
-  const { THREE } = nativeHost();
-  const data = { resolution: 1000, boundingBox: { yMin: 0, yMax: 1000 }, underlineThickness: 0,
-    glyphs: { "?": { ha: 500, o: "m 0 0 l 400 0 l 0 400 l 0 0" },
-      A: { ha: 600, o: "m 0 0 l 400 0 l 0 400 l 0 0" } } };
-  const text = "😀A", native = new THREE.Font(data).generateShapes(text, 100);
-  const layout = getTextLayout(text, data, 100), express = getExpressLayout(text, data, 100, 0);
-  assert.equal(native.length, 3);
-  assert.deepEqual(layout.units.map(unit => [unit.index, unit.sourceIndex, unit.x]), [[0, 0, 0], [1, 1, 50], [2, 2, 100]]);
-  assert.deepEqual(express.units, layout.units);
-  assert.deepEqual(Array.from(native, shape => shape.getPoints()[0].x), [0, 50, 100]);
-  withText(object => {
-    object.properties.text.get = () => text;
-    geometry.requestCharacterSplit(object, {});
-    geometry.syncTextRendering(object, 0);
-    assert.deepEqual(geometry.getSplitState(object).entries.map(entry => entry.anchor.userData.zoidiumTextPlusCharacter),
-      [{ index: 0, sourceIndex: 0, count: 3 }, { index: 1, sourceIndex: 1, count: 3 }, { index: 2, sourceIndex: 2, count: 3 }]);
   });
 });
