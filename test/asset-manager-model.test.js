@@ -152,3 +152,8 @@ test("the folder tree lists folders first, nests, collapses, and goes flat when 
   assert.equal(model.isFolderRow("folder:a"), true);
   assert.equal(model.labelInfo(11).name, "Orange");
 });
+
+test("equal sort values fall back to asset names even when labels differ", () => {
+  const tied = [item({ id: "a", name: "Zebra", label: 1 }), item({ id: "z", name: "Apple", label: 2 })];
+  assert.deepEqual([...model.sortItems(tied, { column: "kind", direction: "asc" }).map((entry) => entry.name)], ["Apple", "Zebra"]);
+});

@@ -255,7 +255,7 @@ function compareValues(a, b) {
 function sortItems(items, sort) {
   const column = COLUMNS.find((entry) => entry.id === (sort && sort.column)) || COLUMNS[0];
   const direction = sort && sort.direction === "desc" ? -1 : 1;
-  const nameOf = COLUMNS[0].value;
+  const nameOf = COLUMNS.find((entry) => entry.id === "name").value;
   return (items || []).slice().sort((left, right) => {
     const primary = compareValues(column.value(left), column.value(right)) * direction;
     if (primary) return primary;
