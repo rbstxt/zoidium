@@ -29,5 +29,11 @@ test("shape clipboard leaves composing and editable targets alone", async () => 
     await onKey({ key: "c", ctrlKey: true, target, preventDefault() {}, stopImmediatePropagation() {} });
     assert.equal(copies, 1);
     dispose();
+    for (let i = 0; i < 15; i++) {
+      install({ ui: { notify() {} }, lifecycle: { onDispose(fn) { dispose = fn; } } }, Layer, Content);
+      assert.equal(doc.listeners.keydown.length, 1); assert.equal(doc.listeners.paste.length, 1);
+      dispose(); assert.equal(doc.listeners.keydown.length, 0); assert.equal(doc.listeners.paste.length, 0);
+      assert.equal(body.children.length, 0);
+    }
   } finally { global.document = old.document; global.window = old.window; Object.defineProperty(global, "navigator", { configurable: true, value: old.navigator }); }
 });
