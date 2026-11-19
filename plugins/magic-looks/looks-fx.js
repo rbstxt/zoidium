@@ -402,7 +402,7 @@ this.update = function (e) {
     for (var unused = count; unused < chain.length; unused++) chain[unused] = -1;
     u.u_chainCount.value = count;
     this._looksChainCount = count;
-    var masterOn = this.properties.enabled.get(e) === 1;
+    var masterOn = Number(this.properties.enabled.get(e)) === 1;
     this.pass.enabled = masterOn && count > 0;
 };
 

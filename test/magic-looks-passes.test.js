@@ -40,6 +40,18 @@ function harness() {
   });
   return { effect, pipeline, targets, stages, draws, materials: () => materials, materialDisposals: () => materialDisposals };
 }
+test("master option accepts string keys for preparation and update", async () => {
+  const h = harness();
+  h.effect.properties.enabled.get = () => "1";
+  await h.pipeline.prepare(7); h.pipeline.update(7);
+  assert.equal(h.effect.pass.enabled, true);
+  assert.ok([...h.stages.values()].every(stage => stage.frame === 7 && stage.prepared === 7));
+  h.effect.properties.enabled.get = () => "0";
+  await h.pipeline.prepare(8); h.pipeline.update(8);
+  assert.equal(h.effect.pass.enabled, false);
+  assert.ok([...h.stages.values()].every(stage => stage.frame === 7 && stage.prepared === 7));
+  h.pipeline.dispose();
+});
 test("multipass routing samples each previous output and converts alpha only at chain boundaries", async () => {
   const h = harness(), input = { width: 96, height: 64, texture: {} }, output = {};
   await h.pipeline.prepare(12); h.pipeline.update(12); h.pipeline.render({}, output, input);

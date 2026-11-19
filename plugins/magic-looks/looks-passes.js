@@ -99,13 +99,13 @@ function create(effect, THREE, tools, getAsset, makeStage) {
   }
   return {
     async prepare(frame) {
-      if (disposed || effect.properties.enabled.get(frame) !== 1) return;
+      if (disposed || Number(effect.properties.enabled.get(frame)) !== 1) return;
       syncStages();
       await Promise.all(Array.from(stages.values(), stage => stage.prepare(frame)));
     },
     update(frame) {
       if (disposed) return;
-      if (effect.properties.enabled.get(frame) !== 1) {
+      if (Number(effect.properties.enabled.get(frame)) !== 1) {
         active = []; effect.pass.enabled = false; return;
       }
       syncStages();

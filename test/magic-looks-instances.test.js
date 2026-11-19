@@ -12,6 +12,14 @@ for (const file of ["looks-color.js", "looks-tools.js"]) {
 const tools = Looks.tools;
 const reference = require("../plugins/magic-looks/looks-instance-reference.js");
 const compiler = require("../plugins/magic-looks/looks-passes.js");
+test("instance controls read string OPTION keys without modifying them", () => {
+  const { optionIsOn } = require("../plugins/magic-looks/looks-instance-ui.js");
+  for (const [value, expected] of [[0, false], [1, true], ["0", false], ["1", true]]) {
+    const property = { value, get(frame) { assert.equal(frame, 12); return this.value; } };
+    assert.equal(optionIsOn(property, 12), expected);
+    assert.equal(property.value, value);
+  }
+});
 test("historical grading sources remain byte-identical to the imported renderer", () => {
   const pins = {
     "looks-grade.glsl": "9a562e72d8d91b461bab2f6d48172bf9044006796725637b02072478daabca2b",

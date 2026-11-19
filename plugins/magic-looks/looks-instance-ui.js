@@ -1,6 +1,10 @@
 "use strict";
 const model = require("./looks-instances.js");
 
+function optionIsOn(property, frame) {
+  return Number(property.get(frame)) === 1;
+}
+
 function mount({ state, body, effect, session, view, custom }) {
   const { ui, editor: CM, Looks } = state, tools = Looks.tools, ctl = ui.controls;
   const root = document.createElement("div"); root.className = "lk-root lk-instances";
@@ -69,7 +73,7 @@ function mount({ state, body, effect, session, view, custom }) {
     list.setAttribute("aria-label", "Tool chain");
     for (const [index, item] of chain.entries()) {
       const tool = tools.byId(item.tool), key = model.key(item.id, tools.propMap()[item.tool].enable);
-      const on = effect.properties[key].get(CM.playback.currentFrame - effect.properties[key].frameOffset) === 1;
+      const on = optionIsOn(effect.properties[key], CM.playback.currentFrame - effect.properties[key].frameOffset);
       const row = el("li", null, "lk-chain-row"); row.dataset.instance = item.id;
       row.classList.toggle("selected", view.selectedTool === item.id);
       row.draggable = true;
@@ -238,4 +242,4 @@ function mount({ state, body, effect, session, view, custom }) {
   timer = setInterval(() => { if (historySig() !== signature) rebuild(); }, 200);
   return () => { disposed = true; clearInterval(timer); cleanupViews(); root.remove(); };
 }
-module.exports = { mount };
+module.exports = { mount, optionIsOn };
