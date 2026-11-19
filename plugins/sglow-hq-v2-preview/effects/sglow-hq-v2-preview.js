@@ -110,7 +110,7 @@
     };
     this.syncAtmosphereTimeMode=()=>{
       if(!timeReady)return;
-      const mode=this.properties.timeMode.get(),time=this.properties.time;
+      const mode=Number(this.properties.timeMode.get()),time=this.properties.time;
       if(mode===appliedTimeMode)return;
       if(mode===0){
         if(appliedTimeMode===1 || appliedTimeMode===null && time.expression?.source!=="time"){
