@@ -100,7 +100,10 @@
     hosts.controls.appendChild(panel);
     hosts.elevator.panels.push(descriptor);
     tab.onclick = hosts.elevator.buttonClick.bind(hosts.elevator);
-    tab.onkeydown = hosts.elevator.buttonKeyDown;
+    tab.onkeydown = function (event) {
+      if (event.isComposing || event.keyCode === 229) return;
+      hosts.elevator.buttonKeyDown.call(this, event);
+    };
     return tab;
   }
 

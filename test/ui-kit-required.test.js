@@ -58,9 +58,10 @@ test("menubar removal switches active panels and releases descriptors and DOM", 
   }
   const tabs = element();
   const controls = element();
+  let keyCalls = 0;
   const elevator = {
     panels: [],
-    buttonClick() {}, buttonKeyDown() {},
+    buttonClick() {}, buttonKeyDown() { keyCalls++; },
     changeTab(tab) {
       assert.ok(this.panels.includes(this.activePanel), "old panel still exists during tab switch");
       if (this.activePanel) this.activePanel.enabled = false;
@@ -82,6 +83,11 @@ test("menubar removal switches active panels and releases descriptors and DOM", 
   const api = context.ZoidiumUI;
   const first = api.createMenubarTab({ title: "First", panel: element() });
   const second = api.createMenubarTab({ title: "Second", panel: element() });
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    first.onkeydown({ key: "Enter", ...composition });
+    assert.equal(keyCalls, 0);
+  }
+  first.onkeydown({ key: "Enter" }); assert.equal(keyCalls, 1);
   const descriptor = first.pz_tab;
   elevator.activePanel = descriptor;
   descriptor.enabled = true;
