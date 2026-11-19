@@ -22,7 +22,7 @@ const IMAGE_MIME_EXTENSIONS = {
 };
 const HIGHLIGHT_CLASS = "zoidium-media-drop-target";
 const IMPORT_FAILURE = "The files could not be imported.";
-const IMPORT_TIMEOUT_MS = 60000;
+const IMPORT_NOTICE_MS = 60000;
 
 function extensionOf(name) {
   const match = /\.([a-z0-9]{1,8})$/i.exec(String(name || ""));
@@ -302,13 +302,12 @@ function operationScope(editorInstance) {
 // The Media panel's Import button runs PZ.ui.media.list.project.importFiles,
 // which calls the panel's importFile() and createMedia(). Use the same two
 // methods so a .pz drop imports one media item and never replaces the project.
-async function importArchive(editorInstance, file, panel, signal) {
+async function importArchive(editorInstance, file, panel) {
   if (!panel || typeof panel.importFile !== "function" || typeof panel.createMedia !== "function") {
     throw new Error(IMPORT_FAILURE);
   }
   const project = editorInstance.project;
   const data = await panel.importFile(file);
-  if (signal.aborted) return null;
   if (editorInstance.project !== project) throw new Error("The project changed while importing files.");
   if (!data) throw new Error(IMPORT_FAILURE);
   const index = editorInstance.project.media.length;
@@ -316,20 +315,6 @@ async function importArchive(editorInstance, file, panel, signal) {
   const media = editorInstance.project.media[index];
   if (media?.loading) await media.loading;
   return media;
-}
-
-// The underlying importer checks the signal before any late history edits.
-function importWithTimeout(work, timeoutMs, timers = globalThis) {
-  const controller = new AbortController();
-  let timer;
-  const timeout = new Promise((_resolve, reject) => {
-    timer = timers.setTimeout(() => {
-      controller.abort();
-      reject(new Error("The file import timed out."));
-    }, timeoutMs);
-  });
-  return Promise.race([Promise.resolve().then(() => work(controller.signal)), timeout])
-    .finally(() => timers.clearTimeout(timer));
 }
 
 // Keep each asynchronous drop or paste inside its own history operation.
@@ -432,18 +417,15 @@ function activate(context) {
     const entries = [];
     for (const file of files) {
       try {
-        const entry = await importWithTimeout(async signal => {
-          if (classifyFile(file) === "archive") {
-            return { file, media: await importArchive(editorInstance, file, mediaPanelFor(), signal) };
-          }
-          if (!api?.import) throw new Error(IMPORT_FAILURE);
-          const result = await api.import([file], { signal });
-          if (signal.aborted) return null;
-          for (const error of result?.errors || []) errors.push(error);
-          const item = result?.items?.[0];
-          return item ? { file, media: mediaForAssets(project, [item.id], before).get(item.id) || null } : null;
-        }, IMPORT_TIMEOUT_MS, host.setTimeout && host.clearTimeout ? host : globalThis);
-        if (entry) entries.push(entry);
+        if (classifyFile(file) === "archive") {
+          entries.push({ file, media: await importArchive(editorInstance, file, mediaPanelFor()) });
+          continue;
+        }
+        if (!api?.import) throw new Error(IMPORT_FAILURE);
+        const result = await api.import([file], { waitForMedia: true });
+        for (const error of result?.errors || []) errors.push(error);
+        const item = result?.items?.[0];
+        if (item) entries.push({ file, media: mediaForAssets(project, [item.id], before).get(item.id) || null });
       } catch (error) {
         errors.push({ name: file?.name, message: error?.message || String(error) });
       }
@@ -465,6 +447,10 @@ function activate(context) {
       return;
     }
     const finish = operationScope(current);
+    const timers = host.setTimeout && host.clearTimeout ? host : globalThis;
+    const notice = timers.setTimeout(() => {
+      notifyImport("An earlier import is still in progress. Later drops and pastes will continue when it finishes.");
+    }, IMPORT_NOTICE_MS);
     try {
       const project = current.project;
       const { entries } = await importFiles(current, supported, errors);
@@ -484,6 +470,7 @@ function activate(context) {
         catch (error) { errors.push({ message: error?.message || String(error) }); }
       }
     } finally {
+      timers.clearTimeout(notice);
       finish();
     }
     if (errors.length) notifyImport(importFailure(errors));
@@ -600,8 +587,7 @@ module.exports = {
   activate,
   HIGHLIGHT_CLASS,
   IMPORT_FAILURE,
-  IMPORT_TIMEOUT_MS,
-  importWithTimeout,
+  IMPORT_NOTICE_MS,
   classifyFile,
   isFileDrag,
   shouldHandleDrag,
