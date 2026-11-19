@@ -22,7 +22,7 @@
   // True when the window should close on this keydown: an unconsumed Escape.
   // Mirrors the UI kit close path in zoidium/ui-kit.js.
   function shouldCloseOnEscape(event) {
-    return isEscapeKey(event) && !event.defaultPrevented;
+    return isEscapeKey(event) && !event.defaultPrevented && !event.isComposing && event.keyCode !== 229;
   }
 
   // Calls handler on an unconsumed Escape keydown on target. Returns a

@@ -55,6 +55,7 @@
     if (!prototype?.keydown) return;
     const keydown = prototype.keydown;
     prototype.keydown = function (event) {
+      if (event.isComposing || event.keyCode === 229) return;
       if (!retained?.files.size || !event.ctrlKey || event.key.toLowerCase() !== "v" ||
           PZ.ui.toolbar.prototype.shouldIgnoreKeydown(event.target, event.key)) {
         return keydown.apply(this, arguments);

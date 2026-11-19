@@ -18,5 +18,12 @@ test("shape commands do not interrupt composition or editable descendants", () =
   }
   keydown(event({}));
   assert.deepEqual(calls, ["duplicate"]);
+  const keyup = canvas.listeners.keyup[0];
+  for (const extra of [{ isComposing: true }, { keyCode: 229 }, { target: { closest: () => ({}) } }]) {
+    let consumed = false; s.space = true;
+    keyup({ key: " ", code: "Space", preventDefault() { consumed = true; }, stopImmediatePropagation() { consumed = true; }, ...extra });
+    assert.equal(s.space, false);
+    assert.equal(consumed, false);
+  }
   actions.dispose();
 });

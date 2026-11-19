@@ -87,6 +87,7 @@ function mount({ state, body, effect, session, view, custom }) {
       select.type = "button"; select.setAttribute("aria-pressed", String(view.selectedTool === item.id));
       select.addEventListener("click", () => { view.selectedTool = item.id; rebuild(); });
       select.addEventListener("keydown", event => {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.altKey && ["ArrowUp", "ArrowDown"].includes(event.key)) {
           event.preventDefault(); commit(model.move(effect.looksInstances, item.id, index + (event.key === "ArrowUp" ? -1 : 1), tools), undefined, item.id);
         } else if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {

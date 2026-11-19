@@ -658,7 +658,7 @@
         return child.tagName === "LI";
       });
       if (hasRows) return;
-      event.preventDefault();
+      if (!event.isComposing && event.keyCode !== 229) event.preventDefault();
       event.stopPropagation();
     }, true);
   }

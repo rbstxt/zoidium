@@ -75,7 +75,7 @@ function install(context) {
     input.oninput = () => { if (editing && editor.history.operation === editing) { set(new PZ.ui.properties(editor), property, input.value, frame); fit(input); } };
     const finish = () => { if (editing && editor.history.operation === editing) editor.history.finishOperation(); editing = false; };
     input.onblur = finish;
-    input.onkeydown = event => { event.stopPropagation(); if (event.key === "Escape" && !event.isComposing) { event.preventDefault(); input.blur(); } };
+    input.onkeydown = event => { event.stopPropagation(); if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); input.blur(); } };
     wrap.pz_update(); return wrap;
   } }));
   context.lifecycle.onDispose(context.apis.propertyControls.register("shape-plus/font-style", { type: PZ.property.type.LIST, create(property) {

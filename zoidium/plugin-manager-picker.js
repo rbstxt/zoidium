@@ -611,7 +611,7 @@
     heading.setAttribute("role", "button");
     heading.addEventListener("click", () => togglePickerGroup(heading.parentElement || list, heading));
     heading.addEventListener("keydown", (event) => {
-      if (!event || (event.key !== "Enter" && event.key !== " ")) return;
+      if (!event || event.isComposing || event.keyCode === 229 || (event.key !== "Enter" && event.key !== " ")) return;
       event.preventDefault();
       event.stopPropagation();
       togglePickerGroup(heading.parentElement || list, heading);

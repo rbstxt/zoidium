@@ -274,7 +274,7 @@ function createTable(doc, icon, view, hooks) {
   // ---- Keyboard ----------------------------------------------------------
 
   wrap.addEventListener("keydown", (event) => {
-    if (event.target !== wrap || !rows.length) return;
+    if (event.target !== wrap || !rows.length || event.isComposing || event.keyCode === 229) return;
     const index = rows.findIndex((entry) => entry.id === hooks.selectedId());
     const current = rows[index];
     let next = null;

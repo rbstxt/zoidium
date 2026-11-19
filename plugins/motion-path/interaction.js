@@ -184,7 +184,7 @@ function createInteraction(s) {
     if (active && (event?.pointerId === undefined || event.pointerId === active.pointerId)) finish(false);
   }
   function key(event) {
-    if (!active) return;
+    if (!active || event.isComposing || event.keyCode === 229 || event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
     const undo = (event.ctrlKey || event.metaKey) && /^[zy]$/i.test(event.key);
     if (event.key === "Escape" || undo) {
       event.preventDefault();

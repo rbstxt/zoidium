@@ -70,6 +70,18 @@ test("keyboard wraps, skips disabled items, roves focus, activates and restores 
   assert.equal(runs, 1); assert.equal(m.isOpen(), false); assert.equal(doc.activeElement, owner);
 });
 
+test("composing Enter and Escape leave the menu open", () => {
+  const { api } = load(); let runs = 0;
+  const menu = api.openMenu({ items: [{ label: "One", action: () => runs++ }] });
+  for (const value of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    key(menu, value, composition);
+    assert.equal(menu.isOpen(), true);
+    assert.equal(runs, 0);
+  }
+  key(menu, "Enter");
+  assert.equal(runs, 1);
+});
+
 test("disabled items cannot highlight or run; hints, swatches, checks, titles and separators survive", () => {
   const { api } = load(); let runs = 0;
   const m = api.openMenu({ title: "Tools", items: [{ separator: true },
@@ -121,6 +133,19 @@ test("outside pointer, Esc, blur, pagehide, host scroll/resize, abort and owner 
     assert.ok(Object.values(view.listeners).every(list => !list.length), path);
     assert.ok(Object.values(doc.listeners).every(list => !list.length), path);
     assert.ok(observers.every(observer => observer.disconnected), path);
+  }
+});
+
+test("repeated menu open and close releases listeners and observers", () => {
+  const { api, doc, view, observers, resizers } = load();
+  const owner = doc.createElement("section"); owner.isConnected = true;
+  for (let i = 0; i < 20; i++) {
+    const menu = api.openMenu({ owner, items: [item("One")] });
+    menu.close();
+    assert.ok(Object.values(view.listeners).every(list => !list.length));
+    assert.ok(Object.values(doc.listeners).every(list => !list.length));
+    assert.ok(observers.every(observer => observer.disconnected));
+    assert.ok(resizers.every(observer => observer.disconnected));
   }
 });
 

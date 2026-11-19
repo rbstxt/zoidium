@@ -520,6 +520,7 @@ function armPlacement(build, index) {
   placement.handler = function (event) {
     if (!build.valid()) { disarmPlacement(build); return; }
     if (event.type === "keydown") {
+      if (event.isComposing || event.keyCode === 229 || event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
       if (placement.armed && event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();

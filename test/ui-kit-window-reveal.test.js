@@ -94,3 +94,17 @@ test("popup host and Graph chrome listeners together forward each command exactl
   assert.deepEqual(commands, ["z", "y", "s", "y"], "CM3 need not preventDefault to avoid a second chrome forward");
   win.close();
 });
+
+test("Graph chrome does not forward commands from editable or composing targets", () => {
+  const graph = { module: { exports: {} }, console };
+  vm.runInNewContext(fs.readFileSync("plugins/graph-plus/graph-plus.js", "utf8"), graph);
+  const forward = graph.module.exports.__test.forwardChromeCommand;
+  let calls = 0;
+  const editor = { keydown() { calls++; } }, host = { isPoppedOut: () => false };
+  for (const extra of [{ isComposing: true }, { keyCode: 229 }, { target: { closest: () => ({}) } }]) {
+    forward(editor, host, { key: "n", ctrlKey: true, stopPropagation() {}, ...extra });
+    assert.equal(calls, 0);
+  }
+  forward(editor, host, { key: "n", ctrlKey: true, stopPropagation() {} });
+  assert.equal(calls, 1);
+});

@@ -9,174 +9,174 @@
   "modules": [
     {
       "id": "shader-properties",
-      "source": "./plugins/shader-plus/shader-plus.js?v=32"
+      "source": "./plugins/shader-plus/shader-plus.js?v=33"
     }
   ],
   "resources": [
     {
       "id": "0",
       "type": "text",
-      "source": "./plugins/shader-plus/kinds.js?v=32"
+      "source": "./plugins/shader-plus/kinds.js?v=33"
     },
     {
       "id": "1",
       "type": "text",
-      "source": "./plugins/shader-plus/editor.js?v=32"
+      "source": "./plugins/shader-plus/editor.js?v=33"
     },
     {
       "id": "2",
       "type": "text",
-      "source": "./plugins/shader-plus/controls.js?v=32"
+      "source": "./plugins/shader-plus/controls.js?v=33"
     },
     {
       "id": "3",
       "type": "text",
-      "source": "./plugins/shader-plus/runtime.js?v=32"
+      "source": "./plugins/shader-plus/runtime.js?v=33"
     },
     {
       "id": "4",
       "type": "text",
-      "source": "./plugins/shader-plus/bake.js?v=32"
+      "source": "./plugins/shader-plus/bake.js?v=33"
     },
     {
       "id": "5",
       "type": "text",
-      "source": "./plugins/shader-plus/text-raster.js?v=32"
+      "source": "./plugins/shader-plus/text-raster.js?v=33"
     },
     {
       "id": "curves",
       "type": "text",
-      "source": "./plugins/material-plus/graph-curves.js?v=32"
+      "source": "./plugins/material-plus/graph-curves.js?v=33"
     },
     {
       "id": "curves-css",
       "type": "text",
-      "source": "./plugins/native-fx/colorcurves.css?v=32"
+      "source": "./plugins/native-fx/colorcurves.css?v=33"
     },
     {
       "id": "style",
       "type": "text",
-      "source": "./plugins/shader-plus/style.css?v=32"
+      "source": "./plugins/shader-plus/style.css?v=33"
     },
     {
       "id": "texture-controls",
       "type": "text",
-      "source": "./plugins/shader-plus/texture-controls.js?v=32"
+      "source": "./plugins/shader-plus/texture-controls.js?v=33"
     },
     {
       "id": "glsl-library",
       "type": "text",
-      "source": "./plugins/shader-plus/glsl-library.js?v=32"
+      "source": "./plugins/shader-plus/glsl-library.js?v=33"
     },
     {
       "id": "font-assets",
       "type": "text",
-      "source": "./plugins/shader-plus/font-assets.js?v=32"
+      "source": "./plugins/shader-plus/font-assets.js?v=33"
     },
     {
       "id": "angle-control",
       "type": "text",
-      "source": "./plugins/shader-plus/angle-control.js?v=32"
+      "source": "./plugins/shader-plus/angle-control.js?v=33"
     },
     {
       "id": "curve-math",
       "type": "text",
-      "source": "./plugins/shader-plus/curve-math.js?v=32"
+      "source": "./plugins/shader-plus/curve-math.js?v=33"
     },
     {
       "id": "curve-graph",
       "type": "text",
-      "source": "./plugins/shader-plus/curve-graph.js?v=32"
+      "source": "./plugins/shader-plus/curve-graph.js?v=33"
     },
     {
       "id": "code-model-js",
       "type": "text",
-      "source": "./plugins/shader-plus/code-model.js?v=32"
+      "source": "./plugins/shader-plus/code-model.js?v=33"
     },
     {
       "id": "code-window-js",
       "type": "text",
-      "source": "./plugins/shader-plus/code-window.js?v=32"
+      "source": "./plugins/shader-plus/code-window.js?v=33"
     },
     {
       "id": "code-window-css",
       "type": "text",
-      "source": "./plugins/shader-plus/code-window.css?v=32"
+      "source": "./plugins/shader-plus/code-window.css?v=33"
     },
     {
       "id": "curve-options-css",
       "type": "text",
-      "source": "./plugins/native-fx/curve-options.css?v=32"
+      "source": "./plugins/native-fx/curve-options.css?v=33"
     },
     {
       "id": "reference-js",
       "type": "text",
-      "source": "./plugins/shader-plus/reference.js?v=32"
+      "source": "./plugins/shader-plus/reference.js?v=33"
     },
     {
       "id": "code-assist-js",
       "type": "text",
-      "source": "./plugins/shader-plus/code-assist.js?v=32"
+      "source": "./plugins/shader-plus/code-assist.js?v=33"
     },
     {
       "id": "code-edit-js",
       "type": "text",
-      "source": "./plugins/shader-plus/code-edit.js?v=32"
+      "source": "./plugins/shader-plus/code-edit.js?v=33"
     },
     {
       "id": "code-aids-js",
       "type": "text",
-      "source": "./plugins/shader-plus/code-aids.js?v=32"
+      "source": "./plugins/shader-plus/code-aids.js?v=33"
     },
     {
       "id": "code-check-js",
       "type": "text",
-      "source": "./plugins/shader-plus/code-check.js?v=32"
+      "source": "./plugins/shader-plus/code-check.js?v=33"
     },
     {
       "id": "code-diagnostics-js",
       "type": "text",
-      "source": "./plugins/shader-plus/code-diagnostics.js?v=32"
+      "source": "./plugins/shader-plus/code-diagnostics.js?v=33"
     },
     {
       "id": "code-templates-js",
       "type": "text",
-      "source": "./plugins/shader-plus/code-templates.js?v=32"
+      "source": "./plugins/shader-plus/code-templates.js?v=33"
     },
     {
       "id": "time-samples",
       "type": "text",
-      "source": "./plugins/shader-plus/time-samples.js?v=32"
+      "source": "./plugins/shader-plus/time-samples.js?v=33"
     },
     {
       "id": "rename",
       "type": "text",
-      "source": "./plugins/shader-plus/rename.js?v=32"
+      "source": "./plugins/shader-plus/rename.js?v=33"
     },
     {
       "id": "visibility",
       "type": "text",
-      "source": "./plugins/shader-plus/visibility.js?v=32"
+      "source": "./plugins/shader-plus/visibility.js?v=33"
     },
     {
       "id": "reset",
       "type": "text",
-      "source": "./plugins/shader-plus/reset.js?v=32"
+      "source": "./plugins/shader-plus/reset.js?v=33"
     },
     {
       "id": "group-menu",
       "type": "text",
-      "source": "./plugins/shader-plus/group-menu.js?v=32"
+      "source": "./plugins/shader-plus/group-menu.js?v=33"
     },
     {
       "id": "snap",
       "type": "text",
-      "source": "./plugins/shader-plus/snap.js?v=32"
+      "source": "./plugins/shader-plus/snap.js?v=33"
     },
     {
       "id": "path-sample",
       "type": "text",
-      "source": "./plugins/shader-plus/path-sample.js?v=32"
+      "source": "./plugins/shader-plus/path-sample.js?v=33"
     }
   ]
 }

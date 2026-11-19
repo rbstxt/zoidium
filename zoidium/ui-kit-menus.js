@@ -99,6 +99,7 @@
       if (typeof entry.action === "function") entry.action();
     }
     function keydown(event) {
+      if (event.isComposing || event.keyCode === 229) return;
       var key = event.key;
       if (!["ArrowDown", "ArrowUp", "Home", "End", "Enter", " ", "Escape", "Tab"].includes(key)) return;
       event.preventDefault();

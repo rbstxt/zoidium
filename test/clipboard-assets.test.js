@@ -113,3 +113,14 @@ test("unrelated clipboard text, incompatible destinations, and input-field paste
   assert.equal(Object.keys(destination.value.assets.list).length, 0);
   assert.equal(destination.list.length, 0);
 });
+
+test("composing paste does not restore copied assets", { skip: !fs.existsSync(core) }, async () => {
+  const f = await fixture();
+  await f.key(f.edit(f.effect), "c");
+  const destination = f.project();
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    await f.edit(destination.list).keydown({ key: "v", ctrlKey: true, target: { tagName: "DIV" }, stopPropagation() {}, ...composition });
+    assert.equal(Object.keys(destination.value.assets.list).length, 0);
+    assert.equal(destination.list.length, 0);
+  }
+});

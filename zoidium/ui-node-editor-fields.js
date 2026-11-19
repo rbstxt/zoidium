@@ -328,7 +328,9 @@
           });
           handle.addEventListener("pointercancel", function () { if (drag) stop[0] = drag.start; drag = null; paint(); });
           handle.addEventListener("keydown", function (event) {
-            event.stopPropagation(); selected = index; remember();
+            event.stopPropagation();
+            if (event.isComposing || event.keyCode === 229) return;
+            selected = index; remember();
             if (event.key === "Escape" && drag) { stop[0] = drag.start; drag = null; paint(); event.preventDefault(); }
             else if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); removeSelected(); }
             else if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {

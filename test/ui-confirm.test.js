@@ -271,6 +271,26 @@ test("window command forwarding ignores composition and selects", async () => {
   assert.equal(await promise, false);
 });
 
+test("window stops composing editor commands but passes ordinary Ctrl commands", async () => {
+  const { api, document } = loadKit();
+  const promise = api.confirm({ message: "Continue?" });
+  const win = confirmWindow(document);
+  for (const key of ["z", "y", "s"]) {
+    for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+      let stopped = 0;
+      win.fire("keydown", { key, ctrlKey: true, target: { closest: () => null }, ...composition,
+        preventDefault() {}, stopPropagation() { stopped++; } });
+      assert.equal(stopped, 1);
+    }
+    let stopped = 0;
+    win.fire("keydown", { key, ctrlKey: true, target: { closest: () => null },
+      preventDefault() {}, stopPropagation() { stopped++; } });
+    assert.equal(stopped, 0);
+  }
+  footerButtons(win)[0].click();
+  await promise;
+});
+
 test("Enter confirms from the message body", async () => {
   const { api, document } = loadKit();
   const promise = api.confirm({ message: "Enable this plugin?" });

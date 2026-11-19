@@ -89,5 +89,41 @@ test("editor installation restores its native property renderer and every listen
     installed.dispose(); installed.dispose();
     assert.equal(PZ.ui.controls.generateInput3, originalInput);
     for (const item of [canvas, document, window, list.onListChanged, viewport.onEditChanged, editor.onProjectChanged]) assert.equal(item.listeners.size, 0);
+    for (let i = 0; i < 15; i++) {
+      const next = installFieldEdit(PZ, {});
+      assert.equal(document.listeners.size, 3);
+      next.dispose();
+      for (const item of [canvas, document, window, list.onListChanged, viewport.onEditChanged, editor.onProjectChanged]) assert.equal(item.listeners.size, 0);
+    }
+  } finally { globalThis.CM = previous.CM; globalThis.ZoidiumUI = previous.ui; }
+});
+
+test("composition and editable Escape leave viewport field editing active", () => {
+  const { installFieldEdit } = require("../plugins/scene-plus/scene-field-edit.js");
+  const { FakeElement } = require("./fake-dom.js");
+  const previous = { CM: globalThis.CM, ui: globalThis.ZoidiumUI };
+  const doc = new FakeElement("document"), win = new FakeElement("window"), canvas = new FakeElement("canvas");
+  doc.defaultView = win; doc.createElement = tag => new FakeElement(tag); canvas.ownerDocument = doc;
+  const owner = { properties: {}, threeObj: { __zoidiumEffectorOwner: true } };
+  owner.properties.fieldPosition = { parentObject: owner };
+  const objects = [owner], viewport = { renderMode: true, canvas, helper3d: { objects }, widget3d: { controls: { visible: true } } };
+  const editor = { mainViewport: viewport, history: { operation: null } };
+  const PZ = { ui: { controls: { generateInput3: () => ({ append() {} }) }, properties: class {} } };
+  let setEnabled;
+  globalThis.CM = editor; globalThis.ZoidiumUI = { controls: { checkbox(options) {
+    setEnabled = options.onChange;
+    return { element: { style: {}, querySelector: () => ({ style: {} }), remove() {} }, set() {} };
+  } } };
+  try {
+    const installed = installFieldEdit(PZ, {});
+    PZ.ui.controls.generateInput3(owner.properties.fieldPosition);
+    setEnabled(true); assert.equal(installed.isEditing(owner), true);
+    for (const extra of [{ isComposing: true }, { keyCode: 229 }, { target: { closest: () => ({}) } }]) {
+      doc.dispatch("keydown", { key: "Escape", stopImmediatePropagation() {}, ...extra });
+      assert.equal(installed.isEditing(owner), true);
+    }
+    doc.dispatch("keydown", { key: "Escape", stopImmediatePropagation() {} });
+    assert.equal(installed.isEditing(owner), false);
+    installed.dispose();
   } finally { globalThis.CM = previous.CM; globalThis.ZoidiumUI = previous.ui; }
 });

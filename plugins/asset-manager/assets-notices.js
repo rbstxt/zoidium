@@ -63,6 +63,7 @@ function installNotices(session) {
   if (!api) return () => {};
   let project = null;
   let timer = null;
+  const saveTimers = new Set();
 
   function show(title, problems, prefix) {
     session.notify({
@@ -93,12 +94,14 @@ function installNotices(session) {
   function onSaved(event) {
     const detail = (event && event.detail) || {};
     if (detail.editor && detail.editor !== session.editor) return;
-    host.setTimeout(() => {
+    const id = host.setTimeout(() => {
+      saveTimers.delete(id);
       const problems = problemsOf(api.snapshot());
       if (!problems.length) return;
       show("Saved with " + model.plural(problems.length, "asset problem", "asset problems"), problems,
         (detail.filename ? detail.filename + " was saved. " : "") + "Still missing or failed: ");
     }, 0);
+    saveTimers.add(id);
   }
 
   project = session.editor.project;
@@ -107,6 +110,8 @@ function installNotices(session) {
   return () => {
     unsubscribe();
     if (timer) host.clearTimeout(timer);
+    for (const id of saveTimers) host.clearTimeout(id);
+    saveTimers.clear();
     host.removeEventListener("zoidium:project-saved", onSaved);
   };
 }

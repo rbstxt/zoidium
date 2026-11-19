@@ -126,7 +126,8 @@ function installFieldEdit(PZ, THREE) {
     move(event); finish(); consume(event);
   }
   function key(event) {
-    if (event.key !== "Escape" || !owner) return;
+    if (event.key !== "Escape" || !owner || event.isComposing || event.keyCode === 229 ||
+        event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
     if (drag) finish(true); else setOwner(null);
     consume(event);
   }

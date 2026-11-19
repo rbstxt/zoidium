@@ -77,12 +77,13 @@ test("arrow keys in a picker with no rows are stopped before CM3 reads null", ()
     return input;
   }
 
-  function press(target, key) {
+  function press(target, key, extra = {}) {
     let prevented = false;
     let stopped = false;
     guard.listener({
       key: key,
       target: target,
+      ...extra,
       preventDefault() { prevented = true; },
       stopPropagation() { stopped = true; },
     });
@@ -92,6 +93,9 @@ test("arrow keys in a picker with no rows are stopped before CM3 reads null", ()
   const empty = picker([]);
   assert.deepEqual(press(empty, "ArrowDown"), { prevented: true, stopped: true });
   assert.deepEqual(press(empty, "ArrowUp"), { prevented: true, stopped: true });
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    assert.deepEqual(press(empty, "ArrowDown", composition), { prevented: false, stopped: true });
+  }
 
   // A category header alone is not a row the highlight can move to.
   assert.deepEqual(press(picker(["SPAN"]), "ArrowDown"), { prevented: true, stopped: true });

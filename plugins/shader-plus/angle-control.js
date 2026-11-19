@@ -80,6 +80,7 @@ function registerAngle({ PZ, doc, register, commit }) {
     dial.addEventListener("pointerup", event => end(event, false));
     dial.addEventListener("pointercancel", event => end(event, true));
     dial.addEventListener("keydown", event => {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === "Escape") { event.preventDefault(); close(); anchor.focus(); return; }
       if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
       event.preventDefault(); event.stopPropagation();
