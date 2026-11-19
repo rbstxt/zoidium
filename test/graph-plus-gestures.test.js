@@ -81,6 +81,24 @@ test("key value drags change only selected axes and share a delta across normali
  }
 });
 
+test("vertical value drag keeps a fractional key time through undo and redo", () => {
+ const s=setup(), {graph,property,editor}=s;
+ const key=property.keyframes[0]; key.frame=0.25;
+ const gel={pz_object:property,pz_valueScale:1,_gid:1};
+ const el={pz_object:key,parentElement:{parentElement:gel},classList:{contains:()=>true},addEventListener(){}};
+ let move,up;
+ const PZ={ui:{graph:function(){},properties:{prototype:{setValue:graph.propertyOps.setValue}}}};
+ require("../plugins/graph-plus/interaction.js")({PZ,focusNoScroll(){},beginPointerDrag(_el,_e,m,u){move=m;up=u;}});
+ Object.assign(graph,{selectedKeys:()=>[el],timeKeys:x=>x,updateKeyframe(){},snapFrame:Math.round,updateLegend(){}});
+ PZ.ui.graph.prototype.attachKeyframeHandlers.call(graph,el);
+ const before=JSON.stringify(s.project);
+ el._g2down(s.event());move(s.event({clientY:-10}));up(s.event());
+ assert.equal(key.frame,0.25);
+ const after=JSON.stringify(s.project);assert.notEqual(after,before);
+ editor.history.undo();assert.equal(JSON.stringify(s.project),before);
+ editor.history.redo();assert.equal(JSON.stringify(s.project),after);
+});
+
 test("Pan tool bypasses key and handle edits",()=>{
  const s=setup();s.graph.tool="pan";const before=JSON.stringify(s.project);
  s.listeners.pointerdown(s.event());assert.equal(s.editor.history.undoStack.length,0);
