@@ -543,9 +543,9 @@
     // Popup key events cannot bubble to the opener. Docked windows also
     // translate Command and Shift+Z for CM3's Ctrl-based shortcuts.
     root.addEventListener("keydown", function (event) {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
       if (!(event.ctrlKey || event.metaKey) || event.altKey || !/^[zys]$/i.test(event.key || "")) return;
-      if (event.target.closest?.("input,textarea,[contenteditable]:not([contenteditable='false'])")) return;
+      if (event.target.closest?.("input,textarea,select,[contenteditable]:not([contenteditable='false'])")) return;
       if (!win.isPoppedOut?.() && !event.metaKey && !(event.shiftKey && event.key.toLowerCase() === "z")) return;
       if (global.CM && typeof global.CM.keydown === "function") {
         // Keep the original target: CM3 checks whether it is an input.
@@ -562,7 +562,8 @@
     var EDITOR_COMMAND_KEYS = { z: true, y: true, s: true };
     ["keydown", "keyup", "keypress"].forEach(function (type) {
       root.addEventListener(type, function (event) {
-        if (type === "keydown" && event.key === "Escape" && !event.defaultPrevented) {
+        if (type === "keydown" && event.key === "Escape" && !event.defaultPrevented
+            && !event.isComposing && event.keyCode !== 229) {
           event.preventDefault();
           win.close();
         }

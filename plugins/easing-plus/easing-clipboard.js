@@ -110,7 +110,7 @@ function isEditableTarget(target) {
 // Ctrl/Cmd+C and Ctrl/Cmd+V only while the window has focus and no text or
 // number field is being edited; a focused field keeps the native clipboard.
 function shortcutFor(event) {
-  if (!event || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) {
+  if (!event || event.isComposing || event.keyCode === 229 || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) {
     return null;
   }
   const key = String(event.key || "").toLowerCase();

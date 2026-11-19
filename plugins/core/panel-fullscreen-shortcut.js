@@ -30,6 +30,7 @@
 
   function isToggleRequest(event) {
     if (!event || event.code === TOGGLE_CODE) return false;
+    if (event.isComposing || event.keyCode === 229) return false;
     if (event.altKey || event.ctrlKey || event.metaKey) return false;
     if (event.key === TOGGLE_KEY) return true;
     // The event types nothing on its own, and the combination sits on the

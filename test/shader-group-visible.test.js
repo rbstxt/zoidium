@@ -68,6 +68,16 @@ test("Group settings stores one condition on every member with undo and redo", (
   for (const saved of JSON.parse(after)) { const q = PZ.property.create(saved.type); q.load(saved); assert.equal(JSON.stringify(q), JSON.stringify(saved)); }
 });
 
+test("group settings stay open during composition", () => {
+  const { openGroupSettings, find } = setup();
+  const panel = openGroupSettings("Amount");
+  const input = find(panel, "Has value");
+  for (const key of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    panel.dispatch("keydown", { key, target: input, ...composition });
+    assert.ok(panel.parentElement);
+  }
+});
+
 test("a hidden group hides its rows and heading; Show hidden reveals them", () => {
   const { installed, controller, byName, openGroupSettings, find, submit, heading } = setup();
   const panel = openGroupSettings("Amount");

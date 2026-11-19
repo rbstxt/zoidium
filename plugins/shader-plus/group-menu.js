@@ -39,7 +39,7 @@ function installGroupMenu({ context, patch }) {
       };
       actions.append(cancel, apply); panel.append(label, error, actions); anchor.after(panel); open = panel;
       panel.addEventListener("mousedown", event => event.stopPropagation());
-      panel.addEventListener("keydown", event => { event.stopPropagation(); if (event.key === "Escape") close(); if (event.key === "Enter") { event.preventDefault(); apply.click(); } });
+      panel.addEventListener("keydown", event => { event.stopPropagation(); if (event.isComposing || event.keyCode === 229) return; if (event.key === "Escape") close(); if (event.key === "Enter") { event.preventDefault(); apply.click(); } });
       input.focus();
     };
     return result;

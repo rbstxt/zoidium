@@ -263,6 +263,7 @@ function createTable(doc, icon, view, hooks) {
     };
     input.addEventListener("keydown", (event) => {
       event.stopPropagation();
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === "Enter") finish(true);
       else if (event.key === "Escape") finish(false);
     });

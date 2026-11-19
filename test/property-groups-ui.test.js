@@ -30,6 +30,22 @@ test("Group menu assigns selected rows from the same list in one reversible edit
   single.querySelectorAll("button").find(button => button.textContent === "Apply").onclick();
   assert.equal(api.name(list[2]), "Other"); assert.equal(api.members(list, "Controls").length, 2);
 });
+test("group rename does not submit or close during composition", () => {
+  const { PZ, api, list, panel, flush, window } = host(), view = panel(); flush();
+  let menu;
+  window.ZoidiumUI = { openMenu: options => { menu = options; } };
+  const row = view.el.querySelectorAll("li").find(item => item.pz_object instanceof PZ.property);
+  row.classList.add("selected");
+  row.oncontextmenu({ preventDefault() {}, stopPropagation() {} });
+  menu.items.find(item => item.label === "Group…").action();
+  const form = view.el.querySelector(".zpg-settings");
+  form.querySelector("input").value = "Controls";
+  for (const key of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    form.dispatch("keydown", { key, ...composition });
+    assert.ok(form.parentElement);
+    assert.equal(api.name(list[0]), "");
+  }
+});
 test("panel generation batches grouped work and leaves ungrouped DOM untouched", () => {
   const { api, editor, list, panel, flush, tasks } = host();
   // Display-order remnants must not activate the organized drag or render path.

@@ -287,6 +287,8 @@ const GraphPlus = (() => {
           };
           const space = (event) => {
             const graph = facade.panel?._right;
+            if (event.type === "keydown" && (event.isComposing || event.keyCode === 229 ||
+                event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])"))) return;
             if (event.code === "Space" && graph) graph._spaceDown = event.type === "keydown";
           };
           body.addEventListener("keydown", space, true);
@@ -331,7 +333,9 @@ const GraphPlus = (() => {
       // Chrome buttons can hold focus too. The host isolates their events,
       // so forward the same native editor commands from that chrome.
       const graphShortcut = (event) => {
-        if (event.ctrlKey && event.key?.toLowerCase() === "g") {
+        if (!event.isComposing && event.keyCode !== 229 &&
+            !event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])") &&
+            event.ctrlKey && event.key?.toLowerCase() === "g") {
           restoreFloatingWindow(facade);
           event.preventDefault();
           event.stopPropagation();

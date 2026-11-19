@@ -89,7 +89,7 @@ function installAids({ input, pane, body, toolbar, node, global, entries, change
   });
   button("Close find", () => { find.hidden = true; input.focus(); });
   search.oninput = () => { input.setSelectionRange(0, 0); findNext(); };
-  find.onkeydown = e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); find.hidden = true; input.focus(); } if (e.key === "Enter") { e.preventDefault(); findNext(e.shiftKey); } };
+  find.onkeydown = e => { if (e.isComposing || e.keyCode === 229) return; if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); find.hidden = true; input.focus(); } if (e.key === "Enter") { e.preventDefault(); findNext(e.shiftKey); } };
   function insert(text) { const s = input.selectionStart; write({ text: input.value.slice(0, s) + text + input.value.slice(input.selectionEnd), start: s + text.length, end: s + text.length }); input.focus(); }
   input.onbeforeinput = e => {
     if (e.inputType === "historyUndo" || e.inputType === "historyRedo") { e.preventDefault(); write(e.inputType === "historyUndo" ? history.undo() : history.redo(), false); }
@@ -110,7 +110,7 @@ function installAids({ input, pane, body, toolbar, node, global, entries, change
     insert, write, showHelp, refresh: update,
     reset() { history.reset(selection()); closeCompletion(); update(); },
     key(event) {
-      if (event.isComposing) return false;
+      if (event.isComposing || event.keyCode === 229) return false;
       const mod = event.ctrlKey || event.metaKey, key = event.key.toLowerCase();
       if (mod && ["z", "y"].includes(key)) { write(key === "y" || event.shiftKey ? history.redo() : history.undo(), false); return true; }
       if (mod && key === "f") { closeCompletion(); find.hidden = false; search.focus(); search.select(); return true; }

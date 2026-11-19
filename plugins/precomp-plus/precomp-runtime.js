@@ -170,7 +170,7 @@ function openPrecomposeDialog() {
       const input = field.element.querySelector("input");
       if (input) {
         input.addEventListener("keydown", function (event) {
-          if (event.key === "Enter") submit();
+          if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229) submit();
         });
       }
       body.appendChild(field.element);
@@ -459,6 +459,7 @@ function renameClipElement(PZ, editor, doc, clipEl) {
   };
   input.onmousedown = input.onclick = input.ontouchstart = function (e) { e.stopPropagation(); };
   input.onkeydown = function (e) {
+    if (e.isComposing || e.keyCode === 229) { e.stopPropagation(); return; }
     if (e.key === "Enter") {
       this.blur();
       e.preventDefault();
@@ -743,7 +744,7 @@ function installClipMenu(context, engine, editor) {
       detachClipMenu(menu);
     };
     const keyCleanup = (ev) => {
-      if (ev.key === "Escape") {
+      if (ev.key === "Escape" && !ev.isComposing && ev.keyCode !== 229) {
         menu.remove();
         detachClipMenu(menu);
         ev.stopPropagation();

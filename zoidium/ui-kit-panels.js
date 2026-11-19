@@ -251,7 +251,7 @@
     }
     input.addEventListener("input", update);
     input.addEventListener("keydown", function (event) {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.isComposing || event.keyCode === 229) return;
       input.value = "";
       update();
     });

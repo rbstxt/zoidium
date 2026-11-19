@@ -289,6 +289,22 @@ test("pre-compose from the window creates a named composition and reports it", (
   assert.equal(mod.isInUse(), true, "compositions block disabling");
 });
 
+test("composition name does not submit while an IME owns Enter", () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  h.tracks.selectedClips = [addVideo(h, 0, 30, "A")];
+  findButton({ specs: openFromTab(h).options.footer }, "Pre-compose selection").onClick();
+  const dialog = h.windows.at(-1);
+  const input = dialog.body.children[0].querySelector("input");
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    input.listeners.keydown[0]({ key: "Enter", ...composition });
+    assert.equal(dialog.isOpen(), true);
+    assert.equal(h.project.media.length, 0);
+  }
+  input.listeners.keydown[0]({ key: "Enter" });
+  assert.equal(dialog.isOpen(), false);
+});
+
 test("an invalid name keeps the dialog open and says why", () => {
   const h = createHarness();
   loadModule().activate(h.context);
@@ -521,6 +537,25 @@ test("Rename edits the layer name in one undo step", () => {
   assert.equal(clip.properties.name.v, "A");
 });
 
+test("composing keys do not finish inline layer rename", () => {
+  const h = createHarness();
+  loadModule().activate(h.context);
+  const clip = addVideo(h, 0, 30, "A");
+  const el = rightClick(h, clip);
+  clickItem(openMenu(h), "Rename layer");
+  const input = el.appended.at(-1);
+  let blurs = 0;
+  input.blur = () => { blurs++; };
+  input.value = "Titles";
+  for (const key of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    input.onkeydown({ key, ...composition, preventDefault() {}, stopPropagation() {} });
+    assert.equal(blurs, 0);
+    assert.equal(input.value, "Titles");
+  }
+  input.onkeydown({ key: "Enter", preventDefault() {}, stopPropagation() {} });
+  assert.equal(blurs, 1);
+});
+
 test("Escape closes the menu; disposal restores the host menu", async () => {
   const h = createHarness();
   const before = h.PZ.ui.timeline.tracks.prototype.clipContextMenu;
@@ -529,6 +564,10 @@ test("Escape closes the menu; disposal restores the host menu", async () => {
 
   rightClick(h, addVideo(h, 0, 30, "A"));
   const menu = openMenu(h);
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    h.document.listeners.keydown.forEach(fn => fn({ key: "Escape", ...composition, stopPropagation() {} }));
+    assert.equal(menu.removed, undefined);
+  }
   h.document.listeners.keydown.forEach((fn) => fn({ key: "Escape", stopPropagation() {} }));
   assert.equal(menu.removed, true, "Escape closes the menu");
 

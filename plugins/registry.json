@@ -33,22 +33,22 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=157",
       "bundle": "./plugins/core/bundle.json?v=157",
-      "integrity": "sha256-ZpYZ7QdILBh4GtqIYwhalJ+Qh3PpbDUHflZvOphTYLs="
+      "integrity": "sha256-I+Qf4vFKznAsfkecivYb3AQl4/5uYe2gmJVGjYqF3K8="
     },
     {
       "id": "easing-plus",
       "category": "utilities",
       "name": "Easing+",
       "author": "Zoidium",
-      "version": "31",
+      "version": "32",
       "itemCount": 1,
       "format": "curve editor",
       "tagline": "Extended Bezier Easing",
       "color": "#384668",
       "description": "A normalized cubic Bezier editor with a focused set of reusable presets.",
-      "manifest": "./plugins/easing-plus/manifest.json?v=31",
-      "bundle": "./plugins/easing-plus/bundle.json?v=31",
-      "integrity": "sha256-C4Xz8r53V8Nlwawt23BgSZJcKDWfJSeuAGBRcoNWBxQ="
+      "manifest": "./plugins/easing-plus/manifest.json?v=32",
+      "bundle": "./plugins/easing-plus/bundle.json?v=32",
+      "integrity": "sha256-Ok9MWufnslcKqMFUr6D8KZUDE/enpOEV0hUZ6UUazBc="
     },
     {
       "id": "expressions-plus",
@@ -80,7 +80,7 @@
       "description": "Native custom shader controls with optional baked texture inputs.",
       "manifest": "./plugins/shader-plus/manifest.json?v=32",
       "bundle": "./plugins/shader-plus/bundle.json?v=32",
-      "integrity": "sha256-0q9w6PlmbZs12Jp/EVmX+ZFMcp+jHS615S3UYW88Hsg="
+      "integrity": "sha256-GiD1+t041/+0lXtmozHbHqsuhM7BsKju7jKwGhrsiH0="
     },
     {
       "id": "player-plus",
@@ -103,32 +103,32 @@
       "category": "utilities",
       "name": "Assets",
       "author": "Zoidium",
-      "version": "14",
+      "version": "15",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Project panel for every asset",
       "color": "#6f8f5a",
       "description": "An After Effects style Project panel: every file, font, image, model and composition in the project, where each is used, and which are missing or failed.",
-      "manifest": "./plugins/asset-manager/manifest.json?v=14",
-      "bundle": "./plugins/asset-manager/bundle.json?v=14",
-      "integrity": "sha256-1PJW3Wh5AAVD0g6+0gLMKDn0jC7msAdF2L7eu2T/9Yg="
+      "manifest": "./plugins/asset-manager/manifest.json?v=15",
+      "bundle": "./plugins/asset-manager/bundle.json?v=15",
+      "integrity": "sha256-Qmp1Qagt2WXrYuMJf8JYs4OUysKYZWg5zLchpfVZQ7w="
     },
     {
       "id": "precomp-plus",
       "category": "utilities",
       "name": "Precomp+",
       "author": "DaviFX",
-      "version": "21",
+      "version": "22",
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Pre-compose and nested compositions",
       "color": "#4f9db6",
       "description": "Pre-compose selected video clips into compositions, manage them in a Compositions window, and render them nested in Main.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/precomp-plus/manifest.json?v=21",
-      "bundle": "./plugins/precomp-plus/bundle.json?v=21",
-      "integrity": "sha256-Pu3yD8iszDkRUqnO7Qlqe9wH2s29uhvC8mOCE2WsnWE="
+      "manifest": "./plugins/precomp-plus/manifest.json?v=22",
+      "bundle": "./plugins/precomp-plus/bundle.json?v=22",
+      "integrity": "sha256-+VBuoLxAyl+zO1toIIhbHVVZAdmGPRMI1pHHaydVZgc="
     },
     {
       "id": "gif-support",
@@ -151,15 +151,15 @@
       "category": "utilities",
       "name": "Graph Editor 2",
       "author": "DaviFX",
-      "version": "22",
+      "version": "23",
       "itemCount": 1,
       "format": "graph editor",
       "tagline": "Rebuilt keyframe graph editor",
       "color": "#4f7dbf",
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
-      "manifest": "./plugins/graph-plus/manifest.json?v=22",
-      "bundle": "./plugins/graph-plus/bundle.json?v=22",
-      "integrity": "sha256-uehAQGu2909MVyZE4bh+qICMexjm7T+E9DZm7jnMN4o="
+      "manifest": "./plugins/graph-plus/manifest.json?v=23",
+      "bundle": "./plugins/graph-plus/bundle.json?v=23",
+      "integrity": "sha256-dJA1wpA2+2B8iDs6ZRpfS8GlwoDo0eYAXmfID2Mnsd0="
     },
     {
       "id": "motion-path",
@@ -485,7 +485,7 @@
       "defaultEnabled": true,
       "manifest": "./plugins/shape-plus/manifest.json?v=39",
       "bundle": "./plugins/shape-plus/bundle.json?v=39",
-      "integrity": "sha256-qw0fhFtUIbgC2o/8t4BxDRcm7KviNI8aF/EtFwJpOm0="
+      "integrity": "sha256-x98+rfIqnyok1/Wz6E0SyoMFk0uJWyB4NOccPU5/HgM="
     },
     {
       "id": "constraints",

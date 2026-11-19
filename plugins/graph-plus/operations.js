@@ -399,6 +399,7 @@ PZ.ui.graph.prototype.updateStatus = function (extra) {
 
 /* ---------- keyboard ---------- */
 PZ.ui.graph.prototype.keydown = function (e) {
+  if (e.isComposing || e.keyCode === 229 || e.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
   if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
     e.stopPropagation(); e.preventDefault(); this.helpBtn?.click(); return;
   }

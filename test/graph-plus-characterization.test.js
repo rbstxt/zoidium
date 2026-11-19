@@ -27,6 +27,35 @@ function graph() {
   return load().__test.gpDefineGraphEditor(PZ).graph.prototype;
 }
 
+test("graph shortcuts leave editable targets and composition alone", () => {
+  let frames = 0;
+  const instance = { frameSelected() { frames++; } };
+  const event = extra => ({ key: "f", stopPropagation() {}, ...extra });
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    graph().keydown.call(instance, event(composition));
+    assert.equal(frames, 0);
+  }
+  const target = { closest: () => ({}) };
+  graph().keydown.call(instance, event({ target }));
+  assert.equal(frames, 0);
+  graph().keydown.call(instance, event({ target: { closest: () => null } }));
+  assert.equal(frames, 1);
+});
+
+test("window space listener ignores text editing and still clears on keyup", () => {
+  const listeners = {}, win = { addEventListener(type, fn) { listeners[type] = fn; } };
+  const instance = { _win: () => win, _spaceDown: false };
+  graph()._ensureSpaceListeners.call(instance);
+  for (const extra of [{ isComposing: true }, { keyCode: 229 }, { target: { closest: () => ({}) } }]) {
+    listeners.keydown({ code: "Space", ...extra });
+    assert.equal(instance._spaceDown, false);
+  }
+  listeners.keydown({ code: "Space" });
+  assert.equal(instance._spaceDown, true);
+  listeners.keyup({ code: "Space", isComposing: true });
+  assert.equal(instance._spaceDown, false);
+});
+
 function curve(right, left = { frame: 2, value: 3, controlPoints: [[-2, 1], [4, 6]] }) {
   const attributes = {};
   const group = { pz_valueScale: 2, pz_frameOffset: 5, pz_color: "red", style: { display: "none" } };

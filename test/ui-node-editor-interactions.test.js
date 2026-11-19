@@ -203,6 +203,25 @@ test("Tab opens the add menu and Enter adds the first node", () => {
   editor.destroy();
 });
 
+test("node shortcuts and menu leave composition and editable targets alone", () => {
+  const { editor, selections } = setup();
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    editor.element.dispatch("keydown", { key: "a", ...composition });
+    assert.equal(selections.length, 0);
+  }
+  const editable = { matches: () => false, closest: selector => selector.includes("contenteditable") ? {} : null };
+  editor.element.dispatch("keydown", { key: "a", target: editable });
+  assert.equal(selections.length, 0);
+  editor.element.dispatch("keydown", { key: "Tab" });
+  const search = editor.element.querySelector(".zoidium-node-editor-search");
+  for (const key of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    search.dispatch("keydown", { key, ...composition });
+    assert.ok(editor.element.querySelector(".zoidium-node-editor-menu"));
+    assert.equal(editor.getGraph().nodes.length, 2);
+  }
+  editor.destroy();
+});
+
 test("context menu opens on the grid and Escape closes it", () => {
   const { editor, viewport } = setup();
   pointer(viewport, "contextmenu", { clientX: 60, clientY: 60 });

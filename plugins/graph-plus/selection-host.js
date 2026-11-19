@@ -139,7 +139,9 @@ module.exports = function installSelection({ PZ, editor, document: doc, open, st
     menu = handle;
   }
   function keydown(event) {
-    if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey ||
+    if (event.isComposing || event.keyCode === 229 ||
+        event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])") ||
+        !event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey ||
         !(event.code === "KeyG" || event.key?.toLowerCase() === "g")) return;
     let row = rowAt(event.target);
     // CM3 moves focus from a clicked label to the containing Edit panel.
