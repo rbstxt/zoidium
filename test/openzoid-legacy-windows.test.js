@@ -362,6 +362,11 @@ test("Escape cancels a pending placement without writing anything", () => {
   place(3).onClick();
   const edits = h.edits.length;
   const ops = h.history.ops.length;
+  for (const extra of [{ isComposing: true }, { keyCode: 229 }, { target: { closest: () => ({}) } }]) {
+    const event = stubs.dispatch("keydown", stubs.canvas, { key: "Escape", ...extra });
+    assert.equal(event.prevented, false);
+    assert.ok(stubs.count() > 0);
+  }
   const esc = stubs.dispatch("keydown", stubs.canvas, { key: "Escape" });
   assert.equal(esc.prevented, true, "Escape is consumed so the window stays open");
   assert.equal(h.edits.length, edits);
