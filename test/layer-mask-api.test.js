@@ -143,3 +143,11 @@ test("Shape+ paths convert centered y-up to mask space", () => {
   const [u, v] = toUV([topEvaluated.points[0]], 200, 100)[0];
   assert.ok(v > 0.8, "first point near the top, got [" + u + ", " + v + "]");
 });
+
+test("disabled mask paths do not resolve as shader inputs", () => {
+  const disabled = rectMask("m1", 0, 0, 200, 100);
+  disabled.properties.enabled = 0;
+  const { api, project } = apiAndLayer([disabled]);
+  const ref = formatReference({ source: "mask", clip: [0], mask: "m1" });
+  assert.equal(api.evaluateReference(project, ref, 0), null);
+});
