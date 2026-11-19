@@ -712,7 +712,13 @@
       input.setAttribute("aria-label", "Project name");
       input.value = projectFiles.displayNameForUi(projectFiles.getProjectName(editor));
       input.title = input.value;
+      var nameEdit = null;
+      function beginNameEdit() {
+        if (!nameEdit) nameEdit = { project: editor.project, before: projectFiles.getProjectName(editor) };
+      }
+      input.addEventListener("focus", beginNameEdit);
       input.addEventListener("input", function () {
+        beginNameEdit();
         projectFiles.setRawProjectName(editor, input.value);
         input.title = input.value;
       });
@@ -721,6 +727,24 @@
         var displayName = projectFiles.displayNameForUi(currentName);
         if (input.value !== displayName) {
           currentName = projectFiles.setProjectName(editor, input.value);
+        }
+        var edit = nameEdit;
+        nameEdit = null;
+        var history = editor.history;
+        if (edit && editor.project === edit.project && currentName !== edit.before && history) {
+          if (history.operation !== null) {
+            currentName = projectFiles.setProjectName(editor, edit.before);
+          } else {
+            function exchange(value) {
+              if (editor.project !== edit.project) return;
+              var previous = projectFiles.getProjectName(editor);
+              projectFiles.setProjectName(editor, value);
+              history.pushCommand(exchange, previous);
+            }
+            history.startOperation();
+            try { history.pushCommand(exchange, edit.before); }
+            finally { history.finishOperation(); }
+          }
         }
         input.value = projectFiles.displayNameForUi(currentName);
         input.title = input.value;
