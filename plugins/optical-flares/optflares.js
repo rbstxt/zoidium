@@ -536,7 +536,7 @@ module.exports = function installOptflares(PZ, THREE) {
             frame.center = math.offsetToLayout(setup.centerPosition.get(time), resolution[1]);
             frame.screenSource = math.offsetToLayout(setup.positionXY.get(time), resolution[1]);
             frame.light = sourceType === 2 ? this.findLight(positioning.lightIndex.get(time)) : null;
-            frame.occlude = sourceType !== 0 && positioning.foreground.occlude.get(time) === 1;
+            frame.occlude = sourceType !== 0 && Number(positioning.foreground.occlude.get(time)) === 1;
             frame.fade = Math.max(0, Math.min(100, Number(positioning.foreground.fade.get(time)) || 0)) / 100;
             frame.margin = Math.max(0, positioning.margin.get(time));
             frame.reference = positioning.referenceDistance.get(time);
@@ -553,7 +553,7 @@ module.exports = function installOptflares(PZ, THREE) {
             u.uTime.value = time / rate;
             u.uFlickerAmount.value = positioning.flicker.amount.get(time) / 100;
             u.uFlickerSpeed.value = positioning.flicker.speed.get(time);
-            u.uGpu.value = setup.gpu.get(time) === 1 ? 1 : 0;
+            u.uGpu.value = Number(setup.gpu.get(time)) === 1 ? 1 : 0;
             u.uColorMode.value = Math.round(setup.colorMode.get(time));
             u.uRenderMode.value = Math.round(props.motionBlur.renderMode.get(time));
             var tint = setup.color.get(time);
@@ -570,12 +570,12 @@ module.exports = function installOptflares(PZ, THREE) {
             var dataC = this._dataC;
             var dataD = this._dataD;
             var dataColor = this._dataColor;
-            var rootOffset = props.global.scaleOffset.get(time) === 1 || setup.scaleOffset.get(time) === 1;
+            var rootOffset = Number(props.global.scaleOffset.get(time)) === 1 || Number(setup.scaleOffset.get(time)) === 1;
             var seedBase = props.global.globalSeed.get(time) * 0.001;
             var globalColor = props.global.color.get(time);
             var anySolo = false;
             for (var s = 0; s < count; s++) {
-                if (this.stack[s].properties.element.solo.get(time) === 1) {
+                if (Number(this.stack[s].properties.element.solo.get(time)) === 1) {
                     anySolo = true;
                     break;
                 }
@@ -590,7 +590,7 @@ module.exports = function installOptflares(PZ, THREE) {
                 var element = this.stack[i];
                 var p = element.properties;
                 var distance = p.element.distance.get(time);
-                var elementScale = p.globalParams.scaleOffset.get(time) === 1 ? 1 / (1 + Math.max(0, distance) / 100) : 1;
+                var elementScale = Number(p.globalParams.scaleOffset.get(time)) === 1 ? 1 / (1 + Math.max(0, distance) / 100) : 1;
                 var offsetFactor = rootOffset ? 1 / (1 + Math.max(0, distance) / 100) : 1;
                 var o = i * 4;
                 var opacity = p.element.opacity.get(time) / 100;
@@ -601,7 +601,7 @@ module.exports = function installOptflares(PZ, THREE) {
                 dataA[o + 3] = opacity;
                 dataB[o] = p.element.rotation.get(time) * DEG;
                 dataB[o + 1] = distance / 100;
-                dataB[o + 2] = p.element.animate.get(time) === 1 ? 1 : 0;
+                dataB[o + 2] = Number(p.element.animate.get(time)) === 1 ? 1 : 0;
                 var texMode = Math.round(p.lensTexture.textureImage.get(time));
                 dataB[o + 3] = texMode;
                 dataC[o] = p.lensTexture.illuminationRadius.get(time);
@@ -612,8 +612,8 @@ module.exports = function installOptflares(PZ, THREE) {
                 dataD[o + 1] = Math.round(p.globalParams.blendMode.get(time));
                 var etype = Math.round(p.element.elementType.get(time));
                 dataD[o + 2] = etype;
-                var enabled = p.element.enabled.get(time) === 1;
-                var solod = p.element.solo.get(time) === 1;
+                var enabled = Number(p.element.enabled.get(time)) === 1;
+                var solod = Number(p.element.solo.get(time)) === 1;
                 // An element with zero opacity or a zero size factor adds
                 // exactly 0.0 to the pixel in every blend mode (add, screen and
                 // normal are all exact no-ops for a finite zero), so it is
