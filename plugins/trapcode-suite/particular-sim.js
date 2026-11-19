@@ -149,7 +149,7 @@ var PZ = PZ || {};
         return {
             seed: Math.floor(num(E.randomSeed, 0)),
             spin: T.particularSpin.sample(system, sec, table.fps),
-            flow: flow,
+            flow: flow * table.mult,
             count: count,
             emitRate: burst > 0 && perSec <= 0 ? Math.max(count, 1) : Math.max(perSec, 1),
             interval: Math.max(num(E.burstInterval, 1), SIM.STEP),

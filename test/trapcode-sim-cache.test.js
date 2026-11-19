@@ -305,3 +305,15 @@ test("a definition-stripped signature preserves the hit/miss relation", () => {
     }
   }
 });
+
+test("continuous secondary systems emit at their density multiplier", () => {
+  const PZ = loadSystemModule();
+  const primary = makeSystem(PZ);
+  primary.properties.emitter.particlesPerSec.set(20);
+  primary.properties.particle.life.set(3);
+  const secondary = makeSystem(PZ);
+  secondary.properties.emitter.particlesPerSec.set(20);
+  secondary.properties.particle.life.set(3);
+  secondary.secondaryCountMultiplier = () => 2;
+  assert.equal(secondary.simulateFrame(30).count, primary.simulateFrame(30).count * 2);
+});
