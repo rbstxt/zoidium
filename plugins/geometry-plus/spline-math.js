@@ -202,7 +202,7 @@ function sampleAkimaSpline(points, amount, closed) {
 
 function sampleBSplineSpline(points, amount, closed) {
   const count = points.length;
-  const degree = 3;
+  const degree = closed ? 3 : Math.min(3, count - 1);
   if (closed) {
     // Cyclic uniform B-spline: control point access wraps around the loop
     // so the curve closes smoothly on itself.

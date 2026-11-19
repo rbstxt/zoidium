@@ -429,8 +429,8 @@ module.exports = {
         const gradientSpace = String(this.properties.gradientSpace.value || "Curve");
         const spans = closed
           ? points.length
-          : interpolation === "B-Spline" && points.length >= 4
-            ? points.length - 3
+          : interpolation === "B-Spline" && points.length >= 3
+            ? points.length - Math.min(3, points.length - 1)
             : points.length - 1;
 
         const totalSegments = Math.max(1, Math.round(spans * pathSegments));
