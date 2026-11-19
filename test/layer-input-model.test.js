@@ -246,3 +246,30 @@ test("source writes made without an edit tell the preview cache", () => {
     else globalThis.ZoidiumFrameCache = previous;
   }
 });
+
+test("a copied consumer keeps its source and owns independent serialized values", () => {
+  const { project, context, trackA } = createProject();
+  const api = LayerInput.activate(context);
+  try {
+    const create = data => {
+      const source = makeSourceProperty();
+      source.toJSON = () => source.get();
+      source.set(data?.source || "");
+      const consumer = { type: "layerinput", parentProject: project, parentObject: trackA,
+        properties: { source, opacity: JSON.parse(JSON.stringify(data?.opacity || { animated: true,
+          keyframes: [{ frame: 0, value: 0.3 }, { frame: 20, value: 0.8 }] })) } };
+      api.registerConsumer(consumer);
+      return consumer;
+    };
+    const original = create(), token = api.getSourceOptions(original)[2].value;
+    original.properties.source.set(token); api.setSource(original, token);
+    const saved = api.serializeConsumer(original), duplicate = create(saved.properties);
+    assert.deepEqual(api.serializeConsumer(duplicate), saved);
+    const second = create(api.serializeConsumer(duplicate).properties);
+    assert.deepEqual(api.serializeConsumer(second), saved);
+    duplicate.properties.opacity.keyframes[0].value = 0.9;
+    duplicate.properties.source.set(""); api.setSource(duplicate, "");
+    assert.deepEqual(api.serializeConsumer(original), saved);
+    assert.equal(api.getSourceToken(original), token);
+  } finally { LayerInput.deactivate(); }
+});
