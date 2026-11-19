@@ -5,7 +5,7 @@ const test = require("node:test");
 const {
   classifyFile, isFileDrag, shouldHandleDrag, resolveDropZone, isEditableTarget, pasteSupported,
   pastedFilename, pastedMediaFilename, nextPasteIndex, needsPastedName, clipboardFiles,
-  insertIndexFor, trackFits, unsupportedErrors, mediaForAssets, placeEntries, operationScope,
+  insertIndexFor, trackFits, unsupportedErrors, mediaForAssets, placeEntries, operationScope, createImportQueue,
   IMPORT_FAILURE, HIGHLIGHT_CLASS,
 } = require("../plugins/core/media-drop");
 
@@ -235,4 +235,117 @@ test("a project change abandons the scope without finishing the old operation", 
   history.operation = null;
   assert.doesNotThrow(finish);
   assert.equal(history.undoStack.length, 0);
+});
+
+
+test("overlapping imports finish in separate history operations", async () => {
+  const { editor, history } = fakeTimeline();
+  const enqueue = createImportQueue();
+  let release;
+  const first = enqueue(async () => {
+    const finish = operationScope(editor);
+    history.pushCommand({ kind: "first" });
+    await new Promise(resolve => { release = resolve; });
+    finish();
+  });
+  await Promise.resolve();
+  const second = enqueue(async () => {
+    const finish = operationScope(editor);
+    history.pushCommand({ kind: "second" });
+    finish();
+  });
+  await Promise.resolve();
+  assert.equal(history.undoStack.length, 0);
+  release();
+  await Promise.all([first, second]);
+  assert.deepEqual(history.undoStack.map(operation => operation.map(command => command.kind)), [["first"], ["second"]]);
+});
+
+test("a failed queued import does not block later imports", async () => {
+  const enqueue = createImportQueue();
+  const first = enqueue(() => { throw new Error("failed"); });
+  const second = enqueue(() => "complete");
+  await assert.rejects(first, /failed/);
+  assert.equal(await second, "complete");
+});
+
+test("separate file drops keep asynchronous imports in separate undo operations", async () => {
+  const listeners = {};
+  const project = { media: [] };
+  const history = {
+    operation: null,
+    stack: [],
+    startOperation() { this.operation = []; },
+    finishOperation() { this.stack.push(this.operation); this.operation = null; },
+    pushCommand(command) { if (this.operation) this.operation.push(command); },
+    undo() { for (const command of (this.stack.pop() || []).reverse()) command(); },
+  };
+  const editor = { project, history };
+  class MediaPanel {}
+  const panel = new MediaPanel();
+  panel.el = { classList: { remove() {} } };
+  const target = { tagName: "DIV", closest: () => ({ pz_panel: panel }) };
+  const document = {
+    addEventListener(type, listener) { listeners[type] = listener; },
+    removeEventListener() {},
+    querySelectorAll() { return []; },
+  };
+  const pending = [];
+  const api = { import: async ([file]) => {
+    await new Promise(resolve => pending.push(resolve));
+    const item = { assets: [{ key: file.name }] };
+    project.media.push(item);
+    history.pushCommand(() => project.media.splice(project.media.indexOf(item), 1));
+    return { items: [{ id: file.name }], errors: [] };
+  } };
+  const host = { CM: editor, addEventListener() {}, removeEventListener() {} };
+  const { activate } = require("../plugins/core/media-drop");
+  const module = activate({ window: host, document, PZ: { ui: { media: MediaPanel } }, apis: { assets: api } });
+  const drop = name => listeners.drop({ target, dataTransfer: { types: ["Files"], files: [file(name, "image/png")] },
+    preventDefault() {}, stopPropagation() {} });
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  drop("first.png");
+  drop("second.png");
+  await tick();
+  assert.equal(pending.length, 1, "the second import waits until the first operation finishes");
+  pending.shift()();
+  await tick();
+  assert.equal(pending.length, 1);
+  pending.shift()();
+  await tick();
+  assert.equal(project.media.length, 2);
+  assert.equal(history.stack.length, 2);
+  history.undo();
+  assert.deepEqual(project.media.map(item => item.assets[0].key), ["first.png"]);
+  history.undo();
+  assert.equal(project.media.length, 0);
+  module.dispose();
+});
+
+test("queued clipboard images choose names after earlier imports finish", async () => {
+  const listeners = {};
+  const project = { media: [], assets: { list: {} } };
+  const history = { operation: null, startOperation() { this.operation = []; }, finishOperation() { this.operation = null; } };
+  const editor = { project, history };
+  const document = { activeElement: null, addEventListener(type, listener) { listeners[type] = listener; },
+    removeEventListener() {}, querySelectorAll() { return []; } };
+  const pending = [];
+  const api = { import: async ([input]) => {
+    await new Promise(resolve => pending.push(resolve));
+    project.assets.list[input.name] = { filename: input.name };
+    project.media.push({ assets: [{ key: input.name }] });
+    return { items: [{ id: input.name }], errors: [] };
+  } };
+  const host = { CM: editor, addEventListener() {}, removeEventListener() {},
+    File: class { constructor(_parts, name, options) { this.name = name; this.type = options.type; } } };
+  const { activate } = require("../plugins/core/media-drop");
+  const module = activate({ window: host, document, PZ: { ui: {} }, apis: { assets: api } });
+  const paste = () => listeners.paste({ target: { tagName: "DIV" }, clipboardData: { files: [file("image.png", "image/png")] },
+    preventDefault() {}, stopPropagation() {} });
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  paste(); paste(); await tick();
+  pending.shift()(); await tick();
+  pending.shift()(); await tick();
+  assert.deepEqual(Object.keys(project.assets.list), ["Pasted image 1.png", "Pasted image 2.png"]);
+  module.dispose();
 });

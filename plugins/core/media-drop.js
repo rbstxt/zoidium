@@ -314,6 +314,16 @@ async function importArchive(editorInstance, file, panel) {
   return media;
 }
 
+// Keep each asynchronous drop or paste inside its own history operation.
+function createImportQueue() {
+  let pending = Promise.resolve();
+  return task => {
+    const result = pending.then(task);
+    pending = result.catch(() => {});
+    return result;
+  };
+}
+
 function activate(context) {
   const host = context.window;
   const document = context.document || host?.document;
@@ -324,6 +334,7 @@ function activate(context) {
   const assets = () => context.apis?.assets || host.ZoidiumAssets || null;
   const highlighted = new Set();
   let style = null;
+  const enqueueImport = createImportQueue();
 
   function notifyImport(message) {
     const text = message || IMPORT_FAILURE;
@@ -466,6 +477,16 @@ function activate(context) {
     return messages.join(" ") || IMPORT_FAILURE;
   }
 
+  function scheduleFiles(zone, files, point, options) {
+    const current = editor();
+    const project = current?.project;
+    void enqueueImport(() => {
+      if (editor() !== current || current?.project !== project) return;
+      const prepared = typeof files === "function" ? files() : files;
+      return handleFiles(zone, prepared, point, options);
+    }).catch(error => notifyImport(error?.message || String(error)));
+  }
+
   function onDragOver(event) {
     if (isEditableTarget(event?.target)) return unhighlightAll();
     if (!shouldHandleDrag(event, editor())) return;
@@ -497,8 +518,7 @@ function activate(context) {
     event.stopPropagation();
     unhighlightAll();
     const point = { x: event.clientX, y: event.clientY };
-    void handleFiles(zone, files, point, { placeAtPlayhead: zone.kind === "viewport" })
-      .catch(error => notifyImport(error?.message || String(error)));
+    scheduleFiles(zone, files, point, { placeAtPlayhead: zone.kind === "viewport" });
   }
 
   function pasteFiles(event) {
@@ -514,20 +534,19 @@ function activate(context) {
       notifyImport(IMPORT_FAILURE);
       return;
     }
-    let index = nextPasteIndex(pasteableNames(current.project));
-    const prepared = pasted.map(file => {
-      if (!needsPastedName(file)) return file;
-      const image = classifyFile(file) === "image";
-      const name = image ? pastedFilename(index++, file.type) : pastedMediaFilename(index++, file);
-      try {
-        return new host.File([file], name, { type: file.type || "image/png", lastModified: Date.now() });
-      } catch (_error) { return file; }
-    });
     const timeline = zoneFor(document.activeElement);
     const focusedTimeline = timeline?.kind === "timeline" ? timeline : null;
-    void handleFiles(focusedTimeline || { kind: "paste", el: null }, prepared, null,
-      { placeAtPlayhead: !!focusedTimeline })
-      .catch(error => notifyImport(error?.message || String(error)));
+    scheduleFiles(focusedTimeline || { kind: "paste", el: null }, () => {
+      let index = nextPasteIndex(pasteableNames(current.project));
+      return pasted.map(file => {
+        if (!needsPastedName(file)) return file;
+        const image = classifyFile(file) === "image";
+        const name = image ? pastedFilename(index++, file.type) : pastedMediaFilename(index++, file);
+        try {
+          return new host.File([file], name, { type: file.type || "image/png", lastModified: Date.now() });
+        } catch (_error) { return file; }
+      });
+    }, null, { placeAtPlayhead: !!focusedTimeline });
   }
 
   document.addEventListener("dragenter", onDragOver, true);
@@ -577,4 +596,5 @@ module.exports = {
   chooseTrack,
   placeEntries,
   operationScope,
+  createImportQueue,
 };
