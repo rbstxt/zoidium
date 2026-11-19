@@ -281,6 +281,9 @@ const GraphPlus = (() => {
           // body so host shortcuts cannot run a second time. Graph handlers
           // consume their own keys before they reach this listener.
           const forward = (event) => {
+            if (event.isComposing || event.keyCode === 229 || event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) {
+              event.stopPropagation(); return;
+            }
             if (mounted.isPoppedOut?.() && (event.ctrlKey || event.metaKey) && /^[zys]$/i.test(event.key || "")) return;
             if (typeof editor.keydown === "function") editor.keydown(event);
             event.stopPropagation();
@@ -358,6 +361,7 @@ const GraphPlus = (() => {
   }
 
   function forwardChromeCommand(editor, host, event) {
+    if (event.isComposing || event.keyCode === 229 || event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
     // The shared popup host forwards these commands before this listener.
     if (host.isPoppedOut?.() && (event.ctrlKey || event.metaKey) && /^[zys]$/i.test(event.key || "")) return;
     if (event.defaultPrevented || !event.ctrlKey || !/^[nmoszy]$/i.test(event.key || "")) return;

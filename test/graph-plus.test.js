@@ -886,6 +886,10 @@ test('floating graph factory opens once, focuses, preserves panel and cleans up 
   }
   host.listeners.keydown(event);
   assert.equal(editor.keydown.calls.length, 1);
+  for (const extra of [{ isComposing: true }, { keyCode: 229 }, { target: { closest: () => ({}) } }]) {
+    host.listeners.keydown({ key: 'n', ctrlKey: true, stopPropagation: stubFn(), ...extra });
+    assert.equal(editor.keydown.calls.length, 1);
+  }
   assert.equal(event.stopPropagation.calls.length, 1);
   for (const key of ['n', 'm', 'o', 's', 'z', 'y']) {
     host.listeners['chrome:keydown']({ key, ctrlKey: true, stopPropagation: stubFn() });
