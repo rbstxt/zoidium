@@ -142,7 +142,8 @@ function migrateEffectorData(data) {
   }
   const stored = value => value && typeof value === "object" && !Array.isArray(value) ? value.value : value;
   if (properties.subdivision === undefined && (properties.polygonCount !== undefined || properties.curveQuality !== undefined)) {
-    const level = stored(properties.curveQuality) === 0 ? 0 : Math.min(4, Math.max(0, Math.round(Math.log(Math.max(1, numberValue(stored(properties.polygonCount), 16))) / Math.log(4))));
+    const quality = stored(properties.curveQuality);
+    const level = (quality === 0 || quality === "0") ? 0 : Math.min(4, Math.max(0, Math.round(Math.log(Math.max(1, numberValue(stored(properties.polygonCount), 16))) / Math.log(4))));
     properties.subdivision = level;
   }
   const legacyField = normalized.legacyField === true || (properties.field !== undefined && properties.fieldFalloff === undefined);
