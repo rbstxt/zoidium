@@ -15,7 +15,7 @@ target.props = {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
             var e = this.parentObject;
             if (e.pzLoading || !nodes || !nodes.editor) return;
-            if (this.value === 1) {
+            if (Number(this.value) === 1) {
                 nodes.editor.open(e);
             } else {
                 nodes.editor.closeMaterial(e);
@@ -185,7 +185,7 @@ target.props = {
         decimals: 0,
         changed: function () {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
-            if (this.parentObject.properties.bumpNoise.get() === 1) {
+            if (Number(this.parentObject.properties.bumpNoise.get()) === 1) {
                 this.parentObject.updateBumpMap();
             }
         },
@@ -366,7 +366,10 @@ target.props = {
         value: 0,
         changed: function () {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
-            this.parentObject.threeObj.transparent = this.value === 1;
+            const material = this.parentObject.threeObj;
+            const transparent = Number(this.value) === 1;
+            if (material.transparent !== transparent) material.needsUpdate = true;
+            material.transparent = transparent;
         },
         items: "off;on",
     },
@@ -385,7 +388,7 @@ target.props = {
         value: 1,
         changed: function () {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
-            this.parentObject.threeObj.blending = this.value;
+            this.parentObject.threeObj.blending = Number(this.value);
         },
         items: "none;normal;additive;subtractive;multiply",
     },
@@ -395,7 +398,7 @@ target.props = {
         value: 0,
         changed: function (e) {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
-            this.parentObject.threeObj.side = this.value;
+            this.parentObject.threeObj.side = Number(this.value);
         },
         items: "front;back;both",
     },

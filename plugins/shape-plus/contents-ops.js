@@ -95,7 +95,7 @@ function paintScope(contents) {
     const above = [];
     let texts = 0;
     for (const item of list) {
-      const on = enabled && item.properties?.enabled !== 0;
+      const on = enabled && Number(item.properties?.enabled) !== 0;
       if (item.kind === "group") { texts += countTexts(item.contents); above.push(...walk(item.contents || [], on)); }
       else if (GEOMETRY.includes(item.kind)) {
         if (item.kind === "text") texts++;

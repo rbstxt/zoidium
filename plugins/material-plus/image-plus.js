@@ -35,7 +35,7 @@ function activate(context) {
     material.defaultName = "Image+ Material";
     material.properties.addAll({
       texture: { name: "Image", type: type.ASSET, assetType: PZ.asset.type.IMAGE, accept: "image/*", value: null, changed() { if (!material._loading) loadImage(); } },
-      transparent: { name: "Transparency", type: type.OPTION, items: "off;on", value: 0, changed() { if (material.threeObj) { material.threeObj.transparent = this.value === 1; material.threeObj.needsUpdate = true; } } },
+      transparent: { name: "Transparency", type: type.OPTION, items: "off;on", value: 0, changed() { if (material.threeObj) { material.threeObj.transparent = Number(this.value) === 1; material.threeObj.needsUpdate = true; } } },
       opacity: { name: "Opacity", type: type.NUMBER, dynamic: true, value: 1, min: 0, max: 1, step: 0.01 },
       wrap: { name: "Wrap", type: type.OPTION, items: "none;tile;reflect", value: 1 },
       repeat: vector("Repeat", 1), offset: vector("Offset", 0), center: vector("Center", 0),
@@ -56,7 +56,7 @@ function activate(context) {
       if (!t) return;
       uvLayout.ensureMaterial(this);
       t.opacity = Math.max(0, Math.min(1, p.opacity.get(frame)));
-      const transparent = p.transparent.get() === 1;
+      const transparent = Number(p.transparent.get()) === 1;
       const side = [THREE.FrontSide, THREE.BackSide, THREE.DoubleSide][p.side.get()];
       if (t.transparent !== transparent || t.side !== side) t.needsUpdate = true;
       t.transparent = transparent; t.side = side;

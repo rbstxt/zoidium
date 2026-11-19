@@ -107,7 +107,8 @@ function createModel(PZ, textService) {
       for (const key of Object.keys(this.properties)) {
         const value = this.kind === "text" && this.properties[key].definition.dynamic && [PZ.property.type.TEXT, PZ.property.type.ASSET, PZ.property.type.LIST].includes(this.properties[key].definition.type) ? holdValue(this.properties[key], frame) : this.properties[key].get(frame);
         if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && key !== "stops" && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
-        properties[key] = Array.isArray(value) ? value.slice() : value;
+        properties[key] = Array.isArray(value) ? value.slice() :
+          this.properties[key].definition.type === PZ.property.type.OPTION && typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : value;
       }
       // Text Animator time feeds only the Wiggly Selector (text-animate.js
       // animatorTime); range selectors never read it. Omitting time while

@@ -134,6 +134,9 @@ test("ungroup preserves a disabled group's effective visibility", () => {
   ];
   tree.ungroup(contents, "group");
   assert.equal(contents[0].properties.enabled, 0);
+  const strings = [{ id: "group", kind: "group", properties: { enabled: "0" }, contents: [{ id: "a", kind: "rectangle", properties: { enabled: 1 } }] }];
+  tree.ungroup(strings, "group");
+  assert.equal(strings[0].properties.enabled, 0);
 });
 test("a gesture whose transaction was replaced mid-drag keeps its edit and stays undoable", () => {
   const history = new History();

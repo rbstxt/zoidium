@@ -39,6 +39,11 @@ function matches(when, value) {
     }
   });
 }
+function matchesController(when, controller, value) {
+  if (matches(when, value)) return true;
+  if (kindOf(controller) !== "staticDropdown" || typeof value !== "string" || !/^\d+$/.test(value)) return false;
+  return matches(when, Number(value));
+}
 function unreachable(when, controller) {
   if (!when || !controller || controller.expression) return false;
   if (controller.animated && controller.interpolated && controller.keyframes?.some(key => key.tween !== 0)) return false;
@@ -48,6 +53,6 @@ function unreachable(when, controller) {
   if (!choices?.length) return false;
   // Native saved keys can contain values outside the control's menu.
   for (const key of controller.keyframes || []) choices.push(key.value);
-  return !choices.some(value => matches(when, value));
+  return !choices.some(value => matchesController(when, controller, value));
 }
-module.exports = { parseConditions, formatConditions, matches, unreachable };
+module.exports = { parseConditions, formatConditions, matches, matchesController, unreachable };

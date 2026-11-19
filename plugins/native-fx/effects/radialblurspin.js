@@ -90,7 +90,7 @@ ZoidiumPluginApis.defineFilter.call(this, {
       changed: function () {
         const effect = this.parentObject;
         if (!effect.pass) return;
-        if (this.value === 0) effect.pass.material.defines.CONSTANT_BRIGHTNESS = 1;
+        if (Number(this.value) === 0) effect.pass.material.defines.CONSTANT_BRIGHTNESS = 1;
         else delete effect.pass.material.defines.CONSTANT_BRIGHTNESS;
         effect.pass.material.needsUpdate = true;
       },
@@ -112,7 +112,7 @@ ZoidiumPluginApis.defineFilter.call(this, {
   },
   update(frame) {
     if (!this.pass) return;
-    this.pass.enabled = this.properties.enabled.get(frame);
+    this.pass.enabled = Number(this.properties.enabled.get(frame)) === 1;
     this.pass.uniforms.decay.value = this.properties.decay.get(frame);
     this.pass.uniforms.density.value = this.properties.density.get(frame);
     this.pass.uniforms.dither.value = this.properties.dither.get(frame);

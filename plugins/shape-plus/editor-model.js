@@ -340,7 +340,7 @@ function createEditorModel(s) {
       for (const key of s.selection) {
         const index = item.vertexIds.indexOf(selectionPart(key).id);
         if (index < 0) continue;
-        points = g.setMode(points, index, mode, !!item.properties.closed.get());
+        points = g.setMode(points, index, mode, Number(item.properties.closed.get()) === 1);
         item.vertexModes[item.vertexIds[index]] = mode;
       }
       s.setPoints(points);
@@ -359,7 +359,7 @@ function createEditorModel(s) {
       const item = s.active();
       if (item?.kind === "path") {
         channels(clone(item));
-        item.properties.closed.set(item.properties.closed.get() ? 0 : 1);
+        item.properties.closed.set(Number(item.properties.closed.get()) === 1 ? 0 : 1);
         s.preview();
       }
     });

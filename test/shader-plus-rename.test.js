@@ -240,3 +240,9 @@ test("settings text tolerates malformed stored conditions", () => {
   assert.equal(formatConditions({ values: ["a", 1] }), "a; 1");
   assert.equal(formatConditions(null), "");
 });
+
+test("rename conditions follow a static dropdown index", () => {
+  const mode = { definition: KINDS.staticDropdown.create(), get: () => "1" };
+  const rule = { property: "Mode", name: "Scale", ...parseConditions("1") };
+  assert.equal(renamed([rule], () => mode, 0, "Rotation"), "Scale");
+});

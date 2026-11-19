@@ -207,3 +207,85 @@ test("surface shader retains native chunks and installs emission, normal RNM and
   assert.match(shader.fragmentShader, /reflectVec.xz = mat2/);
   donor.pzRampTexture.dispose(); donor.threeObj.dispose();
 });
+
+test("Node Material transparency follows the native option value", async () => {
+  const h = harness();
+  NodeMaterial.activate(h.context);
+  const m = h.material("nodes");
+  try {
+    (await h.PZ.material.fnList.nodes).call(m);
+    m.load();
+    m.properties.transparent.set("1");
+    m.update(0);
+    assert.equal(m.threeObj.transparent, true);
+    m.properties.transparent.set("0");
+    m.update(0);
+    assert.equal(m.threeObj.transparent, false);
+  } finally { m.unload(); for (const dispose of h.dispose.reverse()) dispose(); }
+});
+
+test("Node Editor opens and closes for native option values", () => {
+  const calls = [];
+  const target = {};
+  const h = harness();
+  require("../plugins/material-plus/surface-props.js")(target, {
+    PZ: h.PZ, THREE: h.context.window.THREE, document: h.context.document,
+    nodes: { editor: { open: m => calls.push(["open", m]), closeMaterial: m => calls.push(["close", m]) } },
+  });
+  const material = { pzUniforms: {} };
+  const property = { parentObject: material, value: "1" };
+  target.props.nodeEditor.changed.call(property);
+  property.value = "0";
+  target.props.nodeEditor.changed.call(property);
+  assert.deepEqual(calls, [["open", material], ["close", material]]);
+});
+
+test("surface options preserve string values and control graph, shading and reflection", async () => {
+  const h = harness(); NodeMaterial.activate(h.context); Pbr.activate(h.context);
+  const m = h.material("nodes");
+  try {
+    (await h.PZ.material.fnList.nodes).call(m); m.load();
+    for (const key of ["useNodeGraph", "rampEnabled", "fresnel", "aoEnabled", "celEnabled", "reflSpecular", "reflReflection", "projLockAspect", "bumpNoise", "bumpMipFalloff"]) m.properties[key].set("1");
+    m.properties.graph.set(JSON.stringify(graph("color")));
+    await m.prepare(0); m.update(0);
+    assert.ok(m.pzGraphTextures.color, "string option enables the graph");
+    for (const key of ["PZ_RAMP", "PZ_FRESNEL", "PZ_AO", "PZ_CEL"]) assert.equal(m.threeObj.defines[key], 1, key);
+    assert.equal(m.pzUniforms.uPzSpecularEnabled.value, 1);
+    assert.ok(m.pzNoiseTexture);
+    assert.equal(m.threeObj.bumpMap, m.pzNoiseTexture);
+    assert.equal(m.pzNoiseTexture.generateMipmaps, true);
+    const previousNoise = m.pzNoiseTexture;
+    m.properties.bumpNoiseScale.set(9);
+    assert.notEqual(m.pzNoiseTexture, previousNoise);
+    assert.equal(m.threeObj.bumpMap, m.pzNoiseTexture);
+    m.properties.rampInterpolation.set(1); m.syncRamp();
+    const ramp = Array.from(m.pzRampTexture.image.data);
+    m.properties.rampInterpolation.set("1"); m.syncRamp();
+    assert.deepEqual(Array.from(m.pzRampTexture.image.data), ramp);
+    assert.equal(m.threeObj.clearCoat, m.properties.reflReflectionStrength.get() * m.properties.reflReflectionOpacity.get());
+    for (const key of ["useNodeGraph", "rampEnabled", "bumpNoise", "reflReflection"]) assert.equal(JSON.parse(JSON.stringify(m.toJSON())).properties[key], "1");
+    m.properties.shadowSide.set("0"); m.properties.side.set("2"); m.pzSyncShadowSide();
+    assert.equal(m.threeObj.shadowSide, h.context.window.THREE.BackSide);
+    m.properties.useNodeGraph.set("0"); await m.prepare(0); m.update(0);
+    assert.equal(m.pzGraphTextures.color, null);
+    assert.equal(JSON.parse(JSON.stringify(m.toJSON())).properties.useNodeGraph, "0");
+    const editor = h.editors.find(entry => entry.title === "Node Editor");
+    assert.equal(editor.match({ type: "pbrplus", properties: { useNodeGraph: { get: () => "1" } } }), true);
+  } finally { m.unload(); for (const dispose of h.dispose.reverse()) dispose(); }
+});
+
+test("Node Material restores numeric blending and side from string options", async () => {
+  const h = harness(); NodeMaterial.activate(h.context);
+  const m = h.material("nodes");
+  try {
+    (await h.PZ.material.fnList.nodes).call(m);
+    m.load({ properties: { blending: "2", side: "1" } });
+    assert.equal(m.threeObj.blending, 2);
+    assert.equal(m.threeObj.side, h.context.window.THREE.BackSide);
+    m.properties.blending.set("3"); m.properties.side.set("2");
+    assert.equal(m.threeObj.blending, 3);
+    assert.equal(m.threeObj.side, h.context.window.THREE.DoubleSide);
+    const saved = JSON.parse(JSON.stringify(m.toJSON()));
+    assert.equal(saved.properties.blending, "3"); assert.equal(saved.properties.side, "2");
+  } finally { m.unload(); for (const dispose of h.dispose.reverse()) dispose(); }
+});

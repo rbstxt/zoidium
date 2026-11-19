@@ -298,7 +298,7 @@ parts.shared = function (options) {
     if (!sequence?.videoTracks?.some(track => track.track3d || track.layer instanceof CameraLayer)) return renderSequence.apply(this, arguments);
     ensureSequence(sequence);
     const properties = sequence.properties;
-    const count = properties.motionBlur.get() === 0 ? 1 : Math.max(1, Math.min(128, Math.floor(properties.motionBlurSamples.get(frame))));
+    const count = Number(properties.motionBlur.get()) === 0 ? 1 : Math.max(1, Math.min(128, Math.floor(properties.motionBlurSamples.get(frame))));
     const shutter = properties.motionBlurShutter.get(frame) * properties.motionBlurSensitivity.get(frame) * .01;
     const direction = properties.motionBlurTrackFrame.get(frame);
     this.ratio = this.readBuffer.width / properties.resolution.get()[0];

@@ -72,7 +72,7 @@ async function convert(context, layer, item, Content, frame) {
     const below = [];
     for (let i = list.length - 1; i >= 0; i--) {
       const child = list[i];
-      if (child.kind === "textAnimator") { if (child.properties.enabled.get() !== 0) below.unshift(child); }
+      if (child.kind === "textAnimator") { if (Number(child.properties.enabled.get()) !== 0) below.unshift(child); }
       else if (child.id === itemId) { matched.push(...below, ...outer); return true; }
       else if (child.contents && collect(child.contents, [...below, ...outer])) return true;
     }

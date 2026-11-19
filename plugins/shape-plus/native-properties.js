@@ -4,7 +4,7 @@
 const ANIMATED = require("./text-animator-properties.js").ANIMATED_KEYS;
 const WIGGLY = ["wigglyMode", "wigglyMax", "wigglyMin", "wigglyBasedOn", "wigglesPerSecond", "correlation", "temporalPhase", "spatialPhase", "lockDimensions", "wigglySeed"];
 function flagOn(p, key) {
-  try { return p[key]?.get() ? true : false; } catch (_error) { return false; }
+  try { return Number(p[key]?.get()) === 1; } catch (_error) { return false; }
 }
 const groups = {
   Dashes: [

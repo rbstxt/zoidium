@@ -715,7 +715,7 @@ test("indexed smooth meshes respect the 400k triangle cap during exact evaluatio
 });
 
 test("legacy subdivision and field payloads migrate without exposing obsolete rows", () => {
-  for (const [properties, level] of [[{ polygonCount: 7 }, 1], [{ polygonCount: { value: 64 } }, 3], [{ smoothness: 2 }, 2], [{ curveQuality: 0, polygonCount: 256 }, 0]]) {
+  for (const [properties, level] of [[{ polygonCount: 7 }, 1], [{ polygonCount: { value: 64 } }, 3], [{ smoothness: 2 }, 2], [{ curveQuality: 0, polygonCount: 256 }, 0], [{ curveQuality: "0", polygonCount: 256 }, 0]]) {
     assert.equal(_test.migrateEffectorData({ properties }).properties.subdivision, level);
   }
   const migrated = _test.migrateEffectorData({ properties: { field: 3, fieldScale: [20, 30, 40] } });

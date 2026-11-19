@@ -38,7 +38,7 @@ function createPointer(s, canvas) {
   function pen(event, start) {
     const hit = api.hit(start), item = s.active();
     if (hit?.kind === "anchor") return clickEdit(() => {
-      if (hit.index === 0 && item.vertexIds.length > 1 && !item.properties.closed.get()) {
+      if (hit.index === 0 && item.vertexIds.length > 1 && Number(item.properties.closed.get()) !== 1) {
         channels(clone(item));
         item.properties.closed.set(1);
         s.penFinished = true;
@@ -59,7 +59,7 @@ function createPointer(s, canvas) {
       let local;
       if (
         item?.kind === "path" &&
-        !item.properties.closed.get() &&
+        Number(item.properties.closed.get()) !== 1 &&
         !s.penFinished
       ) {
         local = api.local(start);
@@ -164,7 +164,7 @@ function createPointer(s, canvas) {
         if (Math.hypot(...g.sub(point(e),start)) < 2 && !s.gesture.active) return;
         const p = api.local(point(e)); if (!p) return;
         transaction(() => {
-          s.setPoints(controls.bend(origin,hit.index,hit.t,g.sub(p,startLocal),!!item.properties.closed.get()));
+          s.setPoints(controls.bend(origin,hit.index,hit.t,g.sub(p,startLocal),Number(item.properties.closed.get()) === 1));
           const next = (hit.index + 1) % item.vertexIds.length;
           for (const index of [hit.index,next]) item.vertexModes[item.vertexIds[index]] = "independent";
         });

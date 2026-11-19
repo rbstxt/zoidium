@@ -4,7 +4,7 @@ const { SNAP_KINDS } = require("./snap.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 const NUMERIC = ["slider", "seed"], OPTIONS = ["dropdown", "staticDropdown"];
 const list = text => String(text).split(/[\n;]/).map(s => s.trim()).filter(Boolean);
-const { parseConditions, formatConditions, matches, unreachable } = require("./visibility.js");
+const { parseConditions, formatConditions, matchesController, unreachable } = require("./visibility.js");
 const { renamed } = require("./rename.js");
 const { installReset } = require("./reset.js");
 function installEditor({ context, patch, presetFont }) {
@@ -529,7 +529,7 @@ function installEditor({ context, patch, presetFont }) {
     const condition = groups.meta(member).visibleWhen;
     if (!condition) return true;
     const owner = effect.customProperties.find(item => item.properties.name.get() === condition.property);
-    return !!owner && matches(condition, owner.get(frame));
+    return !!owner && matchesController(condition, owner, owner.get(frame));
   }
   function sync() {
     if (openPanel && (!openPanel.row.isConnected || !effectOf(openPanel.p))) closeSettings();
@@ -546,7 +546,7 @@ function installEditor({ context, patch, presetFont }) {
       const shown = displayName(effect, p, meta, frame), label = row.firstElementChild?.firstElementChild;
       if (label && label.innerText !== shown) label.innerText = shown;
       const when = meta.visibleWhen, controller = when && effect.customProperties.find(q => q.properties.name.get() === when.property);
-      const own = !when || !!controller && matches(when, controller.get(frame));
+      const own = !when || !!controller && matchesController(when, controller, controller.get(frame));
       const group = groups ? groups.name(p) : "";
       const groupOk = !group || groups.members(p.parent, group).every(q => groupMemberPasses(q, effect, frame));
       const visible = own && groupOk;

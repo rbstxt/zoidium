@@ -202,7 +202,7 @@ parts.camera = (function () {
       }
 
       isActive() {
-        return this.properties.active.get() === 1;
+        return Number(this.properties.active.get()) === 1;
       }
 
       // Perspective film model, matching the CM3 camera's film math.

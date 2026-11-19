@@ -139,7 +139,7 @@ target.createGradientTexture = function (stops) {
 
 target.updateGradientTexture = function (stops) {
     if (!this.pzRampTexture) return;
-    var interpolation = this.properties.rampInterpolation.get() || 0;
+    var interpolation = Number(this.properties.rampInterpolation.get()) || 0;
     pzDrawGradient(this.pzRampTexture.image.data, stops, interpolation);
     this.pzRampTexture.needsUpdate = true;
 };
@@ -250,12 +250,12 @@ target.updateDefines = function () {
         PZ_NORMAL_IMAGE: (this.pzTextures.normalMap || this._zoidiumTextureSlots?.normalMap?.texture) ? 1 : 0,
         PZ_ENVIRONMENT: this.pzEnvironment?.texture ? 1 : 0,
         PZ_PROJECTION: this.properties.projection.get() || 0,
-        PZ_RAMP: this.properties.rampEnabled.get() === 1 ? 1 : 0,
+        PZ_RAMP: Number(this.properties.rampEnabled.get()) === 1 ? 1 : 0,
         PZ_RAMP_SRC: this.properties.rampSource.get() || 0,
-        PZ_FRESNEL: this.pzFresnel || this.properties.fresnel.get() === 1 ? 1 : 0,
-        PZ_AO: this.properties.aoEnabled.get() === 1 ? 1 : 0,
+        PZ_FRESNEL: this.pzFresnel || Number(this.properties.fresnel.get()) === 1 ? 1 : 0,
+        PZ_AO: Number(this.properties.aoEnabled.get()) === 1 ? 1 : 0,
         PZ_AO_MAP: this.pzTextures.ao ? 1 : 0,
-        PZ_CEL: this.properties.celEnabled.get() === 1 ? 1 : 0,
+        PZ_CEL: Number(this.properties.celEnabled.get()) === 1 ? 1 : 0,
         PZ_GRAPH_COLOR: this._nodeBaseMap ? 0 : graph.color ? 1 : 0,
     };
     var current = this.threeObj.defines || {};
@@ -284,7 +284,7 @@ target.refreshBindings = function () {
     needsUpdate = this.pzAssignMap("normalMap", this.pzTextures.normalMap) || needsUpdate;
     this.pzUniforms.uPzGraphColor.value = graph.color || null;
     this.pzUniforms.uPzAOMap.value = this.pzTextures.ao || null;
-    if (this.properties.bumpNoise.get() === 1) {
+    if (Number(this.properties.bumpNoise.get()) === 1) {
         needsUpdate = this.pzAssignMap("bumpMap", this.pzNoiseTexture) || needsUpdate;
     } else {
         needsUpdate = this.pzAssignMap("bumpMap", graph.bump) || needsUpdate;
@@ -296,7 +296,7 @@ target.refreshBindings = function () {
 };
 
 target.updateMipFalloff = function () {
-    var mip = this.properties.bumpMipFalloff.get() === 1;
+    var mip = Number(this.properties.bumpMipFalloff.get()) === 1;
     var wanted = mip ? (THREE.LinearMipmapLinearFilter ?? THREE.LinearMipMapLinearFilter) : THREE.LinearFilter;
     var list = [this.pzNoiseTexture, this.pzGraphTextures.bump];
     for (var i = 0; i < list.length; i++) {
@@ -314,7 +314,7 @@ target.updateBumpMap = function () {
         this.pzNoiseTexture.dispose();
         this.pzNoiseTexture = null;
     }
-    if (this.properties.bumpNoise.get() === 1) {
+    if (Number(this.properties.bumpNoise.get()) === 1) {
         var canvas = pzNoiseCanvas(256, this.properties.bumpNoiseScale.get(), 7);
         if (canvas) {
             this.pzNoiseTexture = new THREE.CanvasTexture(canvas);
@@ -344,7 +344,7 @@ target.bindGraphChannel = function (slot) {
     } else if (slot === "metalness") {
         return this.pzAssignMap("metalnessMap", graph.metalness);
     } else if (slot === "bump") {
-        if (this.properties.bumpNoise.get() !== 1) {
+        if (Number(this.properties.bumpNoise.get()) !== 1) {
             var changed = this.pzAssignMap("bumpMap", graph.bump);
             this.updateMipFalloff();
             return changed;
@@ -380,7 +380,7 @@ target.setGraphChannel = function (slot, canvas, batch) {
     if (has) {
         const texture = this.pzGraphTextures[slot];
         texture.magFilter = THREE.LinearFilter;
-        const mip = slot !== "bump" || this.properties.bumpMipFalloff.get() === 1;
+        const mip = slot !== "bump" || Number(this.properties.bumpMipFalloff.get()) === 1;
         texture.minFilter = mip ? (THREE.LinearMipmapLinearFilter ?? THREE.LinearMipMapLinearFilter) : THREE.LinearFilter;
         texture.generateMipmaps = mip;
     }
@@ -456,7 +456,7 @@ target.refreshAO = function () {
 };
 
 target.initReflection = function () {
-    var enabled = this.properties.reflection.get() === 1 || this.properties.reflReflection.get() === 1;
+    var enabled = Number(this.properties.reflection.get()) === 1 || Number(this.properties.reflReflection.get()) === 1;
     if (enabled && !this.threeObj.envMap) {
         this.threeObj.envMap = this.parentLayer?.envMap?.getTexture?.() || null;
         this.threeObj.needsUpdate = true;

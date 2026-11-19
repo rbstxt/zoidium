@@ -109,3 +109,20 @@ test("surface setImage does not throw for a detached material", () => {
   assert.equal(result, null);
   assert.equal(donor.pzImages.texture, null);
 });
+
+test("Image+ transparency follows the native option value", async () => {
+  const { harness } = require("./material-node-harness.js");
+  const h = harness();
+  require("../plugins/material-plus/image-plus.js").activate(h.context);
+  const material = h.material("imageplus");
+  try {
+    (await h.PZ.material.fnList.imageplus).call(material);
+    material.load();
+    material.properties.transparent.set("1");
+    material.update(0);
+    assert.equal(material.threeObj.transparent, true);
+    material.properties.transparent.set("0");
+    material.update(0);
+    assert.equal(material.threeObj.transparent, false);
+  } finally { material.unload(); for (const dispose of h.dispose.reverse()) dispose(); }
+});

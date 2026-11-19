@@ -17,7 +17,7 @@ const valueOf = property => property && typeof property.get === "function" ? pro
 // enabled flags, nesting and order, but no animated values.
 function outline(items) {
   return Array.from(items || [], item => {
-    const node = { id: item.id, kind: item.kind, properties: { enabled: valueOf(item.properties?.enabled) === 0 ? 0 : 1 } };
+    const node = { id: item.id, kind: item.kind, properties: { enabled: Number(valueOf(item.properties?.enabled)) === 0 ? 0 : 1 } };
     if (item.contents) node.contents = outline(item.contents);
     return node;
   });

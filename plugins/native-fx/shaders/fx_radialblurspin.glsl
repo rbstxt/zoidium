@@ -40,6 +40,9 @@ void main() {
 #endif
 
   float wt = weight;
+#ifdef CONSTANT_BRIGHTNESS
+  if (wt == 0.0) wt = 1.0;
+#endif
   float sum = 0.0;
   float aspect = resolution.x / resolution.y;
   float c = cos(angleStep);

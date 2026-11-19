@@ -85,10 +85,10 @@
     box.type = "checkbox";
     box.className = "pz-inputbox";
     box.setAttribute("aria-label", property.definition.name || "Cast shadows");
-    box.checked = property.get() === 1;
+    box.checked = Number(property.get()) === 1;
     box.onchange = function () {
       const value = box.checked ? 1 : 0;
-      if (value === property.get()) return;
+      if (value === Number(property.get())) return;
       const controls = row.closest && row.closest("ul") ? row.closest("ul").pz_controls : null;
       if (!controls || !PZ.ui || !PZ.ui.controls) {
         property.set(value);
@@ -100,7 +100,7 @@
     };
     // CM3 binds this to the row's property and calls it before every refresh.
     row.pz_update = function () {
-      const value = property.get() === 1;
+      const value = Number(property.get()) === 1;
       if (doc.activeElement !== box) box.checked = value;
     };
     row.appendChild(box);
@@ -139,7 +139,7 @@
         items: "off;on",
         zoidiumControl: CAST_SHADOWS_CONTROL,
         changed: function () {
-          applyCastShadows(this.parentObject, this.get() === 1);
+          applyCastShadows(this.parentObject, Number(this.get()) === 1);
         },
       },
     });
@@ -242,10 +242,10 @@
     let hidden = false;
     // Frame readiness walks child lists; a skipped subtree has no pending work.
     object.zoidiumSkipsWork = function (frame) {
-      return this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this);
+      return Number(this.properties.enabled.get(frame)) !== 1 && !mustUpdateGroup(this);
     };
     wrap(object, "update", function (frame) {
-      const enabled = this.properties.enabled.get(frame) === 1;
+      const enabled = Number(this.properties.enabled.get(frame)) === 1;
       if (!enabled && !mustUpdateGroup(this)) {
         if (!muteLight(this)) {
           if (this.threeObj) this.threeObj.visible = false;
@@ -260,7 +260,7 @@
       return inherited(this, "update").apply(this, arguments);
     });
     wrap(object, "prepare", function (frame) {
-      if (this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this)) {
+      if (Number(this.properties.enabled.get(frame)) !== 1 && !mustUpdateGroup(this)) {
         // An object-type swap can install a fresh, visible threeObj.
         if (!muteLight(this) && this.threeObj) this.threeObj.visible = false;
         return Promise.resolve();
@@ -268,7 +268,7 @@
       return inherited(this, "prepare").apply(this, arguments);
     });
     if (typeof ready === "function") wrap(object, "zoidiumFrameReady", function (frame) {
-      if (this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this)) return true;
+      if (Number(this.properties.enabled.get(frame)) !== 1 && !mustUpdateGroup(this)) return true;
       return inherited(this, "zoidiumFrameReady").apply(this, arguments);
     });
     return result;

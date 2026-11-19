@@ -109,14 +109,19 @@ void main() {
   float D = max(cameraDist, 1.0);
   float lx;
   float ly;
+  float denom = cosA * D - (aroundX ? rel.y : rel.x) * sinA;
+  if (denom == 0.0) {
+    gl_FragColor = vec4(0.0);
+    return;
+  }
   if (aroundX) {
-    ly = rel.y * D / (cosA * D - rel.y * sinA);
-    float s = D / (D - ly * sinA);
-    lx = rel.x / s;
+    ly = rel.y * D / denom;
+    float depth = D - ly * sinA;
+    lx = depth == 0.0 ? 0.0 : rel.x / (D / depth);
   } else {
-    lx = rel.x * D / (cosA * D - rel.x * sinA);
-    float s = D / (D - lx * sinA);
-    ly = rel.y / s;
+    lx = rel.x * D / denom;
+    float depth = D - lx * sinA;
+    ly = depth == 0.0 ? 0.0 : rel.y / (D / depth);
   }
   float pic = max(cardScale, 1.0);
   vec2 ext = halfCard * min(cardScale, 1.0);

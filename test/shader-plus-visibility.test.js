@@ -33,7 +33,7 @@ test("finite controller choices warn about unreachable conditions without reject
   assert.equal(unreachable(parseConditions("> 5"), controller("checkbox")), true);
   assert.equal(unreachable(parseConditions("1..5"), controller("checkbox")), false);
   assert.equal(unreachable({ values: ["2"] }, controller("staticDropdown")), false);
-  assert.equal(unreachable({ values: [2] }, controller("staticDropdown")), true, "static options retain strict string equality");
+  assert.equal(unreachable({ values: [2] }, controller("staticDropdown")), false);
 });
 test("visibility warnings preserve evaluated values and unknown controller ranges", () => {
   const when = parseConditions("3");
@@ -42,4 +42,14 @@ test("visibility warnings preserve evaluated values and unknown controller range
   assert.equal(unreachable(when, controller("dropdown", { keyframes: [{ value: 3 }] })), false);
   assert.equal(unreachable(when, controller("slider")), false);
   assert.equal(unreachable(when, null), false);
+});
+
+test("static dropdown conditions match the selected numeric index", () => {
+  const { matchesController } = require("../plugins/shader-plus/visibility");
+  const mode = controller("staticDropdown");
+  assert.equal(matchesController(parseConditions("1"), mode, "1"), true);
+  assert.equal(matchesController(parseConditions(">= 1"), mode, "2"), true);
+  assert.equal(matchesController(parseConditions("1..2"), mode, "0"), false);
+  assert.equal(matchesController({ values: ["1"] }, mode, "1"), true);
+  assert.equal(matchesController(parseConditions("1"), controller("slider"), "1"), false);
 });

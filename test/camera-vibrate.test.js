@@ -128,3 +128,21 @@ test("Camera+ update derives the pose from properties and time, not from the pre
   assert.deepEqual([object.threeObj.position.x, object.threeObj.position.y, object.threeObj.position.z], atFour);
   runtime.deactivate();
 });
+
+test("static option strings drive vibrate and survive serialization", () => {
+  const ctx = harness.createContext(), vibrate = loadVibrate(ctx.PZ, ctx.THREE);
+  const strings = { ...SHAKE, enabled: "1", enablePosition: "1", enableRotation: "1", regularPulse: "1", relative: "1" };
+  assert.deepEqual(pose(vibrate, ctx.PZ, ctx.THREE, 1.7, strings), pose(vibrate, ctx.PZ, ctx.THREE, 1.7, { ...SHAKE, regularPulse: 1, relative: 1 }));
+  assert.deepEqual(pose(vibrate, ctx.PZ, ctx.THREE, 1.7, { ...strings, enabled: "0" }).position, [10, 0, 80]);
+  const list = vibrate.createProperties(ctx.PZ); list.enabled.set("1");
+  assert.equal(list.enabled.get(), "1");
+});
+
+test("Active Camera accepts a static option string", () => {
+  const ctx = harness.createContext(), runtime = harness.loadRuntime(); runtime.activate(ctx.context);
+  try {
+    const camera = ctx.registry.instantiate("zoidium:camera-plus/camera");
+    camera.properties.active.set("1"); assert.equal(camera.isActive(), true);
+    camera.properties.active.set("0"); assert.equal(camera.isActive(), false);
+  } finally { runtime.deactivate(); }
+});

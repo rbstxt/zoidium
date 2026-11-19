@@ -150,3 +150,12 @@ test("16+ native shutter preparations keep fractional media samples outside the 
   assert.equal(boundary, 12);
   assert.equal(fractional, 708);
 });
+
+test("string off motion blur skips export shutter preparation", async () => {
+  const h = shutterHost({ start: 0, count: 4, shutter: 0.5 });
+  h.sequence.properties.motionBlur = { get: () => "0" };
+  try {
+    await h.state.prepareExportSamples(h.context, 100);
+    assert.deepEqual(h.preparedTimes, []);
+  } finally { h.root.unload(); }
+});
