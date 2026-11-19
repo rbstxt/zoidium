@@ -530,6 +530,7 @@
     }
 
     function graphKeyDown(event) {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === "Escape") {
         if (drag) { property.set(beforeEdit); graphPointerUp({ pointerId: drag.pointerId, type: "pointercancel" }); }
         selectedIndex = null;
