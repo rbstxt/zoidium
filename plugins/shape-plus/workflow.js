@@ -50,7 +50,7 @@ function install(context, Layer, Content) {
     });
   const owns = (target) =>
     !target?.closest?.(
-      "input,textarea,select,[contenteditable='true'],.editbox",
+      "input, textarea, select, [contenteditable]:not([contenteditable='false']), .editbox",
     ) &&
     [viewport.el, panels.top.el, panels.bottom.el].some((el) =>
       el.contains(target),
@@ -141,6 +141,7 @@ function install(context, Layer, Content) {
   async function keydown(event) {
     if (forwarded.has(event)) return;
     if (
+      event.isComposing || event.keyCode === 229 ||
       !(event.ctrlKey || event.metaKey) ||
       event.altKey ||
       !owns(event.target)
