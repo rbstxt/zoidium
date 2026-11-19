@@ -212,6 +212,7 @@ test("node shortcuts and menu leave composition and editable targets alone", () 
   const editable = { matches: () => false, closest: selector => selector.includes("contenteditable") ? {} : null };
   editor.element.dispatch("keydown", { key: "a", target: editable });
   assert.equal(selections.length, 0);
+  assert.doesNotThrow(() => editor.element.dispatch("keydown", { key: "x", target: null }));
   editor.element.dispatch("keydown", { key: "Tab" });
   const search = editor.element.querySelector(".zoidium-node-editor-search");
   for (const key of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {

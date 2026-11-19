@@ -107,7 +107,7 @@ function installActions(s, root, options = {}) {
   }
   s.finishNudge = finishNudge;
   const typing = (target) =>
-    !!target?.closest?.("input,textarea,select,[contenteditable]:not([contenteditable='false'])");
+    !!target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
   function keydown(event) {
     if (event.isComposing || event.keyCode === 229 || typing(event.target)) return;
     const key = event.key.toLowerCase(),

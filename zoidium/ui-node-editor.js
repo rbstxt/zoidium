@@ -634,7 +634,7 @@
       var key = event.key;
       var lower = key.length === 1 ? key.toLowerCase() : key;
       var target = event.target;
-      var inField = target !== cx.root && !!target.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
+      var inField = target !== cx.root && !!target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
       if (key === "Escape") {
         var consumed = true;
         if (cx.isMenuOpen()) cx.closeMenu(true);
