@@ -240,6 +240,10 @@
     } catch (_error) {
       return false;
     }
+    // Waiters from an earlier playhead position cannot block the new frame.
+    for (const schedule of (viewport.editor.project.sequence.videoSchedules || [])) {
+      if (schedule?.[PENDING_KEY] && schedule[PENDING_KEY].frame !== frame) cancelPending(schedule);
+    }
     if (!pending.length) {
       // Synchronously settled schedules release their waiters without a redraw:
       // the draw about to happen already presents the settled frame.

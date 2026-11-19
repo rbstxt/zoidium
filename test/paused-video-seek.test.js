@@ -298,3 +298,22 @@ test("a temporal preview without its own decoder keeps the native gate", () => {
   assert.equal(schedule.__zoidiumPausedSeek, undefined);
   api.timeoutMs = 1500;
 });
+
+test("scrubbing to a different clip cancels the old clip's waiter", () => {
+  const first = new FakeElement(), second = new FakeElement();
+  first.requestVideoFrameCallback = undefined;
+  second.requestVideoFrameCallback = undefined;
+  const a = makeSchedule(first, { start: 0, length: 20 });
+  const b = makeSchedule(second, { start: 20, length: 20 });
+  const host = makeHost([a, b], { frame: 10 });
+  installFor(host);
+  first.requestSeek(10 / 30);
+  host.viewport._render();
+  host.viewport.editor.playback.currentFrame = 25;
+  second.requestSeek(5 / 30);
+  host.viewport._render();
+  second.completeSeek();
+  assert.equal(host.viewport.renders, 1);
+  assert.equal(a.__zoidiumPausedSeek, undefined);
+  assert.equal(host.viewport.lastFrame, 25);
+});

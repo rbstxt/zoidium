@@ -775,3 +775,46 @@ test("frame cache disposal releases its controller after the project becomes nul
   assert.equal(h.canvasEvents.size, 0);
   assert.equal(h.viewport.__zoidiumOutputFrames, undefined);
 });
+
+test("hidden tabs do not schedule idle prefetch and resume when visible", async () => {
+  const h = harness({ prefetch: true });
+  h.document.hidden = true;
+  await h.warm(); h.cool(); h.viewport._render();
+  assert.equal(h.timers.size, 0, "hidden draws must not schedule private renders");
+  h.document.hidden = false;
+  h.docEvents.get("visibilitychange")();
+  assert.equal(h.timers.size, 1, "becoming visible schedules prefetch");
+  const [id, timer] = h.timers.entries().next().value;
+  h.timers.delete(id);
+  await timer();
+  for (let i = 0; i < 10; i++) await flush();
+  assert.equal(h.api.debug.prefetched, 1);
+  h.api.dispose();
+  assert.equal(h.docEvents.has("visibilitychange"), false);
+});
+
+test("hiding a tab cancels a scheduled idle prefetch", async () => {
+  const h = harness({ prefetch: true });
+  await h.warm(); h.cool(); h.viewport._render();
+  assert.equal(h.timers.size, 1);
+  h.document.hidden = true;
+  h.docEvents.get("visibilitychange")();
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.counts.privateFrames, undefined);
+  h.api.dispose();
+});
+
+test("hiding during video preparation prevents the private render", async () => {
+  const h = await videoHarness();
+  await h.start();
+  h.document.visibilityState = "hidden";
+  h.docEvents.get("visibilitychange")();
+  h.finish();
+  for (let i = 0; i < 10; i++) await flush();
+  assert.equal(h.counts.privateFrames, undefined);
+  assert.equal(h.api.debug.videoFilled || 0, 0);
+  h.document.visibilityState = "visible";
+  h.docEvents.get("visibilitychange")();
+  assert.ok(h.timers.size > 0, "prefetch resumes on visibility change");
+  h.api.dispose();
+});
