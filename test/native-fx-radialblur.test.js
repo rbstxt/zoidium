@@ -75,3 +75,20 @@ test("zero Weight keeps the normalized blur finite", () => {
   };
   assert.equal(normalize(0, 0.9, [0.2, 0.8]), normalize(1, 0.9, [0.2, 0.8]));
 });
+
+test("dynamic OPTION keys retain strings across load and drive Radial Blur", () => {
+  const { PZ } = require("./expressions-plus-harness").nativeHost();
+  const definition = { dynamic: true, type: PZ.property.type.OPTION, value: 1, items: "off;on" };
+  for (const raw of [1, "1", 0, "0"]) {
+    const property = PZ.property.create({ ...definition }); property.load(); property.set(raw, 0);
+    const saved = JSON.parse(JSON.stringify(property));
+    const reopened = PZ.property.create({ ...definition }); reopened.load(saved);
+    assert.equal(reopened.get(0), raw);
+    assert.equal(saved.keyframes[0].value, raw);
+    const spec = loadFilterSpec(), scalar = { get: () => 1 };
+    const effect = { properties: { enabled: reopened, decay: scalar, density: scalar, dither: scalar, weight: scalar, center: { get: () => [0, 0] } },
+      pass: { uniforms: { decay: {}, density: {}, dither: {}, weight: {}, center: { value: { set() {} } } } } };
+    spec.update.call(effect, 0);
+    assert.equal(effect.pass.enabled, Number(raw) === 1);
+  }
+});

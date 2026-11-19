@@ -112,7 +112,7 @@ ZoidiumPluginApis.defineFilter.call(this, {
   },
   update(frame) {
     if (!this.pass) return;
-    this.pass.enabled = this.properties.enabled.get(frame);
+    this.pass.enabled = Number(this.properties.enabled.get(frame)) === 1;
     this.pass.uniforms.decay.value = this.properties.decay.get(frame);
     this.pass.uniforms.density.value = this.properties.density.get(frame);
     this.pass.uniforms.dither.value = this.properties.dither.get(frame);
