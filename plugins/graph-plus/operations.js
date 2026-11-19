@@ -484,7 +484,7 @@ PZ.ui.graph.prototype.keydown = function (e) {
     for (var i = 0; i < snap.length; i++) {
       var sn = snap[i];
       sn.el.pz_oldFrame = sn.oldF;
-      if (df) sn.kf.frame = Math.round(sn.oldF + df);
+      if (df) sn.kf.frame = sn.oldF + df;
       if (dvPx) sn.kf.value = sn.oldV + (dvPx * this.zoomY) / sn.scale;
       this.refreshAdjacentCurves(sn.el);
     }
