@@ -190,7 +190,7 @@ var PZ = PZ || {};
         var fTime = t / 30;
         var fluid = this.properties.fluid;
         var kaleido = this.properties.kaleidospace;
-        var fluidOn = fluid.fluidMotion.get(t) === 1;
+        var fluidOn = Number(fluid.fluidMotion.get(t)) === 1;
         var buoyancy = fluidOn ? fluid.buoyancy.get(t) : 0;
         var swirlOn = fluidOn && fluid.randomSwirl.get(t) === 1;
         var swirlScale = fluidOn ? fluid.swirlScale.get(t) : 10;
@@ -199,9 +199,9 @@ var PZ = PZ || {};
         var vortexCore = fluidOn ? fluid.vortexCoreSize.get(t) : 50;
         var vortexTilt = fluidOn ? (fluid.vortexTilt.get(t) * Math.PI) / 180 : 0;
         var vortexRotate = fluidOn ? (fluid.vortexRotate.get(t) * Math.PI) / 180 : 0;
-        var mirrorX = kaleido.mirrorX.get(t) === 1;
-        var mirrorY = kaleido.mirrorY.get(t) === 1;
-        var mirrorZ = kaleido.mirrorZ.get(t) === 1;
+        var mirrorX = Number(kaleido.mirrorX.get(t)) === 1;
+        var mirrorY = Number(kaleido.mirrorY.get(t)) === 1;
+        var mirrorZ = Number(kaleido.mirrorZ.get(t)) === 1;
         var kaleidoBehaviour = kaleido.behaviour.get(t);
         var kaleidoCenterRaw = kaleido.center.get(t);
         // Sphere / kaleido positions are authored in comp pixels (default 720,540).
@@ -234,12 +234,12 @@ var PZ = PZ || {};
         var fractalScale = Math.max(fScale, 0.01) * 0.0005;
         var useFractal = fractalAmount !== 0 || fractalY !== 0 || fractalZ !== 0 || affectSize !== 0 || affectOpacity !== 0;
         var maps = this.properties.layerMaps;
-        var fractalStrengthSample = maps.fractalStrengthEnabled.get(t) === 1 ? this.layerSample(maps.fractalStrengthLayer) : null;
-        var displacementSample = maps.displacementEnabled.get(t) === 1 ? this.layerSample(maps.displacementLayer) : null;
-        var rotateSample = maps.rotateEnabled.get(t) === 1 ? this.layerSample(maps.rotateLayer) : null;
-        var colorMapSample = maps.colorAlphaEnabled.get(t) === 1 ? this.layerSample(maps.colorAlphaLayer) : null;
-        var sizeMapSample = maps.sizeEnabled.get(t) === 1 ? this.layerSample(maps.sizeLayer) : null;
-        var disperseMapSample = maps.disperseEnabled.get(t) === 1 ? this.layerSample(maps.disperseLayer) : null;
+        var fractalStrengthSample = Number(maps.fractalStrengthEnabled.get(t)) === 1 ? this.layerSample(maps.fractalStrengthLayer) : null;
+        var displacementSample = Number(maps.displacementEnabled.get(t)) === 1 ? this.layerSample(maps.displacementLayer) : null;
+        var rotateSample = Number(maps.rotateEnabled.get(t)) === 1 ? this.layerSample(maps.rotateLayer) : null;
+        var colorMapSample = Number(maps.colorAlphaEnabled.get(t)) === 1 ? this.layerSample(maps.colorAlphaLayer) : null;
+        var sizeMapSample = Number(maps.sizeEnabled.get(t)) === 1 ? this.layerSample(maps.sizeLayer) : null;
+        var disperseMapSample = Number(maps.disperseEnabled.get(t)) === 1 ? this.layerSample(maps.disperseLayer) : null;
         var useColors = !!colorMapSample;
         this.setVertexColors(useColors);
 
@@ -584,11 +584,11 @@ var PZ = PZ || {};
         var reactorSize = 1;
         var reactorOpacity = 1;
         if (formAudio && audioLevel > 0) {
-            if (formAudio.reactor1.get(t) === 1) reactorSize = 1 + audioLevel;
-            if (formAudio.reactor2.get(t) === 1) reactorOpacity = 1 + audioLevel;
-            if (formAudio.reactor3.get(t) === 1) audioMult.disperse = 1 + audioLevel;
-            if (formAudio.reactor4.get(t) === 1) audioMult.fractal = 1 + audioLevel;
-            if (formAudio.reactor5.get(t) === 1) audioMult.twist = 1 + audioLevel;
+            if (Number(formAudio.reactor1.get(t)) === 1) reactorSize = 1 + audioLevel;
+            if (Number(formAudio.reactor2.get(t)) === 1) reactorOpacity = 1 + audioLevel;
+            if (Number(formAudio.reactor3.get(t)) === 1) audioMult.disperse = 1 + audioLevel;
+            if (Number(formAudio.reactor4.get(t)) === 1) audioMult.fractal = 1 + audioLevel;
+            if (Number(formAudio.reactor5.get(t)) === 1) audioMult.twist = 1 + audioLevel;
         }
         this.applyDeformations(count, audioMult);
 
@@ -624,11 +624,11 @@ var PZ = PZ || {};
         var shadeGroup = this.properties.shading;
         var shadeOn = false;
         try {
-            shadeOn = shadeGroup && shadeGroup.shading.get(t) === 1;
+            shadeOn = shadeGroup && Number(shadeGroup.shading.get(t)) === 1;
         } catch (_shade) { shadeOn = false; } // Absent on old saves: shading stays off.
         T.shading.update(this.material, shadeGroup, this.threeObj,
             shadeOn ? T.shading.boxFromPositions(this.outPositions, count) : null);
-        var additive = particle.blending.get(t) === 1;
+        var additive = Number(particle.blending.get(t)) === 1;
         T.setParticleBlending(this.material, additive);
         if (this.stringMaterial) {
             // String size raises line opacity (line width is fixed at 1:

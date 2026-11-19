@@ -142,6 +142,7 @@ var PZ = PZ || {};
         try {
             if (!group || !group[key] || typeof group[key].get !== "function") return fallback;
             var v = group[key].get(T.currentTime);
+            if (key === "shading") v = Number(v);
             return typeof v === "number" && isFinite(v) ? v : fallback;
         } catch (_error) {
             return fallback;
