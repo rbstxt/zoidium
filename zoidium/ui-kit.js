@@ -96,7 +96,7 @@
         var cancelButton = buttons[0];
         var confirmButton = buttons[1];
         function onKey(event) {
-          if (!event || event.key !== "Enter" || event.defaultPrevented) return;
+          if (!event || event.key !== "Enter" || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
           // A focused button activates itself; anything else confirms.
           if (event.target && event.target !== confirmButton
             && event.target.tagName === "BUTTON") {

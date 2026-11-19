@@ -562,7 +562,8 @@
     var EDITOR_COMMAND_KEYS = { z: true, y: true, s: true };
     ["keydown", "keyup", "keypress"].forEach(function (type) {
       root.addEventListener(type, function (event) {
-        if (type === "keydown" && event.key === "Escape" && !event.defaultPrevented) {
+        if (type === "keydown" && event.key === "Escape" && !event.defaultPrevented
+            && !event.isComposing && event.keyCode !== 229) {
           event.preventDefault();
           win.close();
         }

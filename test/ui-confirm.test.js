@@ -241,6 +241,21 @@ test("Escape resolves false", async () => {
   assert.equal(win.removed, true);
 });
 
+test("composition keys do not resolve or close a confirm dialog", async () => {
+  const { api, document } = loadKit();
+  const promise = api.confirm({ message: "Continue?" });
+  const win = confirmWindow(document);
+  const message = win.querySelectorAll("p")[0];
+  for (const key of ["Enter", "Escape"]) {
+    for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+      win.fire("keydown", { key, target: message, ...composition, preventDefault() {}, stopPropagation() {} });
+      assert.equal(win.removed, false, `${key} must leave the dialog open`);
+    }
+  }
+  footerButtons(win)[0].click();
+  assert.equal(await promise, false);
+});
+
 test("Enter confirms from the message body", async () => {
   const { api, document } = loadKit();
   const promise = api.confirm({ message: "Enable this plugin?" });
