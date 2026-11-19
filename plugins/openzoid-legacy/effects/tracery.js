@@ -111,7 +111,7 @@ this.update = function (e) {
     }
     var on = false;
     try {
-        on = this.properties.enabled.get(e) === 1;
+        on = Number(this.properties.enabled.get(e)) === 1;
     } catch (err) {}
     // The effect sits under a small list of effects before its layer.
     var res = null;

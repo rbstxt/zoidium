@@ -239,6 +239,11 @@ test("tracery effect loads, collects state, and toggles", async () => {
     [30, 35]
   );
   assert.equal(inst.pass.overlayState.points[0].label, "A");
+  inst.properties.enabled = { get: () => "1" };
+  inst.properties.point1Enable = { get: () => "1" };
+  fakeThis.update.call(inst, 0);
+  assert.equal(inst.pass.enabled, true);
+  assert.equal(inst.pass.overlayState.points.length, 1);
   inst.properties.enabled = { get: () => 0 };
   fakeThis.update.call(inst, 0);
   assert.equal(inst.pass.enabled, false, "effect toggle disables the pass");

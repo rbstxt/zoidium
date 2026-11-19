@@ -537,7 +537,7 @@ this.update = function (e) {
     }
     var on = false;
     try {
-        on = this.properties.enabled.get(e) === 1;
+        on = Number(this.properties.enabled.get(e)) === 1;
     } catch (err) {}
     this.pass.enabled = on;
     this.pass.asciiState = st;

@@ -214,6 +214,9 @@ test("ascii effect loads, collects state, and toggles", async () => {
   assert.equal(inst.pass.enabled, true);
   assert.ok(inst.pass.asciiState, "state collected");
   assert.equal(inst.pass.asciiState.blockSize, 23);
+  inst.properties.enabled = { get: () => "1" };
+  fakeThis.update.call(inst, 0);
+  assert.equal(inst.pass.enabled, true);
   inst.properties.enabled = { get: () => 0 };
   fakeThis.update.call(inst, 0);
   assert.equal(inst.pass.enabled, false, "effect toggle disables the pass");

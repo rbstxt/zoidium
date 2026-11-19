@@ -98,7 +98,7 @@ ZoidiumPluginApis.defineFrameSampler.call(vhsEffect, {
 
             pass.tubeUniforms.time.value = t;
             pass.tubeUniforms.amount.value = amount;
-            pass.enabled = props.enabled.get(e) === 1 && amount !== 0;
+            pass.enabled = Number(props.enabled.get(e)) === 1 && amount !== 0;
         },
         unload() {
             if (vhsEffect.pass) {

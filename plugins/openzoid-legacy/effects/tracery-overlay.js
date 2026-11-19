@@ -315,7 +315,7 @@ function trCollectState(props, e) {
         (function (n) {
             var on = false;
             try {
-                on = props["point" + n + "Enable"].get(e) === 1;
+                on = Number(props["point" + n + "Enable"].get(e)) === 1;
             } catch (err) {}
             if (!on) return;
             var at = function (key, fb) {
