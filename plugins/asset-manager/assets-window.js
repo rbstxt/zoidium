@@ -82,6 +82,7 @@ function createAssetsWindow(session) {
     kit: session.kit,
     document: doc,
     registry: () => session.registry(),
+    editor: () => session.window.CM || session.editor,
     notify: (detail) => session.notify(detail),
     actions,
   });
