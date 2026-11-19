@@ -30,7 +30,7 @@
           if (!field.value.trim() || state.selected()?.id !== current.id) return;
           state.rename(field.value); mounted.close();
         };
-        field.addEventListener("keydown", function (event) { if (event.key === "Enter") { event.preventDefault(); value(); } });
+        field.addEventListener("keydown", function (event) { if (event.isComposing || event.keyCode === 229) return; if (event.key === "Enter") { event.preventDefault(); value(); } });
         mounted.setFooter([{ title: "Cancel", onClick: function () { mounted.close(); } }, { title: "Rename", variant: "primary", onClick: value }]);
       },
     });
@@ -106,6 +106,7 @@
           }
           input.addEventListener("input", function () { input.setAttribute("aria-invalid", model.color(input.value) ? "false" : "true"); });
           input.addEventListener("keydown", function (event) {
+            if (event.isComposing || event.keyCode === 229) return;
             if (event.key === "Enter") { event.preventDefault(); applyInput(); }
             if (event.key === "Escape") {
               event.preventDefault(); event.stopPropagation();
@@ -191,7 +192,8 @@
           revertButton.disabled = !state.isDirty(); resetAll.disabled = !Object.keys(state.selected()?.clips || {}).length;
         }
         function onKey(event) {
-          var typing = /^(INPUT|TEXTAREA)$/.test(event.target.tagName);
+          if (event.isComposing || event.keyCode === 229) return;
+          var typing = !!event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
           if ((event.ctrlKey || event.metaKey) && !typing && /^(z|y)$/i.test(event.key)) {
             event.preventDefault(); event.stopPropagation();
             if (event.key.toLowerCase() === "y" || event.shiftKey) state.redo(); else state.undo();
