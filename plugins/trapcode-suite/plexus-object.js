@@ -131,7 +131,7 @@ var PZ = PZ || {};
         requestAssets() {
             var out = [];
             var t = PZ.trapcode.currentTime;
-            if (this.properties.common.enabled.get(t) !== 1) return out;
+            if (Number(this.properties.common.enabled.get(t)) !== 1) return out;
             if (this.isEffector()) {
                 if (Math.round(this.properties.effector.effectorType.get(t)) !== 6) return out;
                 var audioValue = this.properties.effector.audioLayer.get(t);
@@ -144,7 +144,7 @@ var PZ = PZ || {};
             }
             if (!this.isGeometry()) return out;
             var g = this.properties.geometry;
-            var type = g.geometryType.get(t);
+            var type = Number(g.geometryType.get(t));
             var project = T.findParent(this, PZ.project);
             var entry = null;
             if (type === 0) {
@@ -165,7 +165,7 @@ var PZ = PZ || {};
         sourcePoints() {
             var t = PZ.trapcode.currentTime;
             var g = this.properties.geometry;
-            var type = g.geometryType.get(t);
+            var type = Number(g.geometryType.get(t));
             var key = this.sourceKey(type);
             if (this._sourcePoints && this._sourceKey === key) return this._sourcePoints;
             var points = this.generatePoints(type);
@@ -515,7 +515,7 @@ var PZ = PZ || {};
         }
         applyColorMap(pos, col, count, e) {
             var t = PZ.trapcode.currentTime;
-            var mode = e.colorMapMode.get(t);
+            var mode = Number(e.colorMapMode.get(t));
             var a = e.color.get(t);
             var b = e.color2 ? e.color2.get(t) : [1, 1, 1];
             for (var i = 0; i < count; i++) {
@@ -575,7 +575,7 @@ var PZ = PZ || {};
             var color = r.color.get(t);
             state.color = [color[0], color[1], color[2]];
             state.opacity = r.opacity.get(t);
-            var type = r.rendererType.get(t);
+            var type = Number(r.rendererType.get(t));
             if (type === 0) {
                 state.points = true;
                 state.size = Math.max(0, Math.min(10, r.size.get(t)));
