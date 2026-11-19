@@ -898,6 +898,7 @@
       var editor = global.CM;
       try {
         if (shared.refuseDuringExport(editor)) return;
+        if (editor._zoidiumSavePromise) await editor._zoidiumSavePromise;
         var response = await archiveIO.bounded(global.fetch(message.url), "Desktop project read");
         if (!response.ok) throw new Error("The project file is no longer available.");
         var length = response.headers && response.headers.get ? response.headers.get("content-length") : 0;

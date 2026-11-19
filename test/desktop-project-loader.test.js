@@ -171,6 +171,20 @@ test("a desktop import waits for a toolbar transition instead of discarding the 
   assert.deepEqual(run.calls.at(-1), ["complete", "queued"]);
 });
 
+test("a desktop import waits for a pending save before reading the file", async () => {
+  const run = harness();
+  let finish;
+  run.editor._zoidiumSavePromise = new Promise(resolve => { finish = resolve; });
+  const operation = run.bridge.receive({ id: "queued", name: "Saved.PZ", url: "/_zoidium/desktop-project/queued" });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(run.calls.some(call => Array.isArray(call) && call[0] === "fetch"), false);
+  run.editor._zoidiumSavePromise = null;
+  finish();
+  await operation;
+  assert.equal(run.editor.project, run.editor.nextProject);
+  assert.deepEqual(run.calls.at(-1), ["complete", "queued"]);
+});
+
 const busyErrors = run => run.events.filter(event => event.type === "zoidium:project-error" &&
   /An export is using this project/.test(event.detail.message));
 
