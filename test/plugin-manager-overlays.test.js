@@ -112,6 +112,22 @@ test("manager source evaluator preserves native receivers and module arguments",
 });
 module.exports = { loadManager };
 
+test("plugin lifecycle repeatedly closes owned windows and menus", async () => {
+  const { sandbox, manager } = loadManager();
+  const windows = new Set(), menus = new Set();
+  sandbox.ZoidiumUI = {
+    openWindow() { const win = { onClose(fn) { this.closed = fn; }, close() { windows.delete(this); this.closed(); } }; windows.add(win); return win; },
+    openMenu(options) { const menu = { isOpen: () => true, close() { menus.delete(this); options.onClose(); } }; menus.add(menu); return menu; },
+  };
+  for (let i = 0; i < 15; i++) {
+    const lifecycle = manager.createModuleLifecycle("fixture"), ui = manager.createModuleUi({ id: "fixture" }, lifecycle);
+    ui.openWindow({ id: "window" }); ui.openMenu({});
+    assert.equal(windows.size, 1); assert.equal(menus.size, 1);
+    await lifecycle.dispose();
+    assert.equal(windows.size, 0); assert.equal(menus.size, 0);
+  }
+});
+
 test("runtime staging includes every configured plugin manager overlay", async () => {
   const os = require("node:os");
   const { copyProjectFiles } = require("../tools/runtime-resources-stage");
