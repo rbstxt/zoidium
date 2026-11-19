@@ -89,6 +89,12 @@ test("editor installation restores its native property renderer and every listen
     installed.dispose(); installed.dispose();
     assert.equal(PZ.ui.controls.generateInput3, originalInput);
     for (const item of [canvas, document, window, list.onListChanged, viewport.onEditChanged, editor.onProjectChanged]) assert.equal(item.listeners.size, 0);
+    for (let i = 0; i < 15; i++) {
+      const next = installFieldEdit(PZ, {});
+      assert.equal(document.listeners.size, 3);
+      next.dispose();
+      for (const item of [canvas, document, window, list.onListChanged, viewport.onEditChanged, editor.onProjectChanged]) assert.equal(item.listeners.size, 0);
+    }
   } finally { globalThis.CM = previous.CM; globalThis.ZoidiumUI = previous.ui; }
 });
 
