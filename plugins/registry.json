@@ -462,7 +462,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "18",
+      "version": "19",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -470,9 +470,9 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=18",
-      "bundle": "./plugins/layer-input/bundle.json?v=18",
-      "integrity": "sha256-K/8Ca/+S+3qs+TXUrni+Pl1ngaD66i8fm2/hb3BW7A8="
+      "manifest": "./plugins/layer-input/manifest.json?v=19",
+      "bundle": "./plugins/layer-input/bundle.json?v=19",
+      "integrity": "sha256-l44V2hW+S9dbiS5nHJ1YvgBgbbvDSyKMa8DKv6zlQOw="
     },
     {
       "id": "shape-plus",

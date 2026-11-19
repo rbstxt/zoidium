@@ -221,7 +221,25 @@ module.exports = function createUi(state, deps) {
         const consumer = property.parentObject;
         const frame = container.pz_frame;
         const value = modeSelect.value;
-        deps.setSourceMode(consumer, value, { sourceProperty: property });
+        const editor = state.editor;
+        const history = editor?.history;
+        const previous = deps.getSourceMode(consumer, property);
+        if (history && history.operation === null && previous !== value) {
+          const exchange = (command) => {
+            const target = editor.project.addressLookup(command.address, 0);
+            const current = deps.getSourceMode(target.parentObject, target);
+            deps.setSourceMode(target.parentObject, command.mode, { sourceProperty: target });
+            history.pushCommand(exchange, { address: command.address, mode: current });
+            editor.project.ui?.onChanged?.update?.();
+          };
+          history.startOperation();
+          try {
+            deps.setSourceMode(consumer, value, { sourceProperty: property });
+            history.pushCommand(exchange, { address: property.getAddress(), mode: previous });
+            editor.project.ui?.onChanged?.update?.();
+          } finally { history.finishOperation(); }
+        }
+        modeSelect.value = deps.getSourceMode(consumer, property);
         refresh(frame);
       };
     }
