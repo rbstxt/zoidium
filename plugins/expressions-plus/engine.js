@@ -143,7 +143,8 @@ function installEngine(options) {
       const value = result.fn(frame, time, context.methods, custom, pure.Math, helpers);
       const error = unusableResult(expression, property, value);
       report(expression, property, error);
-      if (error) return base !== undefined ? base : baseAt(property, frame);
+      // Custom properties can expose helper functions to other expressions.
+      if (error && typeof value !== "function") return base !== undefined ? base : baseAt(property, frame);
       return value;
     } catch (error) { report(expression, property, error); return base !== undefined ? base : baseAt(property, frame); }
     finally { if (previousOverrides) guard.swapOverrides(previousOverrides); active.delete(property); }
