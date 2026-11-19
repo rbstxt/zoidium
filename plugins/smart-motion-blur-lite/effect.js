@@ -139,7 +139,7 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
   getRequest(_effect, frame) {
     const c = settings(frame),reduced=c.quality>0;
     const offset=c.trackFrame===1||frame===0?1:-1;
-    return { enabled: c.enabled && c.sensitivity > 0 && (offset>0||frame>=1) && (c.debugVectors > 0 || (c.strength > 0 && c.radius > 0)), preserveInputRGB: true, lockCurrentFrame: true, reuseCurrentInput:reduced, frames: reduced?[offset,0]:[offset],decodeMedia:reduced?effect._smbDecodeMedia:null };
+    return { enabled: c.enabled && c.sensitivity > 0 && (c.debugVectors > 0 || (c.strength > 0 && c.radius > 0)), preserveInputRGB: true, lockCurrentFrame: true, reuseCurrentInput:reduced, frames: reduced?[offset,0]:[offset],decodeMedia:reduced?effect._smbDecodeMedia:null };
   },
   lifecycle: {
     load(data) {
