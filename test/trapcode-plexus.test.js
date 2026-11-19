@@ -113,6 +113,23 @@ test("Plexus effectors, renderers and asset requests accept string enabled keys"
   assert.deepEqual(geometry.requestAssets(), ["obj"]);
 });
 
+test("Terrain preset reuses renderers with string type keys", () => {
+  const { PZ } = loadSuite(["trapcode-common.js", "designer.js", "plexus.js"]);
+  const root = new PZ.object3d.plexus();
+  root.load(null);
+  const lines = root.objects.find(object => object.isRenderer());
+  lines.properties.renderer.rendererType.set("1");
+  const points = new PZ.object3d.plexus.object();
+  root.objects.push(points);
+  points.load({ objectKind: 2, subType: 0, properties: {} });
+  points.properties.renderer.rendererType.set("0");
+  root.update = () => {};
+  const config = PZ.object3d.plexus.designer;
+  config.applyPreset(root, root, { preset: "terrain" });
+  assert.equal(root.objects.filter(object => object.isRenderer()).length, 2);
+  assert.ok(root.objects.includes(lines) && root.objects.includes(points));
+});
+
 test("line renderer links exactly the pairs a brute-force search finds", () => {
   const { root } = setup();
   const lines = root.objects[1];

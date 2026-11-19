@@ -122,7 +122,7 @@ var PZ = PZ || {};
             } else if (o.isEffector()) {
                 if (!noise) noise = o;
             } else if (o.isRenderer()) {
-                var type = o.properties.renderer.rendererType.get(t);
+                var type = Number(o.properties.renderer.rendererType.get(t));
                 if (type === 1 && !lines) lines = o;
                 else if (type === 0 && !points) points = o;
             }
