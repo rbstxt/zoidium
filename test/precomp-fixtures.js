@@ -566,7 +566,7 @@ function createEnvironment() {
   const project = new PZ.project();
   project.sequence.videoTracks.push(new PZ.track.video());
   const editor = new PZ.Editor(project);
-  const uninstall = engine.install();
+  const uninstall = engine.install(editor);
   return { PZ, engine, project, editor, tracks: editor.timeline.tracks, uninstall };
 }
 

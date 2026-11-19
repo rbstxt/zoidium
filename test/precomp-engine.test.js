@@ -693,3 +693,99 @@ test("muted composition audio tracks do not enter the audio schedule", () => {
   assert.equal(proxies.length, 1);
   assert.equal(proxies[0].media, nested[1].clips[0].media);
 });
+
+test("pre-compose keeps visible clips visible when the top selected track is muted", () => {
+  const env = createEnvironment();
+  const muted = addClip(env, 0, { start: 0, length: 30, name: "Muted" });
+  const visible = addClip(env, 1, { start: 0, length: 30, name: "Visible" });
+  env.project.sequence.videoTracks[0].enabled = false;
+  env.tracks.selectedClips = [muted, visible];
+
+  const result = env.engine.precompose(env.editor, "Together");
+  assert.equal(result.ok, true, result.message);
+  const track = env.project.sequence.videoTracks.find((item) => item.clips.some((clip) => clip.object.compId === result.id));
+  assert.equal(track.enabled, true);
+  track.update(10);
+  track.layer.update(10);
+  assert.equal(track.layer.activeClips.length, 1);
+  assert.equal(track.layer.activeClips[0].properties.name.v, "Visible");
+});
+
+test("pre-compose refuses a muted destination when enabled selected tracks are blocked", () => {
+  const env = createEnvironment();
+  const muted = addClip(env, 0, { start: 0, length: 10, name: "Muted" });
+  const visible = addClip(env, 1, { start: 20, length: 10, name: "Visible" });
+  addClip(env, 1, { start: 0, length: 10, name: "Other" });
+  env.project.sequence.videoTracks[0].enabled = false;
+  env.tracks.selectedClips = [muted, visible];
+  assert.equal(env.engine.precompose(env.editor, "Together").ok, false);
+  assert.equal(env.project.media.length, 0);
+  assert.equal(env.project.sequence.videoTracks[0].clips[0], muted);
+});
+
+test("composition media completion refreshes a paused preview once", async () => {
+  const env = createEnvironment();
+  let resolve;
+  const media = addCompMedia(env, "X", "X", [{ type: 0, clips: [clipJSON(0, 30, "Video")] }]);
+  media.loaded = false;
+  media.loading = new Promise((done) => { resolve = done; });
+  const clip = addClip(env, 0, { start: 0, length: 30, compId: "X" });
+  let draws = 0, clears = 0, touches = 0, analyses = 0;
+  env.editor.playback.speed = 0;
+  env.editor.mainViewport = { enabled: true, lastFrame: 10, _render() { draws++; } };
+  const oldCache = globalThis.ZoidiumFrameCache;
+  globalThis.ZoidiumFrameCache = { clear() { clears++; }, touch() { touches++; } };
+  const analyze = env.PZ.schedule.analyzeSequence;
+  env.PZ.schedule.analyzeSequence = function (seq) { analyses++; return analyze(seq); };
+  try {
+    for (let i = 0; i < 5; i++) {
+      clip.object.nestedTracks();
+      clip.object.nestedAudioTracks();
+    }
+    media.loaded = true;
+    resolve();
+    await media.loading;
+    await Promise.resolve();
+    assert.equal(analyses, 1);
+    assert.equal(clears, 1);
+    assert.equal(touches, 1);
+    assert.equal(draws, 1);
+    assert.equal(env.editor.mainViewport.lastFrame, -1);
+  } finally {
+    globalThis.ZoidiumFrameCache = oldCache;
+    env.uninstall();
+  }
+});
+
+test("composition media completion avoids extra playback draws and stale project redraws", async () => {
+  for (const scenario of ["playing", "drawing paused", "project replaced", "media removed"]) {
+    const env = createEnvironment();
+    let resolve, draws = 0, clears = 0, analyses = 0;
+    const media = addCompMedia(env, "X", "X", []);
+    media.loaded = false;
+    media.loading = new Promise((done) => { resolve = done; });
+    const clip = addClip(env, 0, { start: 0, length: 30, compId: "X" });
+    env.editor.playback.speed = scenario === "playing" ? 1 : 0;
+    env.editor.mainViewport = { enabled: true, __zoidiumPlayerPlusPaused: scenario === "drawing paused", _render() { draws++; } };
+    const oldCache = globalThis.ZoidiumFrameCache;
+    globalThis.ZoidiumFrameCache = { clear() { clears++; }, touch() {} };
+    const analyze = env.PZ.schedule.analyzeSequence;
+    env.PZ.schedule.analyzeSequence = function (seq) { analyses++; return analyze(seq); };
+    try {
+      clip.object.nestedTracks();
+      if (scenario === "project replaced") env.editor.project = new env.PZ.project();
+      if (scenario === "media removed") env.project.media.splice(0, 1);
+      media.loaded = true;
+      resolve();
+      await media.loading;
+      await Promise.resolve();
+      assert.equal(draws, 0, scenario);
+      const active = scenario === "playing" || scenario === "drawing paused";
+      assert.equal(analyses, active ? 1 : 0, scenario);
+      assert.equal(clears, active ? 1 : 0, scenario);
+    } finally {
+      globalThis.ZoidiumFrameCache = oldCache;
+      env.uninstall();
+    }
+  }
+});
