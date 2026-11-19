@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "0e7d3980f9bd0ecce0c02b17ea1aead1a695ffe77192f5b11a7fbb117e505be0",
+  "fingerprint": "d1195da1dcf6b90f7407682cc2b0f2894cd02201aefac189dd000918476a0aa2",
   "plugins": {
     "native-fx": {
       "version": "40",
@@ -72,7 +72,7 @@
       ]
     },
     "repeater": {
-      "version": "44",
+      "version": "45",
       "cases": [
         "Repeater",
         "Linear Repeater",
@@ -96,7 +96,7 @@
       ]
     },
     "trapcode-suite": {
-      "version": "52",
+      "version": "53",
       "cases": [
         "Particular",
         "Default burst",
@@ -148,7 +148,7 @@
       ]
     },
     "camera-plus": {
-      "version": "21",
+      "version": "22",
       "cases": [
         "scene-camera-animation",
         "shared-camera-animation",
@@ -156,7 +156,7 @@
       ]
     },
     "layer-input": {
-      "version": "17",
+      "version": "18",
       "cases": [
         "animated-source",
         "nested-source",
@@ -168,6 +168,7 @@
         "time-displacement-image",
         "material-image",
         "shader-source",
+        "shader-source-mode-edit",
         "shader-masks",
         "shader-effects-masks",
         "animated-source-full"
