@@ -99,6 +99,7 @@ function installCodeWindows({ context, patch, presetFont }) {
         if (!expression) templateTools = require("./code-templates.js").installTemplates({ context, object, toolbar, node, aids, input, valid, presetFont, error });
         input.onscroll = () => { gutter.scrollTop = input.scrollTop; highlight.scrollTop = input.scrollTop; highlight.scrollLeft = input.scrollLeft; };
         input.onkeydown = event => {
+          if (event.isComposing || event.keyCode === 229) return;
           if (aids.key(event)) { event.preventDefault(); event.stopPropagation(); }
           else if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "s" || event.key === "Enter")) { event.preventDefault(); commit(); }
         };

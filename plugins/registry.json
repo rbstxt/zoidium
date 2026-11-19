@@ -80,7 +80,7 @@
       "description": "Native custom shader controls with optional baked texture inputs.",
       "manifest": "./plugins/shader-plus/manifest.json?v=32",
       "bundle": "./plugins/shader-plus/bundle.json?v=32",
-      "integrity": "sha256-AI6m+dd5VjAOKQSqUfhEt/Q1Fcem4hRWxne2pFcMkD4="
+      "integrity": "sha256-/gVr/RYOOqPYSpCu6MEI/4aEhbeG6vipPXFDXPZB97M="
     },
     {
       "id": "player-plus",

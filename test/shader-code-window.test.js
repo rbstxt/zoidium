@@ -1,6 +1,31 @@
 "use strict";
 const test = require("node:test"), assert = require("node:assert/strict");
 const { indentCode, shaderSymbols } = require("../plugins/shader-plus/code-model.js");
+const { FakeElement } = require("./fake-dom.js");
+const { installCodeWindows } = require("../plugins/shader-plus/code-window.js");
+test("code window does not apply a composing shortcut", () => {
+  class Element extends FakeElement {
+    append(...items) { items.forEach(item => this.appendChild(item)); }
+    setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; }
+  }
+  const doc = { createElement: tag => new Element(tag) }, body = new Element("div");
+  const property = { expression: { source: "old" }, parentObject: {}, getAddress: () => [0], onExpressionChanged: { watch() {}, unwatch() {} } };
+  let edits = 0;
+  const project = { addressLookup: () => property };
+  const editor = { project, history: { operation: null, startOperation() { edits++; }, finishOperation() {}, discardOperation() {} } };
+  const PZ = { ui: { controls: {}, properties: class { setExpression() {} } }, sequence: class {} };
+  const context = { PZ, editor, document: doc, window: { setInterval: () => 1, clearInterval() {} }, lifecycle: { onDispose() {} },
+    ui: { openWindow(options) { options.mount(body); return { close() {} }; } } };
+  const api = installCodeWindows({ context, patch() {}, presetFont() {} });
+  api.open(property, true);
+  const input = body.querySelector(".zsp-code-input"); input.value = "new";
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    input.onkeydown({ key: "Enter", ctrlKey: true, ...composition, preventDefault() {}, stopPropagation() {} });
+    assert.equal(edits, 0);
+  }
+  input.onkeydown({ key: "Enter", ctrlKey: true, preventDefault() {}, stopPropagation() {} });
+  assert.equal(edits, 1);
+});
 test("code editor indentation preserves multiline selection and removes only one level", () => {
   assert.deepEqual(indentCode("a\nb\nc", 0, 4), { text: "  a\n  b\nc", start: 2, end: 8 });
   assert.deepEqual(indentCode("  a\n\tb\nc", 0, 7, true), { text: "a\nb\nc", start: 0, end: 4 });
