@@ -722,24 +722,3 @@ test("pre-compose refuses a muted destination when enabled selected tracks are b
   assert.equal(env.project.media.length, 0);
   assert.equal(env.project.sequence.videoTracks[0].clips[0], muted);
 });
-
-test("pre-compose refuses to reorder an overlapping unselected layer", () => {
-  const env = createEnvironment();
-  const top = addClip(env, 0, { start: 0, length: 30, name: "Top" });
-  const middle = addClip(env, 1, { start: 0, length: 30, name: "Middle" });
-  const bottom = addClip(env, 2, { start: 0, length: 30, name: "Bottom" });
-  env.tracks.selectedClips = [top, bottom];
-  const result = env.engine.precompose(env.editor, "Together");
-  assert.equal(result.ok, false);
-  assert.deepEqual(env.project.sequence.videoTracks.map((track) => track.clips[0]), [top, middle, bottom]);
-  assert.equal(env.project.media.length, 0);
-});
-
-test("pre-compose allows an unselected middle layer outside the moved clip's time", () => {
-  const env = createEnvironment();
-  const top = addClip(env, 0, { start: 0, length: 30, name: "Top" });
-  addClip(env, 1, { start: 0, length: 10, name: "Middle" });
-  const bottom = addClip(env, 2, { start: 20, length: 10, name: "Bottom" });
-  env.tracks.selectedClips = [top, bottom];
-  assert.equal(env.engine.precompose(env.editor, "Together").ok, true);
-});

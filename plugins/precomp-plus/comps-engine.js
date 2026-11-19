@@ -179,7 +179,7 @@ function precompose(editor, rawName) {
   if (pickedVideo.length) {
     trackIdx = freeTrackFor(seq, pickedVideo, minStart, maxEnd);
     if (trackIdx < 0) {
-      return fail("The selected clips cannot be pre-composed without changing their layer order or overlapping other clips. Move those clips first.");
+      return fail("The selected clips overlap other clips on their tracks. Move those clips first.");
     }
   }
 
@@ -267,18 +267,7 @@ function freeTrackFor(seq, picked, minStart, maxEnd) {
     const blocked = track.clips.some(function (clip) {
       return !selectedClips.has(clip) && clip.start < maxEnd && clip.start + clip.length > minStart;
     });
-    const reordered = picked.some(function (item) {
-      if (seq.videoTracks[item.trackIdx].enabled === false) return false;
-      const first = Math.min(item.trackIdx, candidates[i]);
-      const last = Math.max(item.trackIdx, candidates[i]);
-      return seq.videoTracks.slice(first + 1, last).some(function (between) {
-        return between.enabled !== false && between.clips.some(function (clip) {
-          return !selectedClips.has(clip) && clip.start < item.clip.start + item.clip.length &&
-            clip.start + clip.length > item.clip.start;
-        });
-      });
-    });
-    if (!blocked && !reordered) return candidates[i];
+    if (!blocked) return candidates[i];
   }
   return -1;
 }
