@@ -353,7 +353,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/camera-plus/manifest.json?v=23",
       "bundle": "./plugins/camera-plus/bundle.json?v=23",
-      "integrity": "sha256-695weGvrJhByr6u8l2SJYPYYuXi3kYABNJWGMwALVs8="
+      "integrity": "sha256-8C1Bdl6eUZlf+ALDlvA/jTfmSjrCJUcVaqM59iPV2Yg="
     },
     {
       "id": "native-fx",
