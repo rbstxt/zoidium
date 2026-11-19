@@ -170,7 +170,7 @@ function openPrecomposeDialog() {
       const input = field.element.querySelector("input");
       if (input) {
         input.addEventListener("keydown", function (event) {
-          if (event.key === "Enter") submit();
+          if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229) submit();
         });
       }
       body.appendChild(field.element);
