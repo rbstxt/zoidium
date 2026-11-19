@@ -10,6 +10,8 @@ each line describes one visible change.
 
 ### Added
 
+- Smart Motion Blur now has a keyframeable Enabled switch so you can turn
+  it off without removing the effect. Existing projects load with it on.
 - Ctrl/Cmd+V pastes images, video, and audio from the clipboard into Project
   media; with the timeline focused, the clip is placed at the playhead.
 - Native FX has a Time Remap effect for adjustment layers and clips. Speed
@@ -189,6 +191,10 @@ each line describes one visible change.
 
 ### Changed
 
+- Existing projects, new look: ASCII now keeps its texture at the full
+  render size instead of scaling non-power-of-two frames down. Existing
+  ASCII renders look sharper at those sizes and no longer log repeated
+  resize warnings.
 - ZSMB's Quality setting is back with Full, 1/2, 1/4, and 1/8. It sets how
   finely motion is analysed and also applies to exports, so 1/2 exports render
   much faster than Full. The preview size still follows Player+; the analysis
@@ -277,6 +283,44 @@ each line describes one visible change.
 
 ### Fixed
 
+- Material+ dropdown and switch settings now take effect when selected and
+  after reopening a saved project: Transparency on Image+ and Node Material,
+  Blending and Render side, and Node Material and PBR+ options such as Use
+  node graph, Bump Noise, reflections, Color Ramp, Fresnel, Ambient
+  Occlusion, cel shading, and shadow side. Switching a material's Node
+  Editor control to open now opens the Node Editor window.
+- Saved dropdown and switch settings now take effect after reopening a
+  project in Camera+ (Active Camera, Vibrate switches, and sequence motion
+  blur), light Cast shadows, export motion-blur shutter sampling, 3D object
+  Enabled, S_Glow (Enabled, Time Mode, Expand Borders, and other options),
+  Radial Blur (Spin) Enabled, and Shape+ (item Enabled, Text Animator
+  options, Wiggly Selector, and closed or open path state while editing).
+  Older Effector projects saved with low curve quality also keep
+  low-polygon subdivision when opened.
+- Shader+ Visible when (on properties and groups) and Rename when rules now
+  match static dropdown properties by their option index, and the
+  unreachable-condition warning recognizes those choices.
+- Radial Blur (Spin) now restores normalized brightness when Overbright is
+  turned off, and setting Overbright Weight to 0 with Overbright off no
+  longer breaks the rendered image.
+- Card Wipe no longer produces broken pixels when a rotating card passes
+  through its perspective pole. Those pixels now render transparent.
+- More input-method (IME) fixes across windows, menus, and pickers:
+  composing keys no longer close shared windows or trigger context menus,
+  panel tabs, list rows, picker group headings, the font picker, or Assets
+  table navigation, and arrow keys now move through IME candidates in an
+  empty picker. Composing Ctrl+Z, Ctrl+Y, and Ctrl+S in plugin windows,
+  asset paste, 3D object copy or delete, and Graph Editor 2 shortcuts while
+  composing or typing in a field no longer reach the editor.
+- Input-method composition and typing in text fields no longer interrupt
+  controls or active edits in Theme Editor (rename, color fields, and
+  undo), Expressions+ control renames, Shape+ (Source Text, clipboard, and
+  Space release), Shader+ angle dial, curve graphs, gradient and Node
+  Editor ramp stops, Magic Looks controls, Motion Paths drags, Effector
+  field editing, and Tracery point placement.
+- Disabling Shader+ now closes any open angle dial, and disabling Assets
+  now cancels pending save-problem notices so they do not appear after the
+  plugin is turned off.
 - Typing Japanese, Chinese, or Korean with an input method no longer
   triggers editor actions: Enter or Escape while composing text no longer
   confirms or closes dialogs, renames, numeric fields, or search, and

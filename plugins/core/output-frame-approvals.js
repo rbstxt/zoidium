@@ -3,10 +3,10 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "61a3e443eba9323b73d2405765f61e3f069cde95d0c258acd9767363aa1ae5ce",
+  "fingerprint": "eae419ce2b6523ca155a59af4558a6bbde588c96749ba2f8d6458975a2920d72",
   "plugins": {
     "native-fx": {
-      "version": "41",
+      "version": "42",
       "cases": [
         "radialblurspin",
         "colorcurves",
@@ -72,7 +72,7 @@
       ]
     },
     "repeater": {
-      "version": "45",
+      "version": "46",
       "cases": [
         "Repeater",
         "Linear Repeater",
@@ -134,7 +134,7 @@
       ]
     },
     "shader-plus": {
-      "version": "32",
+      "version": "33",
       "cases": [
         "time-sample",
         "time-sample-adjustment",
@@ -148,7 +148,7 @@
       ]
     },
     "camera-plus": {
-      "version": "22",
+      "version": "23",
       "cases": [
         "scene-camera-animation",
         "shared-camera-animation",
@@ -175,7 +175,7 @@
       ]
     },
     "expressions-plus": {
-      "version": "24",
+      "version": "25",
       "cases": [
         "seeded-time-fps",
         "mutable-realm",
