@@ -52,3 +52,14 @@ test("theme undo ignores composing and editable targets", () => {
   win.element.dispatch("keydown", { key: "z", ctrlKey: true });
   assert.deepEqual(calls, [["undo"]]);
 });
+
+test("theme windows remove global listeners on every close", () => {
+  const { win, events, state, windows } = setup();
+  win.cleanup(); assert.equal(events.size, 0);
+  for (let i = 0; i < 15; i++) {
+    state.open(); const opened = windows.at(-1);
+    assert.equal(events.size, 2);
+    opened.cleanup(); assert.equal(events.size, 0);
+    assert.equal((opened.element.listeners.keydown || []).length, 0);
+  }
+});
