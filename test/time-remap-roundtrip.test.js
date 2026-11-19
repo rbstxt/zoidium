@@ -31,3 +31,33 @@ test("Time Remap retains animated settings and duplicate independence", () => {
   assert.deepEqual(plain(original), saved);
   for (const effect of [seed, original, duplicate, second]) effect.unload();
 });
+
+test("native effect paste creates independent Time Remap keys", () => {
+  const c = host(), { PZ } = c;
+  const { fixture, editorFor } = require("./helpers/editor-identity-host.cjs");
+  const { project, layer } = fixture(c), editor = editorFor(PZ, project);
+  const source = fs.readFileSync("plugins/native-fx/effects/timeremap.js", "utf8");
+  const factory = vm.runInContext(`(function () { ${source}\n})`, c);
+  const nativeCreate = PZ.effect.create;
+  PZ.effect.create = type => {
+    if (type !== "timeremap") return nativeCreate.call(PZ.effect, type);
+    const effect = new PZ.effect(); effect.type = type;
+    effect._zoidiumGetAsset = (_type, path) => fs.readFileSync(path.replace(/^\.\//, "").split("?")[0], "utf8");
+    factory.call(effect); return effect;
+  };
+  try {
+    const original = PZ.effect.create("timeremap"); layer.effects.push(original); original.load();
+    original.properties.speed.keyframes[0].value = 75;
+    const saved = plain(original), data = plain(new PZ.package([original])).data[0];
+    const edit = Object.create(PZ.ui.edit.prototype); edit.editor = editor;
+    editor.history.startOperation();
+    edit.createObject({ newParentAddress: layer.effects.getAddress(), baseType: PZ.effect, subType: original.type, data });
+    editor.history.finishOperation();
+    const pasted = layer.effects.at(-1);
+    assert.notEqual(pasted, original);
+    assert.deepEqual(plain(pasted), saved);
+    pasted.properties.speed.keyframes[0].value = 19;
+    assert.deepEqual(plain(original), saved);
+    pasted.unload(); original.unload();
+  } finally { PZ.effect.create = nativeCreate; }
+});
