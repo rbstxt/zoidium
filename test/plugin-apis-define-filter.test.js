@@ -42,13 +42,14 @@ function host() {
     console,
     PZ: {
       asset: { type: { SHADER: 1 }, shader: class Shader { async getShader() { return "void main() {}"; } } },
-      property: { type: {} },
+      property: { type: { OPTION: 6 } },
     },
     THREE: { ShaderMaterial, ShaderPass },
   };
   vm.runInNewContext(fs.readFileSync("zoidium/plugin-apis.js", "utf8"), context);
   return {
     apis: context.ZoidiumPluginApis,
+    PZ: context.PZ,
     assets,
     unloadedAssets,
     disposeCount: () => disposeCalls,
@@ -72,6 +73,22 @@ const spec = {
   fragShader: "void main() {}",
   onUnload: (effect) => effect.pass.material.dispose(),
 };
+
+test("default filter update honors string OPTION enabled values", async () => {
+  const harness = host();
+  const effect = fakeEffect({ assets: harness.assets });
+  harness.apis.defineFilter.call(effect, { properties: {}, uniforms: {}, fragShader: "void main() {}" });
+  await effect.load({});
+  let value = "0";
+  effect.properties.enabled = { definition: { type: harness.PZ.property.type.OPTION }, get: () => value };
+  effect.update(0);
+  assert.equal(effect.pass.enabled, false);
+  value = "1";
+  effect.update(0);
+  assert.equal(effect.pass.enabled, true);
+  assert.equal(effect.properties.enabled.get(), "1");
+  effect.unload();
+});
 
 test("unload disposes the filter material idempotently", async () => {
   const harness = host();
