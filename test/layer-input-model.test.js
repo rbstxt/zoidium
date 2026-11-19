@@ -74,6 +74,26 @@ test("the capture mode catalogue keeps its three entries", () => {
   }
 });
 
+test("changing a shader source mode invalidates the preview cache", () => {
+  const { project, context, trackA } = createProject();
+  const previous = globalThis.ZoidiumFrameCache;
+  const reasons = [];
+  globalThis.ZoidiumFrameCache = { touch: reason => reasons.push(reason) };
+  const api = LayerInput.activate(context);
+  try {
+    const { consumer, property } = makeConsumer(project, trackA);
+    property.type = {};
+    assert.equal(api.setSourceMode(consumer, "source", { sourceProperty: property }), true);
+    assert.deepEqual(reasons, ["layer-input-source-mode"]);
+    api.setSourceMode(consumer, "source", { sourceProperty: property });
+    assert.equal(reasons.length, 1);
+  } finally {
+    if (previous === undefined) delete globalThis.ZoidiumFrameCache;
+    else globalThis.ZoidiumFrameCache = previous;
+    LayerInput.deactivate();
+  }
+});
+
 test("source options list every track and disable the owning track", () => {
   const { project, context, trackA, trackB } = createProject();
   const api = LayerInput.activate(context);

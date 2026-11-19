@@ -220,6 +220,7 @@ module.exports = function createSources(state, deps) {
     if (previous !== mode) {
       consumer.fragmentShaderNeedsUpdate = true;
       property.onChanged?.update?.(property.get?.());
+      globalThis.ZoidiumFrameCache?.touch?.("layer-input-source-mode");
     }
     return true;
   }
