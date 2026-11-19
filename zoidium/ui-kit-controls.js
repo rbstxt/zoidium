@@ -119,7 +119,7 @@
       input.addEventListener("pointercancel", up);
     });
     input.addEventListener("keydown", function (event) {
-      if (!editing) return;
+      if (!editing || event.isComposing || event.keyCode === 229) return;
       if (event.key === "Enter") { stopEdit(true); input.readOnly = true; input.blur(); }
       if (event.key === "Escape") { event.preventDefault(); stopEdit(false); input.readOnly = true; input.blur(); }
     });

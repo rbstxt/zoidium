@@ -176,6 +176,24 @@ test("controls builders round-trip values through get and set", () => {
   assert.equal(noteControl.element.textContent, "Careful.");
 });
 
+test("numeric editing survives composition Enter and Escape", () => {
+  const { api } = loadKit();
+  const commits = [];
+  const control = api.controls.number({ value: 1, onChange: value => commits.push(value) });
+  const input = control.input;
+  input.dispatch("pointerdown", { button: 0, clientX: 0 });
+  input.dispatch("pointerup", {});
+  input.value = "2";
+  for (const key of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    input.dispatch("keydown", { key, ...composition });
+    assert.equal(input.readOnly, false);
+    assert.equal(input.value, "2");
+    assert.deepEqual(commits, []);
+  }
+  input.dispatch("keydown", { key: "Enter" });
+  assert.deepEqual(commits, [2]);
+});
+
 test("section, tabs and list builders manage their own state", () => {
   const { api } = loadKit();
   const controls = api.controls;
