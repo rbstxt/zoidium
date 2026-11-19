@@ -898,7 +898,17 @@
       var editor = global.CM;
       try {
         if (shared.refuseDuringExport(editor)) return;
-        if (editor._zoidiumSavePromise) await editor._zoidiumSavePromise;
+        if (editor._zoidiumSavePromise) {
+          try {
+            await archiveIO.bounded(Promise.resolve(editor._zoidiumSavePromise).catch(function () {}),
+              "Waiting for the current save", 60000);
+          } catch (_error) {
+            dispatch("zoidium:notification", {
+              title: "Save still in progress",
+              message: "Opening the project after waiting 60 seconds. The file may not include the pending save.",
+            });
+          }
+        }
         var response = await archiveIO.bounded(global.fetch(message.url), "Desktop project read");
         if (!response.ok) throw new Error("The project file is no longer available.");
         var length = response.headers && response.headers.get ? response.headers.get("content-length") : 0;
