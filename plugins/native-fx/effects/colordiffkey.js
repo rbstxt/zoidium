@@ -204,9 +204,9 @@ ZoidiumPluginApis.defineFilter.call(this, {
   update(frame) {
     if (!this.pass) return;
     var uniforms = this.pass.uniforms;
-    this.pass.enabled = this.properties.enabled.get(frame) === 1;
+    this.pass.enabled = Number(this.properties.enabled.get(frame)) === 1;
     uniforms.view.value = this.properties.view.get(frame);
-    var accurate = this.properties.colorMatchingAccuracy.get(frame) === 1;
+    var accurate = Number(this.properties.colorMatchingAccuracy.get(frame)) === 1;
     uniforms.accurate.value = accurate ? 1 : 0;
     var key = this.properties.keyColor.get(frame);
     var kr = key[0];

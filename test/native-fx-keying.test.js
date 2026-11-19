@@ -100,6 +100,18 @@ function runUpdate(spec, overrides) {
   return effect;
 }
 
+test("keying effects accept string-valued animated options", () => {
+  for (const file of ["colordiffkey.js", "advspill.js", "keycleaner.js", "linearcolorkey.js"]) {
+    const spec = loadSpec(file);
+    assert.equal(runUpdate(spec, { enabled: "1" }).pass.enabled, true, file);
+    assert.equal(runUpdate(spec, { enabled: "0" }).pass.enabled, false, file);
+  }
+  assert.equal(runUpdate(loadSpec("colordiffkey.js"), { colorMatchingAccuracy: "1" }).pass.uniforms.accurate.value, 1);
+  assert.equal(runUpdate(loadSpec("advspill.js"), { method: "1", spillRange: 50 }).pass.uniforms.spillRange.value, 0.5);
+  assert.equal(runUpdate(loadSpec("keycleaner.js"), { reduceChatter: "1" }).pass.uniforms.chatter.value, 1);
+  assert.equal(runUpdate(loadSpec("linearcolorkey.js"), { keyOperation: "1" }).pass.uniforms.keep.value, 1);
+});
+
 // ---- JS mirrors of the shader math (straight colour, premultiplied I/O) ----
 
 function primaryOf(color) {
