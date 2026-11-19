@@ -180,10 +180,13 @@ var PZ = PZ || {};
 
     function removeCommand(payload) {
         var list = commandList(payload);
-        if (!list || payload.index < 0 || payload.index >= list.length) return;
-        var item = list[payload.index];
-        list.splice(payload.index, 1);
-        CM.history.pushCommand(insertCommand, Object.assign({}, payload, { item: item }));
+        if (!list) return;
+        var index = list.indexOf(payload.item);
+        if (index < 0) index = payload.index;
+        if (index < 0 || index >= list.length) return;
+        var item = list[index];
+        list.splice(index, 1);
+        CM.history.pushCommand(insertCommand, Object.assign({}, payload, { item: item, index: index }));
     }
 
     function insertCommand(payload) {

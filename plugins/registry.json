@@ -305,7 +305,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/trapcode-suite/manifest.json?v=54",
       "bundle": "./plugins/trapcode-suite/bundle.json?v=54",
-      "integrity": "sha256-V3hG4uT1TrPP+qZkkBk1vkRuEtsyoIMwLEC04/EiWe4="
+      "integrity": "sha256-8FbQuO+PXjafz5b1W7oWLxvfcepYx6CTIR4yj9DsvUk="
     },
     {
       "id": "optical-flares",
@@ -472,7 +472,7 @@
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
       "manifest": "./plugins/layer-input/manifest.json?v=19",
       "bundle": "./plugins/layer-input/bundle.json?v=19",
-      "integrity": "sha256-l44V2hW+S9dbiS5nHJ1YvgBgbbvDSyKMa8DKv6zlQOw="
+      "integrity": "sha256-ykSHyR9iDvcdKrQa5/Fo+PrDWQzdYsR/S7x3/U4LKI0="
     },
     {
       "id": "shape-plus",
