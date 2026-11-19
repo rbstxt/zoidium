@@ -266,7 +266,7 @@ const GifSupport = (() => {
       const top = readUint16();
       const frameWidth = readUint16();
       const frameHeight = readUint16();
-      if (frameWidth < 1 || frameHeight < 1) return null;
+      if (frameWidth < 1 || frameHeight < 1 || frameWidth * frameHeight > MAX_PIXELS) return null;
       const imageFlags = readByte();
       let localTable = null;
       if (imageFlags & 0x80) {

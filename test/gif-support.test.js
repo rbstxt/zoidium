@@ -229,6 +229,19 @@ test("decoder: rejects a frame whose compressed pixels are truncated", () => {
   assert.equal(GifSupport.decode(truncated, fakeFactory), null);
 });
 
+test("decoder: rejects an oversized frame before allocating its pixel indices", () => {
+  const GuardedBytes = new Proxy(Uint8Array, { construct(target, args) {
+    if (typeof args[0] === "number" && args[0] > 67108864) throw new Error("oversized allocation");
+    return Reflect.construct(target, args);
+  } });
+  const { GifSupport } = loadGifSupport({ Uint8Array: GuardedBytes });
+  const gif = twoFrameGifBytes();
+  const image = gif.indexOf(0x2c, 19);
+  gif[image + 5] = 0xff; gif[image + 6] = 0xff;
+  gif[image + 7] = 0xff; gif[image + 8] = 0xff;
+  assert.equal(GifSupport.decode(gif, fakeFactory), null);
+});
+
 test("decoder: frame count capped at 512", () => {
   const { GifSupport } = loadGifSupport();
   const palette = [
