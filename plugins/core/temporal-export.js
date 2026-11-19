@@ -47,7 +47,7 @@
     if (!tracks.some(track => hasSampler(track.layer || track.getCurrentClip?.(frame)?.object))) return;
     const properties = sequence.properties;
     const cameraShutter = tracks.some(track => track.track3d || track.layer?.constructor?.name === "CameraLayer");
-    const count = properties.motionBlur?.get() === 0 ? 1 :
+    const count = Number(properties.motionBlur?.get()) === 0 ? 1 :
       Math.max(1, Math.min(cameraShutter ? 128 : Infinity, Math.floor(properties.motionBlurSamples?.get(frame) || 1)));
     if (count <= 1) return;
     const shutter = properties.motionBlurShutter?.get(frame) || 0;

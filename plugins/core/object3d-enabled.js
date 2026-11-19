@@ -85,10 +85,10 @@
     box.type = "checkbox";
     box.className = "pz-inputbox";
     box.setAttribute("aria-label", property.definition.name || "Cast shadows");
-    box.checked = property.get() === 1;
+    box.checked = Number(property.get()) === 1;
     box.onchange = function () {
       const value = box.checked ? 1 : 0;
-      if (value === property.get()) return;
+      if (value === Number(property.get())) return;
       const controls = row.closest && row.closest("ul") ? row.closest("ul").pz_controls : null;
       if (!controls || !PZ.ui || !PZ.ui.controls) {
         property.set(value);
@@ -100,7 +100,7 @@
     };
     // CM3 binds this to the row's property and calls it before every refresh.
     row.pz_update = function () {
-      const value = property.get() === 1;
+      const value = Number(property.get()) === 1;
       if (doc.activeElement !== box) box.checked = value;
     };
     row.appendChild(box);
@@ -139,7 +139,7 @@
         items: "off;on",
         zoidiumControl: CAST_SHADOWS_CONTROL,
         changed: function () {
-          applyCastShadows(this.parentObject, this.get() === 1);
+          applyCastShadows(this.parentObject, Number(this.get()) === 1);
         },
       },
     });

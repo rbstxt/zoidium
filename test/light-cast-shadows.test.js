@@ -348,3 +348,13 @@ test("turning on a suite IES light gives it the suite's tuned shadow settings", 
     host.PZ.trapcode.lights.uninstall();
   }
 });
+
+test("string option values survive save and restore cast shadows", () => {
+  const { PZ } = native();
+  const light = newLight(PZ, { objectType: 2, properties: { [KEY]: "1" } });
+  assert.equal(light.threeObj.castShadow, true);
+  assert.equal(saved(light)[KEY], "1");
+  light.properties[KEY].set("0"); assert.equal(light.threeObj.castShadow, false);
+  light.properties[KEY].set("1"); assert.equal(light.threeObj.castShadow, true);
+  assert.equal(saved(light)[KEY], "1");
+});
