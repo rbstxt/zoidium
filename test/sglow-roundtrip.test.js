@@ -30,5 +30,14 @@ test("S_Glow retains authored properties through save and package copy", async (
   }
   duplicate.properties.brightness.keyframes[0].value = 9;
   assert.deepEqual(plain(original), saved);
-  for (const effect of [seed, original, duplicate, second]) effect.unload();
+  seed.properties.timeMode.set(1);
+  seed.properties.time.keyframes[0].value = 4.5;
+  seed.properties.time.animated = true;
+  seed.properties.timeMode.set(0);
+  const automatic = plain(seed), reopened = await create(automatic);
+  assert.deepEqual(plain(reopened), automatic);
+  reopened.properties.timeMode.set(1);
+  assert.equal(reopened.properties.time.keyframes[0].value, 4.5);
+  assert.equal(reopened.properties.time.animated, true);
+  for (const effect of [seed, original, duplicate, second, reopened]) effect.unload();
 });
