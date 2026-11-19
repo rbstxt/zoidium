@@ -318,6 +318,8 @@ test("escape helpers mirror the ui-kit close path", () => {
   assert.strictEqual(Windows.isEscapeKey(null), false);
   assert.strictEqual(Windows.shouldCloseOnEscape({ key: "Escape", defaultPrevented: false }), true);
   assert.strictEqual(Windows.shouldCloseOnEscape({ key: "Escape", defaultPrevented: true }), false);
+  assert.strictEqual(Windows.shouldCloseOnEscape({ key: "Escape", isComposing: true }), false);
+  assert.strictEqual(Windows.shouldCloseOnEscape({ key: "Escape", keyCode: 229 }), false);
 
   const added = [];
   const removed = [];
