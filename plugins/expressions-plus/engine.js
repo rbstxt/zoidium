@@ -47,8 +47,7 @@ function installEngine(options) {
       };
     } catch (error) { report(this, null, error); compiled.set(this, { failed: true }); return this.noop; }
   });
-  // A number property reads this result as its value, or as no change at all.
-  // Report the cause without changing the value the property receives.
+  // Reject unusable scalar results before they reach the property consumer.
   function unusableResult(expression, property, value) {
     if (property?.definition?.type !== PZ.property.type.NUMBER || Number.isFinite(Number(value))) return null;
     return new Error(/\brandom\s*\(\s*\)/.test(expression.source) && !/\bseedRandom\s*\(/.test(expression.source)
@@ -142,7 +141,9 @@ function installEngine(options) {
       previousOverrides = guard.swapOverrides(context.overrides);
       const custom = expression.getCustomProperties(frame, owner);
       const value = result.fn(frame, time, context.methods, custom, pure.Math, helpers);
-      report(expression, property, unusableResult(expression, property, value));
+      const error = unusableResult(expression, property, value);
+      report(expression, property, error);
+      if (error) return base !== undefined ? base : baseAt(property, frame);
       return value;
     } catch (error) { report(expression, property, error); return base !== undefined ? base : baseAt(property, frame); }
     finally { if (previousOverrides) guard.swapOverrides(previousOverrides); active.delete(property); }
