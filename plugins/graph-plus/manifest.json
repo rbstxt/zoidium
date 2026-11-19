@@ -3,104 +3,104 @@
   "id": "graph-plus",
   "name": "Graph Editor 2",
   "author": "DaviFX",
-  "version": "21",
+  "version": "22",
   "kind": "extension",
   "modules": [
     {
       "id": "graph-editor",
-      "source": "./plugins/graph-plus/graph-plus.js?v=21"
+      "source": "./plugins/graph-plus/graph-plus.js?v=22"
     }
   ],
   "resources": [
     {
       "id": "canvas",
       "type": "text",
-      "source": "./plugins/graph-plus/canvas.js?v=21"
+      "source": "./plugins/graph-plus/canvas.js?v=22"
     },
     {
       "id": "curves",
       "type": "text",
-      "source": "./plugins/graph-plus/curves.js?v=21"
+      "source": "./plugins/graph-plus/curves.js?v=22"
     },
     {
       "id": "editor-core",
       "type": "text",
-      "source": "./plugins/graph-plus/editor-core.js?v=21"
+      "source": "./plugins/graph-plus/editor-core.js?v=22"
     },
     {
       "id": "editor-helpers",
       "type": "text",
-      "source": "./plugins/graph-plus/editor-helpers.js?v=21"
+      "source": "./plugins/graph-plus/editor-helpers.js?v=22"
     },
     {
       "id": "editor",
       "type": "text",
-      "source": "./plugins/graph-plus/editor.js?v=21"
+      "source": "./plugins/graph-plus/editor.js?v=22"
     },
     {
       "id": "interaction",
       "type": "text",
-      "source": "./plugins/graph-plus/interaction.js?v=21"
+      "source": "./plugins/graph-plus/interaction.js?v=22"
     },
     {
       "id": "operations",
       "type": "text",
-      "source": "./plugins/graph-plus/operations.js?v=21"
+      "source": "./plugins/graph-plus/operations.js?v=22"
     },
     {
       "id": "pointer",
       "type": "text",
-      "source": "./plugins/graph-plus/pointer.js?v=21"
+      "source": "./plugins/graph-plus/pointer.js?v=22"
     },
     {
       "id": "theme",
       "type": "text",
-      "source": "./plugins/graph-plus/theme.js?v=21"
+      "source": "./plugins/graph-plus/theme.js?v=22"
     },
     {
       "id": "toolbar",
       "type": "text",
-      "source": "./plugins/graph-plus/toolbar.js?v=21"
+      "source": "./plugins/graph-plus/toolbar.js?v=22"
     },
     {
       "id": "selection",
       "type": "text",
-      "source": "./plugins/graph-plus/selection.js?v=21"
+      "source": "./plugins/graph-plus/selection.js?v=22"
     },
     {
       "id": "selection-host",
       "type": "text",
-      "source": "./plugins/graph-plus/selection-host.js?v=21"
+      "source": "./plugins/graph-plus/selection-host.js?v=22"
     },
     {
       "id": "sampling",
       "type": "text",
-      "source": "./plugins/graph-plus/sampling.js?v=21"
+      "source": "./plugins/graph-plus/sampling.js?v=22"
     },
     {
       "id": "axes",
       "type": "text",
-      "source": "./plugins/graph-plus/axes.js?v=21"
+      "source": "./plugins/graph-plus/axes.js?v=22"
     },
     {
       "id": "property-state",
       "type": "text",
-      "source": "./plugins/graph-plus/property-state.js?v=21"
+      "source": "./plugins/graph-plus/property-state.js?v=22"
     },
     {
       "id": "input",
       "type": "text",
-      "source": "./plugins/graph-plus/input.js?v=21"
+      "source": "./plugins/graph-plus/input.js?v=22"
     },
     {
       "id": "targets",
       "type": "text",
-      "source": "./plugins/graph-plus/targets.js?v=21"
+      "source": "./plugins/graph-plus/targets.js?v=22"
     },
     {
       "id": "view",
       "type": "text",
-      "source": "./plugins/graph-plus/view.js?v=21"
+      "source": "./plugins/graph-plus/view.js?v=22"
     }
   ]
 }

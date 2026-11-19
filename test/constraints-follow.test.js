@@ -132,6 +132,22 @@ test("Follow retains a serialized deletion pose regardless of frame order and sa
   set(a, store.KEYS.fallback, "invalid"); update(0, 8); close(a.threeObj.position.toArray(), [0, 0, 0]);
 });
 
+test("missing Follow target leaves disabled channels on their authored values", { skip: !fs.existsSync(core) }, () => {
+  const { a, b, store, scenes, set, link, update, follow } = fixture();
+  set(b, "position", [12, 2, 0]); link(a, b);
+  for (const key of [store.KEYS.followPosition, store.KEYS.followRotation, store.KEYS.followScale]) set(a, key, 0);
+  update(0, 20);
+  follow.captureDeleted(b, { project: a.parentProject, properties: {
+    setValue(command) { a.parentProject.addressLookup(command.property).set(command.value); },
+  } });
+  scenes[1].objects.splice(0, 1);
+  set(a, "position", [4, 5, 6]); set(a, "rotation", [0, 0.5, 0]); set(a, "scale", [2, 3, 4]);
+  update(0, 8);
+  close(a.threeObj.position.toArray(), [4, 5, 6]);
+  close(a.threeObj.scale.toArray(), [2, 3, 4]);
+  assert.ok(Math.abs(a.threeObj.quaternion.y - Math.sin(0.25)) < 1e-8);
+});
+
 test("Follow samples native camera shake on a detached camera at target time", { skip: !fs.existsSync(core) }, () => {
   const { PZ, a, scenes, store, set, link, update } = fixture();
   const camera = new PZ.object3d.camera(); scenes[1].objects.push(camera); camera.load({ type: 6, objectType: 1 }); store.attach(camera);

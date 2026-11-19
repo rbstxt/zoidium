@@ -374,6 +374,22 @@ test("arrow nudge records the undo command with the old value", () => {
   assert.deepEqual(plain(arg), { property: "addr", value: 4, frame: 11 });
 });
 
+test("arrow nudges preserve fractional keyframe positions", () => {
+  const { GraphPlus } = loadModule();
+  const PZ = makeFakePZ();
+  const proto = GraphPlus.__test.gpDefineGraphEditor(PZ).graph.prototype;
+  const el = keyEl(-1.25, 4, "addr");
+  const self = {
+    editor: { history: makeHistory() }, zoomY: 1,
+    selectedKeys: () => [el], refreshAdjacentCurves: () => {},
+    finishMovingKeyframes: () => {}, updateStatus: () => {},
+  };
+  proto.keydown.call(self, { key: "ArrowRight", stopPropagation() {}, preventDefault() {} });
+  assert.equal(el.pz_object.frame, -0.25);
+  proto.keydown.call(self, { key: "ArrowLeft", stopPropagation() {}, preventDefault() {} });
+  assert.equal(el.pz_object.frame, -1.25);
+});
+
 // --- Easing+ coexistence -----------------------------------------------------
 
 test("Easing+-style wrappers survive install and keep working", async () => {

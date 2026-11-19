@@ -89,7 +89,8 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
       var dGraphY = curG.y - startG.y;
       for (var i = 0; i < snap.length; i++) {
         var s = snap[i];
-        if (updateFrame) {
+        if (updateFrame && dAbs === 0) s.kf.frame = s.oldFrame;
+        else if (updateFrame) {
           var want = s.oldFrame + dAbs; // relative delta == absolute delta
           var absWant = want + s.off;
           var snapped = self.snapFrame(absWant, sel);
