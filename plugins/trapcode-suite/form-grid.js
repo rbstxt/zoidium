@@ -251,7 +251,7 @@ var PZ = PZ || {};
         var maps = this.properties.layerMaps;
         var project = T.findParent(this, PZ.project);
         var entries = [];
-        var type = base.baseFormType.get(t);
+        var type = Number(base.baseFormType.get(t));
         if (type === 6) {
             entries.push(this._assets.request("model", base.modelAsset.get(t), function (value) {
                 return T.loadGeometryPositions(project, value);
@@ -349,7 +349,7 @@ var PZ = PZ || {};
         var count = counts[0] * counts[1] * counts[2];
         var size = base.baseFormSize.get(t);
         var perAxis = base.baseSizeMode.get(t) === 0;
-        var type = base.baseFormType.get(t);
+        var type = Number(base.baseFormType.get(t));
         if (!this.basePositions || this.basePositions.length !== count * 3) {
             this.basePositions = new Float32Array(count * 3);
         }
