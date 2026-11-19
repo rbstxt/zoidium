@@ -14,17 +14,32 @@ reconstructs trails from the current image.
 3. Add **ZSMB (beta 1.0)** under **NATIVE FX** in the Effects picker.
 4. Move to a frame where the content moves.
 5. Set **Blur Amount** to a value above zero.
+6. Set **Quality** to the detail level you need.
 
-## Preview quality
+## Set the quality
 
-Motion analysis follows the size that Player+ renders for the preview.
-Set **Preview quality** in the player toolbar.
-At **Full quality** the effect analyses every rendered pixel.
-At **1/2 quality**, **1/4 quality**, and **1/8 quality**, it analyses a reduced
-motion field on the smaller rendered frame.
-Blur length stays proportional to the frame, so the look is the same at every
-preview size. Only the resolution is lower.
-Exports always use full analysis, whatever the preview quality is.
+**Quality** sets the width of the motion analysis relative to the project.
+
+| Quality | Analysis width | Use |
+| --- | --- | --- |
+| Full | The project width | The reference result. The slowest level. |
+| 1/2 | One eighth of the project width | The default. Less detail than Full, and much faster. |
+| 1/4 | One sixteenth of the project width | Faster than 1/2, with softer detail. |
+| 1/8 | One thirty-second of the project width | The fastest level. |
+
+The analysis never uses more pixels than the rendered frame holds. In the
+preview, Player+ sets that frame. A reduced preview quality therefore caps the
+analysis width. **Full** analyses the whole preview frame. The reduced levels
+keep their project-relative width while the frame is at least that large.
+
+Export uses the same **Quality** value on its output frame. A 1/2 export at the
+project resolution analyses one eighth of the project width. An export larger
+than the project never analyses more than the project frame. A 1/2 export
+renders much faster than a Full export. The blur keeps its length and position
+at every level, because the effect scales the motion field to the frame.
+
+The project saves the **Quality** level with the effect. Older projects keep
+the Full or 1/2 result they had.
 
 ## Tune the blur
 
@@ -40,9 +55,8 @@ Exports always use full analysis, whatever the preview quality is.
 
 ## Limits
 
-A reduced preview keeps an approximate motion field.
-Detail and the response to **Motion Sensitivity** can differ from a full-size
-frame.
+A reduced quality analyses less detail. Fine detail and the response to
+**Motion Sensitivity** can differ from Full.
 Full analysis is not guaranteed to match another motion blur tool on every
 clip.
 

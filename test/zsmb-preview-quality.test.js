@@ -31,7 +31,7 @@ function makeTHREE() {
 function propertyCollection(initial = {}) {
   const values = {
     quality: 1,
-    qualityPresetVersion: 1,
+    qualityPresetVersion: 2,
     enabled: 1,
     trackFrame: 0,
     amount: 0.5,
@@ -104,34 +104,78 @@ function compositorPrototype() {
   return proto;
 }
 
-test("Quality is hidden but still loads and saves unchanged", () => {
-  const { definition, sandbox, properties } = loadDefinition();
-  assert.equal(definition.properties.quality.visible, false);
+test("Quality is visible with the four levels and defaults to 1/2", () => {
+  const { definition } = loadDefinition();
+  assert.equal(definition.properties.quality.visible, undefined, "a visible property omits the flag");
   assert.equal(definition.properties.quality.name, "Quality");
-  assert.deepEqual(definition.properties.quality.items, "Full quality;1/2 quality");
+  assert.equal(definition.properties.quality.value, 1);
+  assert.deepEqual(definition.properties.quality.items, "Full;1/2;1/4;1/8");
+  assert.equal(definition.properties.qualityPresetVersion.value, 2);
+  assert.doesNotMatch(definition.properties.quality.description, /\b(?:Panzoid|Clipmaker|Player\+|CM3)\b/);
+});
 
+test("a project saved with assets 295 through 301 keeps its stored meaning", () => {
   for (const quality of [0, 1]) {
+    const { definition, sandbox, properties } = loadDefinition();
     properties.values.quality = 1;
     definition.lifecycle.load.call(sandbox, { properties: { quality, qualityPresetVersion: 1 } });
     assert.equal(properties.values.quality, quality);
-    assert.equal(properties.values.qualityPresetVersion, 1);
+    assert.equal(properties.values.qualityPresetVersion, 2, "saving marks the new preset version");
     definition.lifecycle.unload.call(sandbox);
   }
 });
 
-test("the sampler request follows the analysis mode", () => {
+test("the old mapping still applies to projects saved before preset version 2", () => {
+  for (const [stored, version] of [[2, 0], [3, 0], [2, 1], [3, 1], [7, 1]]) {
+    const { definition, sandbox, properties } = loadDefinition();
+    definition.lifecycle.load.call(sandbox, { properties: { quality: stored, qualityPresetVersion: version } });
+    assert.equal(properties.values.quality, 1, `quality ${stored} with version ${version}`);
+    definition.lifecycle.unload.call(sandbox);
+  }
+});
+
+test("preset version 2 projects keep 1/4 and 1/8", () => {
+  for (const quality of [0, 1, 2, 3]) {
+    const { definition, sandbox, properties } = loadDefinition();
+    definition.lifecycle.load.call(sandbox, { properties: { quality, qualityPresetVersion: 2 } });
+    assert.equal(properties.values.quality, quality);
+    definition.lifecycle.unload.call(sandbox);
+  }
+});
+
+test("a new effect saves the 1/2 default with preset version 2", () => {
+  const { definition, sandbox, properties } = loadDefinition();
+  definition.lifecycle.load.call(sandbox, undefined);
+  assert.equal(properties.values.quality, 1);
+  assert.equal(properties.values.qualityPresetVersion, 2);
+  definition.lifecycle.unload.call(sandbox);
+});
+
+test("an animated legacy Quality keeps its keyframes", () => {
+  const { definition, sandbox, properties } = loadDefinition();
+  properties.quality.animated = true;
+  properties.values.quality = 3;
+  definition.lifecycle.load.call(sandbox, { properties: { quality: 3, qualityPresetVersion: 1 } });
+  assert.equal(properties.values.quality, 3);
+  assert.equal(properties.values.qualityPresetVersion, 2);
+  definition.lifecycle.unload.call(sandbox);
+});
+
+test("the sampler request follows the Quality level", () => {
   const { definition, sandbox } = loadDefinition();
   definition.lifecycle.load.call(sandbox, { properties: {} });
 
-  sandbox._smbMode = "full";
+  sandbox._smbDebugSettings = { quality: 0 };
   let request = definition.getRequest(sandbox, 24);
   assert.deepEqual(JSON.parse(JSON.stringify(request.frames)), [-1]);
   assert.equal(request.reuseCurrentInput, false);
 
-  sandbox._smbMode = "half";
-  request = definition.getRequest(sandbox, 24);
-  assert.deepEqual(JSON.parse(JSON.stringify(request.frames)), [-1, 0]);
-  assert.equal(request.reuseCurrentInput, true);
+  for (const quality of [1, 2, 3]) {
+    sandbox._smbDebugSettings = { quality };
+    request = definition.getRequest(sandbox, 24);
+    assert.deepEqual(JSON.parse(JSON.stringify(request.frames)), [-1, 0]);
+    assert.equal(request.reuseCurrentInput, true);
+  }
   definition.lifecycle.unload.call(sandbox);
 });
 

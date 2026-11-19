@@ -70,15 +70,16 @@ function create(effect,THREE,PZ,root) {
     return {previous:previous.stamp,current:current.stamp,renderer,w,h,sensitivity};
   }
   async function run(frame,context,settings){
-    if(disposed||settings.mode!=="half"||!settings.enabled||!settings.sensitivity||!settings.strength||(frame<1&&frame!==0&&settings.trackFrame!==1))return;
+    const plan=settings.plan;
+    if(disposed||!plan||plan.exact||!settings.enabled||!settings.sensitivity||!settings.strength||(frame<1&&frame!==0&&settings.trackFrame!==1))return;
     const compositor=context?.frameSamplerRoot||context?.compositor;
     const host=PZ.zoidium?.temporal?.frameSamplerRuntimes?.get(compositor);
     const prepared=host?.prepared?.get(effect),renderer=compositor?.renderer;
     const key=token(renderer,prepared?.samples,settings.sensitivity);
-    if(!key||key.w<6||key.h<6)return;
-    if(same(key,result?.token)){stats.reused++;return;}
+    if(!key||key.w<6||key.h<6||plan.width>key.w||plan.height>key.h)return;
+    if(same(key,result?.token)&&result.level===plan.level&&result.width===plan.width&&result.height===plan.height){stats.reused++;return;}
     analyzingFrame=frame;
-    const epoch=generation,samples=prepared.samples.slice(),aw=Math.max(6,Math.floor(key.w/8)),ah=Math.max(6,Math.floor(key.h/8));
+    const epoch=generation,samples=prepared.samples.slice(),aw=plan.width,ah=plan.height;
     check(context,epoch);
     worker ||= createWorker(effect._zoidiumGetAsset.bind(effect),root);
     if(!atlas||atlas.width!==aw||atlas.height!==ah*2){atlas?.dispose();atlas=ZoidiumPluginApis.gl.createRenderTarget(THREE,aw,ah*2,{format:THREE.RGBAFormat,type:THREE.UnsignedByteType,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,depthBuffer:false,stencilBuffer:false});}
@@ -95,13 +96,14 @@ function create(effect,THREE,PZ,root) {
     // The same scalar scaling and Float32 stores as the draw-time path.
     const sx=(key.w-1)/(aw-1),sy=(key.h-1)/(ah-1);
     for(let i=0;i<field.data.length;i+=4){field.data[i]*=sx;field.data[i+1]*=sy;}
-    if(same(key,token(renderer,samples,settings.sensitivity))){result={token:key,field};stats.jobs++;stats.workerMs=field.workerMs;}
+    if(same(key,token(renderer,samples,settings.sensitivity))){result={token:key,level:plan.level,width:plan.width,height:plan.height,field};stats.jobs++;stats.workerMs=field.workerMs;}
   }
   return {
     stats,
     prepare(frame,context,settings){const task=()=>run(frame,context,settings);const pending=queue.then(task);queue=pending.catch(()=>{});return pending;},
-    field(renderer,samples,sensitivity,w,h,mode){const key=token(renderer,samples,sensitivity);
-      return mode==="half"&&same(key,result?.token)&&key.w===w&&key.h===h?result.field:null;},
+    field(renderer,samples,sensitivity,w,h,plan){const key=token(renderer,samples,sensitivity);
+      return plan&&!plan.exact&&same(key,result?.token)&&key.w===w&&key.h===h&&
+        result.level===plan.level&&result.width===plan.width&&result.height===plan.height?result.field:null;},
     invalidate(){generation++;result=null;},
     dispose(){disposed=true;generation++;result=null;worker?.dispose();atlas?.dispose();ZoidiumPluginApis.gl.disposePass(pass);},
   };
