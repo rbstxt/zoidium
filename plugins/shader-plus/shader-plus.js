@@ -19,7 +19,8 @@ function activate(context) {
   const curves = shared("./material-plus/graph-curves.js");
   const register = (id, type, create) => disposers.push(context.apis.propertyControls.register(id, { type, create }));
   const controls = require("./controls.js").installControls({ PZ, doc, editor, register });
-  require("./angle-control.js").registerAngle({ PZ, doc, register, commit: controls.commit });
+  const angle = require("./angle-control.js").registerAngle({ PZ, doc, register, commit: controls.commit });
+  disposers.push(() => angle.close());
   // Snap for native number rows. CM3's Time sample rows are bare native rows
   // that Shader+ never creates, so the opt-in check wraps generateInput
   // itself: definitions without an active snap take the original path

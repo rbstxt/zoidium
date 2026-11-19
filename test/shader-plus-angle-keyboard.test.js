@@ -36,3 +36,27 @@ test("angle dial stays open while composing", () => {
   }
   handle.close();
 });
+
+test("disabling Shader+ closes an open angle dial", () => {
+  const doc = new FakeElement("document"), win = new FakeElement("window");
+  class Element extends FakeElement {
+    constructor(tag) { super(tag); this.ownerDocument = doc; this.isConnected = true; }
+    append(...nodes) { nodes.forEach(node => this.appendChild(node)); }
+  }
+  doc.createElement = tag => new Element(tag); doc.createElementNS = (_ns, tag) => new Element(tag);
+  doc.body = new Element("body"); doc.head = new Element("head"); doc.defaultView = win; win.innerWidth = win.innerHeight = 1000;
+  const box = new Element("div"); box.pz_update = () => {};
+  const PZ = { property: { type: { NUMBER: 0 } }, ui: { controls: { generateInput: () => box } } };
+  const registered = new Map(), disposers = [];
+  const modules = { "./controls.js": { installControls: () => ({ commit() {} }) }, "./angle-control.js": { registerAngle },
+    "./snap.js": { isSnapActive: () => false }, "./texture-controls.js": { installTextureControls() {} }, "./runtime.js": { installRuntime: () => ({ disposeAll() {} }) },
+    "./font-assets.js": { registerFontAssets() {} }, "./code-window.js": { installCodeWindows: () => ({}) }, "./editor.js": { installEditor: () => ({}) } };
+  const context = { PZ, window: win, document: doc, editor: {}, getAsset: () => "", lifecycle: { onDispose: fn => disposers.push(fn) },
+    apis: { modules: { createRequire: () => path => modules[path] || {} }, propertyControls: { register(id, spec) { registered.set(id, spec); return () => registered.delete(id); } } } };
+  require("../plugins/shader-plus/shader-plus.js").activate(context);
+  registered.get("shader-plus/angle").create({ definition: {}, get: () => 0 });
+  box.children[0].onclick({ stopPropagation() {} });
+  assert.equal(doc.listeners.pointerdown.length, 1);
+  try { disposers[0](); assert.equal(doc.listeners.pointerdown.length, 0); assert.equal(doc.body.children.length, 0); }
+  finally { if (doc.body.children.length) doc.dispatch("pointerdown", { target: null }); }
+});
