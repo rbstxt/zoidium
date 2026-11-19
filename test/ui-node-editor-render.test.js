@@ -135,3 +135,21 @@ test("setGraph replaces nodes and links", () => {
   assert.equal(editor.element.querySelectorAll(".zoidium-node-editor-link").length, 0);
   editor.destroy();
 });
+
+test("node numeric field retains composition on Enter and Escape", () => {
+  const { nodeEditor } = loadEditor();
+  const editor = nodeEditor({ nodeTypes, graph });
+  const input = editor.element.querySelector(".zoidium-node-editor-number");
+  let blurs = 0;
+  input.blur = () => { blurs++; };
+  input.value = "5";
+  input.dispatch("input", {});
+  for (const key of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    input.dispatch("keydown", { key, ...composition });
+    assert.equal(blurs, 0);
+    assert.equal(input.value, "5");
+  }
+  input.dispatch("keydown", { key: "Enter" });
+  assert.equal(blurs, 1);
+  editor.destroy();
+});

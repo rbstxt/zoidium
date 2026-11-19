@@ -145,6 +145,7 @@
           input.value = formatNumber(committed, decimals);
         });
         input.addEventListener("keydown", function (event) {
+          if (event.isComposing || event.keyCode === 229) return;
           if (event.key === "Enter") {
             event.preventDefault();
             input.blur();
