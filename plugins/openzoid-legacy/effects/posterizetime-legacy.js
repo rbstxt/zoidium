@@ -32,7 +32,7 @@ ZoidiumPluginApis.defineTemporal.call(this, {
     const fps = Number(effect.properties.frameRate.get(frame));
     return {
       kind: "posterize-time",
-      enabled: effect.properties.enabled.get(frame) === 1,
+      enabled: Number(effect.properties.enabled.get(frame)) === 1,
       fps: Number.isFinite(fps) && fps >= 1 ? fps : 1,
     };
   },
