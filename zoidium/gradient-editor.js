@@ -51,7 +51,7 @@
         owner.addEventListener("pointermove", event => { move(event); input(); }, { signal: controller.signal });
         owner.addEventListener("pointerup", event => end(event, false), { once: true, signal: controller.signal });
         owner.addEventListener("pointercancel", event => end(event, true), { once: true, signal: controller.signal });
-        owner.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); end(event, true); } }, { capture: true, signal: controller.signal });
+        owner.addEventListener("keydown", event => { if (event.isComposing || event.keyCode === 229 || event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return; if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); end(event, true); } }, { capture: true, signal: controller.signal });
         view.addEventListener("blur", () => end(null, true), { once: true, signal: controller.signal });
         // Color surfaces update on a click as well as during a drag.
         if (el.classList.contains("zge-sv")) { move(e); input(); }
@@ -101,7 +101,7 @@
     };
     function selectStop(stop, type) { selected = stop; kind = type; paint(); }
     function stopKey(event, stop, type) {
-      if (readonly) return;
+      if (readonly || event.isComposing || event.keyCode === 229) return;
       selected = stop; kind = type;
       if (["Delete", "Backspace"].includes(event.key)) { event.preventDefault(); remove(); }
       else if (["ArrowLeft", "ArrowRight"].includes(event.key)) {
