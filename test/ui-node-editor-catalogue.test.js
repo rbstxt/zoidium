@@ -55,6 +55,17 @@ test("ramp add, remove, color, alpha and keyboard position each commit one edit"
     handle.dispatch("keydown", { key: "ArrowRight", stopPropagation() { stopped = true; } }); assert.ok(stopped); assert.equal(changes.length, 4);
     byLabel(editor.element, "Remove color stop").click(); assert.equal(changes.length, 5); assert.equal(editor.getGraph().nodes.length, 3); editor.destroy();
 });
+test("ramp keys leave a composing edit unchanged", () => {
+    const { editor, changes } = setup();
+    const handle = editor.element.querySelector(".zoidium-node-editor-ramp-stop");
+    for (const key of ["Delete", "ArrowRight"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+        handle.dispatch("keydown", { key, ...composition });
+        assert.equal(changes.length, 0);
+    }
+    handle.dispatch("keydown", { key: "ArrowRight" });
+    assert.equal(changes.length, 1);
+    editor.destroy();
+});
 test("recipe replacement commits once and can be undone with the host snapshot", () => {
     const { editor, changes } = setup(), before = editor.getGraph();
     const menu = byLabel(editor.element, "Starter recipe"); menu.value = "0"; menu.dispatch("change");
