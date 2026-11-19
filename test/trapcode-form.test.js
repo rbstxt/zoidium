@@ -27,6 +27,21 @@ function positions(instance) {
   return Array.from(instance.points.geometry.attributes.position.array);
 }
 
+test("Form asset requests accept string map and audio switches", () => {
+  const { instance } = makeForm();
+  instance._assets.request = (kind, value) => `${kind}:${value}`;
+  const maps = instance.properties.layerMaps;
+  for (const name of ["colorAlpha", "displacement", "size", "fractalStrength", "disperse", "rotate"]) {
+    maps[name + "Layer"].set(name);
+    maps[name + "Enabled"].set("1");
+  }
+  instance.properties.audio.audioLayer.set("sound");
+  instance.properties.audio.reactor3.set("1");
+  assert.equal(instance.audioReactorsOn(0), true);
+  assert.deepEqual(instance.requestAssets().sort(),
+    ["audio:sound", ...["colorAlpha", "displacement", "size", "fractalStrength", "disperse", "rotate"].map(name => `layer:${name}`)].sort());
+});
+
 test("Form Transform rotates the whole form in degrees without rebuilding its geometry", () => {
   const { instance } = makeForm();
   instance.update(0);

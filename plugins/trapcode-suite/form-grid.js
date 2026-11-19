@@ -263,7 +263,7 @@ var PZ = PZ || {};
             }));
         }
         for (var i = 0; i < LAYER_MAPS.length; i++) {
-            if (maps[LAYER_MAPS[i][0]].get(t) !== 1) continue;
+            if (Number(maps[LAYER_MAPS[i][0]].get(t)) !== 1) continue;
             var layer = maps[LAYER_MAPS[i][1]].get(t);
             entries.push(this._assets.request("layer", layer, function (value) {
                 return T.sampleImageAsset(project, value, 128);
@@ -289,7 +289,7 @@ var PZ = PZ || {};
         var audio = this.properties.audio;
         if (!audio) return false;
         for (var i = 1; i <= 5; i++) {
-            if (audio["reactor" + i] && audio["reactor" + i].get(t) === 1) return true;
+            if (audio["reactor" + i] && Number(audio["reactor" + i].get(t)) === 1) return true;
         }
         return false;
     };
