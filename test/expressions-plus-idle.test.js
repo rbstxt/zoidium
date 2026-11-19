@@ -60,9 +60,11 @@ test("computed custom-property calls retain legacy helper receivers", { skip: !f
     const helper = PZ.property.create({ custom: true, dynamic: true, type: 0, value: 0 });
     root.customProperties.push(helper); helper.load(); helper.properties.name.set("Fn");
     helper.expression = new PZ.expression("wiggle");
+    state.helper = helper;
     state.a.expression = new PZ.expression('properties["Fn"](2,3)');
   }
   for (const frame of [0, 12.5, 90, 3, 12.5]) {
+    assert.equal(typeof optimized.helper.get(frame), "function");
     assert.equal(optimized.a.get(frame), original.a.get(frame));
     assert.equal(optimized.engine.error(optimized.a), null);
   }

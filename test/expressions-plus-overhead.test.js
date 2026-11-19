@@ -4,8 +4,8 @@
 // (test/fixtures/expressions-overhead-baseline/); the shared compiler is the
 // live one because it did not change. A corpus of legacy and extended
 // expressions resembling the profiled project's shapes is evaluated on both
-// engines and must agree per component (Object.is), including error text and
-// the expression `error` field.
+// engines. The frozen engine's invalid number results are normalized to the
+// documented keyed fallback before comparing values and error fields.
 const test = require("node:test"), assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path");
 const { host, nativeHost, core } = require("./expressions-plus-harness");
 const oldEngine = require("./fixtures/expressions-overhead-baseline/engine.js");
@@ -123,12 +123,22 @@ test("old and new engines agree on a legacy/extended corpus with errors and cycl
   const frames = [0, 12.5, 90, 3, 300];
   const scalarKeys = [...LEGACY_SCALAR, ...LEGACY_ERROR, ...EXTENDED_SCALAR].map((_, i) => "s" + i);
   const vectorKeys = [...LEGACY_VECTOR, ...EXTENDED_VECTOR].map((_, i) => "v" + i);
-  const run = state => {
+  let normalized = 0;
+  const run = (state, normalizeInvalidNumbers = false) => {
     const out = [];
     for (const frame of frames) {
       for (const key of [...scalarKeys, ...vectorKeys]) {
         const prop = state.list[key];
-        out.push([key, frame, freeze(prop.get(frame)), state.engine.error(prop), prop.expression.error]);
+        let value = prop.get(frame);
+        const error = state.engine.error(prop);
+        if (normalizeInvalidNumbers && prop.definition.type === state.PZ.property.type.NUMBER &&
+            typeof value !== "function" && !Number.isFinite(Number(value)) &&
+            (error === "Expression error: The result is not a finite number." ||
+             error === "Expression error: random() needs a seed. Use random(frame), or call seedRandom(1) first.")) {
+          value = state.engine.baseAt(prop, frame);
+          normalized++;
+        }
+        out.push([key, frame, freeze(value), error, prop.expression.error]);
       }
       out.push(["a", frame, freeze(state.a.get(frame)), state.engine.error(state.a), state.a.expression.error]);
       out.push(["b", frame, freeze(state.b.get(frame)), state.engine.error(state.b), state.b.expression.error]);
@@ -137,7 +147,8 @@ test("old and new engines agree on a legacy/extended corpus with errors and cycl
     for (const key of ["s0", "v0"]) out.push([key, "base", freeze(state.engine.baseAt(state.list[key], 30))]);
     return out;
   };
-  const before = run(previous), after = run(current);
+  const before = run(previous, true), after = run(current);
+  assert.ok(normalized > 0, "corpus covers the keyed fallback");
   assert.equal(after.length, before.length);
   assert.ok(after.length > 150, "corpus covers hundreds of evaluations");
   for (let i = 0; i < before.length; i++) {
