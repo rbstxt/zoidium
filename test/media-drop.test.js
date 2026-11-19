@@ -349,3 +349,108 @@ test("queued clipboard images choose names after earlier imports finish", async 
   assert.deepEqual(Object.keys(project.assets.list), ["Pasted image 1.png", "Pasted image 2.png"]);
   module.dispose();
 });
+
+test("a timed-out drop closes its operation and allows the next drop", async () => {
+  const listeners = {}, timers = new Map(), notices = [];
+  let timerId = 0, releaseFirst, firstSignal;
+  const project = { media: [] };
+  const history = {
+    operation: null, stack: [],
+    startOperation() { this.operation = []; },
+    finishOperation() { this.stack.push(this.operation); this.operation = null; },
+    pushCommand(name) { if (this.operation) this.operation.push(name); },
+  };
+  const editor = { project, history };
+  class MediaPanel {}
+  const panel = new MediaPanel(); panel.el = { classList: { remove() {} } };
+  const target = { tagName: "DIV", closest: () => ({ pz_panel: panel }) };
+  const document = { addEventListener(type, listener) { listeners[type] = listener; },
+    removeEventListener() {}, querySelectorAll() { return []; } };
+  const api = { import: async ([input], { signal }) => {
+    if (input.name === "stuck.png") {
+      firstSignal = signal;
+      history.pushCommand("stuck-start");
+      await new Promise(resolve => { releaseFirst = resolve; });
+      if (signal.aborted) return { items: [] };
+      history.pushCommand("stuck-late");
+    } else history.pushCommand("second");
+    return { items: [], errors: [] };
+  } };
+  const host = { CM: editor, addEventListener() {}, removeEventListener() {},
+    setTimeout(callback) { const id = ++timerId; timers.set(id, callback); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    ZoidiumUI: { notify({ message }) { notices.push(message); } } };
+  const { activate } = require("../plugins/core/media-drop");
+  const module = activate({ window: host, document, PZ: { ui: { media: MediaPanel } }, apis: { assets: api } });
+  const drop = name => listeners.drop({ target, dataTransfer: { types: ["Files"], files: [file(name, "image/png")] },
+    preventDefault() {}, stopPropagation() {} });
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  drop("stuck.png"); drop("second.png"); await tick();
+  assert.deepEqual(history.operation, ["stuck-start"]);
+  timers.values().next().value();
+  await tick();
+  assert.equal(firstSignal.aborted, true);
+  assert.equal(history.operation, null);
+  assert.deepEqual(history.stack, [["stuck-start"], ["second"]]);
+  assert.ok(notices.some(message => message.includes("timed out")));
+  releaseFirst(); await tick();
+  assert.deepEqual(history.stack, [["stuck-start"], ["second"]], "late completion adds no command");
+  module.dispose();
+});
+
+test("a queued drop abandoned after a project change reports the failure", async () => {
+  const listeners = {}, notices = [];
+  let release;
+  const editor = { project: { media: [] }, history: { operation: null,
+    startOperation() { this.operation = []; }, finishOperation() { this.operation = null; } } };
+  class MediaPanel {}
+  const panel = new MediaPanel(); panel.el = { classList: { remove() {} } };
+  const target = { tagName: "DIV", closest: () => ({ pz_panel: panel }) };
+  const document = { addEventListener(type, listener) { listeners[type] = listener; },
+    removeEventListener() {}, querySelectorAll() { return []; } };
+  const host = { CM: editor, addEventListener() {}, removeEventListener() {},
+    ZoidiumUI: { notify({ message }) { notices.push(message); } } };
+  const api = { import: () => new Promise(resolve => { release = resolve; }) };
+  const { activate } = require("../plugins/core/media-drop");
+  const module = activate({ window: host, document, PZ: { ui: { media: MediaPanel } }, apis: { assets: api } });
+  const drop = name => listeners.drop({ target, dataTransfer: { types: ["Files"], files: [file(name, "image/png")] },
+    preventDefault() {}, stopPropagation() {} });
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  drop("first.png"); drop("second.png"); await tick();
+  editor.project = { media: [] }; editor.history.operation = null;
+  release({ items: [], errors: [] }); await tick();
+  assert.ok(notices.some(message => message.includes("project changed")));
+  module.dispose();
+});
+
+test("an archive that finishes after timeout cannot add media during the next drop", async () => {
+  const listeners = {}, timers = new Map();
+  let timerId = 0, releaseArchive, created = 0;
+  const editor = { project: { media: [] }, history: { operation: null,
+    startOperation() { this.operation = []; }, finishOperation() { this.operation = null; } } };
+  class MediaPanel {}
+  const panel = new MediaPanel(); panel.el = { classList: { remove() {} } };
+  panel.editor = editor;
+  panel.importFile = () => new Promise(resolve => { releaseArchive = resolve; });
+  panel.createMedia = () => { created += 1; };
+  const element = { pz_panel: panel };
+  const target = { tagName: "DIV", closest: () => element };
+  const document = { addEventListener(type, listener) { listeners[type] = listener; },
+    removeEventListener() {}, querySelectorAll() { return [element]; } };
+  const host = { CM: editor, addEventListener() {}, removeEventListener() {},
+    setTimeout(callback) { const id = ++timerId; timers.set(id, callback); return id; },
+    clearTimeout(id) { timers.delete(id); }, console: { warn() {} } };
+  let nextStarted = false;
+  const api = { import: async () => { nextStarted = true; return { items: [], errors: [] }; } };
+  const { activate } = require("../plugins/core/media-drop");
+  const module = activate({ window: host, document, PZ: { ui: { media: MediaPanel } }, apis: { assets: api } });
+  const drop = input => listeners.drop({ target, dataTransfer: { types: ["Files"], files: [input] },
+    preventDefault() {}, stopPropagation() {} });
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  drop(file("first.pz")); drop(file("second.png", "image/png")); await tick();
+  timers.values().next().value(); await tick();
+  assert.equal(nextStarted, true);
+  releaseArchive({}); await tick();
+  assert.equal(created, 0);
+  module.dispose();
+});
