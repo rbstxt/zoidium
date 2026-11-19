@@ -5,7 +5,7 @@ const test = require("node:test");
 const {
   classifyFile, isFileDrag, shouldHandleDrag, resolveDropZone, isEditableTarget, pasteSupported,
   pastedFilename, pastedMediaFilename, nextPasteIndex, needsPastedName, clipboardFiles,
-  insertIndexFor, trackFits, unsupportedErrors, mediaForAssets, placeEntries, operationScope,
+  insertIndexFor, trackFits, unsupportedErrors, mediaForAssets, placeEntries, operationScope, createImportQueue,
   IMPORT_FAILURE, HIGHLIGHT_CLASS,
 } = require("../plugins/core/media-drop");
 
@@ -81,6 +81,7 @@ test("pasted bitmaps receive an unused name", () => {
   assert.equal(pastedFilename(2, ""), "Pasted image 2.png");
   assert.equal(nextPasteIndex([]), 1);
   assert.equal(nextPasteIndex(["Pasted image 1.png", "Pasted image 7.png", "photo.png"]), 8);
+  assert.equal(nextPasteIndex(["Pasted media 7.mp4"]), 8);
   assert.equal(needsPastedName({ name: "image.png" }), true);
   assert.equal(needsPastedName({ name: "" }), true);
   assert.equal(needsPastedName({ name: "screenshot" }), true);
@@ -234,4 +235,212 @@ test("a project change abandons the scope without finishing the old operation", 
   history.operation = null;
   assert.doesNotThrow(finish);
   assert.equal(history.undoStack.length, 0);
+});
+
+
+test("overlapping imports finish in separate history operations", async () => {
+  const { editor, history } = fakeTimeline();
+  const enqueue = createImportQueue();
+  let release;
+  const first = enqueue(async () => {
+    const finish = operationScope(editor);
+    history.pushCommand({ kind: "first" });
+    await new Promise(resolve => { release = resolve; });
+    finish();
+  });
+  await Promise.resolve();
+  const second = enqueue(async () => {
+    const finish = operationScope(editor);
+    history.pushCommand({ kind: "second" });
+    finish();
+  });
+  await Promise.resolve();
+  assert.equal(history.undoStack.length, 0);
+  release();
+  await Promise.all([first, second]);
+  assert.deepEqual(history.undoStack.map(operation => operation.map(command => command.kind)), [["first"], ["second"]]);
+});
+
+test("a failed queued import does not block later imports", async () => {
+  const enqueue = createImportQueue();
+  const first = enqueue(() => { throw new Error("failed"); });
+  const second = enqueue(() => "complete");
+  await assert.rejects(first, /failed/);
+  assert.equal(await second, "complete");
+});
+
+test("separate file drops keep asynchronous imports in separate undo operations", async () => {
+  const listeners = {};
+  const project = { media: [] };
+  const history = {
+    operation: null,
+    stack: [],
+    startOperation() { this.operation = []; },
+    finishOperation() { this.stack.push(this.operation); this.operation = null; },
+    pushCommand(command) { if (this.operation) this.operation.push(command); },
+    undo() { for (const command of (this.stack.pop() || []).reverse()) command(); },
+  };
+  const editor = { project, history };
+  class MediaPanel {}
+  const panel = new MediaPanel();
+  panel.el = { classList: { remove() {} } };
+  const target = { tagName: "DIV", closest: () => ({ pz_panel: panel }) };
+  const document = {
+    addEventListener(type, listener) { listeners[type] = listener; },
+    removeEventListener() {},
+    querySelectorAll() { return []; },
+  };
+  const pending = [];
+  const api = { import: async ([file]) => {
+    await new Promise(resolve => pending.push(resolve));
+    const item = { assets: [{ key: file.name }] };
+    project.media.push(item);
+    history.pushCommand(() => project.media.splice(project.media.indexOf(item), 1));
+    return { items: [{ id: file.name }], errors: [] };
+  } };
+  const host = { CM: editor, addEventListener() {}, removeEventListener() {} };
+  const { activate } = require("../plugins/core/media-drop");
+  const module = activate({ window: host, document, PZ: { ui: { media: MediaPanel } }, apis: { assets: api } });
+  const drop = name => listeners.drop({ target, dataTransfer: { types: ["Files"], files: [file(name, "image/png")] },
+    preventDefault() {}, stopPropagation() {} });
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  drop("first.png");
+  drop("second.png");
+  await tick();
+  assert.equal(pending.length, 1, "the second import waits until the first operation finishes");
+  pending.shift()();
+  await tick();
+  assert.equal(pending.length, 1);
+  pending.shift()();
+  await tick();
+  assert.equal(project.media.length, 2);
+  assert.equal(history.stack.length, 2);
+  history.undo();
+  assert.deepEqual(project.media.map(item => item.assets[0].key), ["first.png"]);
+  history.undo();
+  assert.equal(project.media.length, 0);
+  module.dispose();
+});
+
+test("queued clipboard images choose names after earlier imports finish", async () => {
+  const listeners = {};
+  const project = { media: [], assets: { list: {} } };
+  const history = { operation: null, startOperation() { this.operation = []; }, finishOperation() { this.operation = null; } };
+  const editor = { project, history };
+  const document = { activeElement: null, addEventListener(type, listener) { listeners[type] = listener; },
+    removeEventListener() {}, querySelectorAll() { return []; } };
+  const pending = [];
+  const api = { import: async ([input]) => {
+    await new Promise(resolve => pending.push(resolve));
+    project.assets.list[input.name] = { filename: input.name };
+    project.media.push({ assets: [{ key: input.name }] });
+    return { items: [{ id: input.name }], errors: [] };
+  } };
+  const host = { CM: editor, addEventListener() {}, removeEventListener() {},
+    File: class { constructor(_parts, name, options) { this.name = name; this.type = options.type; } } };
+  const { activate } = require("../plugins/core/media-drop");
+  const module = activate({ window: host, document, PZ: { ui: {} }, apis: { assets: api } });
+  const paste = () => listeners.paste({ target: { tagName: "DIV" }, clipboardData: { files: [file("image.png", "image/png")] },
+    preventDefault() {}, stopPropagation() {} });
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  paste(); paste(); await tick();
+  pending.shift()(); await tick();
+  pending.shift()(); await tick();
+  assert.deepEqual(Object.keys(project.assets.list), ["Pasted image 1.png", "Pasted image 2.png"]);
+  module.dispose();
+});
+
+test("a queued drop abandoned after a project change reports the failure", async () => {
+  const listeners = {}, notices = [];
+  let release;
+  const editor = { project: { media: [] }, history: { operation: null,
+    startOperation() { this.operation = []; }, finishOperation() { this.operation = null; } } };
+  class MediaPanel {}
+  const panel = new MediaPanel(); panel.el = { classList: { remove() {} } };
+  const target = { tagName: "DIV", closest: () => ({ pz_panel: panel }) };
+  const document = { addEventListener(type, listener) { listeners[type] = listener; },
+    removeEventListener() {}, querySelectorAll() { return []; } };
+  const host = { CM: editor, addEventListener() {}, removeEventListener() {},
+    ZoidiumUI: { notify({ message }) { notices.push(message); } } };
+  const api = { import: () => new Promise(resolve => { release = resolve; }) };
+  const { activate } = require("../plugins/core/media-drop");
+  const module = activate({ window: host, document, PZ: { ui: { media: MediaPanel } }, apis: { assets: api } });
+  const drop = name => listeners.drop({ target, dataTransfer: { types: ["Files"], files: [file(name, "image/png")] },
+    preventDefault() {}, stopPropagation() {} });
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  drop("first.png"); drop("second.png"); await tick();
+  editor.project = { media: [] }; editor.history.operation = null;
+  release({ items: [], errors: [] }); await tick();
+  assert.ok(notices.some(message => message.includes("project changed")));
+  module.dispose();
+});
+
+function slowDropFixture() {
+  const listeners = {}, timers = new Map(), notices = [], started = [];
+  let timerId = 0, releaseFirst;
+  const project = { media: [] };
+  const history = { operation: null, stack: [],
+    startOperation() { this.operation = []; },
+    finishOperation() { if (this.operation.length) this.stack.push(this.operation); this.operation = null; },
+    pushCommand(command) { this.operation.push(command); },
+    undo() { for (const command of (this.stack.pop() || []).reverse()) command(); } };
+  const editor = { project, history };
+  class MediaPanel {}
+  const panel = new MediaPanel(); panel.el = { classList: { remove() {} } };
+  const target = { tagName: "DIV", closest: () => ({ pz_panel: panel }) };
+  const document = { addEventListener(type, listener) { listeners[type] = listener; },
+    removeEventListener() {}, querySelectorAll() { return []; } };
+  const host = { CM: editor, addEventListener() {}, removeEventListener() {},
+    setTimeout(callback, delay) { const id = ++timerId; timers.set(id, { callback, delay }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    ZoidiumUI: { notify({ message }) { notices.push(message); } } };
+  const api = { import: async ([input], options) => {
+    started.push({ name: input.name, options });
+    if (input.name === "slow.png") await new Promise(resolve => { releaseFirst = resolve; });
+    const item = { assets: [{ key: input.name }] };
+    project.media.push(item);
+    history.pushCommand(() => project.media.splice(project.media.indexOf(item), 1));
+    return { items: [{ id: input.name }], errors: [] };
+  } };
+  const { activate } = require("../plugins/core/media-drop");
+  const module = activate({ window: host, document, PZ: { ui: { media: MediaPanel } }, apis: { assets: api } });
+  const drop = name => listeners.drop({ target, dataTransfer: { types: ["Files"], files: [file(name, "image/png")] },
+    preventDefault() {}, stopPropagation() {} });
+  const advance = () => {
+    for (const [id, timer] of timers) { timers.delete(id); timer.callback(); }
+  };
+  return { project, history, timers, notices, started, module, drop, advance, release: () => releaseFirst() };
+}
+
+test("a slow drop shows one notice and both drops remain separately undoable", async () => {
+  const h = slowDropFixture();
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  h.drop("slow.png"); h.drop("second.png"); await tick();
+  assert.equal(h.started.length, 1);
+  assert.equal(h.started[0].options.waitForMedia, true);
+  assert.equal([...h.timers.values()][0].delay, 60000);
+  h.advance(); h.advance(); await tick();
+  assert.equal(h.notices.length, 1);
+  assert.match(h.notices[0], /still in progress.*continue when it finishes/i);
+  assert.equal(h.started.length, 1, "the second drop waits");
+  h.release(); await tick();
+  assert.deepEqual(h.project.media.map(item => item.assets[0].key), ["slow.png", "second.png"]);
+  assert.equal(h.history.stack.length, 2);
+  assert.equal(h.timers.size, 0);
+  h.history.undo();
+  assert.deepEqual(h.project.media.map(item => item.assets[0].key), ["slow.png"]);
+  h.history.undo();
+  assert.equal(h.project.media.length, 0);
+  h.module.dispose();
+});
+
+test("an ordinary drop finishes without a slow-import notice", async () => {
+  const h = slowDropFixture();
+  h.drop("ordinary.png");
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.project.media.length, 1);
+  assert.equal(h.timers.size, 0);
+  h.advance();
+  assert.deepEqual(h.notices, []);
+  h.module.dispose();
 });

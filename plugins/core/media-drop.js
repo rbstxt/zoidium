@@ -22,6 +22,7 @@ const IMAGE_MIME_EXTENSIONS = {
 };
 const HIGHLIGHT_CLASS = "zoidium-media-drop-target";
 const IMPORT_FAILURE = "The files could not be imported.";
+const IMPORT_NOTICE_MS = 60000;
 
 function extensionOf(name) {
   const match = /\.([a-z0-9]{1,8})$/i.exec(String(name || ""));
@@ -99,7 +100,7 @@ function pastedMediaFilename(index, file) {
 function nextPasteIndex(names) {
   let highest = 0;
   for (const name of names || []) {
-    const match = /^Pasted image (\d+)\.[a-z0-9]+$/i.exec(String(name || ""));
+    const match = /^Pasted (?:image|media) (\d+)\.[a-z0-9]+$/i.exec(String(name || ""));
     if (match) highest = Math.max(highest, Number(match[1]));
   }
   return highest + 1;
@@ -305,13 +306,25 @@ async function importArchive(editorInstance, file, panel) {
   if (!panel || typeof panel.importFile !== "function" || typeof panel.createMedia !== "function") {
     throw new Error(IMPORT_FAILURE);
   }
+  const project = editorInstance.project;
   const data = await panel.importFile(file);
+  if (editorInstance.project !== project) throw new Error("The project changed while importing files.");
   if (!data) throw new Error(IMPORT_FAILURE);
   const index = editorInstance.project.media.length;
   panel.createMedia({ address: [1, index], data });
   const media = editorInstance.project.media[index];
   if (media?.loading) await media.loading;
   return media;
+}
+
+// Keep each asynchronous drop or paste inside its own history operation.
+function createImportQueue() {
+  let pending = Promise.resolve();
+  return task => {
+    const result = pending.then(task);
+    pending = result.catch(() => {});
+    return result;
+  };
 }
 
 function activate(context) {
@@ -324,6 +337,7 @@ function activate(context) {
   const assets = () => context.apis?.assets || host.ZoidiumAssets || null;
   const highlighted = new Set();
   let style = null;
+  const enqueueImport = createImportQueue();
 
   function notifyImport(message) {
     const text = message || IMPORT_FAILURE;
@@ -408,7 +422,7 @@ function activate(context) {
           continue;
         }
         if (!api?.import) throw new Error(IMPORT_FAILURE);
-        const result = await api.import([file]);
+        const result = await api.import([file], { waitForMedia: true });
         for (const error of result?.errors || []) errors.push(error);
         const item = result?.items?.[0];
         if (item) entries.push({ file, media: mediaForAssets(project, [item.id], before).get(item.id) || null });
@@ -433,6 +447,10 @@ function activate(context) {
       return;
     }
     const finish = operationScope(current);
+    const timers = host.setTimeout && host.clearTimeout ? host : globalThis;
+    const notice = timers.setTimeout(() => {
+      notifyImport("An earlier import is still in progress. Later drops and pastes will continue when it finishes.");
+    }, IMPORT_NOTICE_MS);
     try {
       const project = current.project;
       const { entries } = await importFiles(current, supported, errors);
@@ -452,6 +470,7 @@ function activate(context) {
         catch (error) { errors.push({ message: error?.message || String(error) }); }
       }
     } finally {
+      timers.clearTimeout(notice);
       finish();
     }
     if (errors.length) notifyImport(importFailure(errors));
@@ -464,6 +483,19 @@ function activate(context) {
       if (message && !messages.includes(message)) messages.push(message);
     }
     return messages.join(" ") || IMPORT_FAILURE;
+  }
+
+  function scheduleFiles(zone, files, point, options) {
+    const current = editor();
+    const project = current?.project;
+    void enqueueImport(() => {
+      if (editor() !== current || current?.project !== project) {
+        notifyImport("The project changed before the files could be imported.");
+        return;
+      }
+      const prepared = typeof files === "function" ? files() : files;
+      return handleFiles(zone, prepared, point, options);
+    }).catch(error => notifyImport(error?.message || String(error)));
   }
 
   function onDragOver(event) {
@@ -497,8 +529,7 @@ function activate(context) {
     event.stopPropagation();
     unhighlightAll();
     const point = { x: event.clientX, y: event.clientY };
-    void handleFiles(zone, files, point, { placeAtPlayhead: zone.kind === "viewport" })
-      .catch(error => notifyImport(error?.message || String(error)));
+    scheduleFiles(zone, files, point, { placeAtPlayhead: zone.kind === "viewport" });
   }
 
   function pasteFiles(event) {
@@ -514,20 +545,19 @@ function activate(context) {
       notifyImport(IMPORT_FAILURE);
       return;
     }
-    let index = nextPasteIndex(pasteableNames(current.project));
-    const prepared = pasted.map(file => {
-      if (!needsPastedName(file)) return file;
-      const image = classifyFile(file) === "image";
-      const name = image ? pastedFilename(index++, file.type) : pastedMediaFilename(index++, file);
-      try {
-        return new host.File([file], name, { type: file.type || "image/png", lastModified: Date.now() });
-      } catch (_error) { return file; }
-    });
     const timeline = zoneFor(document.activeElement);
     const focusedTimeline = timeline?.kind === "timeline" ? timeline : null;
-    void handleFiles(focusedTimeline || { kind: "paste", el: null }, prepared, null,
-      { placeAtPlayhead: !!focusedTimeline })
-      .catch(error => notifyImport(error?.message || String(error)));
+    scheduleFiles(focusedTimeline || { kind: "paste", el: null }, () => {
+      let index = nextPasteIndex(pasteableNames(current.project));
+      return pasted.map(file => {
+        if (!needsPastedName(file)) return file;
+        const image = classifyFile(file) === "image";
+        const name = image ? pastedFilename(index++, file.type) : pastedMediaFilename(index++, file);
+        try {
+          return new host.File([file], name, { type: file.type || "image/png", lastModified: Date.now() });
+        } catch (_error) { return file; }
+      });
+    }, null, { placeAtPlayhead: !!focusedTimeline });
   }
 
   document.addEventListener("dragenter", onDragOver, true);
@@ -557,6 +587,7 @@ module.exports = {
   activate,
   HIGHLIGHT_CLASS,
   IMPORT_FAILURE,
+  IMPORT_NOTICE_MS,
   classifyFile,
   isFileDrag,
   shouldHandleDrag,
@@ -577,4 +608,5 @@ module.exports = {
   chooseTrack,
   placeEntries,
   operationScope,
+  createImportQueue,
 };

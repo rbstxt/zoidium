@@ -358,3 +358,36 @@ test("the host maps lower tracks through an adjustment remap", () => {
   assert.equal(identity.sourceFrame, 10);
 });
 
+
+test("a speed curve crossing zero reverses from the accumulated source time", () => {
+  const speed = property(0, { keyframes: [keyframe(0, 100), keyframe(10, 100), keyframe(30, -100)] });
+  const mapper = math.speedMap(speed, { cache: {} });
+  assert.ok(Math.abs(mapper.map(10) - 10) < 1e-9);
+  assert.ok(Math.abs(mapper.map(20) - 15) < 1e-9);
+  assert.ok(Math.abs(mapper.map(30) - 10) < 1e-9);
+  assert.ok(Math.abs(mapper.map(40)) < 1e-9);
+  assert.equal(temporal.applyTemporalOperators(50, 30,
+    [{ kind: "time-remap", enabled: true, map: mapper.map }], 60), 0);
+});
+
+test("speed keys outside the clip interpolate through its local range", () => {
+  const speed = property(0, { keyframes: [keyframe(-10, 0), keyframe(30, 200)] });
+  const mapper = math.speedMap(speed, { cache: {} });
+  assert.ok(Math.abs(mapper.map(10) - 7.5) < 1e-9);
+  assert.ok(Math.abs(mapper.map(20) - 20) < 1e-9);
+  const frozen = math.speedMap(property(0, { keyframes: [keyframe(-10, 0), keyframe(30, 0)] }));
+  assert.deepEqual([0, 10, 20].map(frame => frozen.map(frame)), [0, 0, 0]);
+});
+
+test("frame mix tap planning clamps requests at both clip boundaries", () => {
+  const effect = loadEffect({ blend: 1 });
+  const bounds = [0, 60 - temporal.EPSILON];
+  const planned = frame => {
+    const request = effect._zoidiumFrameSampler.getRequest(effect, frame);
+    return temporal.planExplicitFrameSamples(frame, request.frames, ...bounds).map(sample => sample.frame);
+  };
+  assert.deepEqual(planned(-0.25), [0, 0]);
+  assert.deepEqual(planned(0.25), [0, 1]);
+  assert.deepEqual(planned(59.75), [59, 60 - temporal.EPSILON]);
+  assert.deepEqual(planned(60.25), [60 - temporal.EPSILON, 60 - temporal.EPSILON]);
+});

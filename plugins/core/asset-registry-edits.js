@@ -141,7 +141,9 @@
       if (/\.obj$/i.test(file.name)) return PZ.asset.type.GEOMETRY;
       return PZ.asset.type.MISC;
     }
-    async function importMedia(mediaOps, file) {
+    async function importMedia(mediaOps, file, waitForMedia) {
+      // Queued drops retain slow imports until decoding finishes.
+      if (waitForMedia) return mediaOps.importFile(file);
       let timer;
       try {
         // Native image/AV import has no rejection on several decoder failures.
@@ -151,7 +153,7 @@
         })]);
       } finally { global.clearTimeout(timer); }
     }
-    async function importFiles(files) {
+    async function importFiles(files, options) {
       current();
       const editor = global.CM, project = editor?.project, items = [], errors = [];
       if (!project || !editor.history) return { ok: false, items, errors: [{ message: "There is no project to import into." }] };
@@ -168,7 +170,7 @@
             if (created) editor.history.pushCommand(() => removeAsset(editor, project, asset));
             items.push({ id: asset.key, name: asset.filename || file.name, created });
             if (/^(video|audio|image)\//i.test(file.type) && !project.media.some(media => mediaHolds(media, new Set([key])))) {
-              const data = await importMedia(mediaOps, file);
+              const data = await importMedia(mediaOps, file, options?.waitForMedia);
               if (editor.project !== project) throw new Error("The project changed while importing files.");
               if (!data) throw new Error("This browser cannot decode " + file.name + ". The file is retained in the project.");
               const index = project.media.length;

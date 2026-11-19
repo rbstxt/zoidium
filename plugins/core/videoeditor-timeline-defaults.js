@@ -158,6 +158,9 @@
       lower = Math.max(lower, bounds.lower);
       upper = Math.min(upper, bounds.upper);
     }
+    const epsilon = 1e-9;
+    lower = Math.ceil(lower - epsilon);
+    upper = Math.floor(upper + epsilon);
     return Math.max(lower, Math.min(rawDelta, upper));
   }
 
