@@ -187,6 +187,22 @@ test("Card Wipe update() uploads the math-module random texture", () => {
   }
 });
 
+test("Card Wipe binds its cached random texture after a pass reload", () => {
+  const { spec } = loadFilterEffect("cardwipe.js", { _zoidiumGetAsset() {} });
+  const makePass = () => {
+    const uniforms = { tRand: { value: null } };
+    return { uniforms, material: { uniforms } };
+  };
+  const effect = { pass: makePass() };
+  spec.onLoad(effect);
+  const texture = effect.pass.uniforms.tRand.value;
+  assert.ok(texture);
+  effect.pass = makePass();
+  spec.onLoad(effect);
+  assert.equal(effect.pass.uniforms.tRand.value, texture);
+  spec.onUnload(effect);
+});
+
 test("Card Wipe shader passes the layer through exactly at 0%", () => {
   const shader = fs.readFileSync(
     path.join(projectRoot, "plugins/native-fx/shaders/fx_cardwipe.glsl"), "utf8");
