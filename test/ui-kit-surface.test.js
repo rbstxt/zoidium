@@ -226,6 +226,10 @@ test("section, tabs and list builders manage their own state", () => {
     onActivate: (id) => activated.push(id),
   });
   assert.equal(listControl.get(), null);
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    listControl.element.children[1].dispatch("keydown", { key: "Enter", ...composition });
+    assert.deepEqual(activated, []);
+  }
   listControl.element.children[1].click();
   assert.equal(listControl.get(), "n2");
   assert.deepEqual(selected, ["n2"]);

@@ -419,7 +419,7 @@
         });
         row.addEventListener("dblclick", function () { call(config.onActivate, item.id); });
         row.addEventListener("keydown", function (event) {
-          if (event.key === "Enter") { row.click(); call(config.onActivate, item.id); }
+          if (event.key === "Enter" && !event.isComposing && event.keyCode !== 229) { row.click(); call(config.onActivate, item.id); }
         });
         node.appendChild(row);
       });
