@@ -25,3 +25,22 @@ for (const type of ["nodes", "pbrplus", "imageplus"]) {
     } finally { for (const dispose of h.dispose.reverse()) dispose(); }
   });
 }
+
+for (const [type, moduleName] of [["matcap", "material-plus"], ["uvcustom", "uv-custom"]]) {
+  test(`${type} releases its default material`, async () => {
+    const h = harness(), counter = resourceCounter(), THREE = h.context.window.THREE;
+    THREE.ShaderMaterial = counter.track(class { constructor(options) { Object.assign(this, options); } }, "ShaderMaterial");
+    THREE.MeshStandardMaterial = counter.track(THREE.MeshStandardMaterial, "MeshStandardMaterial");
+    const plugin = require(`../plugins/material-plus/${moduleName}.js`);
+    plugin.activate(h.context);
+    try {
+      const material = h.material(type);
+      (await h.PZ.material.fnList[type]).call(material);
+      material.load();
+      await material.prepare?.(0);
+      material.update(0);
+      material.unload();
+      counter.assertDisposed();
+    } finally { for (const dispose of h.dispose.reverse()) dispose(); plugin.deactivate(); }
+  });
+}
