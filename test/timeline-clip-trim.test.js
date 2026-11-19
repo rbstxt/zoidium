@@ -329,6 +329,13 @@ test("the start edge clamps at the first time sample", () => {
   assert.equal(resolveTrimDelta(mediaStart, -45, RATE, true), -30);
 });
 
+test("media bounds keep multi-clip trims on whole frames", () => {
+  const start = [startTask(makeClip({ start: 10, length: 30, timeStart: 0.05 }))];
+  const end = [endTask(makeClip({ start: 0, length: 30, mediaLength: 40, timeEnd: 1.05 }))];
+  assert.equal(resolveTrimDelta(start, -10, RATE, true), -1);
+  assert.equal(resolveTrimDelta(end, 10, RATE, true), 8);
+});
+
 test("no selected clip shrinks below one frame", () => {
   assert.equal(
     resolveTrimDelta([startTask(makeClip({ start: 0, length: 10 }))], 20, RATE, true),
