@@ -10,6 +10,13 @@ function setup() {
     getContext() { return { createImageData: () => ({ data: new Uint8ClampedArray(1024) }), putImageData() {} }; }
   }
   doc.defaultView = win; win.AbortController = AbortController;
+  for (const target of [doc, win]) {
+    const add = target.addEventListener.bind(target);
+    target.addEventListener = (type, fn, options) => {
+      add(type, fn);
+      options?.signal?.addEventListener("abort", () => target.removeEventListener(type, fn), { once: true });
+    };
+  }
   doc.createElement = tag => new Element(tag); doc.createTextNode = text => { const node = new Element("span"); node.textContent = text; return node; };
   win.document = doc; win.ZoidiumGradientModel = require("../zoidium/gradient-model.js");
   win.ZoidiumGradientColorPanel = { create: ({ node }) => ({ element: node("div"), update() {}, setDisabled() {} }) };
@@ -33,5 +40,12 @@ test("gradient stop keys and active drags ignore composing events", () => {
   }
   doc.dispatch("keydown", { key: "Escape" });
   assert.equal(editor.editing, false); assert.deepEqual(finishes, [true]);
+  for (let i = 0; i < 15; i++) {
+    marker.dispatch("pointerdown", { button: 0 });
+    assert.equal(doc.listeners.keydown.length, 1);
+    doc.dispatch("keydown", { key: "Escape" });
+    assert.ok(Object.values(doc.listeners).every(list => list.length === 0));
+    assert.ok(Object.values(doc.defaultView.listeners).every(list => list.length === 0));
+  }
   editor.dispose();
 });
