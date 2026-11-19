@@ -94,3 +94,25 @@ test("activation failure rolls back prototype and texture definition patches", (
   assert.deepEqual(env.Particle.propertyDefinitions.texture.items, []);
   env.disposers[0]();
 });
+
+test("picker reflects an undone sprite selection", () => {
+  const env = setup();
+  const project = env.project();
+  const property = project.particles[0].properties.texture;
+  property.definition = env.Particle.propertyDefinitions.texture;
+  property.set = function (value) { this.value = value; };
+  project.assets = { createFromPreset: (_type, key) => ({ key }) };
+  env.activation.PZ.asset = { type: { IMAGE: 0 } };
+  env.controls.editStart = () => {};
+  env.controls.editFinish = () => {};
+  env.plugin.activate(env.activation);
+  const [container] = env.controls.generateTextureInput(property);
+  const picker = env.pickers.at(-1);
+  picker.select.selectedIndex = property.definition.items.indexOf("square");
+  picker.select.onchange();
+  property.value = "/assets/textures/particles/circle.png";
+  picker.select.selectedIndex = -1;
+  container.pz_update();
+  assert.equal(picker.select.selectedIndex, -1);
+  env.plugin.deactivate();
+});
