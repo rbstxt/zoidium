@@ -107,6 +107,9 @@ test('one sequence sample updates a layer once; shutter samples restore its auth
   compositor.renderLayer = () => {};
   compositor.renderSequence(20);
   assert.deepEqual(times, [10]);
+  times.length = 0; properties.motionBlur.set("0");
+  compositor.renderSequence(20);
+  assert.deepEqual(times, [10]);
   times.length = 0; properties.motionBlur.set(1);
   compositor.renderSequence(20);
   assert.deepEqual(times, [9, 9 + 2 / 3, 9 + 4 / 3, 10]);

@@ -43,12 +43,12 @@ parts.vibrate = (function () {
   // Writes the vibrate offsets onto the camera transform. `position` and
   // `rotation` are the base pose at time t (degrees are converted here).
   function applyVibrate(vibrate, t, camera, position, rotation) {
-    if (vibrate.enabled.get() !== 1) return;
+    if (Number(vibrate.enabled.get()) !== 1) return;
     const seed = vibrate.seed.get();
-    const stepped = vibrate.regularPulse.get() === 1;
-    const relative = vibrate.relative.get() === 1;
+    const stepped = Number(vibrate.regularPulse.get()) === 1;
+    const relative = Number(vibrate.relative.get()) === 1;
     const axes = ["x", "y", "z"];
-    if (vibrate.enablePosition.get() === 1) {
+    if (Number(vibrate.enablePosition.get()) === 1) {
       const amplitude = vibrate.positionAmplitude.get();
       const frequency = vibrate.positionFrequency.get();
       for (let h = 0; h < 3; h++) {
@@ -57,7 +57,7 @@ parts.vibrate = (function () {
         camera.position[axes[h]] += sampleNoise(t * frequency, seed + 17 * h, stepped) * scale;
       }
     }
-    if (vibrate.enableRotation.get() === 1) {
+    if (Number(vibrate.enableRotation.get()) === 1) {
       const amplitude = vibrate.rotationAmplitude.get();
       const frequency = vibrate.rotationFrequency.get();
       for (let f = 0; f < 3; f++) {
