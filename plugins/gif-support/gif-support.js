@@ -154,7 +154,7 @@ const GifSupport = (() => {
     for (let pass = 0; pass < starts.length; pass++) {
       for (let row = starts[pass]; row < height; row += steps[pass]) {
         if (line >= height) break;
-        output.set(indices.subarray(row * width, row * width + width), line * width);
+        output.set(indices.subarray(line * width, line * width + width), row * width);
         line++;
       }
     }

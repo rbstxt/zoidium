@@ -98,6 +98,25 @@ test("decoder: interlaced rows land in order", () => {
   }
 });
 
+test("decoder: interlaced eight-row image maps stored rows to display rows", () => {
+  const { GifSupport } = loadGifSupport();
+  const palette = Array.from({ length: 8 }, (_, i) => [i * 30, 0, 0]);
+  const stored = [0, 4, 2, 6, 1, 3, 5, 7];
+  // Clear before each index so every LZW code remains four bits wide.
+  const codes = stored.flatMap(index => [8, index]).concat(9, 0);
+  const compressed = [];
+  for (let i = 0; i < codes.length; i += 2) compressed.push(codes[i] | (codes[i + 1] << 4));
+  const gif = Uint8Array.from([
+    ...Buffer.from("GIF89a"), 1, 0, 8, 0, 0x82, 0, 0, ...palette.flat(),
+    0x2c, 0, 0, 0, 0, 1, 0, 8, 0, 0x40, 3,
+    compressed.length, ...compressed, 0, 0x3b,
+  ]);
+  const decoded = GifSupport.decode(gif, fakeFactory);
+  for (let row = 0; row < 8; row++) {
+    assert.deepEqual(pixelOf(decoded.frames[0].canvas, 0, row), [...palette[row], 255]);
+  }
+});
+
 test("decoder: transparency plus disposal 2 clears the rect", () => {
   const { GifSupport } = loadGifSupport();
   const red = [255, 0, 0];
