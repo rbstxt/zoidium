@@ -26,5 +26,13 @@ test("angle dial stays open while composing", () => {
   }
   dial.dispatch("keydown", { key: "Escape" });
   assert.equal(panel.parentElement, null);
+  assert.equal(doc.listeners.pointerdown.length, 0);
+  for (let i = 0; i < 15; i++) {
+    button.onclick({ stopPropagation() {} });
+    assert.equal(doc.listeners.pointerdown.length, 1);
+    handle.close();
+    assert.equal(doc.listeners.pointerdown.length, 0);
+    assert.equal(doc.body.children.length, 0);
+  }
   handle.close();
 });
