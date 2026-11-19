@@ -11,6 +11,7 @@ test("Smart Motion Blur has stable serialized properties and native identity", (
   assert.equal(math.ID, "smartmotionblur");
   const props = math.properties({ NUMBER: 42, OPTION: 43 });
   assert.deepEqual(Object.keys(props), [
+    "enabled",
     "amount",
     "sensitivity",
     "smoothness",
@@ -22,7 +23,7 @@ test("Smart Motion Blur has stable serialized properties and native identity", (
   ]);
   assert.deepEqual(
     Object.values(props).map((property) => property.value),
-    [0.5, 70, 50, 256, 0, 0, 0, 0],
+    [1, 0.5, 70, 50, 256, 0, 0, 0, 0],
   );
   assert.ok(Object.values(props).every((property) => property.dynamic));
   assert.equal(props.analysis.items, "Both;Previous;Next");
@@ -268,6 +269,13 @@ test("native entry uses the bundle loader, project tap times, and exact active U
   assert.deepEqual(rendered[5], [1920, 1080]);
   assert.deepEqual(rendered[6], [0.5, 0.25]);
   assert.deepEqual(spec.getRequest(effect, 7).frames, [-1, 1]);
+  effect.properties.enabled = { get: () => 0 };
+  assert.equal(spec.getRequest(effect, 7).enabled, false);
+  effect.update(7);
+  assert.equal(effect.pass.enabled, false);
+  effect.properties.enabled = { get: () => 1 };
+  effect.update(7);
+  assert.equal(effect.pass.enabled, true);
   assert.equal(/\bfetch\s*\(/.test(source), false);
 });
 

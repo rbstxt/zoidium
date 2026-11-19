@@ -44,7 +44,8 @@ function loadEffectThis() {
   THREE.OrthographicCamera = function () {};
   THREE.Mesh = function (geo, mat) { this.geometry = geo; this.material = mat; };
   THREE.PlaneBufferGeometry = function () { this.dispose = () => {}; };
-  THREE.CanvasTexture = function () { this.dispose = () => {}; };
+  THREE.LinearFilter = "linear";
+  THREE.CanvasTexture = function () { this.minFilter = "mipmap"; this.dispose = () => {}; };
   THREE.WebGLRenderTarget = function () { this.dispose = () => {}; };
   const fakeThis = { properties: fakeProps() };
   new Function("PZ", "THREE", source).call(fakeThis, PZ, THREE);
@@ -346,4 +347,18 @@ test("ascii layer region falls back to the whole buffer for invalid shares", () 
     pass.uniforms.uvScale.value.y = 1;
     assert.deepEqual(pass.layerRegion(160, 90), { width: 40, height: 90 });
   });
+});
+
+
+test("ascii canvas texture supports non-power-of-two dimensions", async () => {
+  const { fakeThis, THREE } = loadEffectThis();
+  const env = recordingEnvironment(() => 0);
+  try {
+    const inst = { type: "ascii", properties: constantProps(fakeThis.propertyDefinitions, {}) };
+    await fakeThis.load.call(inst, {});
+    fakeThis.update.call(inst, 0);
+    inst.pass.render(env.renderer, env.readBuffer, env.readBuffer);
+    assert.equal(inst.pass.canvasTexture.minFilter, THREE.LinearFilter);
+    assert.equal(inst.pass.canvasTexture.generateMipmaps, false);
+  } finally { env.restore(); }
 });
