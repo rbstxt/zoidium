@@ -219,14 +219,31 @@ test("decoder: rejects corrupt input and enforces caps", () => {
   assert.equal(GifSupport.MAX_PIXELS, 67108864);
 });
 
-test("decoder: rejects a frame whose compressed pixels are truncated", () => {
+test("decoder: short frames retain previous pixels and still import", () => {
   const { GifSupport } = loadGifSupport();
-  const gif = twoFrameGifBytes();
-  const image = gif.indexOf(0x2c, 19);
-  const dataSize = image + 11;
-  const truncated = gif.slice(0, dataSize + 1);
-  truncated[dataSize] = 0;
-  assert.equal(GifSupport.decode(truncated, fakeFactory), null);
+  const gif = buildGif({ width: 2, height: 2, palette: [[255, 0, 0], [0, 0, 255]], frames: [
+    { width: 2, height: 2, indices: [0, 0, 0, 0] },
+    { width: 2, height: 2, indices: [1, 1, 1] },
+  ] });
+  const decoded = GifSupport.decode(gif.slice(0, -1), fakeFactory);
+  assert.equal(decoded.frames.length, 2);
+  assert.deepEqual(pixelOf(decoded.frames[1].canvas, 0, 0), [0, 0, 255, 255]);
+  assert.deepEqual(pixelOf(decoded.frames[1].canvas, 0, 1), [0, 0, 255, 255]);
+  assert.deepEqual(pixelOf(decoded.frames[1].canvas, 1, 1), [255, 0, 0, 255]);
+});
+
+test("decoder: short interlaced frames retain pixels in the missing display rows", () => {
+  const { GifSupport } = loadGifSupport();
+  const gif = buildGif({ width: 1, height: 8, palette: [[255, 0, 0], [0, 0, 255]], frames: [
+    { width: 1, height: 8, indices: Array(8).fill(0) },
+    { width: 1, height: 8, interlaced: true, indices: [1, 1, 1] },
+  ] });
+  const decoded = GifSupport.decode(gif, fakeFactory);
+  assert.equal(decoded.frames.length, 2);
+  for (let row = 0; row < 8; row++) {
+    const color = [0, 2, 4].includes(row) ? [0, 0, 255, 255] : [255, 0, 0, 255];
+    assert.deepEqual(pixelOf(decoded.frames[1].canvas, 0, row), color);
+  }
 });
 
 test("decoder: rejects an oversized frame before allocating its pixel indices", () => {

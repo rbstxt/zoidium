@@ -141,13 +141,14 @@ const GifSupport = (() => {
       }
       previous = entry;
     }
-    return outputIndex === pixelCount ? output : null;
+    return output.subarray(0, outputIndex);
   }
 
   // Note: OpenZoid used a step of 8 for every pass, which drops rows for
   // most heights. The GIF89a spec steps are 8, 8, 4, 2 per pass.
   function deinterlace(indices, width, height) {
     const output = new Uint8Array(width * height);
+    const rowLengths = indices.length < output.length ? new Uint32Array(height) : null;
     const starts = [0, 4, 2, 1];
     const steps = [8, 8, 4, 2];
     let line = 0;
@@ -155,10 +156,11 @@ const GifSupport = (() => {
       for (let row = starts[pass]; row < height; row += steps[pass]) {
         if (line >= height) break;
         output.set(indices.subarray(line * width, line * width + width), row * width);
+        if (rowLengths) rowLengths[row] = Math.max(0, Math.min(width, indices.length - line * width));
         line++;
       }
     }
-    return output;
+    return { indices: output, rowLengths };
   }
 
   // Decodes a GIF87a/89a buffer into composited per-frame canvases.
@@ -281,8 +283,12 @@ const GifSupport = (() => {
       if (minCodeSize < 1 || minCodeSize > 8) return null;
       const data = readSubBlocks();
       let indices = lzwDecode(minCodeSize, data, frameWidth * frameHeight);
-      if (!indices) return null;
-      if (interlaced) indices = deinterlace(indices, frameWidth, frameHeight);
+      let rowLengths = null;
+      if (interlaced) {
+        const result = deinterlace(indices, frameWidth, frameHeight);
+        indices = result.indices;
+        rowLengths = result.rowLengths;
+      }
 
       const snapshot = disposal === 3 ? pixels.slice() : null;
       if (table) {
@@ -290,6 +296,7 @@ const GifSupport = (() => {
           const targetY = top + y;
           if (targetY < 0 || targetY >= height) continue;
           for (let x = 0; x < frameWidth; x++) {
+            if (rowLengths ? x >= rowLengths[y] : y * frameWidth + x >= indices.length) continue;
             const targetX = left + x;
             if (targetX < 0 || targetX >= width) continue;
             const index = indices[y * frameWidth + x];
