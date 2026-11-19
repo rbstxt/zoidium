@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=156",
       "bundle": "./plugins/core/bundle.json?v=156",
-      "integrity": "sha256-QVjT69ujak3FzNMc/XhKKuADQniBBU95hPnyyEYAQgE="
+      "integrity": "sha256-JnHZgvadb9n357czIh5TovPHb1OmrKYDOZKDA7iORCY="
     },
     {
       "id": "easing-plus",
@@ -238,7 +238,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/material-plus/manifest.json?v=40",
       "bundle": "./plugins/material-plus/bundle.json?v=40",
-      "integrity": "sha256-q0LtCoLVbObHtu3jMlzAzuZjn68bCAea11CM4bA3mdM="
+      "integrity": "sha256-QzYZZxrKywNOsw+DDd2CM8wSqJ1iCKtGvOy1jYwjfLY="
     },
     {
       "id": "text-plus",
@@ -557,7 +557,7 @@
       "description": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
       "manifest": "./plugins/sglow-hq-v2-preview/manifest.json?v=17",
       "bundle": "./plugins/sglow-hq-v2-preview/bundle.json?v=17",
-      "integrity": "sha256-vv4CbYNUMiYa+4D09vgLqxfLZLY1vLWx4P438/eIzBc=",
+      "integrity": "sha256-OZgPrz+TmE6uP+fsHViYaQSCfcalCd1VSKevNgaPXSI=",
       "zoidiumOnly": true
     }
   ]

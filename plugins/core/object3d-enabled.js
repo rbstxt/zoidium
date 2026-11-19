@@ -257,9 +257,7 @@
       // not depend on the flag update used before.
       if (!unmuteLight(this) && hidden && this.threeObj) this.threeObj.visible = true;
       hidden = false;
-      const result = inherited(this, "update").apply(this, arguments);
-      if (this instanceof base.group && this.threeObj) this.threeObj.visible = enabled;
-      return result;
+      return inherited(this, "update").apply(this, arguments);
     });
     wrap(object, "prepare", function (frame) {
       if (Number(this.properties.enabled.get(frame)) !== 1 && !mustUpdateGroup(this)) {

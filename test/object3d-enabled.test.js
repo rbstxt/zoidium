@@ -294,11 +294,28 @@ test("string dynamic OPTION keys survive load and control object and group work"
     object.properties.enabled.load({ keys: { 0: "1", 1: "0" } });
     assert.equal(object.zoidiumSkipsWork(0), false);
     object.update(0); await object.prepare(0);
-    assert.equal(object.threeObj.visible, true);
+    assert.equal(object.threeObj.visible, !(object instanceof Group), "the group keeps native visibility semantics");
     assert.equal(object.zoidiumSkipsWork(1), true);
     object.update(1); await object.prepare(1);
     assert.equal(object.threeObj.visible, false);
     assert.equal(object.zoidiumFrameReady(1), true);
     assert.deepEqual(object.properties.enabled.toJSON().keys, { 0: "1", 1: "0" });
+  }
+});
+
+test("camera groups keep their inherited visibility for numeric and string enabled values", async () => {
+  const { Group, Camera } = host();
+  for (const value of [0, 1, "0", "1"]) {
+    const group = new Group(), camera = new Camera();
+    group.objects.push(camera);
+    group.properties.enabled.load({ keys: { 0: value } });
+    // The original wrapper delegates to Group.prototype.update for camera groups.
+    const original = { properties: group.properties, threeObj: {}, objects: [] };
+    Group.prototype.update.call(original, 0);
+    group.update(0); await group.prepare(0);
+    assert.equal(group.threeObj.visible, original.threeObj.visible, String(value));
+    assert.equal(camera.updated, 0);
+    assert.equal(camera.prepared, 0);
+    assert.equal(group.zoidiumSkipsWork(0), false);
   }
 });

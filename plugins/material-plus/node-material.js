@@ -422,7 +422,7 @@ function activate(context) {
       this.initReflection();
       this.threeObj.transparent = Number(this.properties.transparent.get()) === 1;
       this.threeObj.blending = Number(this.properties.blending.get());
-      this.threeObj.side = [THREE.FrontSide, THREE.BackSide, THREE.DoubleSide][this.properties.side.get()];
+      this.threeObj.side = [THREE.FrontSide, THREE.BackSide, THREE.DoubleSide][Number(this.properties.side.get())];
       this.update(0);
       PZ.zoidium?.trackPluginMaterial?.(this, { ...context.plugin, material: "nodes", materialName: "Node Material", compatibility: "incompatible" }, false);
     };
