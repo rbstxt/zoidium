@@ -135,6 +135,18 @@ test("a focused panel is toggled with the event CM3 listens for", () => {
   assert.equal(event.defaultPrevented, true);
 });
 
+test("composition does not toggle a focused panel", () => {
+  const doc = createDocument();
+  const { el, dispatched } = createPanel();
+  doc.activeElement = el;
+  installShortcut(doc);
+  for (const init of [{ isComposing: true }, { keyCode: 229 }]) {
+    const event = press(doc, keyEvent({ key: "`", code: "BracketLeft", ...init }));
+    assert.equal(dispatched.length, 0);
+    assert.equal(event.defaultPrevented, false);
+  }
+});
+
 test("the remapped key does nothing without a focused panel", () => {
   const doc = createDocument();
   const { dispatched } = createPanel();
