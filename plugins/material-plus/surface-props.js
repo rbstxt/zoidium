@@ -15,7 +15,7 @@ target.props = {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
             var e = this.parentObject;
             if (e.pzLoading || !nodes || !nodes.editor) return;
-            if (this.value === 1) {
+            if (Number(this.value) === 1) {
                 nodes.editor.open(e);
             } else {
                 nodes.editor.closeMaterial(e);

@@ -223,3 +223,19 @@ test("Node Material transparency follows the native option value", async () => {
     assert.equal(m.threeObj.transparent, false);
   } finally { m.unload(); for (const dispose of h.dispose.reverse()) dispose(); }
 });
+
+test("Node Editor opens and closes for native option values", () => {
+  const calls = [];
+  const target = {};
+  const h = harness();
+  require("../plugins/material-plus/surface-props.js")(target, {
+    PZ: h.PZ, THREE: h.context.window.THREE, document: h.context.document,
+    nodes: { editor: { open: m => calls.push(["open", m]), closeMaterial: m => calls.push(["close", m]) } },
+  });
+  const material = { pzUniforms: {} };
+  const property = { parentObject: material, value: "1" };
+  target.props.nodeEditor.changed.call(property);
+  property.value = "0";
+  target.props.nodeEditor.changed.call(property);
+  assert.deepEqual(calls, [["open", material], ["close", material]]);
+});
