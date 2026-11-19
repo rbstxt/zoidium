@@ -312,16 +312,16 @@
       "category": "scene",
       "name": "Optical Flares",
       "author": "DaviFX",
-      "version": "21",
+      "version": "22",
       "itemCount": 5,
       "format": "3D objects",
       "tagline": "3D lens flares",
       "color": "#4a90d9",
       "description": "Video Copilot style lens flares placed in 3D space and projected through the scene camera, edited in one floating window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/optical-flares/manifest.json?v=21",
-      "bundle": "./plugins/optical-flares/bundle.json?v=21",
-      "integrity": "sha256-sOtqHvWJlGq0xnG51VTdK44ktw6CJbHN5KfXnYiG5NI="
+      "manifest": "./plugins/optical-flares/manifest.json?v=22",
+      "bundle": "./plugins/optical-flares/bundle.json?v=22",
+      "integrity": "sha256-ajS1n3nJ5rpam4jMaI0rZy31wClsYH07uBHrAwEzIWo="
     },
     {
       "id": "effector-plus",
