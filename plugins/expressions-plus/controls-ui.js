@@ -31,7 +31,7 @@ function installControlsUI({ context, store, patch }) {
       line.appendChild(input); return input;
     });
     const done = () => { safe(() => commit(inputs.map(input => input.value))); line.remove(); };
-    line.addEventListener("keydown", event => { event.stopPropagation(); if (event.key === "Enter") done(); if (event.key === "Escape") line.remove(); });
+    line.addEventListener("keydown", event => { event.stopPropagation(); if (event.isComposing || event.keyCode === 229) return; if (event.key === "Enter") done(); if (event.key === "Escape") line.remove(); });
     const button = doc.createElement("button");button.textContent = "Apply";button.className = "proprow propbutton";button.onclick = done;line.appendChild(button);
     const after = row.nextElementSibling?.tagName === "UL" ? row.nextElementSibling : row;
     after.after(line); inputs[0].focus(); inputs[0].select();
