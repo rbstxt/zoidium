@@ -176,6 +176,9 @@ function installMaskApi({ PZ, THREE, Content, onDispose }) {
   function releaseCoverageTexture(texture) {
     if (texture && !sharedCoverage.has(texture)) texture.dispose();
   }
+  function isCoverageTextureCurrent(renderer, evaluated, texture) {
+    return !sharedCoverage.has(texture) || !!renderer && gpu.hasCoverage(renderer, evaluated.signature, texture);
+  }
   function listSources(project) {
     const sources = [];
     let tracks = [];
@@ -214,7 +217,7 @@ function installMaskApi({ PZ, THREE, Content, onDispose }) {
   function setForceCpu(value) {
     if (gpu) gpu.setForceCpu(value);
   }
-  const apiValue = { evaluateReference, listSources, toUV, toSourceFrame, parseReference, formatReference, coverageSize, coverageData, coverageTexture, releaseCoverageTexture, coverageStats, setForceCpu, MAX_POINTS, FIELD };
+  const apiValue = { evaluateReference, listSources, toUV, toSourceFrame, parseReference, formatReference, coverageSize, coverageData, coverageTexture, releaseCoverageTexture, isCoverageTextureCurrent, coverageStats, setForceCpu, MAX_POINTS, FIELD };
   if (PZ.zoidium) PZ.zoidium.layerMask = apiValue;
   onDispose(() => {
     if (PZ.zoidium && PZ.zoidium.layerMask === apiValue) delete PZ.zoidium.layerMask;

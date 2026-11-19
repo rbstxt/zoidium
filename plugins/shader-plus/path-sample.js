@@ -163,7 +163,8 @@ function installPathSampling({ PZ, THREE, patch, pipeline, onDispose, editor, re
     // interpolation and sampling (sub-millisecond); the coverage rebuild
     // below runs only when the geometry signature changes.
     if (!useFloat && entry.useFloat !== false) warn(effect, property, "Float textures are unavailable; path points use 8-bit precision");
-    if (entry.key === evaluated.signature && entry.useFloat === useFloat) return entry;
+    if (entry.key === evaluated.signature && entry.useFloat === useFloat &&
+        (api.isCoverageTextureCurrent?.(renderer(), evaluated, entry.coverage) ?? true)) return entry;
     releaseCoverage(entry);
     // The layer composite and the Path inputs share one cached GPU
     // coverage; the API falls back to a CPU upload for extreme feather
