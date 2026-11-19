@@ -222,6 +222,7 @@ const ParticlesPlus = (() => {
 
       const originalOnchange = select.onchange;
       let lastPluginSprite = null;
+      let lastPluginValue = null;
       const selectPluginSprite = (sprite) => {
         if (!state.dataUrls.has(sprite)) return;
         if (fileInput?.style) fileInput.style.display = 'none';
@@ -232,6 +233,7 @@ const ParticlesPlus = (() => {
         const sprite = property.definition.items?.[this.selectedIndex];
         if (!state.dataUrls.has(sprite)) {
           lastPluginSprite = null;
+          lastPluginValue = null;
           delete property._zoidiumParticlesPlusSprite;
           const selectedIndex = this.selectedIndex;
           const result = typeof originalOnchange === 'function'
@@ -248,6 +250,7 @@ const ParticlesPlus = (() => {
           state.dataUrls.get(sprite),
         );
         lastPluginSprite = sprite;
+        lastPluginValue = asset.key;
         property._zoidiumParticlesPlusSprite = sprite;
         property.set(asset.key);
         state.PZ.ui.controls.editFinish.call(this, property);
@@ -260,7 +263,8 @@ const ParticlesPlus = (() => {
 
       const originalPzUpdate = container.pz_update;
       const patchedPzUpdate = function () {
-        const sprite = spriteIdForProperty(property) || lastPluginSprite;
+        const sprite = spriteIdForProperty(property) ||
+          (property.value === lastPluginValue ? lastPluginSprite : null);
         if (!sprite) {
           return typeof originalPzUpdate === 'function'
             ? originalPzUpdate.apply(this, arguments)
@@ -280,6 +284,7 @@ const ParticlesPlus = (() => {
             return await originalFileOnchange.apply(this, arguments);
           } finally {
             lastPluginSprite = null;
+            lastPluginValue = null;
             delete property._zoidiumParticlesPlusSprite;
             syncParticle(property.parentObject);
           }

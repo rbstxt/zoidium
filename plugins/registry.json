@@ -280,16 +280,16 @@
       "category": "scene",
       "name": "Particles+",
       "author": "Zoidium",
-      "version": "9",
+      "version": "10",
       "itemCount": 54,
       "format": "particle sprites",
       "tagline": "Extra Particle Sprites",
       "color": "#6b5b8f",
       "description": "Adds original monochrome particle sprites: geometric shapes, pattern textures, and glow/flare variants.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/particles-plus/manifest.json?v=9",
-      "bundle": "./plugins/particles-plus/bundle.json?v=9",
-      "integrity": "sha256-pIXNAPRvIALvqkbgS9FAKv9Q+sxFdzjmmWBHRgHek8o="
+      "manifest": "./plugins/particles-plus/manifest.json?v=10",
+      "bundle": "./plugins/particles-plus/bundle.json?v=10",
+      "integrity": "sha256-vW1aVgcqQbdqGgvZhd+17uiH4ajTlm/mkykzJ/f0gXc="
     },
     {
       "id": "trapcode-suite",
