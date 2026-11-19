@@ -106,14 +106,15 @@ function install(PZ, Layer, Content, onDispose) {
     if (object instanceof Content && this === panels?.top) {
       const button = this.generateButton("visible"), property = object.properties.enabled;
       const refresh = () => {
-        button.title = property.get() ? "Disable item" : "Enable item";
-        button.setAttribute("aria-pressed", String(!!property.get()));
-        button.style.opacity = property.get() ? "" : ".4";
+        const enabled = Number(property.get()) === 1;
+        button.title = enabled ? "Disable item" : "Enable item";
+        button.setAttribute("aria-pressed", String(enabled));
+        button.style.opacity = enabled ? "" : ".4";
       };
       button.onclick = event => {
         event.stopPropagation();
         this.editor.history.startOperation();
-        this.propertyOps.setValue({ property: property.getAddress(), value: property.get() ? 0 : 1, oldValue: property.get() });
+        this.propertyOps.setValue({ property: property.getAddress(), value: Number(property.get()) === 1 ? 0 : 1, oldValue: property.get() });
         this.editor.history.finishOperation();
       };
       property.onChanged.watch(refresh, true);

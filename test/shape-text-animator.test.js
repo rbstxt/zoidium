@@ -485,3 +485,27 @@ test("character offset shifts every letter of a ligature cluster", () => {
   assert.equal(direct.length, 3);
   assert.ok(direct.every(g => g.g !== 0));
 });
+
+test("static option strings control animator flags without changing saved types", () => {
+  const { Content } = createModel(PZ, service());
+  const anim = new Content("textAnimator");
+  anim.load({ properties: { enabled_position: "1", wigglyOn: "0", selectorRandomize: "0", lockDimensions: "1" } });
+  const saved = clone(anim), values = anim.evaluate(0).properties;
+  assert.equal(saved.properties.enabled_position, "1");
+  assert.equal(values.enabled_position, 1);
+  assert.equal(values.wigglyOn, 0);
+  assert.equal(values.selectorRandomize, 0);
+  assert.equal(values.lockDimensions, 1);
+  const { visible } = require("../plugins/shape-plus/native-properties");
+  assert.equal(visible("position", anim.properties), true);
+  assert.equal(visible("wigglyMax", anim.properties), false);
+  assert.deepEqual(clone(anim), saved);
+});
+
+test("string disabled contents do not enter the paint scope", () => {
+  const rect = { id: "rect", kind: "rectangle", properties: { enabled: "0" } };
+  const paint = { id: "fill", kind: "fill", properties: {} };
+  const scope = paintScope([rect, paint]);
+  assert.equal(scope.get("rect").enabled, false);
+  assert.equal(scope.get("fill").paths, 0);
+});

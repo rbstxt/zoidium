@@ -55,7 +55,7 @@ function installActions(s, root, options = {}) {
     if (!shapes && path) entries.push({ label: "Keyframe Path", action: s.keyframe }, { separator: true });
     const animatorLabels = { position: "Position", scale: "Scale", rotation: "Rotation", skew: "Skew", skewAxis: "Skew Axis", anchor: "Anchor Point", tracking: "Tracking Amount", charOffset: "Character Offset", groupingAlignment: "Grouping Alignment" };
     const axisOf = (node) => Object.keys(node.properties || {}).filter(key => key.startsWith("axis_")).map(key => ({ key, label: node.properties[key].definition?.name || key.slice(5) }));
-    const flagOf = (node, key) => { try { return node.properties["enabled_" + key]?.get() ? true : false; } catch (_error) { return false; } };
+    const flagOf = (node, key) => { try { return Number(node.properties["enabled_" + key]?.get()) === 1; } catch (_error) { return false; } };
     if (!many && item?.kind === "text") {
       const choices = [...Object.entries(animatorLabels).map(([key, label]) => ({ key, label })), ...axisOf(item)];
       entries.push({ label: "Add Text Animator", action: () => menu.open(x, y, choices.map(({ key, label }) => ({
@@ -67,7 +67,7 @@ function installActions(s, root, options = {}) {
       const choices = [...fixed, ...axisOf(item)];
       const on = choices.filter(({ key }) => flagOf(item, key)), off = choices.filter(({ key }) => !flagOf(item, key));
       let wiggly = false;
-      try { wiggly = item.properties.wigglyOn?.get() ? true : false; } catch (_error) { /* Detached item. */ }
+      try { wiggly = Number(item.properties.wigglyOn?.get()) === 1; } catch (_error) { /* Detached item. */ }
       entries.push(
         { label: "Add Property", disabled: !off.length, action: () => menu.open(x, y, off.map(({ key, label }) => ({
           label, action: () => s.setAnimatorFlag(item.id, key, 1),
