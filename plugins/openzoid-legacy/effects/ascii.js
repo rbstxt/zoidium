@@ -669,6 +669,10 @@ if (!THREE.AsciiPass) {
                 this.canvasHeight = h;
                 if (this.canvasTexture) this.canvasTexture.dispose();
                 this.canvasTexture = new THREE.CanvasTexture(this.canvas);
+                if ((w & (w - 1)) !== 0 || (h & (h - 1)) !== 0) {
+                    this.canvasTexture.minFilter = THREE.LinearFilter;
+                    this.canvasTexture.generateMipmaps = false;
+                }
             }
             if (!this.sampleTarget || this.sampleWidth !== cols || this.sampleHeight !== rows) {
                 if (this.sampleTarget) this.sampleTarget.dispose();
