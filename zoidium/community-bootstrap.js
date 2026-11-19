@@ -94,15 +94,14 @@
       window.postMessage({ type: "zoidium:community-connect", config: { bytes, approvedHash, runnerGeneration } }, location.origin, [channel.port2]);
     } else { frame.srcdoc = documentSource(location.origin, challenge, nonce); document.body.append(frame); }
     try { await boot; } catch (error) { close(); throw error; }
-    const seen = new Set();
+    const seen = V.createReplayWindow();
     return {
       binding,
       request(message) {
         if (closed) return Promise.reject(new Error("Runner is closed"));
         try {
           V.message(message); V.binding(message, binding); V.requestPayload(message, bundle);
-          if (pending || seen.has(message.requestId) || seen.size >= 4096) throw new Error("Duplicate request or runner request limit reached");
-          seen.add(message.requestId);
+          if (pending || !seen.accept(message.requestId)) throw new Error("Duplicate or expired request ID");
           // Copy before queuing; a caller cannot mutate the pending authority.
           message = S.parse(JSON.stringify(message), 65536);
           return new Promise((resolve, reject) => {

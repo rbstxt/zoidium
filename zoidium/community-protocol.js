@@ -8,6 +8,40 @@
   const FIELDS = ["protocolVersion", "interpreterVersion", "packageId", "packageHash", "runnerGeneration", "instanceId", "instanceGeneration", "projectGeneration", "revision", "requestId", "frameKey"];
   const REQUESTS = ["initialize", "prepareEffect", "uiEvent", "dispose"];
   const REPLIES = ["ready", "prepared", "uiPatch", "disposed", "error"];
+  // The controller issues request-N IDs. Keep other valid protocol tokens
+  // ordered too, without changing the message shape accepted by the brokers.
+  function compareRequestIds(a, b) {
+    const an = /^request-(0|[1-9][0-9]*)$/.exec(a), bn = /^request-(0|[1-9][0-9]*)$/.exec(b);
+    if (Boolean(an) !== Boolean(bn)) return an ? 1 : -1;
+    if (an && bn && an[1].length !== bn[1].length) return an[1].length - bn[1].length;
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+  function createReplayWindow(limit = 4096) {
+    const heap = [], seen = new Set(); let low = null;
+    function swap(a, b) { [heap[a], heap[b]] = [heap[b], heap[a]]; }
+    function accept(id) {
+      if ((low !== null && compareRequestIds(id, low) <= 0) || seen.has(id)) return false;
+      seen.add(id); heap.push(id);
+      for (let i = heap.length - 1; i > 0;) {
+        const parent = Math.floor((i - 1) / 2);
+        if (compareRequestIds(heap[parent], heap[i]) <= 0) break;
+        swap(parent, i); i = parent;
+      }
+      if (heap.length > limit) {
+        low = heap[0]; seen.delete(low);
+        heap[0] = heap.pop();
+        for (let i = 0;;) {
+          const left = 2 * i + 1, right = left + 1;
+          if (left >= heap.length) break;
+          const child = right < heap.length && compareRequestIds(heap[right], heap[left]) < 0 ? right : left;
+          if (compareRequestIds(heap[i], heap[child]) <= 0) break;
+          swap(i, child); i = child;
+        }
+      }
+      return true;
+    }
+    return { accept };
+  }
   function bounded(value, max = 4096) { if (typeof value !== "string" || !value.length || value.length > max) S.fail("invalid protocol token"); }
   function message(m, reply = false) {
     const bytes = S.data(m, { binary: false });
@@ -87,6 +121,6 @@
   function binding(m, installed) {
     for (const key of ["packageId", "packageHash", "runnerGeneration"]) if (m[key] !== installed[key]) S.fail("foreign runner binding");
   }
-  const api = { VERSION, INTERPRETER, FIELDS, message, matches, result, requestPayload, binding };
+  const api = { VERSION, INTERPRETER, FIELDS, message, matches, result, requestPayload, binding, createReplayWindow };
   if (commonJS) module.exports = api; else root.ZoidiumCommunityProtocol = api;
 })(globalThis);
