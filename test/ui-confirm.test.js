@@ -152,7 +152,7 @@ function loadKit() {
   context.window = context;
   vm.createContext(context);
   for (const file of kitScripts()) vm.runInContext(readScript(file), context, { filename: file });
-  return { api: context.ZoidiumUI, document };
+  return { api: context.ZoidiumUI, document, context };
 }
 
 function confirmWindow(document) {
@@ -251,6 +251,21 @@ test("composition keys do not resolve or close a confirm dialog", async () => {
       win.fire("keydown", { key, target: message, ...composition, preventDefault() {}, stopPropagation() {} });
       assert.equal(win.removed, false, `${key} must leave the dialog open`);
     }
+  }
+  footerButtons(win)[0].click();
+  assert.equal(await promise, false);
+});
+
+test("window command forwarding ignores composition and selects", async () => {
+  const { api, document, context } = loadKit();
+  let calls = 0;
+  context.CM = { keydown() { calls++; } };
+  const promise = api.confirm({ message: "Continue?" });
+  const win = confirmWindow(document);
+  const target = { closest: selector => selector.includes("select") ? {} : null };
+  for (const extra of [{ isComposing: true }, { keyCode: 229 }, { target }]) {
+    win.fire("keydown", { key: "z", metaKey: true, target: { closest: () => null }, ...extra, preventDefault() {}, stopPropagation() {} });
+    assert.equal(calls, 0);
   }
   footerButtons(win)[0].click();
   assert.equal(await promise, false);
