@@ -28,6 +28,8 @@ test("animated depth of field accepts string option keys", () => {
     assert.equal(camera.properties.depthOfField.enabled.get(0), "1");
     camera.properties.depthOfField.enabled.set("0");
     assert.equal(camera.readDepthOfField(0), null);
+    camera.properties.depthOfField.enabled.get = () => { throw new Error("unavailable"); };
+    assert.equal(camera.readDepthOfField(0), null);
   } finally { runtime.deactivate(); }
 });
 
