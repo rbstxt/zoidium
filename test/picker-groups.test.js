@@ -188,6 +188,10 @@ test("keyboard toggles headings with Enter and Space", () => {
   const { list } = buildPicker([{ name: "COLOR", category: true }, entries[1]]);
   manager.decoratePickerList(list);
   const heading = list.children.find((child) => child.tagName === "SPAN");
+  for (const key of ["Enter", " "]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    heading.dispatch("keydown", { key, ...composition, preventDefault() {}, stopPropagation() {} });
+    assert.deepEqual(childTags(list), ["SPAN:COLOR", "LI:Negative"]);
+  }
   heading.dispatch("keydown", { key: "Enter", preventDefault() {}, stopPropagation() {} });
   assert.deepEqual(childTags(list), ["SPAN:COLOR"]);
   heading.dispatch("keydown", { key: " ", preventDefault() {}, stopPropagation() {} });
