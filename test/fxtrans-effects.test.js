@@ -257,3 +257,20 @@ test("native-fx manifest retains the four effects after the temporal compatibili
     assert.ok(resources.includes(id), `manifest resources list ${id}`);
   }
 });
+
+test("Card Wipe rejects the perspective pole before division", () => {
+  const { spec } = loadFilterEffect("cardwipe.js", { _zoidiumGetAsset: () => { throw new Error("unused"); } });
+  const rel = 0.375, distance = 1, angle = Math.atan(1 / rel), completion = 100 * angle / Math.PI;
+  assert.ok(completion >= spec.properties.completion.min && completion <= spec.properties.completion.max);
+  assert.equal(distance, spec.properties.cameraDistance.min);
+  assert.equal(Math.cos(angle) * distance - rel * Math.sin(angle), 0);
+  const original = rel * distance / (Math.cos(angle) * distance - rel * Math.sin(angle));
+  assert.equal(Number.isFinite(original), false);
+  const f = Math.fround, p = f(0.38579973578453064), angle32 = f(p * f(Math.PI));
+  const denominator32 = f(f(Math.cos(angle32)) - f(f(rel) * f(Math.sin(angle32))));
+  assert.equal(denominator32, 0, "a 4-pixel image can hit the pole with float32 arithmetic");
+  assert.ok(Math.abs(f(Math.cos(angle32))) >= 0.004);
+  const shader = fs.readFileSync(path.join(projectRoot, "plugins/native-fx/shaders/fx_cardwipe.glsl"), "utf8");
+  assert.match(shader, /if \(denom == 0\.0\) \{\s*gl_FragColor = vec4\(0\.0\);\s*return;/);
+  assert.match(shader, /rel\.[xy] \* D \/ denom/g);
+});
