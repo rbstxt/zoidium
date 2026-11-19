@@ -203,3 +203,16 @@ test("cancellation during read-back cannot resurrect an import on the same store
   assert.deepEqual(store.view().packages, []);
   assert.equal(store.view().bytes, 0);
 });
+
+test("rollback recovers when selected package bytes are corrupt", async () => {
+  const { store, adapter } = await setup();
+  await install(store); await approve(store); const original = store.view().packages[0].selected;
+  await update(store);
+  adapter.edit(v => { v.blobs[v.records[0].selected][0] ^= 1; });
+  await store.open();
+  assert.match(store.view().packages[0].quarantine, /hash verification/);
+  await store.rollback(manifest.id, store.view().revision);
+  await store.open({ reload: true });
+  assert.equal(store.view().packages[0].selected, original);
+  assert.equal(store.view().packages[0].quarantine, "");
+});

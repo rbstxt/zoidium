@@ -181,6 +181,10 @@
       rollback: (id, revision) => change(id, revision, async (r, state) => {
         if (!r.previous || !r.verified.includes(r.previous) || !r.approvals.includes(r.previous)) fail("No approved rollback package is available.");
         await inspect(state, r, r.previous);
+        if (r.quarantine && r.selected) {
+          try { await inspect(state, r, r.selected); }
+          catch (_) { r.selected = null; }
+        }
         r.pending = r.previous; r.previous = null; r.staged = true; r.quarantine = ""; r.enabled = false;
         state.attempts = state.attempts.filter(a => a.id !== id);
       }),
