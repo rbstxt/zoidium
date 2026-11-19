@@ -151,15 +151,15 @@
       "category": "utilities",
       "name": "Graph Editor 2",
       "author": "DaviFX",
-      "version": "21",
+      "version": "22",
       "itemCount": 1,
       "format": "graph editor",
       "tagline": "Rebuilt keyframe graph editor",
       "color": "#4f7dbf",
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
-      "manifest": "./plugins/graph-plus/manifest.json?v=21",
-      "bundle": "./plugins/graph-plus/bundle.json?v=21",
-      "integrity": "sha256-QGy/IGH8el5DTFdKdTP6hJ2vCLyWfpQigxnuaTsnhFw="
+      "manifest": "./plugins/graph-plus/manifest.json?v=22",
+      "bundle": "./plugins/graph-plus/bundle.json?v=22",
+      "integrity": "sha256-3HdCjELYyNeXhOiczpSMSgq2f5xIRYT6qOVSPHRbsiA="
     },
     {
       "id": "motion-path",

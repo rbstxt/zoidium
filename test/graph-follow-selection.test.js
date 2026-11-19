@@ -246,6 +246,20 @@ test("shortcut uses the selected row after CM3 moves focus to the containing Edi
   f.host.dispose();
 });
 
+test("graph shortcut leaves editable fields and composition alone", () => {
+  const f = fixture(), row = f.row(new Channel("Opacity"));
+  const shortcut = { key: "G", code: "KeyG", altKey: true, shiftKey: true };
+  for (const selector of ["input", "textarea", "select", "contenteditable"]) {
+    const field = { closest: query => query.includes(selector) ? {} : row.closest(query) };
+    assert.equal(f.event("keydown", field, shortcut).prevented, undefined, selector);
+  }
+  for (const composing of [{ isComposing: true }, { keyCode: 229 }]) {
+    assert.equal(f.event("keydown", row, { ...shortcut, ...composing }).prevented, undefined);
+  }
+  assert.equal(f.opens, 0);
+  f.host.dispose();
+});
+
 
 test("clicking an already selected layer leaves property selection and shows animated curves", () => {
   const f = fixture(), a = new Channel("A", true), b = new Channel("B", true), clip = { children: [new PropertyList([a, b])] };
