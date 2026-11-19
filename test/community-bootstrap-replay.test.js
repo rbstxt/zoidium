@@ -49,4 +49,5 @@ test("browser broker rejects IDs at or below the replay low-water mark", async t
   const f = await fixture(t);
   for (let i = 1; i <= 4098; i++) await f.send(i);
   await assert.rejects(f.send(1), /Duplicate or expired/);
+  await assert.rejects(f.send(2), /Duplicate or expired/);
 });

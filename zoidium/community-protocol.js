@@ -19,6 +19,7 @@
   function createReplayWindow(limit = 4096) {
     const heap = [], seen = new Set(); let low = null;
     function swap(a, b) { [heap[a], heap[b]] = [heap[b], heap[a]]; }
+    // Call accept() only after message() validates the request shape.
     function accept(id) {
       if ((low !== null && compareRequestIds(id, low) <= 0) || seen.has(id)) return false;
       seen.add(id); heap.push(id);

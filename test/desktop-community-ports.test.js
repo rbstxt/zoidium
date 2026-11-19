@@ -85,8 +85,10 @@ test("desktop runner accepts long sessions and out-of-order IDs within the repla
   assert.match(f.editor.sent.at(-1).fatal, /Duplicate or expired/);
 });
 test("desktop runner rejects IDs at or below the replay low-water mark", async t => {
-  const f = await fixture(t);
-  for (let i = 1; i <= 4098; i++) await sendRequest(f, i);
-  await sendRequest(f, 1);
-  assert.match(f.editor.sent.at(-1).fatal, /Duplicate or expired/);
+  for (const id of [1, 2]) {
+    const f = await fixture(t);
+    for (let i = 1; i <= 4098; i++) await sendRequest(f, i);
+    await sendRequest(f, id);
+    assert.match(f.editor.sent.at(-1).fatal, /Duplicate or expired/);
+  }
 });
