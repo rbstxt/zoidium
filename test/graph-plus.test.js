@@ -889,6 +889,11 @@ test('floating graph factory opens once, focuses, preserves panel and cleans up 
   host.listeners['chrome:keydown:capture']({ key: 'g', ctrlKey: true, preventDefault: stubFn(), stopPropagation: stubFn() });
   assert.ok(host.opens[0].host.reveal.calls.length >= 2, 'graph shortcut reveals the host');
   assert.equal(editor.keydown.calls.length, 7, 'graph shortcut restores the host without forwarding another native command');
+  const revealCount = host.opens[0].host.reveal.calls.length;
+  for (const extra of [{ isComposing: true }, { keyCode: 229 }, { target: { closest: () => ({}) } }]) {
+    host.listeners['chrome:keydown:capture']({ key: 'g', ctrlKey: true, preventDefault: stubFn(), stopPropagation: stubFn(), ...extra });
+    assert.equal(host.opens[0].host.reveal.calls.length, revealCount);
+  }
   win.window.close(); win.window.close();
   assert.equal(panel.unload.calls.length, 1);
   assert.equal(panel.enabled, false);
