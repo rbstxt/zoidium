@@ -190,9 +190,12 @@
     // Keep authored extensions out of live host properties. Weak keys release
     // the snapshot with its media/layer/clip, including detached projects.
     const prototypes = new Set([PZ.media?.prototype, PZ.clip?.prototype, PZ.layer?.prototype, PZ.sequence?.prototype]);
-    for (const key of Object.keys(PZ.layer || {})) {
-      const descriptor = Object.getOwnPropertyDescriptor(PZ.layer, key);
-      if (typeof descriptor?.value === "function") prototypes.add(descriptor.value.prototype);
+    for (const host of [PZ.layer, PZ.object3d]) {
+      if (typeof host === "function") prototypes.add(host.prototype);
+      for (const key of Object.keys(host || {})) {
+        const descriptor = Object.getOwnPropertyDescriptor(host, key);
+        if (typeof descriptor?.value === "function") prototypes.add(descriptor.value.prototype);
+      }
     }
     const owns = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
     // Runtime-only fields are never part of the saved document. A media item

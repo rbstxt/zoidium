@@ -214,9 +214,7 @@ function install(context, teardown) {
 
   teardown.push(installOverlay({ PZ, THREE, store, evaluator }));
 
-  // Objects of a project that was already open receive their rows now. Their
-  // saved constraint values were dropped by CM3 if the plugin was disabled
-  // when the project loaded; reopening the project restores them.
+  // Recover retained constraint values for objects in the open project.
   for (const project of currentProjects(editor())) {
     try {
       project.forEachItemOfType(PZ.object3d, (object) => store.attach(object, null));

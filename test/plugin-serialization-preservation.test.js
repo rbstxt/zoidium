@@ -27,7 +27,12 @@ function harness(mediaMutates = false) {
     load(data) { this.length = data.length; }
     toJSON() { return { length: this.length, properties: this.properties }; }
   }
-  const PZ = { layer: Layer, clip: Clip, media: Media };
+  class Object3d {
+    constructor() { this.properties = { name: "Object" }; }
+    load(data) { this.properties.name = data.properties?.name || "Object"; }
+    toJSON() { return { properties: this.properties }; }
+  }
+  const PZ = { layer: Layer, clip: Clip, media: Media, object3d: Object3d };
   const start = source.indexOf("  function installSerializedFieldPreservation() {");
   const end = source.indexOf("  function installProjectPluginHooks() {", start);
   vm.runInNewContext(source.slice(start, end) + "\ninstallSerializedFieldPreservation();", { PZ, ZoidiumPluginApis: require("./shared-test-apis").loadSharedTables() });
@@ -126,4 +131,12 @@ test("old saved render revisions are dropped while unrelated extension fields su
   const saved = plain(layer.toJSON());
   assert.equal(saved.__zoidiumTemporalUpdateRevision, undefined);
   assert.deepEqual(saved.__externalPluginValue, { amount: 3 });
+});
+
+test("disabled object properties survive loading and saving", () => {
+  const PZ = harness();
+  const object = new PZ.object3d();
+  object.load({ properties: { name: "Target", zoidiumId: "saved-id", zoidiumTrackTo: "other-id" } });
+  assert.equal(plain(object.toJSON()).properties.zoidiumId, "saved-id");
+  assert.equal(plain(object.toJSON()).properties.zoidiumTrackTo, "other-id");
 });

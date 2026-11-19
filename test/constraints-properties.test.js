@@ -107,3 +107,13 @@ test("influence reads the requested frame and teardown removes only owned fields
   assert.ok(item.properties.rotation);
   for (const key of Object.values(KEYS)) assert.equal(item.properties[key], undefined);
 });
+
+test("attaching to an open object restores retained constraint properties", () => {
+  const { store, object } = setup();
+  const item = object();
+  store.detach(item);
+  item.toJSON = () => ({ properties: { [KEYS.target]: "saved-target", [KEYS.influence]: 25 } });
+  store.attach(item, null);
+  assert.equal(store.readTarget(item), "saved-target");
+  assert.equal(store.readInfluence(item, 0), 25);
+});
