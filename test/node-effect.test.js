@@ -106,3 +106,14 @@ test("native parameter installation uses array-list operations and nonserialized
  const effect={customProperties:list};const data=records(compile(graph("parameter",{kind:2,x:.2,y:.7,name:"Point"})));
  install(PZ,effect,data);assert.equal(list.length,1);assert.deepEqual(list[0].value,[.2,.7]);assert.equal(list[0].definition.name,"Point");assert.equal(Object.hasOwn(JSON.parse(JSON.stringify(list[0].definition)),"name"),false);assert.equal(list[0].properties.name.definition.readOnly,true);assert.equal(effect.fragmentShaderNeedsUpdate,true);
 });
+test("changing a node default preserves an edited unanimated parameter",()=>{
+ const before=records(compile(graph("parameter",{value:.2})))[0];
+ before.keyframes=[{value:.5,frame:0}]; before.animated=false;
+ const result=records(compile(graph("parameter",{value:.8})),[before])[0];
+ assert.equal(result.keyframes[0].value,.5);
+ assert.equal(result.type.zoidiumDefault,.8);
+ const point=records(compile(graph("parameter",{kind:2,x:.2,y:.3})))[0];
+ point.objects=[{animated:false,keyframes:[{value:.2,frame:0}]},{animated:false,keyframes:[{value:.6,frame:0}]}];
+ const changed=records(compile(graph("parameter",{kind:2,x:.8,y:.9})),[point])[0];
+ assert.deepEqual(changed.objects.map(axis=>axis.keyframes[0].value),[.2,.6]);
+});
