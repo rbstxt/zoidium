@@ -224,6 +224,7 @@ PZ.ui.graph.prototype._ensureSpaceListeners = function () {
   } catch (e2) { /* Detaching from a closed window needs no cleanup. */ }
   var handlers = {
     down: function (e) {
+      if (e.isComposing || e.keyCode === 229 || e.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
       if (e.code === "Space" && !e.repeat) self._spaceDown = true;
     },
     up: function (e) {
