@@ -388,7 +388,7 @@ target.props = {
         value: 1,
         changed: function () {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
-            this.parentObject.threeObj.blending = this.value;
+            this.parentObject.threeObj.blending = Number(this.value);
         },
         items: "none;normal;additive;subtractive;multiply",
     },
@@ -398,7 +398,7 @@ target.props = {
         value: 0,
         changed: function (e) {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
-            this.parentObject.threeObj.side = this.value;
+            this.parentObject.threeObj.side = Number(this.value);
         },
         items: "front;back;both",
     },

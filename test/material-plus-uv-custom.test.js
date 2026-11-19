@@ -282,7 +282,7 @@ function createMaterial(harness, geometry) {
           this[name] = createProperty(definition, material);
         }
       },
-      load() {},
+      load(data) { for (const [name, value] of Object.entries(data || {})) this[name]?.set(value); },
     },
     parentProject: { assets: { load: (value) => ({ value }), unload() {} } },
     parentLayer: {},
@@ -293,6 +293,20 @@ function createMaterial(harness, geometry) {
     return material;
   });
 }
+
+test("UV Custom side remains numeric when a string option loads", async () => {
+  const harness = createHarness();
+  UvCustom.activate({ PZ: harness.PZ, window: { THREE: harness.THREE }, getAsset });
+  const material = await createMaterial(harness, extrudedSquare());
+  try {
+    material.load({ properties: { side: "1" } });
+    assert.equal(material.threeObj.side, 1);
+    assert.equal(material.properties.side.value, "1");
+    material.properties.side.set("2");
+    assert.equal(material.threeObj.side, 2);
+    assert.equal(material.properties.side.value, "2");
+  } finally { material.unload(); UvCustom.deactivate(); }
+});
 
 test("registers UV Custom Material as an independent material factory", async () => {
   const harness = createHarness();

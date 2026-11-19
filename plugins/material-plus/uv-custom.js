@@ -257,7 +257,7 @@ function createMaterialFactory(plugin) {
       value: 0,
       changed: function () {
         const material = this.parentObject;
-        material.threeObj.side = this.value;
+        material.threeObj.side = Number(this.value);
       },
       items: "front;back;both",
     },

@@ -273,3 +273,19 @@ test("surface options preserve string values and control graph, shading and refl
     assert.equal(editor.match({ type: "pbrplus", properties: { useNodeGraph: { get: () => "1" } } }), true);
   } finally { m.unload(); for (const dispose of h.dispose.reverse()) dispose(); }
 });
+
+test("Node Material restores numeric blending and side from string options", async () => {
+  const h = harness(); NodeMaterial.activate(h.context);
+  const m = h.material("nodes");
+  try {
+    (await h.PZ.material.fnList.nodes).call(m);
+    m.load({ properties: { blending: "2", side: "1" } });
+    assert.equal(m.threeObj.blending, 2);
+    assert.equal(m.threeObj.side, h.context.window.THREE.BackSide);
+    m.properties.blending.set("3"); m.properties.side.set("2");
+    assert.equal(m.threeObj.blending, 3);
+    assert.equal(m.threeObj.side, h.context.window.THREE.DoubleSide);
+    const saved = JSON.parse(JSON.stringify(m.toJSON()));
+    assert.equal(saved.properties.blending, "3"); assert.equal(saved.properties.side, "2");
+  } finally { m.unload(); for (const dispose of h.dispose.reverse()) dispose(); }
+});
