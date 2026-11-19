@@ -141,24 +141,26 @@ const GifSupport = (() => {
       }
       previous = entry;
     }
-    return output;
+    return output.subarray(0, outputIndex);
   }
 
   // Note: OpenZoid used a step of 8 for every pass, which drops rows for
   // most heights. The GIF89a spec steps are 8, 8, 4, 2 per pass.
   function deinterlace(indices, width, height) {
     const output = new Uint8Array(width * height);
+    const rowLengths = indices.length < output.length ? new Uint32Array(height) : null;
     const starts = [0, 4, 2, 1];
     const steps = [8, 8, 4, 2];
     let line = 0;
     for (let pass = 0; pass < starts.length; pass++) {
       for (let row = starts[pass]; row < height; row += steps[pass]) {
         if (line >= height) break;
-        output.set(indices.subarray(row * width, row * width + width), line * width);
+        output.set(indices.subarray(line * width, line * width + width), row * width);
+        if (rowLengths) rowLengths[row] = Math.max(0, Math.min(width, indices.length - line * width));
         line++;
       }
     }
-    return output;
+    return { indices: output, rowLengths };
   }
 
   // Decodes a GIF87a/89a buffer into composited per-frame canvases.
@@ -242,7 +244,7 @@ const GifSupport = (() => {
       return data;
     }
 
-    while (position < length && frames.length < MAX_FRAMES && budget > 0) {
+    while (position < length && frames.length < MAX_FRAMES && budget >= width * height) {
       const block = readByte();
       if (block < 0 || block === 0x3b) break;
       if (block === 0x21) {
@@ -266,7 +268,7 @@ const GifSupport = (() => {
       const top = readUint16();
       const frameWidth = readUint16();
       const frameHeight = readUint16();
-      if (frameWidth < 1 || frameHeight < 1) return null;
+      if (frameWidth < 1 || frameHeight < 1 || frameWidth * frameHeight > MAX_PIXELS) return null;
       const imageFlags = readByte();
       let localTable = null;
       if (imageFlags & 0x80) {
@@ -281,7 +283,12 @@ const GifSupport = (() => {
       if (minCodeSize < 1 || minCodeSize > 8) return null;
       const data = readSubBlocks();
       let indices = lzwDecode(minCodeSize, data, frameWidth * frameHeight);
-      if (interlaced) indices = deinterlace(indices, frameWidth, frameHeight);
+      let rowLengths = null;
+      if (interlaced) {
+        const result = deinterlace(indices, frameWidth, frameHeight);
+        indices = result.indices;
+        rowLengths = result.rowLengths;
+      }
 
       const snapshot = disposal === 3 ? pixels.slice() : null;
       if (table) {
@@ -289,6 +296,7 @@ const GifSupport = (() => {
           const targetY = top + y;
           if (targetY < 0 || targetY >= height) continue;
           for (let x = 0; x < frameWidth; x++) {
+            if (rowLengths ? x >= rowLengths[y] : y * frameWidth + x >= indices.length) continue;
             const targetX = left + x;
             if (targetX < 0 || targetX >= width) continue;
             const index = indices[y * frameWidth + x];

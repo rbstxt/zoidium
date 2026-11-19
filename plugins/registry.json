@@ -135,16 +135,16 @@
       "category": "utilities",
       "name": "Animated GIF",
       "author": "DaviFX",
-      "version": "6",
+      "version": "7",
       "itemCount": 1,
       "format": "animated images",
       "tagline": "Animated GIF image assets",
       "color": "#4f7dbf",
       "description": "Decodes animated GIF image assets and animates them deterministically from clip-local time.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/gif-support/manifest.json?v=6",
-      "bundle": "./plugins/gif-support/bundle.json?v=6",
-      "integrity": "sha256-KAmkFmDrWwrLQ2QiTgNF6MM6iG18r48EbJn1x5f7Y28="
+      "manifest": "./plugins/gif-support/manifest.json?v=7",
+      "bundle": "./plugins/gif-support/bundle.json?v=7",
+      "integrity": "sha256-B4aG9pZ0ZtQ73nuSbhpJo7HbJTzmKD0ttX9EKOpqo0c="
     },
     {
       "id": "graph-plus",

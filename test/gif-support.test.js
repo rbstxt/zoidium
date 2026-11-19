@@ -98,6 +98,25 @@ test("decoder: interlaced rows land in order", () => {
   }
 });
 
+test("decoder: interlaced eight-row image maps stored rows to display rows", () => {
+  const { GifSupport } = loadGifSupport();
+  const palette = Array.from({ length: 8 }, (_, i) => [i * 30, 0, 0]);
+  const stored = [0, 4, 2, 6, 1, 3, 5, 7];
+  // Clear before each index so every LZW code remains four bits wide.
+  const codes = stored.flatMap(index => [8, index]).concat(9, 0);
+  const compressed = [];
+  for (let i = 0; i < codes.length; i += 2) compressed.push(codes[i] | (codes[i + 1] << 4));
+  const gif = Uint8Array.from([
+    ...Buffer.from("GIF89a"), 1, 0, 8, 0, 0x82, 0, 0, ...palette.flat(),
+    0x2c, 0, 0, 0, 0, 1, 0, 8, 0, 0x40, 3,
+    compressed.length, ...compressed, 0, 0x3b,
+  ]);
+  const decoded = GifSupport.decode(gif, fakeFactory);
+  for (let row = 0; row < 8; row++) {
+    assert.deepEqual(pixelOf(decoded.frames[0].canvas, 0, row), [...palette[row], 255]);
+  }
+});
+
 test("decoder: transparency plus disposal 2 clears the rect", () => {
   const { GifSupport } = loadGifSupport();
   const red = [255, 0, 0];
@@ -198,6 +217,56 @@ test("decoder: rejects corrupt input and enforces caps", () => {
   assert.equal(allocated, false);
   assert.equal(GifSupport.MAX_FRAMES, 512);
   assert.equal(GifSupport.MAX_PIXELS, 67108864);
+});
+
+test("decoder: short frames retain previous pixels and still import", () => {
+  const { GifSupport } = loadGifSupport();
+  const gif = buildGif({ width: 2, height: 2, palette: [[255, 0, 0], [0, 0, 255]], frames: [
+    { width: 2, height: 2, indices: [0, 0, 0, 0] },
+    { width: 2, height: 2, indices: [1, 1, 1] },
+  ] });
+  const decoded = GifSupport.decode(gif.slice(0, -1), fakeFactory);
+  assert.equal(decoded.frames.length, 2);
+  assert.deepEqual(pixelOf(decoded.frames[1].canvas, 0, 0), [0, 0, 255, 255]);
+  assert.deepEqual(pixelOf(decoded.frames[1].canvas, 0, 1), [0, 0, 255, 255]);
+  assert.deepEqual(pixelOf(decoded.frames[1].canvas, 1, 1), [255, 0, 0, 255]);
+});
+
+test("decoder: short interlaced frames retain pixels in the missing display rows", () => {
+  const { GifSupport } = loadGifSupport();
+  const gif = buildGif({ width: 1, height: 8, palette: [[255, 0, 0], [0, 0, 255]], frames: [
+    { width: 1, height: 8, indices: Array(8).fill(0) },
+    { width: 1, height: 8, interlaced: true, indices: [1, 1, 1] },
+  ] });
+  const decoded = GifSupport.decode(gif, fakeFactory);
+  assert.equal(decoded.frames.length, 2);
+  for (let row = 0; row < 8; row++) {
+    const color = [0, 2, 4].includes(row) ? [0, 0, 255, 255] : [255, 0, 0, 255];
+    assert.deepEqual(pixelOf(decoded.frames[1].canvas, 0, row), color);
+  }
+});
+
+test("decoder: frame budget excludes a frame that would exceed the cap", () => {
+  const sandbox = { module: { exports: {} }, console };
+  vm.runInNewContext(source.replace("const MAX_PIXELS = 67108864;", "const MAX_PIXELS = 10;"), sandbox);
+  const gif = buildGif({ width: 3, height: 2, palette: [[0, 0, 0], [255, 255, 255]], frames: [
+    { width: 3, height: 2, indices: Array(6).fill(0) },
+    { width: 3, height: 2, indices: Array(6).fill(1) },
+  ] });
+  assert.equal(sandbox.module.exports.decode(gif, fakeFactory).frames.length, 1);
+});
+
+test("decoder: rejects an oversized frame before allocating its pixel indices", () => {
+  const GuardedBytes = new Proxy(Uint8Array, { construct(target, args) {
+    if (typeof args[0] === "number" && args[0] > 67108864) throw new Error("oversized allocation");
+    return Reflect.construct(target, args);
+  } });
+  const { GifSupport } = loadGifSupport({ Uint8Array: GuardedBytes });
+  const gif = twoFrameGifBytes();
+  const image = gif.indexOf(0x2c, 19);
+  gif[image + 5] = 0xff; gif[image + 6] = 0xff;
+  gif[image + 7] = 0xff; gif[image + 8] = 0xff;
+  assert.equal(GifSupport.decode(gif, fakeFactory), null);
 });
 
 test("decoder: frame count capped at 512", () => {
