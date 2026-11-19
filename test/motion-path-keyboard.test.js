@@ -20,4 +20,12 @@ test("composing or editable keys do not cancel an active motion path gesture", (
   doc.dispatch("keydown", { key: "Escape" });
   assert.equal(interaction.active, null);
   interaction.dispose();
+  for (const target of [doc, canvas, viewport, win]) assert.ok(Object.values(target.listeners).every(list => list.length === 0));
+  for (let i = 0; i < 15; i++) {
+    const next = createInteraction({ viewport: { el: viewport }, canvas, window: win, models: [model], selection: new Map(),
+      editor: { playback: { currentFrame: 0 } }, requestDraw() {} });
+    assert.equal(doc.listeners.keydown.length, 1);
+    next.dispose();
+    for (const target of [doc, canvas, viewport, win]) assert.ok(Object.values(target.listeners).every(list => list.length === 0));
+  }
 });
