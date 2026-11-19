@@ -27,6 +27,21 @@ function graph() {
   return load().__test.gpDefineGraphEditor(PZ).graph.prototype;
 }
 
+test("graph shortcuts leave editable targets and composition alone", () => {
+  let frames = 0;
+  const instance = { frameSelected() { frames++; } };
+  const event = extra => ({ key: "f", stopPropagation() {}, ...extra });
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    graph().keydown.call(instance, event(composition));
+    assert.equal(frames, 0);
+  }
+  const target = { closest: () => ({}) };
+  graph().keydown.call(instance, event({ target }));
+  assert.equal(frames, 0);
+  graph().keydown.call(instance, event({ target: { closest: () => null } }));
+  assert.equal(frames, 1);
+});
+
 function curve(right, left = { frame: 2, value: 3, controlPoints: [[-2, 1], [4, 6]] }) {
   const attributes = {};
   const group = { pz_valueScale: 2, pz_frameOffset: 5, pz_color: "red", style: { display: "none" } };
