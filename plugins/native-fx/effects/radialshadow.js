@@ -124,7 +124,7 @@ ZoidiumPluginApis.defineFilter.call(this, {
   },
   update(frame) {
     if (!this.pass) return;
-    this.pass.enabled = this.properties.enabled.get(frame) === 1;
+    this.pass.enabled = Number(this.properties.enabled.get(frame)) === 1;
     var uniforms = this.pass.uniforms;
     function num(value, fallback) {
       var n = Number(value);

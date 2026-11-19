@@ -249,7 +249,7 @@
     this.cachedAngle = this.properties.angle.get(frame);
     this.cachedDistance = this.properties.distance.get(frame);
     this.cachedBlur = this.properties.blur.get(frame);
-    this.pass.enabled = this.properties.enabled.get(frame) === 1;
+    this.pass.enabled = Number(this.properties.enabled.get(frame)) === 1;
   }),
   (this.resize = function () {
     if (this.parentLayer && this.parentLayer.properties) {

@@ -440,7 +440,7 @@ function pollyNumber(value, fallback) {
     effect.cachedDepthSort = pollyNumber(effect.properties.enableDepthSort.get(frame), 1) === 1;
     effect.cachedStart = pollyNumber(effect.properties.startTime.get(frame), 0);
     effect.cachedSeed = pollyNumber(effect.properties.randomSeed.get(frame), 1);
-    effect.pass.enabled = effect.properties.enabled.get(frame) === 1;
+    effect.pass.enabled = Number(effect.properties.enabled.get(frame)) === 1;
   };
 
   effect.resize = function resize() {

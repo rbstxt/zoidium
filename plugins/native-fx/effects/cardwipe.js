@@ -252,7 +252,7 @@ ZoidiumPluginApis.defineFilter.call(this, {
   },
   update(frame) {
     if (!this.pass) return;
-    this.pass.enabled = this.properties.enabled.get(frame) === 1;
+    this.pass.enabled = Number(this.properties.enabled.get(frame)) === 1;
     var uniforms = this.pass.uniforms;
     var rows = cardWipeGrid(this.properties.rows.get(frame), 8);
     var columns = cardWipeGrid(this.properties.columns.get(frame), 8);

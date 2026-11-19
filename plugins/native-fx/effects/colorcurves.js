@@ -91,7 +91,7 @@
       effect._zoidiumCurveTexture = null;
     },
     update(frame, uniforms) {
-      this.pass.enabled = this.properties.enabled.get(frame) === 1;
+      this.pass.enabled = Number(this.properties.enabled.get(frame)) === 1;
       const value = this.properties.curves.get();
       if (!this._zoidiumCurvesDirty && value === this._zoidiumCurveValue) return;
       this._zoidiumCurveTexture.image.data.set(ColorCurves.buildLut(value));
