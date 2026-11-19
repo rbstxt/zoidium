@@ -12,10 +12,10 @@ function records(compiled,previous=[]) {
    const saved=clone(found);
    saved.type.zoidiumLabel=p.label;
    if(!p.time && JSON.stringify(saved.type.zoidiumDefault)!==JSON.stringify(p.value)) {
-    const leaves=saved.objects||[saved];
+    const grouped=Array.isArray(saved.objects),leaves=grouped?saved.objects:[saved];
     if(leaves.every((v,i)=>!v.expression&&!v.animated&&v.keyframes?.length===1 &&
-      v.keyframes[0].value===(Array.isArray(saved.type.zoidiumDefault)?saved.type.zoidiumDefault[i]:saved.type.zoidiumDefault))) {
-     leaves.forEach((v,i)=>{v.keyframes[0].value=Array.isArray(p.value)?p.value[i]:p.value;});
+      JSON.stringify(v.keyframes[0].value)===JSON.stringify(grouped?saved.type.zoidiumDefault?.[i]:saved.type.zoidiumDefault))) {
+     leaves.forEach((v,i)=>{v.keyframes[0].value=clone(grouped?p.value[i]:p.value);});
     }
    }
    saved.type.zoidiumDefault=clone(p.value);
