@@ -95,3 +95,10 @@ test("fillPolygon handles a triangle and fill budgets", () => {
   assert.ok(blurred.every(v => v === 1));
   assert.throws(() => rasterizeCoverage([mask(rect(0, 0, 4, 4))], 0, 4), /positive/);
 });
+
+test("fractional horizontal edges use pixel centers", () => {
+  const data = rasterizeCoverage([mask(rect(1, 1.8, 4, 3.2))], 5, 5).data;
+  assert.equal(data[1 * 5 + 2], 0);
+  assert.equal(data[2 * 5 + 2], 255);
+  assert.equal(data[3 * 5 + 2], 0);
+});

@@ -30,7 +30,7 @@ function fillPolygon(points, width, height, alpha) {
   }
   const buckets = new Map();
   for (const edge of edges) {
-    const row = Math.max(0, Math.floor(edge.y0));
+    const row = Math.max(0, Math.ceil(edge.y0 - 0.5));
     if (row >= height) continue;
     if (!buckets.has(row)) buckets.set(row, []);
     buckets.get(row).push(edge);
@@ -39,7 +39,7 @@ function fillPolygon(points, width, height, alpha) {
   for (let y = 0; y < height; y++) {
     const starting = buckets.get(y);
     if (starting) active.push(...starting);
-    for (let i = active.length - 1; i >= 0; i--) if (y >= active[i].y1) active.splice(i, 1);
+    for (let i = active.length - 1; i >= 0; i--) if (y + 0.5 >= active[i].y1) active.splice(i, 1);
     if (!active.length) continue;
     const crossings = [];
     for (const edge of active) crossings.push(edge.x + (y + 0.5 - edge.y0) * edge.slope);
