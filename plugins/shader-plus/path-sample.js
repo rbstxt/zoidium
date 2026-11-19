@@ -57,6 +57,11 @@ function installPathSampling({ PZ, THREE, patch, pipeline, onDispose, editor, re
     entry.effect = effect;
     return entry;
   }
+  function releaseCoverage(entry) {
+    if (entry.releaseCoverage) entry.releaseCoverage(entry.coverage);
+    else entry.coverage?.dispose();
+    entry.releaseCoverage = null;
+  }
   function pointsTexture(useFloat) {
     const data = useFloat ? new Float32Array(POINTS_COUNT * 4) : new Uint8Array(POINTS_COUNT * 4);
     data[3] = useFloat ? 1 : 255;
@@ -123,7 +128,7 @@ function installPathSampling({ PZ, THREE, patch, pipeline, onDispose, editor, re
     const fail = message => {
       if (entry.key !== "missing:" + message) {
         entry.key = "missing:" + message;
-        entry.coverage.dispose();
+        releaseCoverage(entry);
         entry.coverage = emptyCoverage();
         if (entry.points) entry.points.dispose();
         entry.points = pointsTexture(false);
@@ -158,12 +163,14 @@ function installPathSampling({ PZ, THREE, patch, pipeline, onDispose, editor, re
     // interpolation and sampling (sub-millisecond); the coverage rebuild
     // below runs only when the geometry signature changes.
     if (!useFloat && entry.useFloat !== false) warn(effect, property, "Float textures are unavailable; path points use 8-bit precision");
-    if (entry.key === evaluated.signature && entry.useFloat === useFloat) return entry;
-    entry.coverage.dispose();
+    if (entry.key === evaluated.signature && entry.useFloat === useFloat &&
+        (api.isCoverageTextureCurrent?.(renderer(), evaluated, entry.coverage) ?? true)) return entry;
+    releaseCoverage(entry);
     // The layer composite and the Path inputs share one cached GPU
     // coverage; the API falls back to a CPU upload for extreme feather
     // radii or when a probe forces the reference pixels.
     entry.coverage = api.coverageTexture(renderer(), evaluated);
+    entry.releaseCoverage = api.releaseCoverageTexture?.bind(api) || null;
     if (entry.points) entry.points.dispose();
     entry.points = pointsTexture(useFloat);
     const uv = api.toUV(evaluated.points, evaluated.width, evaluated.height);
@@ -211,7 +218,7 @@ function installPathSampling({ PZ, THREE, patch, pipeline, onDispose, editor, re
   function dispose(property) {
     const entry = entries.get(property);
     if (!entry) return;
-    entry.coverage?.dispose();
+    releaseCoverage(entry);
     entry.points?.dispose();
     entries.delete(property);
     live.delete(property);

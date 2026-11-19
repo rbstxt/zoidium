@@ -32,6 +32,7 @@ function coverageSize(resolution) {
 
 function installMaskApi({ PZ, THREE, Content, onDispose }) {
   const gpu = THREE ? sharedGpu(THREE) : null;
+  const sharedCoverage = new WeakSet();
   function layerResolution(layer) {
     try {
       const resolution = layer?.properties?.resolution?.get?.();
@@ -153,7 +154,7 @@ function installMaskApi({ PZ, THREE, Content, onDispose }) {
     const signature = evaluated.signature;
     if (renderer && gpu) {
       const texture = gpu.coverageTexture(renderer, scaled, size.width, size.height, signature);
-      if (texture) return texture;
+      if (texture) { sharedCoverage.add(texture); return texture; }
     }
     if (!THREE) throw Error("Path coverage needs the Three.js runtime");
     const { data } = rasterizeCoverage(scaled, size.width, size.height);
@@ -172,6 +173,12 @@ function installMaskApi({ PZ, THREE, Content, onDispose }) {
     texture.flipY = true;
     texture.needsUpdate = true;
     return texture;
+  }
+  function releaseCoverageTexture(texture) {
+    if (texture && !sharedCoverage.has(texture)) texture.dispose();
+  }
+  function isCoverageTextureCurrent(renderer, evaluated, texture) {
+    return !sharedCoverage.has(texture) || !!renderer && gpu.hasCoverage(renderer, evaluated.signature, texture);
   }
   function listSources(project) {
     const sources = [];
@@ -211,7 +218,7 @@ function installMaskApi({ PZ, THREE, Content, onDispose }) {
   function setForceCpu(value) {
     if (gpu) gpu.setForceCpu(value);
   }
-  const apiValue = { evaluateReference, listSources, toUV, toSourceFrame, parseReference, formatReference, coverageSize, coverageData, coverageTexture, coverageStats, setForceCpu, MAX_POINTS, FIELD };
+  const apiValue = { evaluateReference, listSources, toUV, toSourceFrame, parseReference, formatReference, coverageSize, coverageData, coverageTexture, releaseCoverageTexture, isCoverageTextureCurrent, coverageStats, setForceCpu, MAX_POINTS, FIELD };
   if (PZ.zoidium) PZ.zoidium.layerMask = apiValue;
   onDispose(() => {
     if (PZ.zoidium && PZ.zoidium.layerMask === apiValue) delete PZ.zoidium.layerMask;

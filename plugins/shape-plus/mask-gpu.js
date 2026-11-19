@@ -389,6 +389,9 @@ function createMaskGpu(THREE) {
   }
 
   return {
+    hasCoverage(renderer, signature, texture) {
+      return states.get(renderer)?.entries.get(signature)?.texture === texture;
+    },
     coverageTexture(renderer, scaled, width, height, signature) {
       try {
         return renderCoverage(renderer, scaled, width, height, signature);
