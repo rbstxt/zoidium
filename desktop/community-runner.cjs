@@ -71,7 +71,7 @@ function createRunnerHost({ electron, origin, config, editorPort, authorized, ro
   const isolated = session.fromPartition(partition, { cache: false });
   const url = origin + "/__zoidium-community/" + randomBytes(24).toString("hex");
   let window, closed = false, booted = false, connected = false, pending, timer;
-  const seen = new Set();
+  const seen = V.createReplayWindow();
   const seal = installSessionPolicy(isolated, url, () => window?.webContents.id);
   const document = runnerDocument();
   route(url, document);
@@ -97,9 +97,9 @@ function createRunnerHost({ electron, origin, config, editorPort, authorized, ro
       if (event.data?.terminate === true) { S.keys(event.data, ["terminate"]); close(); return; }
       if (!booted || pending) throw new Error("Concurrent or premature community request.");
       const message = V.message(event.data); V.binding(message, config.binding); V.requestPayload(message, config.bundle);
-      if (seen.has(message.requestId) || seen.size >= 4096) throw new Error("Community request limit reached.");
+      if (!seen.accept(message.requestId)) throw new Error("Duplicate or expired community request ID.");
       // Reserve before awaiting the local authorization check.
-      pending = message; seen.add(message.requestId);
+      pending = message;
       if (!await authorized()) throw new Error("Community package authorization changed.");
       if (closed) return;
       timer = setTimeout(() => close("Community runner watchdog expired."), 250);

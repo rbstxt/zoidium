@@ -43,7 +43,7 @@ test("main port broker validates requests and exact replies before forwarding", 
   const f = await fixture(t); f.editor.receive(f.message); await flush();
   assert.deepEqual(f.worker.sent.at(-1), f.message);
   f.worker.receive({ ...f.message, operation: "ready" }); assert.equal(f.editor.sent.at(-1).operation, "ready");
-  f.editor.receive(f.message); await flush(); assert.match(f.editor.sent.at(-1).fatal, /limit/); assert.equal(f.routes.size, 0);
+  f.editor.receive(f.message); await flush(); assert.match(f.editor.sent.at(-1).fatal, /Duplicate/); assert.equal(f.routes.size, 0);
 });
 test("main port broker refuses replies with a foreign revision", async t => {
   const f = await fixture(t); f.editor.receive(f.message); await flush();
@@ -68,4 +68,27 @@ test("runner watchdog terminates a missing reply and clears its serving route", 
   const f = await fixture(t); f.editor.receive(f.message);
   await new Promise(resolve => f.editor.once("close", resolve));
   assert.match(f.editor.sent.at(-1).fatal, /watchdog/); assert.equal(f.routes.size, 0); assert.equal(f.worker.closed, true);
+});
+
+async function sendRequest(f, id) {
+  const message = { ...f.message, requestId: "request-" + id };
+  f.editor.receive(message); await flush();
+  if (!f.editor.closed) f.worker.receive({ ...message, operation: "ready" });
+}
+test("desktop runner accepts long sessions and out-of-order IDs within the replay window", async t => {
+  const f = await fixture(t);
+  for (let i = 1; i <= 10000; i++) await sendRequest(f, i);
+  await sendRequest(f, 10002); await sendRequest(f, 10001);
+  assert.equal(f.editor.closed, false);
+  assert.equal(f.editor.sent.at(-1).requestId, "request-10001");
+  await sendRequest(f, 10001);
+  assert.match(f.editor.sent.at(-1).fatal, /Duplicate or expired/);
+});
+test("desktop runner rejects IDs at or below the replay low-water mark", async t => {
+  for (const id of [1, 2]) {
+    const f = await fixture(t);
+    for (let i = 1; i <= 4098; i++) await sendRequest(f, i);
+    await sendRequest(f, id);
+    assert.match(f.editor.sent.at(-1).fatal, /Duplicate or expired/);
+  }
 });
