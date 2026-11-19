@@ -476,6 +476,22 @@ test("adding a system is undoable and selects the new system", () => {
   });
 });
 
+test("designer add history follows an object restored after deletion", () => {
+  withGlobals(({ history }) => {
+    const { designer, root } = setup();
+    const win = designer.open(root);
+    byClass(win.body, "tc-system add")[0].onclick();
+    const restored = { ...root, systems: root.systems.map(item => ({ ...item })) };
+    CM.project.addressLookup = () => restored;
+    const undo = history.commands.pop();
+    undo.fn(undo.payload);
+    assert.equal(restored.systems.length, 1);
+    const redo = history.commands.pop();
+    redo.fn(redo.payload);
+    assert.equal(restored.systems.length, 2);
+  });
+});
+
 test("transport moves the frame and pauses playback", () => {
   withGlobals(({ playback }) => {
     const { designer, root } = setup();

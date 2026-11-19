@@ -165,22 +165,32 @@ var PZ = PZ || {};
     }
 
     // Structural add: the new item is recorded so undo removes it again.
-    function pushInsertUndo(list, item) {
+    function pushInsertUndo(session, list, item) {
         var history = CM.history;
         if (!history || !history.operation) return;
-        history.pushCommand(removeCommand, { list: list, item: item });
+        history.pushCommand(removeCommand, { project: session.project, address: session.root.getAddress(),
+            targets: session.config.targets, index: list.indexOf(item), item: item });
+    }
+
+    function commandList(payload) {
+        if (CM.project !== payload.project) return null;
+        var root = payload.project.addressLookup(payload.address);
+        return root && payload.targets(root);
     }
 
     function removeCommand(payload) {
-        var index = payload.list.indexOf(payload.item);
-        if (index < 0) return;
-        payload.list.splice(index, 1);
-        CM.history.pushCommand(insertCommand, { list: payload.list, item: payload.item, index: index });
+        var list = commandList(payload);
+        if (!list || payload.index < 0 || payload.index >= list.length) return;
+        var item = list[payload.index];
+        list.splice(payload.index, 1);
+        CM.history.pushCommand(insertCommand, Object.assign({}, payload, { item: item }));
     }
 
     function insertCommand(payload) {
-        payload.list.splice(payload.index, 0, payload.item);
-        CM.history.pushCommand(removeCommand, { list: payload.list, item: payload.item });
+        var list = commandList(payload);
+        if (!list) return;
+        list.splice(payload.index, 0, payload.item);
+        CM.history.pushCommand(removeCommand, payload);
     }
 
     function el(tag, className, text) {
@@ -321,7 +331,7 @@ var PZ = PZ || {};
         var created = null;
         operate(function () {
             created = kind.create(self.root);
-            if (created && list) pushInsertUndo(list, created);
+            if (created && list) pushInsertUndo(self, list, created);
         });
         if (!created) return;
         this.target = created;
