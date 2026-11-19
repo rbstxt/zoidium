@@ -248,8 +248,10 @@ function installActions(s, root, options = {}) {
   function keyup(event) {
     if (event.code === "Space") {
       s.space = false;
-      event.preventDefault();
-      event.stopImmediatePropagation();
+      if (!event.isComposing && event.keyCode !== 229 && !typing(event.target)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
     }
     if (event.key.startsWith("Arrow")) finishNudge();
   }
