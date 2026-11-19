@@ -879,6 +879,11 @@ test('floating graph factory opens once, focuses, preserves panel and cleans up 
   const event = { code: 'Space', type: 'keydown', stopPropagation: stubFn() };
   host.listeners['keydown:capture'](event);
   assert.equal(panel._right._spaceDown, true);
+  host.listeners['keyup:capture']({ code: 'Space', type: 'keyup' });
+  for (const extra of [{ isComposing: true }, { keyCode: 229 }, { target: { closest: () => ({}) } }]) {
+    host.listeners['keydown:capture']({ code: 'Space', type: 'keydown', ...extra });
+    assert.equal(panel._right._spaceDown, false);
+  }
   host.listeners.keydown(event);
   assert.equal(editor.keydown.calls.length, 1);
   assert.equal(event.stopPropagation.calls.length, 1);

@@ -287,6 +287,8 @@ const GraphPlus = (() => {
           };
           const space = (event) => {
             const graph = facade.panel?._right;
+            if (event.type === "keydown" && (event.isComposing || event.keyCode === 229 ||
+                event.target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])"))) return;
             if (event.code === "Space" && graph) graph._spaceDown = event.type === "keydown";
           };
           body.addEventListener("keydown", space, true);
