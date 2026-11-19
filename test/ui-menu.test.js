@@ -70,6 +70,18 @@ test("keyboard wraps, skips disabled items, roves focus, activates and restores 
   assert.equal(runs, 1); assert.equal(m.isOpen(), false); assert.equal(doc.activeElement, owner);
 });
 
+test("composing Enter and Escape leave the menu open", () => {
+  const { api } = load(); let runs = 0;
+  const menu = api.openMenu({ items: [{ label: "One", action: () => runs++ }] });
+  for (const value of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    key(menu, value, composition);
+    assert.equal(menu.isOpen(), true);
+    assert.equal(runs, 0);
+  }
+  key(menu, "Enter");
+  assert.equal(runs, 1);
+});
+
 test("disabled items cannot highlight or run; hints, swatches, checks, titles and separators survive", () => {
   const { api } = load(); let runs = 0;
   const m = api.openMenu({ title: "Tools", items: [{ separator: true },
