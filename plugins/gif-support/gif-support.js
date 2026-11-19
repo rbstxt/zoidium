@@ -244,7 +244,7 @@ const GifSupport = (() => {
       return data;
     }
 
-    while (position < length && frames.length < MAX_FRAMES && budget > 0) {
+    while (position < length && frames.length < MAX_FRAMES && budget >= width * height) {
       const block = readByte();
       if (block < 0 || block === 0x3b) break;
       if (block === 0x21) {

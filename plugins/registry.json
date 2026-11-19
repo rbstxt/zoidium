@@ -144,7 +144,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/gif-support/manifest.json?v=7",
       "bundle": "./plugins/gif-support/bundle.json?v=7",
-      "integrity": "sha256-FqDqZ3ykRMez/kHBHTGMgUnPGW+NmEZOQbq9nL6Dw6k="
+      "integrity": "sha256-B4aG9pZ0ZtQ73nuSbhpJo7HbJTzmKD0ttX9EKOpqo0c="
     },
     {
       "id": "graph-plus",

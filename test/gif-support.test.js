@@ -246,6 +246,16 @@ test("decoder: short interlaced frames retain pixels in the missing display rows
   }
 });
 
+test("decoder: frame budget excludes a frame that would exceed the cap", () => {
+  const sandbox = { module: { exports: {} }, console };
+  vm.runInNewContext(source.replace("const MAX_PIXELS = 67108864;", "const MAX_PIXELS = 10;"), sandbox);
+  const gif = buildGif({ width: 3, height: 2, palette: [[0, 0, 0], [255, 255, 255]], frames: [
+    { width: 3, height: 2, indices: Array(6).fill(0) },
+    { width: 3, height: 2, indices: Array(6).fill(1) },
+  ] });
+  assert.equal(sandbox.module.exports.decode(gif, fakeFactory).frames.length, 1);
+});
+
 test("decoder: rejects an oversized frame before allocating its pixel indices", () => {
   const GuardedBytes = new Proxy(Uint8Array, { construct(target, args) {
     if (typeof args[0] === "number" && args[0] > 67108864) throw new Error("oversized allocation");
