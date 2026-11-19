@@ -208,6 +208,31 @@ each line describes one visible change.
 
 ### Fixed
 
+- Typing Japanese, Chinese, or Korean with an input method no longer
+  triggers editor actions: Enter or Escape while composing text no longer
+  confirms or closes dialogs, renames, numeric fields, or search, and
+  shortcuts no longer fire while you type in a text field.
+- A pre-composed selection whose media finish loading later now appears in
+  the paused preview without reloading the project. Pre-compose also places
+  the composition on a visible track when the top selected track is muted.
+- Expressions+: a numeric expression that returns NaN, Infinity, or a
+  non-number now uses the keyed value for that frame, as documented.
+- GIF import: interlaced GIFs show their rows in the right order, slightly
+  truncated GIFs import with the pixels they contain, and a malformed frame
+  can no longer request gigabytes of memory.
+- Scrubbing a paused preview from one video clip to another no longer waits
+  for the first clip's seek, and background preview prefetch pauses while the
+  tab is hidden.
+- Layer masks drawn without the GPU sample fractional edges at pixel centres
+  like the GPU path. Shader+ Path inputs ignore disabled masks, removing one
+  Path property no longer breaks another that shares its coverage, and Path
+  properties recover when the mask cache drops their texture.
+- Optical Flares keeps the underlay's blending after a project reload, and
+  the underlay no longer appears in auxiliary passes such as depth of field.
+- Card Wipe keeps its random texture when the effect reloads, and Drop Shadow
+  and CC Pixel Polly free all their resources when removed.
+- Desktop: starting the app by opening a file no longer creates two windows,
+  and opening a project while a save is in progress waits for the save.
 - Trimming several selected clips together keeps every clip edge on a whole
   frame, also when a clip's media starts between frames.
 - Dropping or pasting several files in quick succession gives each import its
