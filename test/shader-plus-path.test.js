@@ -8,6 +8,42 @@ const test = require("node:test"),
 const { KINDS } = require("../plugins/shader-plus/kinds.js");
 const { parseReference } = require("../plugins/shape-plus/mask-model.js");
 
+test("removing one Path property does not dispose shared coverage", () => {
+  const { installPathSampling } = require("../plugins/shader-plus/path-sample.js");
+  class Texture { constructor(data) { this.image = { data }; this.disposed = false; } dispose() { this.disposed = true; } }
+  class Shader { propertyRemoved() {} unload() {} }
+  const shared = new Texture(new Uint8Array(4));
+  const api = { parseReference: () => ({}), evaluateReference: () => ({ signature: "same", points: [], width: 1, height: 1, length: 0 }),
+    toUV: () => [], coverageTexture: () => shared, releaseCoverageTexture(texture) { if (texture !== shared) texture.dispose(); } };
+  const PZ = { effect: { shader: Shader }, zoidium: { layerMask: api } }, stages = [];
+  installPathSampling({ PZ, THREE: { DataTexture: Texture }, patch(holder, key, wrap) { holder[key] = wrap(holder[key]); },
+    pipeline: { register(stage) { stages.push(stage); return () => {}; } }, onDispose() {}, editor: () => null, report() {} });
+  const property = name => ({ definition: KINDS.path.create(), get: () => "{}", properties: { name: { get: () => name } } });
+  const a = property("A"), b = property("B"), effect = new Shader();
+  effect.customProperties = [a, b]; effect.parentProject = {}; effect.pass = { uniforms: {} }; effect.fixPropertyName = name => name;
+  stages[0].beforeUpdate.call(effect, 0);
+  assert.equal(effect.pass.uniforms.ACoverage.value, shared);
+  assert.equal(effect.pass.uniforms.BCoverage.value, shared);
+  effect.customProperties.splice(0, 1); effect.propertyRemoved(a);
+  assert.equal(shared.disposed, false);
+  assert.equal(effect.pass.uniforms.BCoverage.value, shared);
+});
+
+test("mask API releases private CPU coverage but keeps cached GPU coverage", () => {
+  const filename = require.resolve("../plugins/shape-plus/mask-api.js"), Module = require("node:module");
+  const localRequire = Module.createRequire(filename), shared = { disposed: false, dispose() { this.disposed = true; } };
+  const source = fs.readFileSync(filename, "utf8"), exports = { exports: {} };
+  const gpu = { coverageTexture: () => shared, stats: () => ({}), setForceCpu() {} };
+  const load = name => name === "./mask-gpu.js" ? { ...localRequire(name), sharedGpu: () => gpu } : localRequire(name);
+  new Function("require", "module", "exports", source)(load, exports, exports.exports);
+  class Texture { constructor(data) { this.image = { data }; this.disposed = false; } dispose() { this.disposed = true; } }
+  const api = exports.exports.installMaskApi({ PZ: {}, THREE: { DataTexture: Texture }, onDispose() {} });
+  const evaluated = { evaluated: [], size: { width: 1, height: 1 }, signature: "a" };
+  const gpuTexture = api.coverageTexture({}, evaluated), cpuTexture = api.coverageTexture(null, evaluated);
+  api.releaseCoverageTexture(gpuTexture); api.releaseCoverageTexture(cpuTexture);
+  assert.equal(shared.disposed, false); assert.equal(cpuTexture.disposed, true);
+});
+
 test("Path defaults to JSON null, which parses to a missing source", () => {
   // Native history redo of a TEXT empty-string write restores the
   // definition instead of the value (a host bug reproduced in isolation),
