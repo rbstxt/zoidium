@@ -43,6 +43,8 @@ test('sequence shutter directions use fixed frame offsets', () => {
   assert.deepEqual(offsets(0), [-1, -.5, 0, .5]);
   assert.deepEqual(offsets(1), [-2, -1.5, -1, -.5]);
   assert.deepEqual(offsets(2), [0, .5, 1, 1.5]);
+  assert.deepEqual(offsets('1'), offsets(1));
+  assert.deepEqual(offsets('2'), offsets(2));
   assert.equal(parts.sharedShutterOffset(0, 1, 2, 0), 0);
   assert.deepEqual(offsets(0), offsets(0));
 });

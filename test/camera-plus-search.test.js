@@ -44,6 +44,16 @@ test('camera-free scenes never update objects during shared-camera lookup', () =
   assert.equal(camera.calls.length, 14);
 });
 
+test('camera layer lookup accepts string-valued enabled keys', () => {
+  const h = host(); const camera = h.camera();
+  camera.properties.add('enabled', { value: 1 });
+  const layer = h.scene([camera], 'Camera', true);
+  camera.properties.enabled.set('1');
+  assert.equal(layer.getCamera(0), camera);
+  camera.properties.enabled.set('0');
+  assert.equal(layer.getCamera(0), null);
+});
+
 test('master scoring preserves Camera layers, names, depth, track order, and transform-card exclusion', () => {
   const h = host(); const first = h.scene([h.camera()]); const named = h.scene([h.camera()]);
   const nested = new h.PZ.layer.composite(); nested.objects.push(h.scene([h.camera()], 'camera'));
