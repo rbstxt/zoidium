@@ -32,7 +32,7 @@ function waitFor(predicate, maxChecks = 400) {
 // Loads desktop/main.cjs against a fake electron module. The process-level
 // listeners that main.cjs installs are removed again afterwards so they do not
 // leak into other tests.
-function loadMainProcess({ dialogChoice = 1, dialogThrows = false, whenReady = true } = {}) {
+function loadMainProcess({ dialogChoice = 1, dialogThrows = false, whenReady = true, deferListen = false } = {}) {
   const logDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "zoidium-unload-"));
   const processEvents = ["uncaughtException", "unhandledRejection", "exit"];
   const before = processEvents.map((name) => process.listeners(name));
@@ -119,8 +119,18 @@ function loadMainProcess({ dialogChoice = 1, dialogThrows = false, whenReady = t
       openExternal() { return Promise.resolve(); },
     },
   };
+  const pendingListens = [];
   const requireFake = (id) => {
     if (id === "electron") return electron;
+    if (id === "node:http" && deferListen) return {
+      ...http,
+      createServer(...args) {
+        const server = http.createServer(...args);
+        const listen = server.listen.bind(server);
+        server.listen = (...listenArgs) => { pendingListens.push(() => listen(...listenArgs)); return server; };
+        return server;
+      },
+    };
     return require(id);
   };
   const moduleObject = { exports: {} };
@@ -147,6 +157,7 @@ function loadMainProcess({ dialogChoice = 1, dialogThrows = false, whenReady = t
     windows,
     dialogCalls,
     port,
+    pendingListens,
     cleanup() {
       fs.rmSync(logDirectory, { recursive: true, force: true });
     },
@@ -260,6 +271,28 @@ test("quit proceeds immediately when the server never started", async () => {
     assert.equal(event.defaultPrevented, false);
     assert.equal(main.app.quitCalls, 0);
   } finally {
+    main.cleanup();
+  }
+});
+
+test("a file-open event during startup does not start a second window", async () => {
+  const main = loadMainProcess({ deferListen: true });
+  const filename = path.join(os.tmpdir(), `zoidium-start-${process.pid}.pz`);
+  fs.writeFileSync(filename, "project");
+  try {
+    await Promise.resolve();
+    main.app.emit("open-file", { preventDefault() {} }, filename);
+    await new Promise(resolve => setImmediate(resolve));
+    const attempts = main.pendingListens.length;
+    main.pendingListens.shift()();
+    await waitFor(() => main.windows.length > 0 || main.app.quitCalls > 0);
+    assert.equal(attempts, 1);
+    assert.equal(main.app.quitCalls, 0);
+    assert.equal(main.windows.length, 1);
+  } finally {
+    main.app.emit("will-quit", createEvent());
+    await waitFor(() => main.app.quitCalls >= 1).catch(() => {});
+    fs.rmSync(filename, { force: true });
     main.cleanup();
   }
 });

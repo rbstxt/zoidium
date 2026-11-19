@@ -6,7 +6,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-function harness() {
+function harness(options = {}) {
   const history = [];
   const events = [];
   const listeners = new Map();
@@ -44,6 +44,10 @@ function harness() {
     async fetch(url) { calls.push(["fetch", url]); return new Response("archive bytes"); },
   };
   const io = require("./project-archive-harness.cjs").installArchive(window);
+  if (options.timers) {
+    window.setTimeout = options.timers.setTimeout;
+    window.clearTimeout = options.timers.clearTimeout;
+  }
   io.decode = async function (file) { const archive = new Archive(); await archive.untar(file); return archive; };
   window.__zoidiumRestoreParts = { panel: { createSnapshot: async () => { calls.push("backup"); } } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../plugins/core/project-files-shared.js"), "utf8") + "\n" + fs.readFileSync(path.join(__dirname, "../plugins/core/project-files.js"), "utf8"), {
@@ -169,6 +173,64 @@ test("a desktop import waits for a toolbar transition instead of discarding the 
   await operation;
   assert.equal(run.editor.project, run.editor.nextProject);
   assert.deepEqual(run.calls.at(-1), ["complete", "queued"]);
+});
+
+test("a desktop import waits for a pending save before reading the file", async () => {
+  const run = harness();
+  let finish;
+  run.editor._zoidiumSavePromise = new Promise(resolve => { finish = resolve; });
+  const operation = run.bridge.receive({ id: "queued", name: "Saved.PZ", url: "/_zoidium/desktop-project/queued" });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(run.calls.some(call => Array.isArray(call) && call[0] === "fetch"), false);
+  run.editor._zoidiumSavePromise = null;
+  finish();
+  await operation;
+  assert.equal(run.editor.project, run.editor.nextProject);
+  assert.deepEqual(run.calls.at(-1), ["complete", "queued"]);
+});
+
+function fakeTimers() {
+  let now = 0, next = 0;
+  const timers = new Map();
+  return {
+    setTimeout(callback, delay) { const id = ++next; timers.set(id, { callback, at: now + delay }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    count() { return timers.size; },
+    advance(ms) {
+      now += ms;
+      for (const [id, timer] of timers) if (timer.at <= now) { timers.delete(id); timer.callback(); }
+    },
+  };
+}
+
+test("a stalled save releases the desktop open after 60 seconds", async () => {
+  const timers = fakeTimers(), run = harness({ timers });
+  run.editor._zoidiumSavePromise = new Promise(() => {});
+  const operation = run.bridge.receive({ id: "timeout", name: "Saved.PZ", url: "/project/timeout" });
+  assert.equal(timers.count(), 1);
+  timers.advance(59999);
+  await Promise.resolve();
+  assert.equal(run.calls.some(call => Array.isArray(call) && call[0] === "fetch"), false);
+  timers.advance(1);
+  await operation;
+  assert.equal(run.editor.project, run.editor.nextProject);
+  assert.deepEqual(run.calls.at(-1), ["complete", "timeout"]);
+  assert.equal(run.events.filter(event => event.type === "zoidium:project-error").length, 0);
+  assert.ok(run.events.some(event => event.type === "zoidium:notification" && /save/i.test(event.detail.title)));
+});
+
+test("a rejected save does not cancel the desktop open or report a second error", async () => {
+  const timers = fakeTimers(), run = harness({ timers });
+  let rejectSave;
+  run.editor._zoidiumSavePromise = new Promise((_resolve, reject) => { rejectSave = reject; });
+  const operation = run.bridge.receive({ id: "rejected", name: "Saved.PZ", url: "/project/rejected" });
+  rejectSave(new Error("save already reported"));
+  await operation;
+  assert.equal(run.editor.project, run.editor.nextProject);
+  assert.deepEqual(run.calls.at(-1), ["complete", "rejected"]);
+  assert.equal(run.events.filter(event => event.type === "zoidium:project-error").length, 0);
+  timers.advance(60000);
+  assert.equal(run.events.filter(event => event.type === "zoidium:notification").length, 0);
 });
 
 const busyErrors = run => run.events.filter(event => event.type === "zoidium:project-error" &&
