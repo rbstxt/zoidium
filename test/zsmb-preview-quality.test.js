@@ -11,7 +11,7 @@ const effectSource = fs.readFileSync(
   "utf8",
 );
 
-function makeTHREE() {
+function makeTHREE(counter) {
   class Vector2 {
     constructor(x = 1, y = 1) { this.x = x; this.y = y; }
     set(x, y) { this.x = x; this.y = y; return this; }
@@ -25,7 +25,11 @@ function makeTHREE() {
     constructor(material) { this.material = material; this.uniforms = material.uniforms; }
     render() {}
   }
-  return { Vector2, ShaderMaterial: Material, ShaderPass, NoBlending: 0 };
+  if (!counter) return { Vector2, ShaderMaterial: Material, ShaderPass, NoBlending: 0 };
+  const Geometry = counter.track(class {}, "geometry");
+  const TrackedMaterial = counter.track(class { constructor(options) { Object.assign(this, options); } }, "material");
+  class TrackedPass extends ShaderPass { constructor(material) { super(material); this.quad = { geometry: new Geometry() }; } }
+  return { Vector2, ShaderMaterial: TrackedMaterial, ShaderPass: TrackedPass, NoBlending: 0 };
 }
 
 function propertyCollection(initial = {}) {
@@ -69,11 +73,11 @@ function makeRequire() {
   };
 }
 
-function loadDefinition({ compositor, properties = propertyCollection() } = {}) {
+function loadDefinition({ compositor, properties = propertyCollection(), counter } = {}) {
   let definition = null;
   const sandbox = {
     console,
-    THREE: makeTHREE(),
+    THREE: makeTHREE(counter),
     properties,
     parentProject: { sequence: {} },
     _zoidiumGetAsset: () => "",
@@ -83,8 +87,10 @@ function loadDefinition({ compositor, properties = propertyCollection() } = {}) 
     },
     ZoidiumPluginApis: {
       gl: {
-        createCopyPass: () => ({ material: { blending: 0 } }),
-        disposePass: () => {},
+        createCopyPass: THREE => counter ? new THREE.ShaderPass(new THREE.ShaderMaterial({ uniforms: {
+          uvScale: { value: new THREE.Vector2() }, uvOffset: { value: new THREE.Vector2() }, opacity: { value: 1 },
+        } })) : ({ material: { blending: 0 } }),
+        disposePass: pass => { if (counter && pass) { pass.material.dispose(); pass.quad.geometry.dispose(); } },
       },
       modules: { createRequire: () => makeRequire() },
       defineFrameSampler(spec) { definition = spec; },
@@ -254,4 +260,15 @@ test("tracking requests preserve clip-start behavior for both directions", () =>
     }
   }
   definition.lifecycle.unload.call(sandbox);
+});
+
+test("default copy draw releases all ZSMB pass resources", () => {
+  const { resourceCounter } = require("./helpers/resource-counter.js");
+  const counter = resourceCounter();
+  const { definition, sandbox } = loadDefinition({ counter });
+  definition.lifecycle.load();
+  sandbox.pass.render({}, {}, { width: 32, height: 32, texture: {} });
+  definition.lifecycle.unload();
+  definition.lifecycle.unload();
+  counter.assertDisposed();
 });
