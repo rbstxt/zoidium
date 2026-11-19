@@ -207,3 +207,19 @@ test("surface shader retains native chunks and installs emission, normal RNM and
   assert.match(shader.fragmentShader, /reflectVec.xz = mat2/);
   donor.pzRampTexture.dispose(); donor.threeObj.dispose();
 });
+
+test("Node Material transparency follows the native option value", async () => {
+  const h = harness();
+  NodeMaterial.activate(h.context);
+  const m = h.material("nodes");
+  try {
+    (await h.PZ.material.fnList.nodes).call(m);
+    m.load();
+    m.properties.transparent.set("1");
+    m.update(0);
+    assert.equal(m.threeObj.transparent, true);
+    m.properties.transparent.set("0");
+    m.update(0);
+    assert.equal(m.threeObj.transparent, false);
+  } finally { m.unload(); for (const dispose of h.dispose.reverse()) dispose(); }
+});

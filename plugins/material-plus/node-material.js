@@ -199,7 +199,7 @@ function activate(context) {
         const texture = material.pzGraphTextures[slot];
         if (texture) { texture._graphPixels = canvas._graphPixels; material.applyWrap(texture); }
       }
-      const transparent = !!material.pzGraphTextures.opacity || material.properties.transparent.get() === 1;
+      const transparent = !!material.pzGraphTextures.opacity || Number(material.properties.transparent.get()) === 1;
       if (material.threeObj.transparent !== transparent) { material.threeObj.transparent = transparent; material.threeObj.needsUpdate = true; }
       if (nodeMode) {
         const lit = material.pzGraphTextures.luminance ? 1 : 0;
@@ -420,7 +420,7 @@ function activate(context) {
       this.updateBumpMap();
       this.pzLoadEnvironment();
       this.initReflection();
-      this.threeObj.transparent = this.properties.transparent.get() === 1;
+      this.threeObj.transparent = Number(this.properties.transparent.get()) === 1;
       this.threeObj.side = [THREE.FrontSide, THREE.BackSide, THREE.DoubleSide][this.properties.side.get()];
       this.update(0);
       PZ.zoidium?.trackPluginMaterial?.(this, { ...context.plugin, material: "nodes", materialName: "Node Material", compatibility: "incompatible" }, false);

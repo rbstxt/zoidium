@@ -366,7 +366,10 @@ target.props = {
         value: 0,
         changed: function () {
             if (this.parentObject.pzLoading || this.parentObject._zoidiumLoading || !this.parentObject.pzUniforms) return;
-            this.parentObject.threeObj.transparent = this.value === 1;
+            const material = this.parentObject.threeObj;
+            const transparent = Number(this.value) === 1;
+            if (material.transparent !== transparent) material.needsUpdate = true;
+            material.transparent = transparent;
         },
         items: "off;on",
     },
