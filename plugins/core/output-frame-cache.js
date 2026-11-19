@@ -36,6 +36,7 @@
   const PREFETCH_AHEAD = 150;
   const PREFETCH_BEHIND = 8;
   let idleTimer = null;
+  let visibilityEpoch = 0;
   const controllers = new Set();
   const identities = new WeakMap();
   let nextIdentity = 0;
@@ -642,8 +643,8 @@
 
   async function prefetchFrame(controller, key, frame, current) {
     const viewport = controller.viewport;
-    const epoch = editSignals.epoch;
-    const valid = () => !disposed && !controller.disposed && !debug.disabled && controller.key === key &&
+    const epoch = editSignals.epoch, visibility = visibilityEpoch;
+    const valid = () => !hidden() && visibility === visibilityEpoch && !disposed && !controller.disposed && !debug.disabled && controller.key === key &&
       editSignals.epoch === epoch && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
       !plainTimeProject(viewport) && viewport.editor.playback.speed === 0 &&
       viewport.editor.playback.currentFrame === current && !viewport.renderMode;
@@ -698,8 +699,8 @@
   async function fillVideoFrame(controller, key, frame, current = frame) {
     const viewport = controller.viewport, temporal = PZ.zoidium.temporal;
     const sampler = global.__zoidiumTemporalParts.sampler;
-    const epoch = editSignals.epoch, generation = controller.generation, cheap = cheapKey(viewport);
-    const valid = () => !disposed && !controller.disposed && !debug.disabled && !debug.prefetchDisabled &&
+    const epoch = editSignals.epoch, generation = controller.generation, cheap = cheapKey(viewport), visibility = visibilityEpoch;
+    const valid = () => !hidden() && visibility === visibilityEpoch && !disposed && !controller.disposed && !debug.disabled && !debug.prefetchDisabled &&
       controller.key === key && controller.generation === generation && editSignals.epoch === epoch &&
       viewport.editor.playback.speed === 0 && viewport.editor.playback.currentFrame === current &&
       !viewport.renderMode && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
@@ -780,19 +781,34 @@
     return model.videoPrefetchBlocked(sequence, frame, sampling);
   }
 
+  function hidden() { return global.document.hidden === true || global.document.visibilityState === "hidden"; }
+
+  function visibilityChanged() {
+    if (!hidden()) { if (controllers.size) scheduleIdle(); return; }
+    visibilityEpoch += 1;
+    if (idleTimer !== null) clearTimeout(idleTimer);
+    idleTimer = null;
+    for (const controller of controllers) {
+      controller.videoJob?.cancel();
+      if (!controller.prefetching) endVideoQueue(controller);
+    }
+  }
+  global.document.addEventListener("visibilitychange", visibilityChanged);
+
   function scheduleIdle(delay = IDLE_MS) {
-    if (idleTimer !== null || disposed || debug.disabled || debug.prefetchDisabled || !store.effectiveLimit) return;
+    if (hidden() || idleTimer !== null || disposed || debug.disabled || debug.prefetchDisabled || !store.effectiveLimit) return;
     idleTimer = setTimeout(() => { idleTimer = null; prefetchStep(); }, delay);
   }
 
   async function prefetchStep() {
-    if (disposed || debug.disabled || debug.prefetchDisabled || !store.effectiveLimit) {
+    if (hidden() || disposed || debug.disabled || debug.prefetchDisabled || !store.effectiveLimit) {
       for (const controller of controllers) if (!controller.prefetching) endVideoQueue(controller);
       return;
     }
     const quiet = editSignals.quietMs();
     if (quiet < IDLE_MS) { scheduleIdle(IDLE_MS - quiet); return; }
     for (const controller of controllers) {
+      if (hidden()) return;
       const viewport = controller.viewport;
       if (plainTimeProject(viewport)) {
         if (!controller.prefetching) disposeSnapshot(controller);
@@ -815,8 +831,10 @@
             !controller.prefetchSkipped.has(current) &&
             videoFrames.inputs(sequence, current, global.__zoidiumTemporalParts.sampler).length) {
           controller.prefetching = true;
+          const visibility = visibilityEpoch;
           try { await fillVideoFrame(controller, key, current); }
           finally { controller.prefetching = false; }
+          if (visibility !== visibilityEpoch) scheduleIdle(0);
           controller.videoSlow = (controller.videoSlow || 0) + (debug.videoFillMs > 1000 ? 1 : 0);
           if (store.entries.has(entryKey(controller, current))) scheduleIdle(0);
         }
@@ -830,6 +848,7 @@
       const frame = nextPrefetchFrame(controller, current, video);
       if (frame === undefined) { endVideoQueue(controller); continue; }
       controller.prefetching = true;
+      const visibility = visibilityEpoch;
       let rendered = false;
       try {
         if (video && videoFrames.inputs(sequence, frame, global.__zoidiumTemporalParts.sampler).length) {
@@ -844,7 +863,8 @@
       } finally {
         controller.prefetching = false;
         if (!rendered) debug.prefetchAborted += 1;
-        if (controller.key !== key || controller.unsupported === key || viewport.editor.playback.speed !== 0) {
+        if (visibility !== visibilityEpoch || hidden() || controller.key !== key || controller.unsupported === key ||
+          viewport.editor.playback.speed !== 0) {
           disposeSnapshot(controller);
         }
       }
@@ -942,6 +962,7 @@
     touch(reason) { editSignals.touch(reason); }, // for project writes made without an edit
     dispose() {
       disposed = true;
+      global.document.removeEventListener("visibilitychange", visibilityChanged);
       captures.dispose();
       if (idleTimer !== null) clearTimeout(idleTimer);
       idleTimer = null;
