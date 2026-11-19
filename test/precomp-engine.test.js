@@ -679,3 +679,17 @@ test("empty compositions report length 1 and the engine reports version 3", () =
     "That composition no longer exists.");
   assert.equal(env.engine.openComp(null, null).message, "Open a project first.");
 });
+
+test("muted composition audio tracks do not enter the audio schedule", () => {
+  const env = createEnvironment();
+  addCompMedia(env, "X", "X", [
+    { type: 1, enabled: false, clips: [audioClipJSON(0, 30, "Muted")] },
+    { type: 1, clips: [audioClipJSON(0, 30, "Audible")] },
+  ]);
+  addClip(env, 0, { start: 0, length: 30, compId: "X" });
+  const nested = env.project.sequence.videoTracks[0].clips[0].object.nestedAudioTracks();
+  env.PZ.schedule.analyzeSequence(env.project.sequence);
+  const proxies = env.project.sequence.lastAudioItems.filter((item) => item.origin !== undefined);
+  assert.equal(proxies.length, 1);
+  assert.equal(proxies[0].media, nested[1].clips[0].media);
+});

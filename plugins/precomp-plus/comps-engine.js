@@ -688,6 +688,7 @@ function collectNestedAudio(layerClip, origin, winStart, winEnd, out, path) {
   if (path.has(layer.compId) || path.size >= MAX_DEPTH) return;
   path.add(layer.compId);
   layer.nestedAudioTracks().forEach(function (track) {
+    if (track.enabled === false) return;
     track.clips.forEach(function (clip) {
       const clipOrigin = origin + clip.start - layer.offset;
       const start = Math.max(winStart, clipOrigin);

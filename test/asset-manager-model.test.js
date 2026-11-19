@@ -157,4 +157,3 @@ test("equal sort values fall back to asset names even when labels differ", () =>
   const tied = [item({ id: "a", name: "Zebra", label: 1 }), item({ id: "z", name: "Apple", label: 2 })];
   assert.deepEqual([...model.sortItems(tied, { column: "kind", direction: "asc" }).map((entry) => entry.name)], ["Apple", "Zebra"]);
 });
-
