@@ -889,10 +889,11 @@ float simplex(vec3 v){
       this.cached={};
       for(const key of Object.keys(this.propertyDefinitions)){
         if(["enabled","previewMatch","deband","atmosphereModel"].includes(key))continue;
-        this.cached[key]=this.properties[key].get(frame);
+        const value=this.properties[key].get(frame);
+        this.cached[key]=this.propertyDefinitions[key].type===PZ.property.type.OPTION?Number(value):value;
       }
       Object.assign(this.cached,{previewMatch:1,deband:1,atmosphereModel:0});
-      this.pass.enabled=this.properties.enabled.get(frame)===1;
+      this.pass.enabled=Number(this.properties.enabled.get(frame))===1;
     };
     // Native layer resolution is stable when the preview viewport changes.
     // Fall back to the input buffer for effects not attached to a normal layer.

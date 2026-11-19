@@ -26,12 +26,12 @@ module.exports.install=function(effect,PZ,THREE,apis){
                 finally{PZ.ui.controls.editFinish.call(this,object);}
               };
               select.hidden=true;box.appendChild(input);
-              box.pz_update=frame=>{input.checked=object.get(frame)===1;input.disabled=!!(object.animated&&object.expression);};
+              box.pz_update=frame=>{input.checked=Number(object.get(frame))===1;input.disabled=!!(object.animated&&object.expression);};
               // Native row subscribed before replacement; keep its update function.
               select.selectedIndex=object.get()||0;
               const nativeUpdate=box.pz_update;
               box.pz_update=frame=>{nativeUpdate(frame);};
-              input.checked=object.get()===1;
+              input.checked=Number(object.get())===1;
 
             }
           }

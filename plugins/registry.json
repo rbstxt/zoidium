@@ -557,7 +557,7 @@
       "description": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
       "manifest": "./plugins/sglow-hq-v2-preview/manifest.json?v=17",
       "bundle": "./plugins/sglow-hq-v2-preview/bundle.json?v=17",
-      "integrity": "sha256-T4wpq76Ciu90a+EpuggZIFdL2H885RtLgJx658MYTcA=",
+      "integrity": "sha256-vv4CbYNUMiYa+4D09vgLqxfLZLY1vLWx4P438/eIzBc=",
       "zoidiumOnly": true
     }
   ]
