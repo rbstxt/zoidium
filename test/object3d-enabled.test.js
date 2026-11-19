@@ -287,3 +287,18 @@ test("the real Camera+ group receiver updates without recursion", () => {
   assert.equal(camera.updated, 12);
   assert.equal(light.updated, undefined);
 });
+
+test("string dynamic OPTION keys survive load and control object and group work", async () => {
+  const { Object3D, Group } = host();
+  for (const object of [new Object3D(), new Group()]) {
+    object.properties.enabled.load({ keys: { 0: "1", 1: "0" } });
+    assert.equal(object.zoidiumSkipsWork(0), false);
+    object.update(0); await object.prepare(0);
+    assert.equal(object.threeObj.visible, true);
+    assert.equal(object.zoidiumSkipsWork(1), true);
+    object.update(1); await object.prepare(1);
+    assert.equal(object.threeObj.visible, false);
+    assert.equal(object.zoidiumFrameReady(1), true);
+    assert.deepEqual(object.properties.enabled.toJSON().keys, { 0: "1", 1: "0" });
+  }
+});

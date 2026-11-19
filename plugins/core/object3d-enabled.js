@@ -242,10 +242,10 @@
     let hidden = false;
     // Frame readiness walks child lists; a skipped subtree has no pending work.
     object.zoidiumSkipsWork = function (frame) {
-      return this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this);
+      return Number(this.properties.enabled.get(frame)) !== 1 && !mustUpdateGroup(this);
     };
     wrap(object, "update", function (frame) {
-      const enabled = this.properties.enabled.get(frame) === 1;
+      const enabled = Number(this.properties.enabled.get(frame)) === 1;
       if (!enabled && !mustUpdateGroup(this)) {
         if (!muteLight(this)) {
           if (this.threeObj) this.threeObj.visible = false;
@@ -257,10 +257,12 @@
       // not depend on the flag update used before.
       if (!unmuteLight(this) && hidden && this.threeObj) this.threeObj.visible = true;
       hidden = false;
-      return inherited(this, "update").apply(this, arguments);
+      const result = inherited(this, "update").apply(this, arguments);
+      if (this instanceof base.group && this.threeObj) this.threeObj.visible = enabled;
+      return result;
     });
     wrap(object, "prepare", function (frame) {
-      if (this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this)) {
+      if (Number(this.properties.enabled.get(frame)) !== 1 && !mustUpdateGroup(this)) {
         // An object-type swap can install a fresh, visible threeObj.
         if (!muteLight(this) && this.threeObj) this.threeObj.visible = false;
         return Promise.resolve();
@@ -268,7 +270,7 @@
       return inherited(this, "prepare").apply(this, arguments);
     });
     if (typeof ready === "function") wrap(object, "zoidiumFrameReady", function (frame) {
-      if (this.properties.enabled.get(frame) !== 1 && !mustUpdateGroup(this)) return true;
+      if (Number(this.properties.enabled.get(frame)) !== 1 && !mustUpdateGroup(this)) return true;
       return inherited(this, "zoidiumFrameReady").apply(this, arguments);
     });
     return result;
