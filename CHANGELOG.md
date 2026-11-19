@@ -232,8 +232,6 @@ each line describes one visible change.
   default changes; untouched values, including colours and vectors, still
   follow the new default.
 - Easing+ Copy keeps the full precision of the curve.
-- Expressions+: a numeric expression that returns NaN, Infinity, or a
-  non-number now uses the keyed value for that frame, as documented.
 - Particular secondary systems with continuous emission emit at their doubled
   density, like counted and burst emission already did.
 - The Particles+ texture picker shows the right texture after undo.
