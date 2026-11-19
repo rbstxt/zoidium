@@ -81,6 +81,7 @@ sidebar:
 
 ### 変更
 
+- Expressions+ で、Checkbox コントロールが After Effects と同じく文字列の "1" や "0" ではなく、数値の 1 と 0 をエクスプレッションに返すようになりました。文字列の "1" や "0" と比較している式や、テキストと結合している式は、書き換えが必要な場合があります。
 - 既存プロジェクトの見た目の変更。ASCII が 2 のべき乗でないサイズのフレームを縮小せず、元の描画サイズのままテクスチャを保つようになりました。そのサイズで描かれる既存の ASCII の見た目がくっきりし、リサイズ警告も繰り返し出なくなりました。
 - ZSMB の Quality 設定を戻し、Full・1/2・1/4・1/8 から選べるようにしました。動きの解析の細かさを決め、書き出しにも使われるので、1/2 なら Full より書き出しが大幅に速くなります。プレビューのサイズは引き続き Player+ に従い、解析はプレビューのサイズを超えません。
 - 既存プロジェクトの見た目の変更。Enabled を切ったライトが、Trapcode Form と Particular のパーティクルを照らさなくなりました。
@@ -110,6 +111,13 @@ sidebar:
 
 ### 修正
 
+- Echo、Time Remap、Time Difference、Time Displacement、CC Wide Time、Magic Looks が、削除時に GPU メモリを解放するようになりました。
+- 音声トラックのミュートと Shader+ の Layer Input の入力モード変更を、取り消しとやり直しで戻せるようになりました。Resolve Fonts で複数のフォントを置き換えたときは 1 回の取り消しにまとまり、Node Material の Image・Texture ノードの編集を取り消すと、グラフと Selected node image 欄の両方が元に戻ります。
+- レイヤーを削除して取り消しで戻したあとも、レイヤーマスクの取り消しとやり直しがそのまま効くようになりました。Trapcode Designer で追加した項目も、親オブジェクトの削除と復元やリストの並べ替えのあとに正しく取り消し・やり直しできます。
+- プロジェクト名の編集を終わらせないまま別のプロジェクトを開いても、新しく開いたプロジェクトの名前が書き換わらなくなりました。
+- Native FX と OpenZoid Legacy のドロップダウンやスイッチの設定が、選択・取り消し・プロジェクトの再読み込みのあとも反映されるようになりました。Native FX では Color Difference Key・Advanced Spill Suppressor・Key Cleaner・Linear Color Key の Enabled とオプション、および Time Offset・Posterize Time・CC Page Turn・Radial Shadow・Card Wipe・Color Curves・Drop Shadow・CC Pixel Polly の Enabled が対象です。OpenZoid Legacy では Posterize Time (Legacy)・Jpeg Damage・VHS の Enabled、および ASCII・Tracery の Enabled とオプションが対象です。
+- Trapcode Form と Plexus のドロップダウンやスイッチの設定が、選択・取り消し・プロジェクトの再読み込みのあとも反映されるようになりました。Trapcode Form（Base Form、Fluid Motion、Mirror On X・Y・Z、Layer Maps、Audio React、Shading、Blend Mode）と Plexus（オブジェクトの Enabled、Geometry type、Primitive、Color map by、Renderer type）が対象です。Plexus の Terrain プリセットは、既存の Points と Lines のレンダラーを重複して追加せず再利用するようになりました。
+- Optical Flares、Magic Looks、Camera+、Shader+ でも、選択・取り消し・プロジェクトの再読み込みのあとにスイッチやドロップダウンが反映されるようになりました。Optical Flares（Occlude、High Quality、Scale Offset、Scale With Distance、要素の Enabled・Solo・Animate、ウィンドウ内のチェックボックスと行の切り替え）、Magic Looks（全体の Enabled と Tool chain の切り替え）、Camera+（カメラの Enabled、Depth of Field、モーションブラーの Track Frame）が対象です。Enabled をオフにした Shader+ エフェクトが、Time sample のフレームを要求しなくなりました。
 - Material+ のドロップダウンやスイッチの設定が、選んだときと保存済みプロジェクトを開き直したときの両方で反映されるようになりました。Image+ と Node Material の Transparency、Blending と Render side、Node Material と PBR+ の Use node graph・Bump Noise・反射・Color Ramp・Fresnel・Ambient Occlusion・セルシェーディング・影の面などが対象です。マテリアルの Node Editor コントロールを open に切り替えると、Node Editor ウィンドウが開くようになりました。
 - 保存済みプロジェクトを開き直したとき、各所のドロップダウンやスイッチの設定が反映されるようになりました。Camera+（Active Camera、Vibrate のスイッチ、シーケンスのモーションブラー）、ライトの Cast shadows、書き出し時のモーションブラーのシャッターサンプリング、3D オブジェクトの Enabled、S_Glow（Enabled、Time Mode、Expand Borders などのオプション）、Radial Blur (Spin) の Enabled、Shape+（項目の Enabled、Text Animator のオプション、Wiggly Selector、編集時のパスの開閉状態）が対象です。古い Effector プロジェクトで曲線の品質を低く保存していた場合も、移行時にローポリゴンの細分化が保たれるようになりました。
 - Shader+ で、プロパティやグループの Visible when と Rename when の条件が、静的ドロップダウンの選択肢番号と一致するようになりました。条件に一致しない警告の判定でも、これらの選択肢を認識するようになりました。

@@ -3,10 +3,10 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "eae419ce2b6523ca155a59af4558a6bbde588c96749ba2f8d6458975a2920d72",
+  "fingerprint": "7f9e7db97d68eb42bbff7436f232ceffba596c9a28bfe0f1438de2a7b8be7b71",
   "plugins": {
     "native-fx": {
-      "version": "42",
+      "version": "43",
       "cases": [
         "radialblurspin",
         "colorcurves",
@@ -96,7 +96,7 @@
       ]
     },
     "trapcode-suite": {
-      "version": "53",
+      "version": "54",
       "cases": [
         "Particular",
         "Default burst",
@@ -116,7 +116,7 @@
       ]
     },
     "optical-flares": {
-      "version": "22",
+      "version": "23",
       "cases": [
         "Optical Flares",
         "Anamorphic Blue",
@@ -134,7 +134,7 @@
       ]
     },
     "shader-plus": {
-      "version": "33",
+      "version": "34",
       "cases": [
         "time-sample",
         "time-sample-adjustment",
@@ -148,7 +148,7 @@
       ]
     },
     "camera-plus": {
-      "version": "23",
+      "version": "24",
       "cases": [
         "scene-camera-animation",
         "shared-camera-animation",
@@ -156,7 +156,7 @@
       ]
     },
     "layer-input": {
-      "version": "18",
+      "version": "19",
       "cases": [
         "animated-source",
         "nested-source",
@@ -175,7 +175,7 @@
       ]
     },
     "expressions-plus": {
-      "version": "25",
+      "version": "26",
       "cases": [
         "seeded-time-fps",
         "mutable-realm",

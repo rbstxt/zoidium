@@ -154,6 +154,10 @@ each line describes one visible change.
 
 ### Changed
 
+- Expressions+: Checkbox controls now return the numbers 1 and 0 to
+  expressions, like After Effects, instead of the text "1" and "0".
+  Expressions that compare with the text "1" or "0", or combine the value
+  with text, may need updating.
 - Existing projects, new look: ASCII now keeps its texture at the full
   render size instead of scaling non-power-of-two frames down. Existing
   ASCII renders look sharper at those sizes and no longer log repeated
@@ -214,6 +218,38 @@ each line describes one visible change.
 
 ### Fixed
 
+- Echo, Time Remap, Time Difference, Time Displacement, CC Wide Time, and
+  Magic Looks now free their GPU memory when removed.
+- Audio track mute and Shader+ Layer Input mode changes can now be undone
+  and redone. Replacing multiple fonts in Resolve Fonts now undoes and
+  redoes as one step, and undoing an Image or Texture node edit in Node
+  Material restores both the graph and the Selected node image field.
+- Undo and redo now keep working for layer masks after deleting and
+  restoring their layer, and for items added in Trapcode Designer after
+  deleting and restoring the parent object or reordering the list.
+- Finishing an unfinished project-name edit after opening another project
+  no longer renames the newly opened project.
+- Native FX and OpenZoid Legacy dropdown and switch settings now take
+  effect after selection, undo, or reopening a project. In Native FX, the
+  fix covers Enabled and options on Color Difference Key, Advanced Spill
+  Suppressor, Key Cleaner, and Linear Color Key, plus Enabled on Time
+  Offset, Posterize Time, CC Page Turn, Radial Shadow, Card Wipe, Color
+  Curves, Drop Shadow, and CC Pixel Polly. In OpenZoid Legacy, it covers
+  Enabled on Posterize Time (Legacy), Jpeg Damage, and VHS, plus Enabled
+  and options on ASCII and Tracery.
+- Trapcode Form and Plexus dropdown and switch settings now take effect
+  after selection, undo, or reopening a project: Trapcode Form (Base Form,
+  Fluid Motion, Mirror On X, Y, and Z, Layer Maps, Audio React, Shading,
+  and Blend Mode) and Plexus (object Enabled, Geometry type, Primitive,
+  Color map by, and Renderer type). Applying the Plexus Terrain preset now
+  reuses existing Points and Lines renderers instead of adding duplicates.
+- Switches and dropdowns now take effect after selection, undo, or
+  reopening a project in Optical Flares (Occlude, High Quality, Scale
+  Offset, Scale With Distance, element Enabled, Solo, and Animate, plus
+  window checkboxes and row toggles), Magic Looks (master Enabled and Tool
+  chain toggles), and Camera+ (camera Enabled, Depth of Field, and
+  motion-blur Track Frame). Disabled Shader+ effects no longer request
+  Time sample frames.
 - Material+ dropdown and switch settings now take effect when selected and
   after reopening a saved project: Transparency on Image+ and Node Material,
   Blending and Render side, and Node Material and PBR+ options such as Use
