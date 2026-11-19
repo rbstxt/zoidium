@@ -114,6 +114,10 @@ test("the search filter matches dataset text and Escape clears the query", () =>
   search.input.dispatch("input", {});
   assert.deepEqual(list.children.map((entry) => entry.hidden), [true, false, true]);
   assert.ok(seen.length >= 1);
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    search.input.dispatch("keydown", { key: "Escape", ...composition });
+    assert.equal(search.input.value, "  ETTE  ");
+  }
   search.input.dispatch("keydown", { key: "Escape" });
   assert.equal(search.input.value, "");
   assert.deepEqual(list.children.map((entry) => entry.hidden), [false, false, false]);
