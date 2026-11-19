@@ -3,10 +3,10 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "d1195da1dcf6b90f7407682cc2b0f2894cd02201aefac189dd000918476a0aa2",
+  "fingerprint": "61a3e443eba9323b73d2405765f61e3f069cde95d0c258acd9767363aa1ae5ce",
   "plugins": {
     "native-fx": {
-      "version": "40",
+      "version": "41",
       "cases": [
         "radialblurspin",
         "colorcurves",
@@ -116,7 +116,7 @@
       ]
     },
     "optical-flares": {
-      "version": "21",
+      "version": "22",
       "cases": [
         "Optical Flares",
         "Anamorphic Blue",
@@ -134,7 +134,7 @@
       ]
     },
     "shader-plus": {
-      "version": "31",
+      "version": "32",
       "cases": [
         "time-sample",
         "time-sample-adjustment",
@@ -175,7 +175,7 @@
       ]
     },
     "expressions-plus": {
-      "version": "23",
+      "version": "24",
       "cases": [
         "seeded-time-fps",
         "mutable-realm",
