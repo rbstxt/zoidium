@@ -659,6 +659,7 @@
       dropdown.appendChild(row);
     }
     dropdown.onkeydown = function (event) {
+      if (event.isComposing || event.keyCode === 229) return;
       var key = event.key;
       if (key === "Escape") {
         this.blur();

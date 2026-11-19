@@ -554,6 +554,11 @@ test("arrow keys skip the separator and Enter dispatches", async () => {
   const event = key => ({ key, preventDefault() { prevented.push(key); } });
   const active = () => dropdown.children.findIndex(row => row.classList.contains("pz-active"));
   assert.equal(active(), 0);
+  for (const key of ["Enter", "Escape"]) for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    dropdown.onkeydown.call(dropdown, { ...event(key), ...composition });
+    assert.deepEqual(property.setCalls, []);
+    assert.ok(dropdown.parentElement);
+  }
   dropdown.onkeydown.call(dropdown, event("ArrowDown"));
   assert.equal(active(), 1);
   dropdown.onkeydown.call(dropdown, event("ArrowDown"));
