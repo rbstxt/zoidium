@@ -55,6 +55,7 @@
   var originalCreateTrackLabel = tracksPrototype.createTrackLabel;
   var originalCombineTracks = PZ.schedule.combineTracks;
   var audioTrackType = PZ.track.audio.prototype.type;
+  var audioButtons = new WeakMap();
 
   function isAudioTrack(track) {
     return track && track.type === audioTrackType;
@@ -140,13 +141,40 @@
     icon.style.height = "16px";
     button.appendChild(icon);
     setAudioButtonState(track, button, icon);
+    audioButtons.set(track, { button: button, icon: icon });
 
     button.onclick = function () {
-      track.enabled = track.enabled === false;
-      setAudioButtonState(track, button, icon);
-      if (this.timeline && this.timeline.sequence) {
-        analyzeSequenceWithoutSeeking(this.timeline, this.timeline.sequence);
+      var timeline = this.timeline;
+      var editor = timeline && timeline.editor;
+      var history = editor && editor.history;
+      if (history && history.operation !== null) return;
+      function apply(target, value) {
+        target.enabled = value;
+        var controls = audioButtons.get(target);
+        if (controls) setAudioButtonState(target, controls.button, controls.icon);
+        if (timeline && timeline.sequence && timeline.sequence.audioTracks?.indexOf(target) >= 0) {
+          analyzeSequenceWithoutSeeking(timeline, timeline.sequence);
+        }
       }
+      if (!history || !editor.project || typeof track.getAddress !== "function") {
+        track.enabled = track.enabled === false;
+        setAudioButtonState(track, button, icon);
+        if (timeline && timeline.sequence) analyzeSequenceWithoutSeeking(timeline, timeline.sequence);
+        return;
+      }
+      var project = editor.project;
+      function exchange(command) {
+        if (editor.project !== project) return;
+        var target = project.addressLookup(command.address);
+        if (!isAudioTrack(target)) return;
+        var previous = target.enabled !== false;
+        apply(target, command.value);
+        history.pushCommand(exchange, { address: command.address, value: previous });
+        project.ui?.onChanged?.update?.();
+      }
+      history.startOperation();
+      try { exchange({ address: track.getAddress(), value: track.enabled === false }); }
+      finally { history.finishOperation(); }
     }.bind(this);
 
     label.insertBefore(button, label.lastElementChild);
