@@ -45,7 +45,12 @@ function cardWipeGrid(value, fallback) {
 function cardWipeRefreshTexture(effect, cols, rows, randomSeed) {
   var seed = cardWipeMath.foldSeed(randomSeed);
   var signature = cols + "x" + rows + ":" + (seed | 0);
-  if (cardWipeRand.texture && cardWipeRand.signature === signature) return;
+  if (cardWipeRand.texture && cardWipeRand.signature === signature) {
+    if (effect && effect.pass && effect.pass.material && effect.pass.material.uniforms.tRand) {
+      effect.pass.material.uniforms.tRand.value = cardWipeRand.texture;
+    }
+    return;
+  }
   var data = new Float32Array(cols * rows * 4);
   for (var j = 0; j < rows; j++) {
     for (var i = 0; i < cols; i++) {
