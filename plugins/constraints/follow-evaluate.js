@@ -57,9 +57,9 @@ function createFollowEvaluator({ PZ, THREE, store, trackEvaluator, report = cons
     try {
       const pose = JSON.parse(read(node.host, store.KEYS.fallback, node.frame, ""));
       if (![pose.p, pose.q, pose.s].every(Array.isArray) || ![...pose.p, ...pose.q, ...pose.s].every(Number.isFinite)) return;
-      node.threeObj.position.fromArray(pose.p);
-      node.threeObj.quaternion.fromArray(pose.q);
-      node.threeObj.scale.fromArray(pose.s);
+      if (Number(read(node.host, store.KEYS.followPosition, node.frame, 1)) === 1) node.threeObj.position.fromArray(pose.p);
+      if (Number(read(node.host, store.KEYS.followRotation, node.frame, 1)) === 1) node.threeObj.quaternion.fromArray(pose.q);
+      if (Number(read(node.host, store.KEYS.followScale, node.frame, 1)) === 1) node.threeObj.scale.fromArray(pose.s);
       node.threeObj.updateMatrixWorld(true);
     } catch (_error) { /* An unresolved saved link without a fallback keeps its authored pose. */ }
   }
