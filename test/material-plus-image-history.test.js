@@ -1,0 +1,57 @@
+"use strict";
+require("./migrate-test-apis.js").ensureMainRealmApis();
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const NodeMaterial = require("../plugins/material-plus/node-material.js");
+const { harness } = require("./material-node-harness.js");
+const { host, editorFor } = require("./helpers/editor-identity-host.cjs");
+
+test("image node undo and redo keep the currently selected node's image", async () => {
+  const h = harness(), native = host().PZ;
+  const project = new native.project(), editor = editorFor(native, project);
+  h.PZ.ui = native.ui; h.context.window.CM = editor;
+  NodeMaterial.activate(h.context);
+  let close;
+  try {
+    const material = h.material("nodes");
+    (await h.PZ.material.fnList.nodes).call(material); material.load();
+    const graph = material.properties.graph, image = material.properties.nodeImage;
+    graph.getAddress = () => ["graph"]; image.getAddress = () => ["image"];
+    image.definition = image;
+    const listeners = new Set(), setGraph = graph.set;
+    graph.onChanged = { watch(fn) { listeners.add(fn); }, unwatch(fn) { listeners.delete(fn); } };
+    graph.set = function (value) { setGraph.call(this, value); for (const fn of listeners) fn(); };
+    const element = () => ({ style: {}, append() {}, appendChild() {}, replaceChildren() {} });
+    h.context.document.createElement = () => ({ ...element(), getContext: () => ({ drawImage() {} }) });
+    h.context.document.getElementById = () => ({});
+    h.context.ui.controls = { note: () => ({ element: element() }) };
+    h.context.ui.properties = () => ({ element: element(), refresh() {}, dispose() {} });
+    let options;
+    h.context.window.ZoidiumUI = { nodeEditor(value) { options = value; return { element: element(), setGraph() {}, destroy() {} }; } };
+    h.context.window.requestAnimationFrame = () => 0;
+    h.context.window.cancelAnimationFrame = () => {};
+    h.context.ui.openWindow = value => { close = value.mount(element()); return {}; };
+    project.addressLookup = address => address[0] === "graph" ? graph : image;
+    const nodes = h.context.window.ZoidiumMaterialPlus.nodes;
+    const model = nodes.defaultGraph(), a = nodes.createNode("image", "a"), b = nodes.createNode("image", "b");
+    a.params.asset = "old-a"; b.params.asset = "image-b"; model.nodes.push(a, b);
+    graph.set(JSON.stringify(model));
+    h.editors[0].open(material);
+    options.onSelect(["a"]); await Promise.resolve();
+    editor.history.startOperation();
+    image.set("new-a");
+    new native.ui.properties(editor).setValue({ property: image.getAddress(), frame: 0, oldValue: "old-a" });
+    editor.history.finishOperation();
+    options.onSelect(["b"]); await Promise.resolve();
+    editor.history.undo();
+    let result = nodes.parse(graph.get());
+    assert.equal(result.nodes.find(n => n.id === "a").params.asset, "old-a");
+    assert.equal(result.nodes.find(n => n.id === "b").params.asset, "image-b");
+    assert.equal(image.get(), "image-b");
+    editor.history.redo();
+    result = nodes.parse(graph.get());
+    assert.equal(result.nodes.find(n => n.id === "a").params.asset, "new-a");
+    assert.equal(result.nodes.find(n => n.id === "b").params.asset, "image-b");
+    assert.equal(image.get(), "image-b");
+  } finally { close?.(); for (const dispose of h.dispose.reverse()) dispose(); }
+});
