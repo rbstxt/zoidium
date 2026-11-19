@@ -2,6 +2,25 @@
 const test = require("node:test"), assert = require("node:assert/strict");
 const { completions, symbols, wordAt } = require("../plugins/shader-plus/code-assist.js");
 const { toggleComments, bracketEdit, enterEdit, createUndo } = require("../plugins/shader-plus/code-edit.js");
+const { FakeElement } = require("./fake-dom.js");
+const { installAids } = require("../plugins/shader-plus/code-aids.js");
+test("code editor and find panel leave composing keys to the IME", () => {
+  const input = new FakeElement("textarea"), body = new FakeElement("div"), pane = new FakeElement("div"), toolbar = new FakeElement("div");
+  input.value = "abc"; input.selectionStart = input.selectionEnd = 3;
+  input.setSelectionRange = (start, end) => { input.selectionStart = start; input.selectionEnd = end; };
+  body.appendChild(toolbar);
+  function node(tag, cls, text, parent = body) { const el = new FakeElement(tag); el.className = cls; el.textContent = text; parent.appendChild(el); return el; }
+  const aids = installAids({ input, pane, body, toolbar, node, global: {}, entries: () => [], changed() {} });
+  assert.equal(aids.key({ key: "f", ctrlKey: true }), true);
+  const find = body.querySelector(".zsp-code-find");
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    assert.equal(aids.key({ key: "Enter", ...composition }), false);
+    assert.equal(input.value, "abc");
+    find.onkeydown({ key: "Escape", ...composition, preventDefault() {}, stopPropagation() {} });
+    assert.equal(find.hidden, false);
+  }
+  aids.dispose();
+});
 test("completion ranks exact-case property prefixes before reference, builtins and local identifiers", () => {
   const entries = [{ name: "MixAmount", property: true }, { name: "mixHelper" }, { name: "mixColor", property: true }];
   assert.deepEqual(completions("float mixed;\nmi", 15, entries).map(e => e.name), ["mixColor", "mixHelper", "min", "mix", "mixed", "MixAmount"]);
