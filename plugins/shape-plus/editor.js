@@ -104,7 +104,7 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, paths) {
   }
   return {
     canvas, state: s, update, settle,
-    tool(next) { settle(); s.tool = next; s.penFinished = false; canvas.focus(); },
+    tool(next) { if (s.tool !== next) settle(); s.tool = next; s.dirty = true; },
     select(items) {
       const ids = items.filter(item => item instanceof Content).map(item => item.id);
       if (ids[0] === s.activeId && ids.length === s.treeSelection.size && ids.every(id => s.treeSelection.has(id))) return;
@@ -143,12 +143,15 @@ function install(context, Layer, Content, paths) {
     button.title = title; button.setAttribute("aria-label", title); button.cmd = command;
     const image = nativeIcon ? PZ.ui.generateIcon(nativeIcon) : icon(document, "pen");
     image.style.cssText = "width:25px;height:25px;pointer-events:none";
-    button.append(image); button.onclick = toolbar.click.bind(toolbar);
+    button.append(image);
+    if (paths) {
+      button.setAttribute("data-zoidium-path-control", "");
+      button.onclick = event => paths.shortcuts?.tool(key, event);
+    } else button.onclick = toolbar.click.bind(toolbar);
     transform.after(button); commands.push(command); buttons.push({ name, button, image });
   }
-  // Native toolbar owns shortcut dispatch, ignore-typing rules and modifiers.
-  // V and P are unused in CM3's native toolbar. Keep its C/T commands intact.
-  toolbar.buttons.push(...commands);
+  // The shared listener checks focus before dispatching path commands.
+  if (!paths) toolbar.buttons.push(...commands);
   const select = panels.top.selectItems;
   function selected() {
     if (!view) return select.apply(this, arguments);
@@ -225,5 +228,6 @@ function install(context, Layer, Content, paths) {
     }
     for (const { button } of buttons) button.remove();
   });
+  return { setTool, get state() { return view?.state; } };
 }
 module.exports = { install, mountOverlay, editableClip };

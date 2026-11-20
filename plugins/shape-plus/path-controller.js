@@ -172,19 +172,19 @@ function createPathController(options = {}) {
     state.gesture = null;
   }
 
-  function setTool(next) {
+  function setTool(next, { preserveDrawing = false } = {}) {
     assertUsable();
     if (!TOOLS.includes(next)) throw Error("Unknown path tool " + next);
     if (state.tool === next) {
       // Re-selecting the active tool ends transient state but keeps the
       // active path and vertex selection.
-      cancelDrawingSilent();
+      if (!preserveDrawing) cancelDrawingSilent();
       endGestureSilent();
       state.hover = null;
       return state.tool;
     }
     state.tool = next;
-    cancelDrawingSilent();
+    if (!preserveDrawing) cancelDrawingSilent();
     endGestureSilent();
     state.hover = null;
     notify("tool");

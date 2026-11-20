@@ -79,7 +79,7 @@ const NATIVE_TOOL_KEYS = ["t", "c", "m"];
 function isEditableTarget(target) {
   if (!target || typeof target.closest !== "function") return false;
   try {
-    return !!target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
+    return !!target.closest("input, textarea, select, .editbox, [contenteditable]:not([contenteditable='false'])");
   } catch (_error) {
     return false;
   }
@@ -126,7 +126,7 @@ function createPathInput(options = {}) {
     // clipboard, history, and reorder handlers.
     if (controller.tool === "pen" && !state.temporarySelect) {
       state.temporarySelect = true;
-      controller.setTool("select");
+      controller.setTool("select", { preserveDrawing: true });
       return result(event, "temporary-select", false, { tool: "select" });
     }
     return result(event, "ignore", false, { reason: "modifier" });
@@ -135,7 +135,7 @@ function createPathInput(options = {}) {
   function releaseModifier(event) {
     if (!state.temporarySelect) return result(event, "ignore", false, { reason: "modifier" });
     state.temporarySelect = false;
-    controller.setTool("pen");
+    controller.setTool("pen", { preserveDrawing: true });
     return result(event, "restore-tool", false, { tool: "pen" });
   }
 
@@ -162,7 +162,7 @@ function createPathInput(options = {}) {
   }
 
   function pressDelete(event, context) {
-    const vertexCount = controller.getSelection().length;
+    const vertexCount = context.selectedAnchors ?? controller.getSelection().length;
     const decision = deletionDecision({
       ownsFocus: typeof controller.ownsFocus === "function" ? controller.ownsFocus() : false,
       vertexCount,
@@ -179,8 +179,9 @@ function createPathInput(options = {}) {
 
   function handleKeyDown(event, context = {}) {
     const key = (event?.key || "").toLowerCase();
-    if (isComposingEvent(event)) return result(event, "ignore", false, { reason: "composing" });
+    if (context.composing || isComposingEvent(event)) return result(event, "ignore", false, { reason: "composing" });
     if (isEditableTarget(event?.target)) return result(event, "ignore", false, { reason: "typing" });
+    if (context.graphFocused) return result(event, "defer-to-graph", false, {});
     if (context.viewportFocused !== true &&
         !(context.viewportFocused !== false && controller.ownsFocus?.("path"))) {
       if (key === "delete" || key === "backspace") return result(event, "defer-to-panel", false, { reason: "focus-elsewhere" });
@@ -200,24 +201,26 @@ function createPathInput(options = {}) {
     }
     // Alt-modified shortcuts outside the viewport belong to the operating
     // system or native menus.
-    if (event?.altKey) {
-      return result(event, "defer-to-native", false, { reason: "alt-shortcut", key });
+    if (event?.altKey || event?.shiftKey) {
+      return result(event, "defer-to-native", false, { reason: event.altKey ? "alt-shortcut" : "modified-shortcut", key });
     }
     if (key === "q" || key === "p") {
       // `Q` selects Pen without cycling; `P` stays a Pen alias.
-      controller.setTool("pen");
+      state.temporarySelect = false;
+      if (controller.tool !== "pen") controller.setTool("pen");
       return result(event, "select-pen", true, { tool: "pen" });
     }
     if (key === "v") {
-      // Graph+ owns its own `V`: a focused Graph+ editor keeps priority.
-      if (context.graphFocused) return result(event, "defer-to-graph", false, {});
       // Outside an active path, yield to layer selection and transforms.
-      if (controller.activePathId === null || controller.activePathId === undefined) {
+      if (context.activeHere === false || controller.activePathId == null) {
         return result(event, "defer-to-layer", false, {});
       }
-      controller.setTool("select");
+      state.temporarySelect = false;
+      if (controller.tool !== "select") controller.setTool("select");
       return result(event, "select-points", true, { tool: "select" });
     }
+    if (context.activeHere === false && ["escape", "enter", "delete", "backspace"].includes(key))
+      return result(event, "defer-to-native", false, {});
     if (key === "escape") return pressEscape(event);
     if (key === "enter") {
       // Optional finish alias; never required, never consumes otherwise.
@@ -236,7 +239,7 @@ function createPathInput(options = {}) {
 
   function handleKeyUp(event) {
     const key = (event?.key || "").toLowerCase();
-    if (key === "control" || key === "meta") return releaseModifier(event);
+    if ((key === "control" || key === "meta") && !event.ctrlKey && !event.metaKey) return releaseModifier(event);
     if (key === "alt") {
       state.altHeld = false;
       return result(event, "alt-released", false, {});
@@ -248,7 +251,7 @@ function createPathInput(options = {}) {
     state.altHeld = false;
     if (!state.temporarySelect) return { action: "blur", consumed: false, tool: controller.tool };
     state.temporarySelect = false;
-    controller.setTool("pen");
+    controller.setTool("pen", { preserveDrawing: true });
     return { action: "restore-tool", consumed: false, tool: "pen" };
   }
 

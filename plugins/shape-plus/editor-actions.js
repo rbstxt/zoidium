@@ -4,7 +4,7 @@ const g = require("./editor-geometry.js");
 const { createMenu } = require("./editor-menu.js");
 const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
-const { createPathInput } = require("./path-input.js");
+const { isEditableTarget, isComposingEvent } = require("./path-input.js");
 function installActions(s, root, options = {}) {
   const shapes = options.shapes !== false;
   let nudge = null;
@@ -104,27 +104,18 @@ function installActions(s, root, options = {}) {
     if (!nudge) return;
     nudge = null;
     s.gesture.finish(cancel);
+    if (!s.pathController?.disposed && s.pathController?.gesture?.kind === "nudge") s.pathController.endGesture(cancel);
     s.refresh(true);
   }
   s.finishNudge = finishNudge;
-  const typing = (target) =>
-    !!target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
-  const pathInput = s.pathController && createPathInput({ controller: s.pathController });
   function keydown(event) {
-    if (event.isComposing || event.keyCode === 229 || typing(event.target)) return;
+    if (isComposingEvent(event) || isEditableTarget(event.target) || s.pathShortcuts && !s.pathShortcuts.allows(event)) return;
     const key = event.key.toLowerCase(),
       command = event.metaKey || event.ctrlKey;
-    if (pathInput && ["q", "p", "v", "control", "meta", "alt"].includes(key)) {
-      const controller = s.pathController, host = s.sharedPathHost;
-      if (s.active()?.kind === "path" && host?.hasPath(s.activeId) &&
-          (controller.activeHost !== host || controller.activePathId !== s.activeId))
-        controller.activate(host, s.activeId);
-      const result = pathInput.handleKeyDown(event, { viewportFocused: s.document.activeElement === s.canvas });
-      if (["select-pen", "select-points", "temporary-select"].includes(result.action)) {
-        s.setTool?.(controller.tool);
-        return;
-      }
-    }
+    // The viewport shortcut listener owns path commands before they reach
+    // the overlay. Other Shape+ commands keep their existing canvas scope.
+    if (s.pathInput && (s.active()?.kind === "path" && key === "escape" ||
+        ["enter", "delete", "backspace"].includes(key))) return;
     const consume = () => {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -215,6 +206,7 @@ function installActions(s, root, options = {}) {
       if (!nudge) {
         if (!s.gesture.begin()) return;
         nudge = { frame: s.localFrame(), target: s.activeId };
+        s.pathController?.beginGesture({ kind: "nudge" });
       }
       try {
         if (!xf.nudge(s, [...s.treeSelection], g.mul(direction, event.shiftKey ? 10 : 1))) finishNudge(true);
@@ -230,6 +222,7 @@ function installActions(s, root, options = {}) {
       if (!nudge) {
         if (!s.gesture.begin()) return;
         nudge = { frame: s.localFrame(), target: s.activeId };
+        s.pathController?.beginGesture({ kind: "nudge" });
       }
       const item = s.active(),
         points = s.pathPoints(),
@@ -257,13 +250,9 @@ function installActions(s, root, options = {}) {
     }
   }
   function keyup(event) {
-    if (pathInput) {
-      const result = pathInput.handleKeyUp(event);
-      if (result.action === "restore-tool") s.setTool?.(s.pathController.tool);
-    }
-    if (event.code === "Space") {
+    if (event.code === "Space" && !s.pathInput) {
       s.space = false;
-      if (!event.isComposing && event.keyCode !== 229 && !typing(event.target)) {
+      if (!isComposingEvent(event) && !isEditableTarget(event.target)) {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
@@ -272,7 +261,6 @@ function installActions(s, root, options = {}) {
   }
   // Losing focus ends a nudge but keeps it; only Escape and undo roll back.
   function blur() {
-    if (pathInput?.handleBlur().action === "restore-tool") s.setTool?.(s.pathController.tool);
     s.space = false;
     finishNudge();
     s.closeMenu();
@@ -322,4 +310,115 @@ function installActions(s, root, options = {}) {
     },
   };
 }
-module.exports = { installActions };
+const PATH_CONTROL = "[data-zoidium-path-control], .zoidium-masks button, .mask-row-name, .mask-row-edit";
+const GRAPH = ".g2-editor, .g2-host";
+
+function installPathShortcuts({ paths, viewport, document, window, session, routeTool }) {
+  let composing = false;
+  const within = (root, target) => !!target && root.contains(target);
+  const isScope = target => within(viewport.el, target) || !!target?.closest?.(PATH_CONTROL);
+  function focusOptions(target = document.activeElement, button = false) {
+    const active = document.activeElement;
+    const graphFocused = !!(active?.closest?.(GRAPH) || target?.closest?.(GRAPH));
+    const viewportFocused = !graphFocused && !isEditableTarget(active) && !isEditableTarget(target) &&
+      (button ? isScope(target) : isScope(active) && isScope(target));
+    return { viewportFocused, graphFocused, composing };
+  }
+  function apply(result, s) {
+    switch (result.action) {
+      case "select-pen": case "select-points": case "temporary-select": case "restore-tool":
+        routeTool(result.tool);
+        break;
+      case "defer-to-layer":
+        if (paths.controller.tool !== "select") paths.controller.setTool("select");
+        routeTool("select");
+        break;
+      case "cancel-gesture":
+        s?.pointer.cancel();
+        s?.finishNudge(true);
+        break;
+      case "finish-drawing":
+        if (s) { s.penFinished = true; s.refresh(); }
+        break;
+      case "delete-vertices":
+        s?.deleteAnchors();
+        break;
+      case "blocked-locked":
+        s?.message(result.message);
+        break;
+    }
+  }
+  function dispatch(event, button = false) {
+    if (event.defaultPrevented || !viewport.enabled) return;
+    const s = session(), controller = paths.controller;
+    if (s) s.pathShortcuts = shortcuts;
+    const options = focusOptions(event.target, button);
+    const selected = viewport.objects?.length === 1 ? viewport.objects[0] : null;
+    const host = s?.sharedPathHost || paths.hostForLayer(selected?.object || selected);
+    const activeHere = !!host && controller.activeHost === host && host.hasPath(controller.activePathId);
+    if (options.viewportFocused && !composing && !isComposingEvent(event) && s)
+      controller.claimFocus();
+    else controller.releaseFocus();
+    const result = paths.input.handleKeyDown(event, {
+      ...options,
+      activeHere: activeHere || !!s && !!controller.gesture,
+      selectedAnchors: s && activeHere ? [...s.selection].filter(key => !selectionPart(key).side).length : 0,
+      locked: activeHere && host.isLocked(controller.activePathId),
+    });
+    apply(result, s);
+    return result;
+  }
+  const down = event => dispatch(event);
+  const up = event => apply(paths.input.handleKeyUp(event), session());
+  const blur = () => {
+    paths.controller.releaseFocus();
+    session()?.pointer.commit();
+    session()?.finishNudge();
+    apply(paths.input.handleBlur(), session());
+  };
+  const windowBlur = () => { composing = false; blur(); };
+  const focusout = event => {
+    if (isScope(event.target) && !focusOptions(event.relatedTarget).viewportFocused) blur();
+  };
+  const compositionStart = () => { composing = true; };
+  const compositionEnd = () => { composing = false; };
+  const viewportPress = event => {
+    if ((event.target === viewport.canvas || event.target === viewport.el) && !isEditableTarget(event.target)) {
+      viewport.el.focus({ preventScroll: true });
+    }
+  };
+  const hadTabIndex = viewport.el.hasAttribute("tabindex");
+  if (!hadTabIndex) viewport.el.tabIndex = -1;
+  viewport.el.addEventListener("pointerdown", viewportPress, true);
+  document.addEventListener("keydown", down, true);
+  document.addEventListener("keyup", up, true);
+  document.addEventListener("focusout", focusout, true);
+  document.addEventListener("compositionstart", compositionStart, true);
+  document.addEventListener("compositionend", compositionEnd, true);
+  window.addEventListener("blur", windowBlur);
+  const shortcuts = {
+    allows(event) {
+      const options = focusOptions(event.target);
+      return options.viewportFocused && !options.composing;
+    },
+    tool(key, event) {
+      // Native toolbar buttons call the same dispatcher as the keyboard.
+      const target = event.currentTarget;
+      return dispatch({ key, target, ctrlKey: event.ctrlKey, metaKey: event.metaKey,
+        altKey: event.altKey, shiftKey: event.shiftKey }, true);
+    },
+    dispose() {
+      blur();
+      viewport.el.removeEventListener("pointerdown", viewportPress, true);
+      if (!hadTabIndex) viewport.el.removeAttribute("tabindex");
+      document.removeEventListener("keydown", down, true);
+      document.removeEventListener("keyup", up, true);
+      document.removeEventListener("focusout", focusout, true);
+      document.removeEventListener("compositionstart", compositionStart, true);
+      document.removeEventListener("compositionend", compositionEnd, true);
+      window.removeEventListener("blur", windowBlur);
+    },
+  };
+  return shortcuts;
+}
+module.exports = { installActions, installPathShortcuts };

@@ -57,6 +57,7 @@ const {
 } = require("./mask-metadata.js");
 const { createMask, validateMasks, ensureNames, getMasks } = require("./mask-model.js");
 const { createPathController } = require("./path-controller.js");
+const { createPathInput } = require("./path-input.js");
 const { bindPathSession, writePathRecords } = require("./editor-model.js");
 
 const HOST_KINDS = ["mask", "shape"];
@@ -492,7 +493,13 @@ function applyCreation(request, options = {}) {
 // The runtime owns this registry. A project change discards both the
 // controller and the adapters, including adapters for closed overlays.
 function createEditorPathRegistry(editor, viewport) {
-  let controller = createPathController({ project: editor.project, viewport });
+  let controller, input;
+  function reset() {
+    controller?.dispose();
+    controller = createPathController({ project: editor.project, viewport });
+    input = createPathInput({ controller });
+  }
+  reset();
   let hosts = new WeakMap(), nextHostId = 0;
   function register(kind, layer, session) {
     let entry = hosts.get(layer);
@@ -534,7 +541,10 @@ function createEditorPathRegistry(editor, viewport) {
     if (entry.session !== session || session.sharedPathHost !== entry.host) {
       entry.session = session;
       if (kind === "mask") entry.maskHost = session.pathHost;
-      if (session.selection instanceof Set) bindPathSession(session, controller, entry.host);
+      if (session.selection instanceof Set) {
+        bindPathSession(session, controller, entry.host);
+        session.pathInput = input;
+      }
       if (controller.activeHost === entry.host) controller.handlePathsChanged(entry.host);
     }
     return entry.host;
@@ -544,13 +554,14 @@ function createEditorPathRegistry(editor, viewport) {
     if (entry?.session === session) entry.session = null;
   }
   function changed() {
-    controller.dispose();
     hosts = new WeakMap();
-    controller = createPathController({ project: editor.project, viewport });
+    reset();
   }
   editor.onProjectChanged.watch(changed);
   return {
     get controller() { return controller; },
+    get input() { return input; },
+    hostForLayer: layer => hosts.get(layer)?.host,
     register,
     unregister,
     activate(kind, layer, pathId) {

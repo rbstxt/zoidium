@@ -70,12 +70,9 @@ function mountMaskOverlay(session, viewport, context, tool) {
   s.pointer = createPointer(s, canvas);
   const actions = installActions(s, canvas, { shapes: false });
   s.setTool = next => {
-    s.pointer?.commit?.();
-    s.finishNudge?.();
+    if (s.tool !== next) { s.pointer?.commit?.(); s.finishNudge?.(); }
     s.tool = next;
-    s.penFinished = false;
     s.refresh();
-    canvas.focus();
   };
   s.select = items => {
     const ids = items.filter(item => item instanceof s.Content).map(item => item.id);
@@ -139,6 +136,7 @@ function install(context, Content, paths) {
   let view = null, mode = "off", modeLayer = null, disposed = false;
   function setMode(next) {
     if (!MODES.includes(next)) throw Error(`Unknown mask mode ${next}`);
+    if (mode === "off" && next !== "off") modeLayer = maskClip(editor, viewport, PZ)?.layer || null;
     mode = next;
     if (mode !== "off" && paths && paths.controller.tool !== mode) paths.controller.setTool(mode);
     if (mode === "off") { view?.dispose(); view = null; }
@@ -153,9 +151,12 @@ function install(context, Content, paths) {
   const image = icon(document, "pen");
   image.style.cssText = "width:25px;height:25px;pointer-events:none";
   button.append(image);
-  button.onclick = toolbar.click.bind(toolbar);
+  if (paths) {
+    button.setAttribute("data-zoidium-path-control", "");
+    button.onclick = event => paths.shortcuts?.tool("q", event);
+  } else button.onclick = toolbar.click.bind(toolbar);
   transform.after(button);
-  toolbar.buttons.push(command);
+  if (!paths) toolbar.buttons.push(command);
   const changed = () => { view?.dispose(); view = null; mode = "off"; };
   editor.onProjectChanged.watch(changed);
   // Hide the native 2D widget while the overlay is mounted and give back
@@ -226,7 +227,7 @@ function install(context, Content, paths) {
     if (index >= 0) toolbar.buttons.splice(index, 1);
     button.remove();
   });
-  return { sessionFor, setMode, activate(layer, pathId) {
+  return { sessionFor, setMode, get state() { return view?.state; }, activate(layer, pathId) {
     if (!paths || maskClip(editor, viewport, PZ)?.layer !== layer) return false;
     sessionFor(layer);
     if (!paths.activate("mask", layer, pathId)) return false;

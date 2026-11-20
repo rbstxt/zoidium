@@ -24,7 +24,7 @@ function createPointer(s, canvas) {
   // Commit at pointerup, so Escape or lost capture can undo a close or split.
   function clickEdit(work) {
     if (!s.gesture.begin()) return null;
-    const finished = s.penFinished;
+    const finished = s.penFinished, drawing = s.pathController?.drawing;
     try { work(); s.refresh(true); }
     catch (error) { s.gesture.finish(true); s.message(error.message); return null; }
     return {
@@ -32,6 +32,7 @@ function createPointer(s, canvas) {
       end() { s.gesture.finish(); s.refresh(true); },
       cancel() {
         s.penFinished = finished; s.gesture.finish(true);
+        if (drawing && drawing.pathId === s.pathController?.activePathId) s.pathController.startDrawing(drawing);
         s.selection.clear(); s.refresh(true);
       },
     };
@@ -43,6 +44,7 @@ function createPointer(s, canvas) {
         channels(clone(item));
         item.properties.closed.set(1);
         s.penFinished = true;
+        s.pathController?.finishDrawing();
         s.preview();
       } else {
         s.topology({ kind: "delete", ids: [item.vertexIds[hit.index]] });
@@ -56,6 +58,7 @@ function createPointer(s, canvas) {
       s.selection = new Set([selectionKey(id)]);
     });
     if (!s.gesture.begin()) return null;
+    const drawing = s.pathController?.drawing;
     try {
       let local;
       if (
@@ -91,6 +94,10 @@ function createPointer(s, canvas) {
         id = path.vertexIds[index];
       s.selection = new Set([selectionKey(id)]);
       s.refresh(true);
+      if (s.pathController && s.pathController.activePathId === path.id) {
+        if (s.pathController.drawing) s.pathController.addDrawingPoint(local);
+        else s.pathController.startDrawing({ points: [local] });
+      }
       const origin = s.pathPoints(),
         frame = s.localFrame();
       let broken = null;
@@ -121,6 +128,8 @@ function createPointer(s, canvas) {
         },
         cancel() {
           s.gesture.finish(true);
+          if (drawing && drawing.pathId === s.pathController?.activePathId) s.pathController.startDrawing(drawing);
+          else s.pathController?.cancelDrawing();
           s.selection.clear();
           s.refresh(true);
         },
@@ -343,7 +352,21 @@ function createPointer(s, canvas) {
   // and outline reads. The returned gesture runs on later events, after this
   // scope has closed; each of its moves opens its own scope.
   function begin(event) {
-    return api.scoped(() => beginInner(event));
+    const gesture = api.scoped(() => beginInner(event));
+    const controller = s.pathController;
+    if (!gesture || !controller) return gesture;
+    controller.beginGesture({ kind: "pointer", pathId: gesture.target });
+    return {
+      ...gesture,
+      end(e) {
+        if (!controller.disposed) controller.endGesture();
+        gesture.end?.(e);
+      },
+      cancel(e) {
+        if (!controller.disposed) controller.endGesture(true);
+        gesture.cancel?.(e);
+      },
+    };
   }
   function insideSelection(p) {
     const b = xf.selectedBox(s);

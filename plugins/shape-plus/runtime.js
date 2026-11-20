@@ -53,11 +53,31 @@ function install(context) {
   require("./native-ui.js").install(PZ, Layer, Content, own);
   const paths = require("./path-hosts.js").createEditorPathRegistry(window.CM, window.CM.mainViewport);
   own(() => paths.dispose());
-  require("./editor.js").install(context, Layer, Content, paths);
+  const shapeEditor = require("./editor.js");
+  const shapeOverlay = shapeEditor.install(context, Layer, Content, paths);
   // Layer masks on native Scene/Adjustment layers (mask-model.js,
   // mask-raster.js, mask-host.js, mask-render.js, mask-persist.js,
   // mask-overlay.js, mask-panels.js).
-  const maskOverlay = require("./mask-overlay.js").install(context, Content, paths);
+  const maskEditor = require("./mask-overlay.js");
+  const maskOverlay = maskEditor.install(context, Content, paths);
+  const editor = window.CM, viewport = editor.mainViewport;
+  paths.shortcuts = require("./editor-actions.js").installPathShortcuts({
+    paths, viewport, document, window,
+    session: () => {
+      const shape = shapeEditor.editableClip(editor, viewport, Layer, PZ)?.object;
+      if (shape && shapeOverlay.state?.layer === shape) return shapeOverlay.state;
+      const mask = maskEditor.maskClip(editor, viewport, PZ)?.layer;
+      if (mask && maskOverlay.state?.pathHost.owns(mask)) return maskOverlay.state;
+      return null;
+    },
+    routeTool(tool) {
+      if (maskEditor.maskClip(editor, viewport, PZ)) {
+        if (tool === "pen" || maskOverlay.state || paths.hostForLayer(viewport.objects[0].object || viewport.objects[0]) === paths.controller.activeHost)
+          maskOverlay.setMode(tool);
+      } else shapeOverlay.setTool(tool);
+    },
+  });
+  own(() => paths.shortcuts.dispose());
   require("./mask-panels.js").installMaskPanels(context, Content, mode => maskOverlay.setMode(mode));
   require("./mask-api.js").installMaskApi({ PZ, THREE, Content, onDispose: own });
   require("./convert-native.js").install(context, Layer);
