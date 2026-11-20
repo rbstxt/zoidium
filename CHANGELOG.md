@@ -247,6 +247,11 @@ each line describes one visible change.
 
 ### Fixed
 
+- After the browser loses and restores the WebGL context (for example when a
+  heavy export runs out of GPU memory), Shape+ layers draw again in the preview
+  instead of staying blank. When an export stops because the context was lost,
+  the message now suggests lowering the export resolution or closing other
+  GPU-heavy tabs.
 - S_Glow no longer darkens particles or other partly transparent content when
   it is on, even with glow Brightness 0.
 - S_Glow with Affect Alpha 0 no longer leaves bright fringes at transparent
