@@ -24,7 +24,10 @@ test("generated documentation contains every editor reference anchor and auxilia
 test("canonical Markdown links retain fragments and route to the documentation site", async () => {
   const { rewriteLink } = await import("../site/loaders/sources.mjs");
   assert.equal(rewriteLink("plugin-ui.md#controls", "docs/plugin-api.md"), "/docs/development/plugin-ui/#controls");
-  assert.equal(rewriteLink("../plugins/constraints/README.md", "docs/project-compatibility.md"), "/docs/features/constraints/");
+  assert.equal(rewriteLink("../plugins/constraints/README.md", "docs/project-compatibility.md"), "/docs/3d/constraints/");
+  assert.equal(rewriteLink("../plugins/node-effect/README.md", "docs/project-compatibility.md"), "/docs/effects/node-effect/");
+  assert.equal(rewriteLink("../plugins/trapcode-suite/README.md", "docs/project-compatibility.md"), "/docs/3d/trapcode-suite/");
+  assert.equal(rewriteLink("../plugins/constraints/README.md", "docs/ja/project-compatibility.md", "ja"), "/docs/ja/3d/constraints/");
   assert.equal(rewriteLink("https://example.com/a#b", "docs/plugin-api.md"), "https://example.com/a#b");
   assert.equal(rewriteLink("#local", "docs/plugin-api.md"), "#local");
 });

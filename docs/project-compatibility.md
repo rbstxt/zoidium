@@ -187,7 +187,7 @@ A nonempty `zoidiumFollow` requires the `constraints` plugin with feature `follo
 
 Target UUIDs use the existing `zoidiumId` field. Duplicate-tree remapping applies to Follow and Track To links.
 Default fields remain absent on untouched objects. Older builds ignore Follow and render the authored pose.
-See the [Constraints reference](../site/src/content/docs/reference/constraints.md) for output and missing-target behavior.
+See the [Constraints reference](../site/src/content/docs/3d/constraints.md) for output and missing-target behavior.
 
 ## Editor themes
 
