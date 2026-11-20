@@ -69,7 +69,34 @@ function install(PZ) {
   function attach(panel, context) {
     if (panels.has(panel)) throw Error("Timeline panel already attached");
     let model, muted = false, disposed = false, generation = 0, nodes = [], tracks = [], selectedId = null;
+    let activeDrag = null, currentContext = context;
     const doc = panel.container.ownerDocument;
+    const restoreInstance = [];
+    // Panels constructed before the plugin loaded already hold callbacks.
+    for (const [slot, method] of Object.entries({
+      start: "keyframeDragStart", move: "keyframeDrag", update: "keyframeDragUpdate", end: "keyframeDragEnd",
+    })) {
+      const drag = panel.keyframe_drag;
+      if (drag[slot] !== originals.get(method)) continue;
+      drag[slot] = wrappers.get(method);
+      restoreInstance.push(() => { if (drag[slot] === wrappers.get(method)) drag[slot] = originals.get(method); });
+    }
+    const originalKeydown = panel.el.onkeydown;
+    if (typeof originalKeydown === "function") {
+      const keydown = panel.keydown.bind(panel);
+      panel.el.onkeydown = keydown;
+      restoreInstance.push(() => { if (panel.el.onkeydown === keydown) panel.el.onkeydown = originalKeydown; });
+    }
+    if (panel.objectsChanged_bound) {
+      const change = panel.objectsChanged.bind(panel), original = panel.objectsChanged_bound;
+      const swap = (from, to) => {
+        panel.objects?.onListChanged.unwatch(from);
+        panel.objectsChanged_bound = to;
+        panel.objects?.onListChanged.watch(to);
+      };
+      swap(original, change);
+      restoreInstance.push(() => { if (panel.objectsChanged_bound === change) swap(change, original); });
+    }
     function clear() {
       for (const node of nodes) {
         const fn = panel.keyframe_drag.startfn_bound;
@@ -122,39 +149,63 @@ function install(PZ) {
       if (on) values.push(d.frame);
       update(d.id, values);
     }
+    function pageX(event) { return event.touches?.[0]?.pageX ?? event.pageX; }
     function dragStart(drag, event, d) {
+      if (event.button > 0) return false;
       panel.el.focus();
       const wasSelected = frames(d.id).includes(d.frame);
       if (!wasSelected) { if (!event.shiftKey) panel.deselectAll(); select(d, true); }
+      activeDrag = drag;
       drag.zoidiumPathOwner = s;
-      drag.zoidiumPathDrag = { generation, scroll: panel.container.scrollLeft, id: d.id, frame: d.frame, frames: frames(d.id), x: event.pageX, originX: event.pageX,
+      drag.zoidiumPathDrag = { generation, scroll: panel.container.scrollLeft, id: d.id, frame: d.frame, frames: frames(d.id), x: pageX(event), originX: pageX(event),
         startLeft: parseFloat(event.currentTarget.style.left), delta: 0, wasSelected };
       event.stopPropagation();
     }
-    function drag(drag, event) { drag.zoidiumPathDrag.x = event.pageX; drag.zoidiumPathDrag.snap = !event.shiftKey; }
+    function drag(drag, event) { drag.zoidiumPathDrag.x = pageX(event); drag.zoidiumPathDrag.snap = !event.shiftKey; }
     function dragUpdate(drag) {
       const g = drag.zoidiumPathDrag;
       if (disposed || g.generation !== generation) return;
       const px = g.startLeft + g.x - g.originX + panel.container.scrollLeft - g.scroll;
-      if (panel.timeline.keepInView) panel.timeline.keepInView(px);
+      if (g.x !== g.originX && panel.timeline.keepInView) panel.timeline.keepInView(px);
       const target = g.x === g.originX && panel.container.scrollLeft === g.scroll ? g.frame : panel.snap(px, g.snap);
       g.delta = target - g.frame;
       for (const node of nodes) if (node.zoidiumPathDiamond.id === g.id && g.frames.includes(node.zoidiumPathDiamond.frame))
         node.style.left = panel.timeline.frameToPx(node.zoidiumPathDiamond.frame + g.delta) + "px";
     }
     function dragEnd(drag, event) {
+      activeDrag = null;
       const g = drag.zoidiumPathDrag; delete drag.zoidiumPathDrag; delete drag.zoidiumPathOwner;
       if (disposed || g.generation !== generation) return;
       if (event.key === "Escape" || event.type === "touchcancel") { render(); return; }
-      if (g.delta) model.move(g.id, g.frames, g.delta);
-      else { model.seek(g.id, g.frame); if (event.shiftKey && g.wasSelected) select({ id: g.id, frame: g.frame }, false); }
+      run(() => {
+        if (g.delta) model.move(g.id, g.frames, g.delta);
+        else { model.seek(g.id, g.frame); if (event.shiftKey && g.wasSelected) select({ id: g.id, frame: g.frame }, false); }
+      });
       render();
+    }
+    function run(command) {
+      try { return command(); }
+      catch (error) {
+        if (!currentContext?.onError) throw error;
+        currentContext.onError(error);
+      }
     }
     const s = { clear, render, position, select, clearSelection, dragStart, drag, dragUpdate, dragEnd,
       hasSelection: () => selectedId !== null && frames(selectedId).length > 0,
-      remove: () => { if (selectedId !== null) model.remove(selectedId, frames(selectedId)); },
-      bind: (next) => { generation++; selectedId = null; model.bind(next); if (!next) clear(); },
-      dispose: () => { disposed = true; generation++; model.dispose(); clear(); panels.delete(panel); } };
+      remove: () => { if (selectedId !== null) run(() => model.remove(selectedId, frames(selectedId))); },
+      bind: (next) => { generation++; selectedId = null; currentContext = next; model.bind(next); if (!next) clear(); },
+      dispose() {
+        disposed = true;
+        generation++;
+        if (activeDrag?.drag?.dragging) activeDrag.drag.endfn(activeDrag, {
+          type: "keydown", key: "Escape", currentTarget: doc, preventDefault() {},
+        });
+        model.dispose();
+        clear();
+        restoreInstance.forEach(restore => restore());
+        panels.delete(panel);
+      },
+    };
     panels.set(panel, s); model = timelineModel.create(context, render); render(); return s;
   }
   function dispose() {

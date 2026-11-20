@@ -168,9 +168,8 @@ function install(PZ, Layer, Content, onDispose) {
     return result;
   });
   onDispose(() => focus.dispose());
-  // Native dynamic.group builds an aggregate key containing all child keys.
-  // Keep the native channel tracks alive for history/Graph+, but show only
-  // the Path aggregate in the timeline. Edit still exposes every channel.
+  // Path timeline commands belong to the logical row. Keep the native
+  // properties available to the Objects editor and its numeric controls.
   const style = document.createElement("style");
   style.textContent = ".shape-plus-path-channel,.shape-plus-native-hidden{display:none!important}";
   document.head.appendChild(style); onDispose(() => style.remove());
@@ -178,6 +177,9 @@ function install(PZ, Layer, Content, onDispose) {
     const track = original.apply(this, arguments);
     if (track && (object instanceof Content && object.kind === "path" || object.parent && container.pz_parent?.pz_object === object.parentObject && object.parentObject instanceof PZ.property.dynamic.group && object.parentObject.definition.zoidiumControl === "shape-plus/path")) {
       track.classList.add("shape-plus-path-channel"); track.pz_label.classList.add("shape-plus-path-channel");
+    }
+    if (track && object.definition?.zoidiumControl === "shape-plus/path") {
+      track.style.display = track.pz_label.style.display = "none";
     }
     return track;
   });
@@ -211,4 +213,68 @@ function installPathControls(PZ, sessionFor, onDispose) {
   controls.createControls = create;
   onDispose(() => { if (controls.createControls === create) controls.createControls = original; });
 }
-module.exports = { install, connectObjectsPanel, findObjectsPanel, createAddRouting, installPathControls };
+function installPathTimeline(PZ, editor, sessionFor, overlayFor, notify, onDispose) {
+  if (!PZ.ui.timeline?.keyframes) return;
+  const { install: installView } = require("./path-timeline-view.js");
+  const view = installView(PZ), panels = new Map();
+  let request;
+  function contextFor(clip, overlay) {
+    const state = sessionFor(clip?.object);
+    if (!state) return null;
+    const project = editor.project, sequence = editor.sequence;
+    const kind = state.pathHost ? "mask" : "shape";
+    return {
+      project, clip, overlay, onError: error => notify(error.message),
+      get paths() {
+        const rows = [];
+        const visit = items => {
+          for (const item of items || []) {
+            if (item.kind === "path") rows.push({ id: item.id, kind,
+              name: item.properties.name.get(), locked: state.pathLocked(item.id), host: state.pathFor(item.id) });
+            else if (item.contents) visit(item.contents);
+          }
+        };
+        if (state.valid()) visit(state.layer.contents);
+        return rows;
+      },
+      observe(refresh) {
+        const events = [project.ui.onChanged, sequence?.ui?.onClipMoved].filter(Boolean);
+        for (const event of events) event.watch(refresh);
+        return () => { for (const event of events) event.unwatch(refresh); };
+      },
+    };
+  }
+  function sync() {
+    const visible = new Set();
+    for (const element of document.querySelectorAll(".editorpanel")) {
+      const timeline = element.pz_panel;
+      if (!(timeline instanceof PZ.ui.timeline) || timeline.editor !== editor ||
+          timeline.sequence !== editor.sequence || !timeline.keyframes) continue;
+      const panel = timeline.keyframes, clips = timeline.tracks?.selection;
+      const clip = clips?.length === 1 ? clips[0] : null, overlay = overlayFor(clip?.object);
+      visible.add(panel);
+      const previous = panels.get(panel), project = editor.project;
+      if (previous?.clip === clip && previous.project === project && previous.overlay === overlay) continue;
+      const context = project && contextFor(clip, overlay);
+      const binding = previous?.binding || view.attach(panel, context);
+      if (previous) binding.bind(context);
+      panels.set(panel, { binding, clip, project, overlay });
+    }
+    for (const [panel, entry] of panels) {
+      if (visible.has(panel)) continue;
+      entry.binding.dispose();
+      panels.delete(panel);
+    }
+  }
+  function tick() { sync(); request = window.requestAnimationFrame(tick); }
+  tick();
+  editor.onProjectChanged.watch(sync);
+  onDispose(() => {
+    window.cancelAnimationFrame(request);
+    editor.onProjectChanged.unwatch(sync);
+    view.dispose();
+    panels.clear();
+  });
+  return sync;
+}
+module.exports = { install, connectObjectsPanel, findObjectsPanel, createAddRouting, installPathControls, installPathTimeline };

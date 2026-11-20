@@ -14,6 +14,9 @@ function offset(clip) {
 }
 function projectFrame(frame, clip) { return frame + offset(clip); }
 function localFrame(frame, clip) { return frame - offset(clip); }
+function available(entry) {
+  try { return animation.frames(entry.host.data); } catch (_error) { return []; }
+}
 function create(initial, onRefresh = () => {}) {
   let context = null, identity = null, unsubscribe = null, generation = 0, committing = false;
   const selection = new Map();
@@ -29,7 +32,7 @@ function create(initial, onRefresh = () => {}) {
     for (const [id, selected] of selection) {
       const entry = path(id);
       if (!entry) { selection.delete(id); continue; }
-      const frames = new Set(animation.frames(entry.host.data));
+      const frames = new Set(available(entry));
       for (const frame of selected) if (!frames.has(frame)) selected.delete(frame);
     }
     onRefresh();
@@ -56,7 +59,7 @@ function create(initial, onRefresh = () => {}) {
       let group = groups.find((row) => row.label === label);
       if (!group) { group = { label, children: [] }; groups.push(group); }
       const selected = selection.get(entry.id) || new Set();
-      const diamonds = animation.frames(entry.host.data).map((frame) => ({
+      const diamonds = available(entry).map((frame) => ({
         localFrame: frame, frame: projectFrame(frame, context.clip), selected: selected.has(frame),
       }));
       group.children.push({ id: entry.id, label: entry.name, children: [{
@@ -67,8 +70,8 @@ function create(initial, onRefresh = () => {}) {
   }
   function selectedFrames(entry, frames) {
     if (!Array.isArray(frames) || frames.some((frame) => !Number.isFinite(frame))) throw Error("Invalid timeline frames");
-    const available = new Set(animation.frames(entry.host.data));
-    return [...new Set(frames.map((frame) => localFrame(frame, context.clip)))].filter((frame) => available.has(frame));
+    const keys = new Set(available(entry));
+    return [...new Set(frames.map((frame) => localFrame(frame, context.clip)))].filter((frame) => keys.has(frame));
   }
   function select(id, frames) {
     const entry = path(id);
@@ -80,7 +83,7 @@ function create(initial, onRefresh = () => {}) {
   function seek(id, frame) {
     const entry = path(id);
     if (!entry || !selectedFrames(entry, [frame]).length) return false;
-    entry.host.seek(projectFrame(localFrame(frame, context.clip), context.clip));
+    entry.host.seek(frame);
     return true;
   }
   function change(id, frames, delta, remove) {

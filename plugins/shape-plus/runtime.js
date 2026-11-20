@@ -144,7 +144,14 @@ function installPathEditing(context, Layer, Content) {
     }
     return state;
   }
-  require("./native-ui.js").installPathControls(PZ, sessionFor, own);
+  const nativeUi = require("./native-ui.js");
+  nativeUi.installPathControls(PZ, sessionFor, own);
+  const refreshTimeline = nativeUi.installPathTimeline(PZ, editor, sessionFor, layer => {
+    if (!layer) return null;
+    if (shapeOverlay.state?.layer === layer) return shapeOverlay.state.canvas;
+    if (maskOverlay.state?.pathHost.owns(layer)) return maskOverlay.state.canvas;
+    return null;
+  }, message => context.ui.notify({ title: "Path timeline", message }), own);
   function selectedLayer() {
     const selected = viewport.objects?.length === 1 ? viewport.objects[0] : null;
     return selected?.object || selected;
@@ -239,6 +246,7 @@ function installPathEditing(context, Layer, Content) {
   function selectionChanged() {
     if (paths.controller.tool === "pen") routeTool("pen", false);
     else { shapeOverlay.update(); maskOverlay.update(); }
+    refreshTimeline?.();
   }
   let selectionEvents;
   function bindSelection() {

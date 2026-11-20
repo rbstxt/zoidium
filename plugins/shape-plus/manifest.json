@@ -456,6 +456,16 @@
       "source": "./plugins/shape-plus/mask-expansion.js?v=44"
     },
     {
+      "id": "path-timeline-view",
+      "type": "text",
+      "source": "./plugins/shape-plus/path-timeline-view.js?v=44"
+    },
+    {
+      "id": "path-timeline-model",
+      "type": "text",
+      "source": "./plugins/shape-plus/path-timeline-model.js?v=44"
+    },
+    {
       "id": "path-topology",
       "type": "text",
       "source": "./plugins/shape-plus/path-topology.js?v=44"

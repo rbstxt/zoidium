@@ -485,7 +485,7 @@
       "defaultEnabled": true,
       "manifest": "./plugins/shape-plus/manifest.json?v=44",
       "bundle": "./plugins/shape-plus/bundle.json?v=44",
-      "integrity": "sha256-uffDKE25XTC4u3mrXfa5PJ37eqM9m5n1cgPHYOt56VM="
+      "integrity": "sha256-vJ+uEPa2tdvTPp7Eed97oGEaZ3aCvW7nR+nCuy1pCBY="
     },
     {
       "id": "constraints",
