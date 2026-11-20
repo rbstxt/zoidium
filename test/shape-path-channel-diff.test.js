@@ -258,14 +258,25 @@ test("Escape rolls back and a lost capture commits, matching the old path", () =
     }
   }
 });
-test("length changes fall back to the full write", () => {
-  const oldHost = host({ vertexCount: 4, animated: false, frames: [0], frame: 0 });
-  oldHost.s.setValue = (property, value, frame = oldHost.s.localFrame()) => oldSetValue(oldHost.s, PZ, property, value, frame);
-  const newHost = host({ vertexCount: 4, animated: false, frames: [0], frame: 0 });
-  for (const h of [oldHost, newHost]) {
-    const path = h.node.properties.path;
-    h.s.setValue(path, path.get(0).concat([1, 2, 3, 4, 5, 6]), 0);
-  }
-  assert.deepEqual(states(newHost.s.layer), states(oldHost.s.layer));
-  assert.equal(newHost.stats.sets, oldHost.stats.sets, "fallback writes every channel");
+test("changing the channel count requires a topology operation", () => {
+  const { s, editor, node, stats, before } = host({ vertexCount: 4, animated: false, frames: [0], frame: 0 });
+  const path = node.properties.path;
+  const values = path.get(0);
+  // A value edit cannot change the number of channels without a stable ID
+  // for the added vertex. Append publishes the ID and all channels together.
+  assert.throws(() => s.setValue(path, values.concat([1, 2, 3, 4, 5, 6]), 0), /Path values do not match/);
+  assert.deepEqual(states(s.layer), before);
+  assert.equal(stats.sets, 0);
+  assert.equal(editor.history.undoStack.length, 0);
+
+  assert.equal(s.mutate(() => s.topology({ kind: "append", id: "v4", point: [1, 2] }), ["path"]), true);
+  const after = states(s.layer);
+  assert.deepEqual(after[0].vertexIds, ["v0", "v1", "v2", "v3", "v4"]);
+  assert.equal(s.active().properties.path.objects.length, 30);
+  assert.deepEqual(s.active().properties.path.get(0), values.concat([1, 2, 0, 0, 0, 0]));
+  assert.equal(editor.history.undoStack.length, 1);
+  editor.history.undo();
+  assert.deepEqual(states(s.layer), before);
+  editor.history.redo();
+  assert.deepEqual(states(s.layer), after);
 });
