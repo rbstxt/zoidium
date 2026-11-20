@@ -61,6 +61,7 @@ module.exports.install=function(effect,PZ,THREE,apis){
     state.layerHook=function(layer){
       const all=[];
       const collect=items=>{for(const item of items||[]){
+        if(PZ.zoidium?.effectBypass?.bypassed(item))continue;
         if(item instanceof PZ.effect.group){if(item.enabled)collect(item.objects);}
         else if(item.pass?.enabled)all.push(item);
       }};
@@ -221,7 +222,7 @@ module.exports.installSequence=function(state,PZ){
   const proto=PZ.compositor.prototype,original=proto.renderSequence,unload=proto.unload,setSize=proto.setSize;
   const requested=new Map(),resizing=new WeakSet();
   const contains=layer=>{
-    const effects=items=>Array.from(items||[]).some(item=>state.effects.has(item)&&item.pass?.enabled||typeof PZ.effect.group==="function"&&item instanceof PZ.effect.group&&item.enabled&&effects(item.objects));
+    const effects=items=>Array.from(items||[]).some(item=>!PZ.zoidium?.effectBypass?.bypassed(item)&&(state.effects.has(item)&&item.pass?.enabled||typeof PZ.effect.group==="function"&&item instanceof PZ.effect.group&&item.enabled&&effects(item.objects)));
     return effects(layer?.effects)||Array.from(layer?.objects||[]).some(contains);
   };
   const nativeSize=c=>{
