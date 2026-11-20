@@ -27,3 +27,14 @@ test("serialized layer checks ignore bypassed effect data but reject active expr
   layer.toJSON = () => ({ type: 4, properties: { expression: "unsupported" }, effects: [effect.toJSON()] });
   assert.throws(() => policy.assertLayer(layer), /LOCAL_DEPENDENCY_UNAVAILABLE/);
 });
+
+test("serialized groups filter bypassed children without hiding active child expressions", () => {
+  const Policy = require("../zoidium/community-resource-policy.js");
+  const policy = Policy.create({ PZ: {} });
+  const child = { type: 1, zoidiumBypassed: true, properties: { expression: "unsupported" } };
+  const group = { type: 0, objects: [child] };
+  const layer = { effects: [], objects: [], toJSON: () => ({ type: 4, effects: [group] }) };
+  assert.doesNotThrow(() => policy.assertLayer(layer));
+  child.zoidiumBypassed = false;
+  assert.throws(() => policy.assertLayer(layer), /LOCAL_DEPENDENCY_UNAVAILABLE/);
+});
