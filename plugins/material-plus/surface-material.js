@@ -9,9 +9,14 @@ module.exports = function installSurfaceMaterial(target, env) {
     const {
   PZ, THREE, nodes, document, WRAP_VALUES, PZ_VERTEX_HEADER,
   PZ_UV_PROJECTION_CODE, PZ_FRAGMENT_HEADER, PZ_MAP_CODE,
-  PZ_PHYSICAL_CODE, PZ_FRESNEL_CODE, PZ_LIGHTING_CODE, pzNoiseCanvas,
-  pzDrawGradient,
+  PZ_PHYSICAL_CODE, PZ_FRESNEL_CODE, PZ_LIGHTING_CODE, PZ_BUMP_PARS_FRAGMENT,
+  pzNoiseCanvas, pzNoiseTileCanvas, pzDrawGradient,
  } = env;
+ // Bump noise keeps its original generator up to this cell count. Above it,
+ // the seamless tile repeats through the shader so the requested scale never
+ // exceeds what a 256 px canvas can resolve.
+ const BUMP_NOISE_TILE_CELLS = 64;
+ const BUMP_NOISE_SCALE_MAX = 1024;
  function projectAssetsOf(material) {
      // Detached materials (clip deleted) throw when reading parentProject.
      // The immediate parentLayer link stays readable, so only this lookup
@@ -31,6 +36,7 @@ target.load = function (e) {
     this.pzTextures = { texture: null, ao: null };
     this.pzGraphTextures = { color: null, luminance: null, emission: null, normal: null, roughness: null, metalness: null, bump: null, opacity: null };
     this.pzNoiseTexture = null;
+    this.pzNoiseTile = 1;
     this.pzFresnel = null;
     this.pzAnimated = false;
     this.pzGraph = null;
@@ -63,6 +69,7 @@ target.load = function (e) {
         uPzSpecularStrength: { value: 1 },
         uPzSpecularEnabled: { value: 1 },
         uPzSpecularOpacity: { value: 1 },
+        uPzBumpNoiseTile: { value: 1 },
     };
     this.pzRampTexture = this.createGradientTexture([
         { position: 0, color: "rgba(0,0,0,1)" },
@@ -99,6 +106,7 @@ target.load = function (e) {
                 "float pzCos = cos( uPzEnvironmentRotation ), pzSin = sin( uPzEnvironmentRotation );\n" +
                 "reflectVec.xz = mat2( pzCos, -pzSin, pzSin, pzCos ) * reflectVec.xz;\n#endif"));
         shader.fragmentShader = shader.fragmentShader
+            .replace("#include <bumpmap_pars_fragment>", PZ_BUMP_PARS_FRAGMENT)
             .replace(
                 "#include <lights_physical_pars_fragment>",
                 PZ_FRAGMENT_HEADER + "\n#include <lights_physical_pars_fragment>"
@@ -218,6 +226,9 @@ target.setImage = function (slot, path) {
 target.applyWrap = function (texture) {
     if (!texture) return;
     var wrap = this.properties.wrap.get() ?? 1;
+    // Tiled bump noise must repeat: the tile is seamless and clamping would
+    // stretch one cell over the whole surface.
+    if (texture === this.pzNoiseTexture && this.pzNoiseTile > 1) wrap = 1;
     texture.wrapS = WRAP_VALUES[wrap];
     texture.wrapT = WRAP_VALUES[wrap];
     texture.needsUpdate = true;
@@ -257,6 +268,7 @@ target.updateDefines = function () {
         PZ_AO_MAP: this.pzTextures.ao ? 1 : 0,
         PZ_CEL: Number(this.properties.celEnabled.get()) === 1 ? 1 : 0,
         PZ_GRAPH_COLOR: this._nodeBaseMap ? 0 : graph.color ? 1 : 0,
+        PZ_BUMP_NOISE_TILE: this.pzNoiseTile > 1 ? 1 : 0,
     };
     var current = this.threeObj.defines || {};
     var changed = false;
@@ -314,13 +326,26 @@ target.updateBumpMap = function () {
         this.pzNoiseTexture.dispose();
         this.pzNoiseTexture = null;
     }
+    this.pzNoiseTile = 1;
     if (Number(this.properties.bumpNoise.get()) === 1) {
-        var canvas = pzNoiseCanvas(256, this.properties.bumpNoiseScale.get(), 7);
+        var scale = Number(this.properties.bumpNoiseScale.get());
+        if (!isFinite(scale)) scale = 4;
+        var canvas;
+        if (scale > BUMP_NOISE_TILE_CELLS) {
+            // Above the canvas Nyquist limit, keep the 64-cell seamless tile
+            // and repeat it through the shader UV scale. Memory and build
+            // time stay constant while the visible frequency grows.
+            this.pzNoiseTile = Math.min(scale, BUMP_NOISE_SCALE_MAX) / BUMP_NOISE_TILE_CELLS;
+            canvas = pzNoiseTileCanvas(256, BUMP_NOISE_TILE_CELLS, 7);
+        } else {
+            canvas = pzNoiseCanvas(256, scale, 7);
+        }
         if (canvas) {
             this.pzNoiseTexture = new THREE.CanvasTexture(canvas);
             this.applyWrap(this.pzNoiseTexture);
         }
     }
+    this.pzUniforms.uPzBumpNoiseTile.value = this.pzNoiseTile;
     this.refreshBindings();
     this.updateMipFalloff();
 };

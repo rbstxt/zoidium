@@ -180,7 +180,7 @@ target.props = {
         type: PZ.property.type.NUMBER,
         value: 4,
         min: 1,
-        max: 64,
+        max: 1024,
         step: 1,
         decimals: 0,
         changed: function () {
