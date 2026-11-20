@@ -134,7 +134,7 @@ function host({ vertexCount, animated, frames, frame }) {
   const s = { PZ, Content, layer, editor, project, activeId: "path", message: (text) => { throw Error(text); } };
   createEditorModel(s);
   layer.signature = "keep";
-  const stats = { sets: 0, changed: 0, created: 0 };
+  const stats = { sets: 0, changed: 0, created: 0, announced: 0 };
   const path = node.properties.path;
   const axes = path.objects;
   for (const axis of axes) {
@@ -142,8 +142,10 @@ function host({ vertexCount, animated, frames, frame }) {
     axis.set = (value, f) => { stats.sets++; return set(value, f); };
     const add = axis.addKeyframe.bind(axis);
     axis.addKeyframe = (key) => { stats.created++; return add(key); };
-    // Creation announcements run in the same loop as creation, so counting
-    // addKeyframe proves their parity; change announcements are counted here.
+    Object.defineProperty(axis, "onKeyframeCreated", { value: { update: key => {
+      assert.ok(axis.keyframes.includes(key), "creation announces the live key");
+      stats.announced++;
+    } } });
     axis.onKeyframeChanged = { update: () => { stats.changed++; } };
   }
   return { s, editor, node, stats, before: clone(layer.contents) };
@@ -170,6 +172,11 @@ for (const animated of [false, true]) {
     const oldHost = host({ vertexCount: 240, animated, frames, frame: 15 });
     oldHost.s.setValue = (property, value, frame = oldHost.s.localFrame()) => oldSetValue(oldHost.s, PZ, property, value, frame);
     const newHost = host({ vertexCount: 240, animated, frames, frame: 15 });
+    assert.equal(newHost.s.gesture.begin(), true);
+    newHost.s.setPoints(newHost.s.pathPoints());
+    newHost.s.gesture.finish();
+    assert.deepEqual(newHost.stats, { sets: 0, changed: 0, created: 0, announced: 0 }, "no-op emits no key or write");
+    assert.equal(newHost.editor.history.undoStack.length, 0, "no-op leaves history empty");
     const oldSeen = dragAnchor(oldHost.s, [[3, [5, 0]], [3, [9, -4]], [3, [12, 7]]]);
     const newSeen = dragAnchor(newHost.s, [[3, [5, 0]], [3, [9, -4]], [3, [12, 7]]]);
     assert.deepEqual(newSeen, oldSeen, "project JSON matches after every move");
@@ -187,6 +194,8 @@ for (const animated of [false, true]) {
       assert.equal(newHost.stats.created, oldHost.stats.created, "same auto-key count");
       assert.ok(newHost.stats.created === 1440, `keys created once for all channels, got ${newHost.stats.created}`);
     }
+    assert.equal(newHost.stats.announced, newHost.stats.created, "every key creation is announced");
+    assert.equal(newHost.stats.sets, 5, "only changed channels are set");
     assert.ok(newHost.stats.sets < oldHost.stats.sets / 100, `writes collapse: ${newHost.stats.sets} vs ${oldHost.stats.sets}`);
     assert.equal(newHost.stats.changed, newHost.stats.sets, "every write is still announced");
   });
@@ -226,6 +235,7 @@ test("selected handles and multiple anchors match old JSON", () => {
   gesture(newHost.s);
   assert.deepEqual(states(newHost.s.layer), states(oldHost.s.layer));
   assert.equal(newHost.stats.sets, 2 * 2 + 2, `only changed channels written, got ${newHost.stats.sets}`);
+  assert.equal(newHost.stats.changed, newHost.stats.sets, "every changed channel is announced");
 });
 test("Escape rolls back and a lost capture commits, matching the old path", () => {
   for (const cancel of [true, false]) {

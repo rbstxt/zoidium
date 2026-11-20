@@ -93,25 +93,41 @@ function create(PZ) {
     }
     return true;
   }
-  function preview(property, channels) {
-    // Native load appends keys. Reuse matching key objects so native property
-    // observers keep their references throughout a pointer gesture.
-    property.objects.forEach((axis, i) => {
-      const existing = new Map(axis.keyframes.map(key => [key.frame, key]));
-      for (const data of channels[i].keyframes) {
-        const key = existing.get(data.frame);
-        if (key) {
-          if (key.value === data.value) continue;
-          key.value = data.value;
-          axis.onKeyframeChanged?.update(key);
-        } else {
-          const added = new PZ.keyframe(data.value, data.frame, data.tween);
-          added.load?.(data);
-          axis.addKeyframe(added);
-          axis.onKeyframeCreated?.update(added);
-        }
-      }
+  function editLive(property, vertexCount, frame, values) {
+    const axes = property.objects;
+    if (!Array.isArray(values) || values.length !== axes.length || axes.length !== vertexCount * 6 ||
+        !Number.isFinite(frame))
+      throw Error("Path values do not match its channels");
+    for (const value of values) {
+      if (!Number.isFinite(value)) throw Error("Path values do not match its channels");
+    }
+    if (property.expression || axes.some(axis => axis.expression || axis.definition.readOnly || !axis.keyframes?.length))
+      throw Error("Path channels are invalid or expression-driven");
+    // Sample every channel before adding logical keys. The gesture already
+    // owns the undo snapshot, so preview writes can reuse the live channels.
+    const before = axes.map(axis => axis.get(frame));
+    const changed = before.map((value, i) => value !== values[i]);
+    if (!changed.includes(true)) return false;
+    const animated = axes.some(axis => axis.animated);
+    if (animated) {
+      const additions = axes.map((axis, i) => {
+        if (axis.hasKeyframe(frame)) return null;
+        const closest = axis.keyframes[axis.getClosestKeyframeIndex(frame)];
+        return new PZ.keyframe(before[i], frame, closest?.tween ?? axis.defaultTween);
+      });
+      additions.forEach((key, i) => {
+        if (!key) return;
+        axes[i].addKeyframe(key);
+        axes[i].onKeyframeCreated?.update(key);
+      });
+    }
+    axes.forEach((axis, i) => {
+      if (!changed[i]) return;
+      const writeFrame = animated ? frame : axis.keyframes[0].frame;
+      axis.set(values[i], writeFrame);
+      axis.onKeyframeChanged?.update(axis.keyframes[axis.getClosestKeyframeIndex(writeFrame)]);
     });
+    return true;
   }
   function validatePair(pair, matrix) {
     const unchangedVectors = matrix[0] === 1 && matrix[1] === 0 && matrix[2] === 0 && matrix[3] === 1;
@@ -127,7 +143,7 @@ function create(PZ) {
     });
   }
   return {
-    sample, makeKey, certify, preview, validatePair, stopwatch,
+    sample, makeKey, certify, editLive, validatePair, stopwatch,
     staticReadsKeyframes: typeof PZ.property.create === "function",
     samePairShape: (x, y) => shape(x) === shape(y),
     preparePair: pair => synchronizeKeys(pair, { sample, makeKey }),

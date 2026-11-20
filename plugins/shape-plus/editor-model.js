@@ -259,21 +259,20 @@ function createEditorModel(s) {
     s.canvasApi?.invalidateScene?.();
   };
   s.pathAdapter = nativeChannels.create(PZ);
-  s.pathFor = (id, { preview = false, join = false } = {}) => createPathOperationHost({
+  s.pathFor = (id, { join = false } = {}) => createPathOperationHost({
     read: () => {
       if (!s.valid()) return null;
       const item = host?.readLiveItem ? host.readLiveItem(id) : clone(s.find(id));
       return item?.kind === "path" ? item : null;
     },
     write: next => {
-      if (preview) s.pathAdapter.preview(s.find(id).properties.path, next.properties.path.objects);
-      else s.replaceItem(id, next);
+      s.replaceItem(id, next);
       s.preview();
     },
     assertEditable: () => s.requireEditablePath(id),
     gesture: s.gesture,
     playback: editor.playback,
-    preview, join,
+    join,
   });
   s.topology = (operation, id = s.activeId) => {
     s.requireEditablePath(id);
@@ -293,7 +292,11 @@ function createEditorModel(s) {
   s.setValue = (property, value, frame = s.localFrame()) => {
     const owner = property.parentObject;
     if (owner?.kind === "path" && owner.properties.path === property) {
-      return animation.edit(s.pathFor(owner.id, { preview: true }), frame, value, s.pathAdapter);
+      s.requireEditablePath(owner.id);
+      if (!s.valid() || s.find(owner.id) !== owner) throw Error("Path is unavailable");
+      const changed = s.pathAdapter.editLive(property, owner.vertexIds.length, frame, value);
+      if (changed) s.preview();
+      return changed;
     }
     if (owner?.kind === "path") s.requireEditablePath(owner.id);
     const axes = property.objects || [property],
