@@ -275,7 +275,6 @@ function runSplitTextIntoLetters(textObject, deps) {
   } catch (_material) {
     materialJSON = null;
   }
-  const originalMaterial = textObject.material || null;
   const originalFont = textObject.font || null;
   const groupData = {
     properties: {
@@ -324,12 +323,6 @@ function runSplitTextIntoLetters(textObject, deps) {
       // the editor (same path, refcounted); headless fixtures carry the
       // live font object beside the rows, so share it when load left none.
       if (!letter.font && originalFont) letter.font = originalFont;
-      if (originalMaterial) {
-        try {
-          letter.materials.splice(0, letter.materials.length);
-        } catch (_clear) {}
-        letter.materials.push(originalMaterial);
-      }
       letters.push(letter);
     }
     edit.deleteObject({

@@ -26,7 +26,7 @@ its own position. The whole command is one history operation: one undo
 restores the original Text exactly, redo brings the split back. Keyframes
 and expressions on the original's position/rotation/scale move onto the
 Group (so the word keeps animating as one); letters get static local
-offsets. Material and font are shared with the original, not cloned. Under
+offsets. Each letter gets a copy of the material and shares the original font. Under
 an ExpressText+ container the Group takes the original's place, so the
 container keeps tracking the letters (each letter becomes its own text —
 see Letters scope below for how Per text counts them).

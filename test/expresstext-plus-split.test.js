@@ -176,7 +176,7 @@ function splitFixture() {
   return { PZ, THREE, project, editor, edit, text, close };
 }
 
-test("split creates one undoable operation sharing font and material", () => {
+test("split creates one undoable operation with independently owned materials", () => {
   const h = splitFixture();
   try {
     const original = h.text("AB");
@@ -201,9 +201,11 @@ test("split creates one undoable operation sharing font and material", () => {
     );
     for (const letter of letters) {
       assert.equal(letter.font, originalFont, "font shared, not cloned");
-      assert.equal(letter.material, originalMaterial, "material shared, not cloned");
+      assert.notEqual(letter.material, originalMaterial, "each letter owns its material");
+      assert.equal(letter.material.parent, letter.materials, "material belongs to its letter");
       assert.equal(letter.parent, group.objects, "letters parented under the group");
     }
+    assert.notEqual(letters[0].material, letters[1].material, "letters do not reparent the same material");
     const undone = h.editor.history.undo();
     assert.notEqual(undone, false, "undo applies");
     assert.deepEqual(
