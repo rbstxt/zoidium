@@ -152,7 +152,6 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
       effect._smbEstimator=requireEstimator("./estimator.js").createEstimator();
       effect._smbTooltips=requireEstimator("./tooltips.js").install(PZ,effect);
       effect._smbHalfEstimator=requireEstimator("./estimator.js").createSmoothEstimator();
-      effect._smbParticles=requireEstimator("./native-particles.js").install(PZ,effect.parentProject.sequence);
       if(typeof Worker!=="undefined")effect._smbAsync=requireEstimator("./async-analysis.js").create(effect,THREE,PZ,root);
       if(typeof VideoDecoder!=="undefined"){
         effect._smbVideo=requireEstimator("./video-decoder.js").create(effect,THREE,root);
@@ -190,7 +189,6 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
     resize() { effect._smbAsync?.invalidate();if (effect._smbLite) clearTargets(effect._smbLite); },
     unload() {
       effect._smbTooltips?.release();effect._smbTooltips=null;
-      effect._smbParticles?.release();effect._smbParticles=null;
       effect._smbAsync?.dispose();effect._smbAsync=null;
       effect._smbVideo?.dispose();effect._smbVideo=null;effect._smbDecodeMedia=null;
       const runtime = effect._smbLite;

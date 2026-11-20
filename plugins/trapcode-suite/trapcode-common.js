@@ -17,6 +17,12 @@ var PZ = PZ || {};
     PZ.trapcode = PZ.trapcode || {};
     var T = PZ.trapcode;
 
+    T.setParticleResolution = function (renderer, value) {
+        var target = renderer.getRenderTarget();
+        var size = target ? (target.viewport || target) : renderer.getDrawingBufferSize();
+        value.set(target && target.viewport ? size.z : size.width, target && target.viewport ? size.w : size.height);
+    };
+
     T.currentTime = 0;
 
     T.setTime = function (time) {

@@ -36,6 +36,7 @@
       "./plugins/core/audio-track-visibility.js",
       "./plugins/core/default-project-settings.js",
       "./plugins/core/preview-context-menu.js",
+      "./plugins/core/particle-viewport.js",
       "./plugins/core/particle-defaults.js",
       "./plugins/core/empty-keyframes.js",
       "./plugins/core/property-history.js",

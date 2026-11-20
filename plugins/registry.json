@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "159",
+      "version": "160",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=159",
-      "bundle": "./plugins/core/bundle.json?v=159",
-      "integrity": "sha256-7p+58yhrbx8aP2JY+SXex9uPy2DjFG32MvcIRbReFFg="
+      "manifest": "./plugins/core/manifest.json?v=160",
+      "bundle": "./plugins/core/bundle.json?v=160",
+      "integrity": "sha256-t8amPhBzfk+pkkHIsceSlOb5BwZf5a4u5NgBdK8kK0I="
     },
     {
       "id": "easing-plus",
@@ -296,16 +296,16 @@
       "category": "scene",
       "name": "Rowbyte & Red Giant Suite",
       "author": "DaviFX",
-      "version": "54",
+      "version": "55",
       "itemCount": 14,
       "format": "3D objects",
       "tagline": "Particular, Form, Plexus and C4D lights",
       "color": "#c9a13b",
       "description": "Trapcode Particular, Form and Plexus 3D objects with floating designer windows, deterministic simulation and audio analysis, plus C4D-style lights.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/trapcode-suite/manifest.json?v=54",
-      "bundle": "./plugins/trapcode-suite/bundle.json?v=54",
-      "integrity": "sha256-DujSWLahmdcK1Z5BKIaJrMqJb2TbwiqItZspbcq8t8g="
+      "manifest": "./plugins/trapcode-suite/manifest.json?v=55",
+      "bundle": "./plugins/trapcode-suite/bundle.json?v=55",
+      "integrity": "sha256-yKbh46y/+PUDWXOWrxlZ0weSUl+0gmFq66hAnkpDPec="
     },
     {
       "id": "optical-flares",
@@ -535,14 +535,14 @@
       "category": "adjustment",
       "name": "ZSMB (beta 1.0)",
       "author": "Zoidium contributors",
-      "version": "50",
+      "version": "51",
       "itemCount": 1,
       "format": "native effect",
       "tagline": "High-quality, lightweight optical flow & vector-based motion blur",
       "description": "High-quality, lightweight optical flow & vector-based motion blur",
-      "manifest": "./plugins/smart-motion-blur-lite/manifest.json?v=50",
-      "bundle": "./plugins/smart-motion-blur-lite/bundle.json?v=50",
-      "integrity": "sha256-HT2u6h6swR9aRfDjMHO+BwuKpb77ZkEgK66ZPJGqWuA=",
+      "manifest": "./plugins/smart-motion-blur-lite/manifest.json?v=51",
+      "bundle": "./plugins/smart-motion-blur-lite/bundle.json?v=51",
+      "integrity": "sha256-F7kupOwiJs8wAlcfmV9Zh9nESm8IsrzG7t7qXOgO0Mc=",
       "zoidiumOnly": true
     },
     {

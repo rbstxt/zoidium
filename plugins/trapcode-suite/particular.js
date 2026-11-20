@@ -401,8 +401,7 @@ var PZ = PZ || {};
             this.threeObj.frustumCulled = false;
             this.threeObj.onBeforeRender = function (renderer) {
                 if (!this.material || !this.material.uniforms) return;
-                var size = renderer.getSize();
-                this.material.uniforms.resolution.value.set(size.width, size.height);
+                T.setParticleResolution(renderer, this.material.uniforms.resolution.value);
             };
             this.material = null;
             this.texture = null;
