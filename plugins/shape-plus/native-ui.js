@@ -188,4 +188,27 @@ function install(PZ, Layer, Content, onDispose) {
   });
   return panels;
 }
-module.exports = { install, connectObjectsPanel, findObjectsPanel, createAddRouting };
+function installPathControls(PZ, sessionFor, onDispose) {
+  const controls = PZ.ui.controls;
+  if (!controls?.createControls) return;
+  const original = controls.createControls;
+  const { createPathKeyControls } = require("./editor-actions.js");
+  function create(row, property, hideAnimation) {
+    if (property.definition?.zoidiumControl !== "shape-plus/path")
+      return original.apply(this, arguments);
+    const owner = property.parentObject;
+    const keys = createPathKeyControls(row.ownerDocument, () => ({
+      state: sessionFor(owner.tryGetParentOfType(PZ.layer)), id: owner.id,
+    }));
+    keys.animation.style.display = hideAnimation ? "none" : "";
+    row.children[0].insertBefore(keys.animation, row.children[0].firstElementChild);
+    const value = row.ownerDocument.createElement("div");
+    value.className = "editbox";
+    value.pz_update = keys.update;
+    value.textContent = owner.vertexIds.length + " vertices";
+    row.children[1].append(value, keys.element);
+  }
+  controls.createControls = create;
+  onDispose(() => { if (controls.createControls === create) controls.createControls = original; });
+}
+module.exports = { install, connectObjectsPanel, findObjectsPanel, createAddRouting, installPathControls };

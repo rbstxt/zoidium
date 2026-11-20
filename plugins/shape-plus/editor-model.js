@@ -3,6 +3,7 @@ const { selectionKey, selectionPart } = require("./editor-selection.js");
 const { clone, validate } = require("./model.js");
 const { createGesture, createPathOperationHost } = require("./editor-history.js");
 const nativeChannels = require("./path-native-channels.js");
+const animation = require("./path-animation.js");
 const { topology, channels } = require("./editor-topology.js");
 const tree = require("./editor-tree-data.js");
 const g = require("./editor-geometry.js");
@@ -247,7 +248,7 @@ function createEditorModel(s) {
       return item?.kind === "path" ? clone(item) : null;
     },
     write: next => {
-      if (preview) s.find(id).properties.path.load(clone(next.properties.path));
+      if (preview) s.pathAdapter.preview(s.find(id).properties.path, next.properties.path.objects);
       else s.replaceItem(id, next);
       s.preview();
     },
@@ -269,6 +270,9 @@ function createEditorModel(s) {
   // recording a second set of inverse commands for those same changes.
   s.setValue = (property, value, frame = s.localFrame()) => {
     const owner = property.parentObject;
+    if (owner?.kind === "path" && owner.properties.path === property) {
+      return animation.edit(s.pathFor(owner.id, { preview: true }), frame, value, s.pathAdapter);
+    }
     if (owner?.kind === "path") s.requireEditablePath(owner.id);
     const axes = property.objects || [property],
       values = property.objects ? value : [value];
@@ -451,33 +455,51 @@ function createEditorModel(s) {
     } catch (error) { s.message(error.message); }
   };
   const mutatePath = work => s.mutate(work, [s.activeId]);
-  s.keyframe = () =>
-    mutatePath(() => {
-      const item = s.active();
-      if (item?.kind !== "path") return;
-      const path = item.properties.path;
-      channels(clone(item));
-      const frame = s.localFrame(),
-        value = path.get(frame).slice();
-      if (
-        path.animated &&
-        path.objects.every((channel) => channel.hasKeyframe(frame))
-      ) {
-        if (path.objects.every((channel) => channel.keyframes.length > 1)) {
-          for (const channel of path.objects) {
-            const key = channel.deleteKeyframe(frame);
-            channel.onKeyframeDeleted.update(key);
-          }
-        } else {
-          // Disable the stopwatch without removing the sole native key.
-          for (const channel of path.objects) channel.animated = false;
-        }
-        s.preview();
-      } else {
-        for (const channel of path.objects) channel.animated = true;
-        s.setValue(path, value, frame);
-      }
-    });
+  function pathAnimationCommand(id, work) {
+    s.pointer?.commit();
+    s.finishNudge?.();
+    try {
+      s.requireEditablePath(id);
+      const target = s.pathFor(id);
+      if (target.data) return work(target, s.localFrame());
+    } catch (error) { s.message(error.message); }
+    return false;
+  }
+  s.pathKeyState = (id = s.activeId) => {
+    try {
+      const data = s.pathFor(id).data;
+      return data ? animation.diamond(data, s.localFrame()) : "hollow";
+    } catch (_error) { return "hollow"; }
+  };
+  s.setPathAnimation = (id = s.activeId) => pathAnimationCommand(id, (target, frame) =>
+    animation.setEnabled(target, animation.diamond(target.data, frame) === "hollow", frame, s.pathAdapter));
+  s.togglePathKey = (id = s.activeId) => pathAnimationCommand(id, (target, frame) => {
+    const status = animation.diamond(target.data, frame);
+    if (status === "hollow") return animation.setEnabled(target, true, frame, s.pathAdapter);
+    if (animation.toggleKey(target, frame, s.pathAdapter)) return true;
+    s.message("The path must keep at least one key per channel.");
+    return false;
+  });
+  // The original model command also acts as a stopwatch at the final key.
+  s.keyframe = () => pathAnimationCommand(s.activeId, (target, frame) => {
+    const status = animation.diamond(target.data, frame);
+    if (status === "hollow") return animation.setEnabled(target, true, frame, s.pathAdapter);
+    return animation.toggleKey(target, frame, s.pathAdapter) ||
+      animation.setEnabled(target, false, frame, s.pathAdapter);
+  });
+  s.seekPathKey = (id, direction) => {
+    s.pointer?.commit();
+    s.finishNudge?.();
+    try {
+      const target = s.pathFor(id), data = target.data;
+      if (!data) return false;
+      const find = direction < 0 ? animation.previous : animation.next;
+      const frame = find(data, editor.playback.currentFrame, s.pathClip());
+      if (frame === null) { s.message("No further path keyframe"); return false; }
+      target.seek(frame);
+      return true;
+    } catch (error) { s.message(error.message); return false; }
+  };
   s.setMode = (mode) =>
     mutatePath(() => {
       const item = s.active();

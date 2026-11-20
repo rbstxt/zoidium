@@ -8,9 +8,10 @@ function create(PZ) {
     if (channel.expression) throw Error("Expression-driven paths cannot be sampled");
     if (!Number.isFinite(frame) || !Array.isArray(channel.keyframes) || !channel.keyframes.length)
       throw Error("Invalid path channel");
-    const property = PZ.property.create({ name: "Path channel", dynamic: true, type: PZ.property.type.NUMBER, value: 0 });
+    const definition = { name: "Path channel", dynamic: true, type: PZ.property.type.NUMBER, value: 0 };
+    const property = PZ.property.create ? PZ.property.create(definition) : new PZ.property(definition);
     property.load(copy(channel));
-    property.sortKeyframes();
+    property.sortKeyframes?.();
     return property.get(frame);
   }
   function makeKey(channel, frame, value) {
@@ -19,7 +20,7 @@ function create(PZ) {
     if (!keys.length || !Number.isFinite(frame) || !Number.isFinite(value)) throw Error("Invalid path key");
     const next = keys.find(key => key.frame >= frame) || keys[keys.length - 1];
     const key = new PZ.keyframe(value, frame, next.tween);
-    return copy(key.toJSON());
+    return copy(key);
   }
   function shape(channel) {
     const result = copy(channel);
@@ -79,7 +80,27 @@ function create(PZ) {
     }
     return true;
   }
-  return { sample, makeKey, certify };
+  function preview(property, channels) {
+    // Native load appends keys. Reuse matching key objects so native property
+    // observers keep their references throughout a pointer gesture.
+    property.objects.forEach((axis, i) => {
+      const existing = new Map(axis.keyframes.map(key => [key.frame, key]));
+      for (const data of channels[i].keyframes) {
+        const key = existing.get(data.frame);
+        if (key) {
+          if (key.value === data.value) continue;
+          key.value = data.value;
+          axis.onKeyframeChanged?.update(key);
+        } else {
+          const added = new PZ.keyframe(data.value, data.frame, data.tween);
+          added.load?.(data);
+          axis.addKeyframe(added);
+          axis.onKeyframeCreated?.update(added);
+        }
+      }
+    });
+  }
+  return { sample, makeKey, certify, preview };
 }
 // Mask validation requires grouped keys. Independent channel schedules cannot
 // be represented by that encoding and must be rejected, never approximated.

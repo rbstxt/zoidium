@@ -7,6 +7,47 @@ const { pickTarget, parentOf } = require("./editor-pick.js");
 const { setStaticFirstVertex } = require("./path-hosts.js");
 const { PREFS_MIN_PX, PREFS_MAX_PX } = require("./path-feedback.js");
 const { isEditableTarget, isComposingEvent } = require("./path-input.js");
+function createPathKeyControls(document, target) {
+  const element = document.createElement("div");
+  element.className = "zoidium-path-keys";
+  element.setAttribute("data-zoidium-path-control", "");
+  element.style.cssText = "display:inline-flex;gap:2px;align-items:center";
+  const button = (label, text, run) => {
+    const control = document.createElement("button");
+    control.type = "button";
+    control.className = "actionbutton";
+    control.textContent = text;
+    control.title = label;
+    control.setAttribute("aria-label", label);
+    control.addEventListener("click", event => {
+      event.stopPropagation();
+      const { state, id } = target();
+      if (state && id) run(state, id);
+      update();
+    });
+    return control;
+  };
+  const animation = button("Toggle path animation", "⏱", (s, id) => s.setPathAnimation(id));
+  const prev = button("Previous path keyframe", "‹", (s, id) => s.seekPathKey(id, -1));
+  const diamond = button("Toggle path keyframe", "◇", (s, id) => s.togglePathKey(id));
+  const next = button("Next path keyframe", "›", (s, id) => s.seekPathKey(id, 1));
+  element.append(animation, prev, diamond, next);
+  function update() {
+    const { state, id } = target();
+    element.hidden = !id;
+    element.style.display = id ? "inline-flex" : "none";
+    const status = state?.pathKeyState(id) || "hollow";
+    const locked = !id || state?.pathLocked(id);
+    animation.disabled = diamond.disabled = !!locked;
+    animation.setAttribute("aria-pressed", String(status !== "hollow"));
+    diamond.setAttribute("aria-pressed", String(status === "filled"));
+    diamond.setAttribute("data-key-state", { hollow: "off", outlined: "armed", filled: "keyed" }[status]);
+    diamond.textContent = status === "filled" ? "◆" : "◇";
+    diamond.style.color = status === "hollow" ? "" : "var(--zui-accent,#58a6ff)";
+  }
+  update();
+  return { element, animation, update };
+}
 function installActions(s, root, options = {}) {
   const shapes = options.shapes !== false;
   let nudge = null;
@@ -79,7 +120,7 @@ function installActions(s, root, options = {}) {
         { separator: true },
       );
     if (primitive && shapes) entries.push({ label: "Convert to Path", action: s.convert }, { separator: true });
-    if (!shapes && path) entries.push({ label: "Keyframe Path", action: s.keyframe }, { separator: true });
+    if (path) entries.push({ label: "Keyframe Path", action: () => s.togglePathKey() }, { separator: true });
     const animatorLabels = { position: "Position", scale: "Scale", rotation: "Rotation", skew: "Skew", skewAxis: "Skew Axis", anchor: "Anchor Point", tracking: "Tracking Amount", charOffset: "Character Offset", groupingAlignment: "Grouping Alignment" };
     const axisOf = (node) => Object.keys(node.properties || {}).filter(key => key.startsWith("axis_")).map(key => ({ key, label: node.properties[key].definition?.name || key.slice(5) }));
     const flagOf = (node, key) => { try { return Number(node.properties["enabled_" + key]?.get()) === 1; } catch (_error) { return false; } };
@@ -326,8 +367,16 @@ function installActions(s, root, options = {}) {
     });
   keyRoot.addEventListener("focusout", focusout);
   s.window.addEventListener("blur", blur);
+  const keys = s.pathKeyState && createPathKeyControls(s.document, () => ({
+    state: s, id: s.active()?.kind === "path" ? s.activeId : null,
+  }));
+  if (keys) {
+    keys.element.style.cssText += ";position:absolute;right:8px;bottom:8px;z-index:2";
+    keyRoot.parentElement.appendChild(keys.element);
+  }
   return {
     check() {
+      keys?.update();
       if (
         nudge &&
         (nudge.frame !== s.localFrame() || nudge.target !== s.activeId)
@@ -341,6 +390,7 @@ function installActions(s, root, options = {}) {
       root.removeEventListener("contextmenu", context);
       keyRoot.removeEventListener("focusout", focusout);
       s.window.removeEventListener("blur", blur);
+      keys?.element.remove();
     },
   };
 }
@@ -478,4 +528,4 @@ function installPathShortcuts({ paths, viewport, document, window, session, rout
   };
   return shortcuts;
 }
-module.exports = { installActions, installPathShortcuts };
+module.exports = { installActions, installPathShortcuts, createPathKeyControls };

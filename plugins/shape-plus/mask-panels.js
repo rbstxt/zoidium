@@ -28,6 +28,7 @@ const { createMaskSession, maskSessionFor } = require("./mask-host.js");
 const { MODES } = require("./mask-model.js");
 const { renderMaskRow } = require("./mask-row-view.js");
 const metadata = require("./mask-metadata.js");
+const animation = require("./path-animation.js");
 
 const EXPANSION_MIN = -128;
 const EXPANSION_MAX = 128;
@@ -44,7 +45,7 @@ function clone(value) {
 
 function transact(session, fn) {
   session.s.mutate(() => {
-    const data = clone(session.host.contents());
+    const data = session.host.readLive?.() || clone(session.host.contents());
     fn(data);
     session.host.write(data);
   });
@@ -102,63 +103,27 @@ function activateMask(session, layer, maskId, focusPen, refresh, override) {
   fn(session, layer, maskId, focusPen, refresh);
 }
 
-// design.md "Animation": off = hollow (not animated), armed = animation on
-// with no key at the playhead, keyed = key at the playhead. The panel reads
-// the plain JSON snapshot (no live Content objects), so animated/keyframes are
-// the persisted { animated, keyframes:[{frame}] } encoding.
 function keyframeStateFor(mask, frame) {
-  const path = mask && mask.properties && typeof mask.properties === "object"
-    ? mask.properties.path : null;
-  if (!path || typeof path !== "object" || !path.animated) return "off";
-  const keys = Array.isArray(path.keyframes) ? path.keyframes : [];
-  return keys.some(key => key && key.frame === frame) ? "keyed" : "armed";
+  try {
+    return { hollow: "off", outlined: "armed", filled: "keyed" }[animation.diamond(mask, frame)];
+  } catch (_error) { return "off"; }
 }
 
 function jumpToKeyframe(session, layer, maskId, direction, refresh) {
-  const item = findJson(session, maskId);
-  const keys = item && item.properties && typeof item.properties === "object" &&
-    item.properties.path && Array.isArray(item.properties.path.keyframes)
-    ? item.properties.path.keyframes : [];
-  if (!keys.length) {
-    session.s.message("Mask path has no keyframes");
-    return;
-  }
-  let local = 0;
-  try {
-    local = session.s.localFrame();
-  } catch (_error) { /* Detached session: fall back to 0. */ }
-  const frames = [...new Set(keys.map(key => key && key.frame)
-    .filter(frame => typeof frame === "number" && Number.isFinite(frame)))].sort((a, b) => a - b);
-  if (!frames.length) {
-    session.s.message("Mask path has no keyframes");
-    return;
-  }
-  const target = direction < 0
-    ? [...frames].reverse().find(frame => frame < local)
-    : frames.find(frame => frame > local);
-  if (target === undefined || target === null) {
-    session.s.message("No further path keyframe");
-    return;
-  }
-  try {
-    let start = 0, offset = 0;
+  const state = session.s;
+  if (state.seekPathKey) state.seekPathKey(maskId, direction);
+  else {
+    // Standalone row hosts can supply serialized paths and native clip time.
     try {
-      const clip = session.nativeLayer && typeof session.nativeLayer.tryGetParentOfType === "function"
-        ? session.nativeLayer.tryGetParentOfType(session.s.PZ.clip) : null;
-      start = (clip && clip.start) || 0;
-      offset = (clip && clip.offset) || 0;
-    } catch (_error) { /* Detached layer: project frame equals local frame. */ }
-    session.s.editor.playback.currentFrame = target + start - offset;
-  } catch (error) {
-    session.s.message(error.message);
-    return;
+      const item = findJson(session, maskId), playback = state.editor.playback;
+      const clip = layer?.tryGetParentOfType?.(state.PZ.clip);
+      const find = direction < 0 ? animation.previous : animation.next;
+      const frame = find(item, playback.currentFrame, clip || undefined);
+      if (frame === null) state.message("No further path keyframe");
+      else { playback.currentFrame = frame; state.selectItem(maskId); }
+    } catch (error) { state.message(error.message); }
   }
-  try {
-    session.s.selectItem(maskId);
-  } catch (error) {
-    session.s.message(error.message);
-  }
-  if (typeof refresh === "function") refresh();
+  refresh?.();
 }
 
 function isValidColor(value) {
@@ -251,13 +216,17 @@ function rowCallbacks(session, layer, focusPen, refresh, hooks) {
         return;
       }
       try {
-        session.s.selectItem(id);
-        session.s.keyframe();
+        if (session.s.togglePathKey) session.s.togglePathKey(id);
+        else { session.s.selectItem(id); session.s.keyframe(); }
       } catch (error) {
         session.s.message(error.message);
       }
       if (typeof refresh === "function") refresh();
     },
+    onAnimationToggle: session.s.setPathAnimation && (id => {
+      session.s.setPathAnimation(id);
+      refresh?.();
+    }),
     onKeyframePrev(id) {
       jumpToKeyframe(session, layer, id, -1, refresh);
     },
@@ -360,7 +329,7 @@ function rowCallbacks(session, layer, focusPen, refresh, hooks) {
       if (typeof refresh === "function") refresh();
     },
     onMove(id, direction) {
-      const data = clone(session.host.contents());
+      const data = session.host.readLive?.() || clone(session.host.contents());
       const index = data.findIndex(mask => mask && mask.id === id);
       if (index < 0) {
         session.s.message("Unknown layer mask id");
@@ -383,7 +352,7 @@ function renderMasksSection(document, container, session, layer, focusPen, refre
   head.style.cssText = "font-weight:600;padding:2px 0;cursor:default";
   container.appendChild(head);
   const callbacks = rowCallbacks(session, layer, focusPen, refresh, hooks);
-  const masks = clone(session.host.contents());
+  const masks = session.host.readLive?.() || clone(session.host.contents());
   let frame = 0;
   try {
     frame = session.s.localFrame();

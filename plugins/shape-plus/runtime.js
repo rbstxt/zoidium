@@ -130,6 +130,21 @@ function installPathEditing(context, Layer, Content) {
   // mask-overlay.js, mask-panels.js).
   const maskEditor = require("./mask-overlay.js");
   const maskOverlay = maskEditor.install(context, Content, paths);
+  const sessions = new WeakMap();
+  function sessionFor(layer) {
+    if (maskEditor.maskableLayer(PZ, layer)) return maskOverlay.sessionFor(layer).s;
+    if (!(layer instanceof Layer)) return null;
+    if (shapeOverlay.state?.layer === layer) return shapeOverlay.state;
+    let state = sessions.get(layer);
+    if (!state?.valid()) {
+      const { createEditorModel } = require("./editor-model.js");
+      state = createEditorModel({ PZ, editor, project: editor.project, layer, Content,
+        message: message => context.ui.notify({ title: "Shape+", message }) });
+      sessions.set(layer, state);
+    }
+    return state;
+  }
+  require("./native-ui.js").installPathControls(PZ, sessionFor, own);
   function selectedLayer() {
     const selected = viewport.objects?.length === 1 ? viewport.objects[0] : null;
     return selected?.object || selected;
@@ -272,7 +287,7 @@ function installPathEditing(context, Layer, Content) {
   }
   viewport.el.addEventListener("pointerdown", canvasPress, true);
   own(() => viewport.el.removeEventListener("pointerdown", canvasPress, true));
-  return { paths, shapeOverlay, maskOverlay };
+  return { paths, shapeOverlay, maskOverlay, sessionFor };
 }
 
 module.exports = { install, gradientFacade, installPathEditing };

@@ -237,6 +237,12 @@
       describeKeyframe(keyframeState, mask.name), () => call(callbacks, "onKeyframeToggle", id));
     key.disabled = locked;
     head.appendChild(key);
+    if (typeof callbacks.onAnimationToggle === "function") {
+      const animation = headerButton(document, "mask-row-animation", "⏱", keyframeState !== "off",
+        "Toggle animation for " + mask.name, () => call(callbacks, "onAnimationToggle", id));
+      animation.disabled = locked;
+      head.appendChild(animation);
+    }
 
     const edit = headerButton(document, "mask-row-edit", "Edit", editing,
       "Edit " + mask.name + " path points in the preview", () => call(callbacks, "onToggleEdit", id));
