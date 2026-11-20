@@ -512,7 +512,7 @@ function createEditorPathRegistry(editor, viewport) {
     };
     const options = { id: "editor-path-host-" + (++nextHostId), store, controller };
     const host = kind === "mask" ? createMaskPathHost(options) : createShapePathHost(options);
-    hosts.set(layer, { kind, host });
+    hosts.set(layer, { kind, host, session });
     return host;
   }
   function changed() {
@@ -524,6 +524,13 @@ function createEditorPathRegistry(editor, viewport) {
   return {
     get controller() { return controller; },
     register,
+    activate(kind, layer, pathId) {
+      const entry = hosts.get(layer);
+      if (!entry || entry.kind !== kind || !entry.host.hasPath(pathId)) return false;
+      controller.activate(entry.host, pathId);
+      entry.session.selectItem(pathId);
+      return true;
+    },
     dispose() { editor.onProjectChanged.unwatch(changed); controller.dispose(); hosts = new WeakMap(); },
   };
 }

@@ -228,7 +228,14 @@ function install(context, Content, paths) {
     if (index >= 0) toolbar.buttons.splice(index, 1);
     button.remove();
   });
-  return { sessionFor, setMode };
+  return { sessionFor, setMode, activate(layer, pathId) {
+    if (!paths || maskClip(editor, viewport, PZ)?.layer !== layer) return false;
+    sessionFor(layer);
+    if (!paths.activate("mask", layer, pathId)) return false;
+    modeLayer = layer;
+    setMode("select");
+    return true;
+  } };
 }
 
 module.exports = { install, mountMaskOverlay, maskClip, maskableLayer };
