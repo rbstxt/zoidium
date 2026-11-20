@@ -194,6 +194,9 @@ each line describes one visible change.
 
 ### Changed
 
+- The documentation is reorganized by topic (workflow and export, animation,
+  2D and text, 3D scenes, effects, shaders) with fewer, longer pages. Old links
+  redirect to the new pages.
 - S_Glow: Atmosphere Amp is now half as strong for the same slider value,
   as the effect's author intended; it was twice too strong. Saved slider
   values do not change, so projects that use atmosphere look softer.
