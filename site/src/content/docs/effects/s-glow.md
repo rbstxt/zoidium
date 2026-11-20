@@ -19,7 +19,7 @@ Use **S_Glow (beta 1.0)** to extract bright regions above a threshold, blur them
 - **Subpixel:** Smooths fractional width changes during animation.
 - **Combine** and **Source Opacity:** Choose how glow blends with the source (**Screen** by default) and fade the original image without dimming the glow.
 - **Glow Under Source** and **Affect Alpha:** Place the source on top of the glow and control how much glow adds to layer alpha.
-- **Expand Borders:** Turn **on** to add transparent padding before blurring so glow near the clip edge is not cut off early (the final composition still clips at the frame boundary).
+- **Expand Borders:** Turn **on** to add transparent padding before blurring so glow near the clip edge is not cut off early (the final composition still clips at the frame boundary). If you turn **S_Glow** off with its header eye button, Zoidium skips border expansion as well. See [Bypassing effects](/docs/effects/bypass/).
 
 ## Blur engine and atmosphere
 

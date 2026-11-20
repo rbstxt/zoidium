@@ -22,6 +22,7 @@ Earlier **Posterize Time** operators also quantize requested sample times.
 
 The samplers capture the source, not previous outputs. Nested sampling is capped at eight levels.
 The four effects copy the current input if no samples are available.
+When you turn a time effect or frame sampler off with its header eye button, Zoidium skips its clock remapping and frame sampling in preview and export. See [Bypassing effects](/docs/effects/bypass/).
 
 ## Echo
 

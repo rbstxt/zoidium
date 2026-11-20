@@ -158,6 +158,7 @@ export default defineConfig({
         { label: 'Plexus', translations: { ja: 'Plexus' }, slug: '3d/plexus' },
       ] },
       { label: 'Effects and color', translations: { ja: 'エフェクトとカラー' }, items: [
+        { label: 'Bypassing effects', translations: { ja: 'エフェクトのバイパス' }, slug: 'effects/bypass' },
         { label: 'Motion blur', translations: { ja: 'モーションブラー' }, slug: 'effects/motion-blur' },
         { label: 'S_Glow', translations: { ja: 'S_Glow' }, slug: 'effects/s-glow' },
         { label: 'Magic Looks', translations: { ja: 'Magic Looks' }, slug: 'effects/magic-looks' },

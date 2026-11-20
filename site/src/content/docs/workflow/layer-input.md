@@ -15,6 +15,7 @@ Layer Input targets top-level video tracks, not individual objects nested inside
 6. Adjust **Source Opacity**.
 
 - You can hide the source track on the main timeline; Layer Input still captures its active clip.
+- Effects and effect groups turned off with their header eye button on the source layer are skipped. See [Bypassing effects](/docs/effects/bypass/).
 - A destination cannot pick its own track or a track that forms a dependency cycle.
 - Track references survive track reordering. If the picker shows **(Missing source)**, select an available track.
 
