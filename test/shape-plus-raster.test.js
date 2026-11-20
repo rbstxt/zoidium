@@ -196,3 +196,39 @@ test("context restoration invalidates the cached raster and dispose removes its 
   engine.dispose();
   assert.equal(otherCanvas.listeners, 0);
 });
+
+test("export releases supersampled targets after resolve and rerasterizes on reuse", () => {
+  const h = host(), engine = createRenderer(h.THREE);
+  engine.setCommands([{ kind: "isolation", id: "iso", opacity: 1, commands: [paint] }], [640, 360]);
+  h.renderer.__zoidiumExportRenderer = true;
+  engine.render(h.renderer, destination);
+  const targets = h.resources.filter(value => value instanceof h.THREE.WebGLRenderTarget);
+  assert.equal(targets.length, 2);
+  assert.ok(targets.every(target => target.disposals === 1));
+  engine.render(h.renderer, destination);
+  assert.equal(engine.stats.treeRenders, 2);
+  assert.ok(targets.every(target => target.disposals === 2));
+  delete h.renderer.__zoidiumExportRenderer;
+  engine.render(h.renderer, destination);
+  engine.render(h.renderer, destination);
+  assert.equal(engine.stats.treeRenders, 3);
+  assert.equal(engine.stats.skips, 1);
+  engine.dispose();
+});
+
+
+test("export records the largest Shape+ raster allocation", () => {
+  const events = [], old = globalThis.ZOIDIUM_DEBUG_LOG;
+  globalThis.ZOIDIUM_DEBUG_LOG = { record: (type, detail) => events.push({ type, ...detail }) };
+  try {
+    const h = host(), engine = createRenderer(h.THREE, 2);
+    h.renderer.__zoidiumExportRenderer = true;
+    engine.setCommands([paint], [640, 360]);
+    engine.render(h.renderer, destination);
+    engine.render(h.renderer, destination);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].estimatedBytes, 1280 * 720 * 4);
+    assert.equal(events[0].type, "export-gpu-target");
+    engine.dispose();
+  } finally { globalThis.ZOIDIUM_DEBUG_LOG = old; }
+});
