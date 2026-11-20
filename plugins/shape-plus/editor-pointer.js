@@ -334,11 +334,10 @@ function createPointer(s, canvas) {
         s.selection.clear();
         s.refresh();
       } else if (!s.treeSelection.has(target)) s.selectItem(target);
-      return xf.moveGesture(s, start, point, [...s.treeSelection].filter(id => !s.pathLocked?.(id)));
+      return movableGesture(start, point);
     }
     // Empty space inside the selected box still drags the selection.
-    if (!event.shiftKey && insideSelection(start))
-      return xf.moveGesture(s, start, point, [...s.treeSelection].filter(id => !s.pathLocked?.(id)));
+    if (!event.shiftKey && insideSelection(start)) return movableGesture(start, point);
     // Empty space: a marquee. With a path open for editing it selects
     // anchors; otherwise it selects whole top-level items.
     const beforeAnchors = new Set(s.selection),
@@ -424,6 +423,11 @@ function createPointer(s, canvas) {
         gesture.cancel?.(e);
       },
     };
+  }
+  // Locked paths never move; when nothing movable is selected, no gesture starts.
+  function movableGesture(start, point) {
+    const ids = [...s.treeSelection].filter(id => !s.pathLocked?.(id));
+    return ids.length ? xf.moveGesture(s, start, point, ids) : null;
   }
   function insideSelection(p) {
     const b = xf.selectedBox(s);

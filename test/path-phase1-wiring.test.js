@@ -745,3 +745,33 @@ test("a mask name click in Properties activates the mask through the shared path
   h.dispose();
   assert.equal(panels.getPanelActivator(), null);
 });
+
+test("Delete removes a selected non-path item and Enter commits a nudge on a path", t => {
+  const h = editorFixture(t, ({ addClip, choose }) => {
+    const clip = addClip(TYPE, { contents: [
+      { id: "rectangle", kind: "rectangle", properties: {} },
+      path("line", [[-60, 30], [-25, 30]]),
+    ] });
+    choose(clip);
+    return { layer: clip.object };
+  });
+  h.rowSelect("rectangle");
+  h.state().canvas.focus();
+  h.key("Delete");
+  assert.equal(find(h.layer.contents, "rectangle"), null);
+  assert.ok(find(h.layer.contents, "line"));
+  h.editor.history.undo();
+  assert.ok(find(h.layer.contents, "rectangle"));
+
+  // Enter during an arrow-key nudge on a path commits the nudge as one step.
+  h.activate("shape", h.layer, "line");
+  h.click(-60 + 120, 60);
+  const line = () => find(h.layer.contents, "line").item;
+  const undoBefore = h.editor.history.undoStack.length;
+  h.state().canvas.focus();
+  h.key("ArrowRight");
+  h.key("Enter");
+  assert.equal(h.editor.history.undoStack.length, undoBefore + 1);
+  assert.equal(h.editor.history.operation, null);
+  assert.ok(line());
+});

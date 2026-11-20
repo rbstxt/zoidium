@@ -114,8 +114,11 @@ function installActions(s, root, options = {}) {
       command = event.metaKey || event.ctrlKey;
     // The viewport shortcut listener owns path commands before they reach
     // the overlay. Other Shape+ commands keep their existing canvas scope.
-    if (s.pathInput && (s.active()?.kind === "path" && key === "escape" ||
-        ["enter", "delete", "backspace"].includes(key))) return;
+    // On an active path these keys belong to the path shortcuts, except Enter
+    // during a drag or nudge, which still commits it below. Non-path items
+    // keep their Shape+ handling (Delete removes the selected item).
+    if (s.pathInput && s.active()?.kind === "path" && (key === "escape" || key === "delete" || key === "backspace" ||
+        key === "enter" && !s.pointer.active && !nudge)) return;
     const consume = () => {
       event.preventDefault();
       event.stopImmediatePropagation();
