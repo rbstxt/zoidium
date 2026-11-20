@@ -622,7 +622,7 @@ float simplex(vec3 v){
           C.uGlowUnder.value=p.glowUnderSource||0;
           C.uLight.value=p.lightBackground||0;
           C.uSourceOpacity.value=p.sourceOpacity===undefined?1:p.sourceOpacity;
-          C.uAtmosAmp.value=p.atmosphereAmp||0;
+          C.uAtmosAmp.value=(p.atmosphereAmp||0)*0.5;
           C.uAtmosFreq.value=p.atmosphereFreq||1;
           C.uAtmosDetail.value=p.atmosphereDetail===undefined?.6:p.atmosphereDetail;
           C.uAtmosSeed.value=p.atmosphereSeed||0;
