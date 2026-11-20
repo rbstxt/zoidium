@@ -27,7 +27,7 @@ description: Zoidium の全プラグイン、Plugins パネルのカテゴリ、
 | **Constraints** | オン | 3D オブジェクトを向かせる **Track To** と、トランスフォームをコピーする **Follow** です。 | [Constraints](/docs/ja/3d/constraints/) |
 | **Effector** | オン | 3D 階層向けの Repeater、Twist、Warp、Voronoi Fracture、Plain、Delay です。 | [Effector](/docs/ja/3d/effector/) |
 | **Effector+** | オフ | 旧 Effector+ プロジェクトを読み込む互換レイヤーです (Effector の実装を使用します)。 | [Effector](/docs/ja/3d/effector/) |
-| **ExpressText+** | オン | 11 種類のエフェクターを積み重ねて 3D テキストを文字単位で制御するコンテナーです。 | [ExpressText+](/docs/ja/2d-and-text/expresstext-plus/) |
+| **ExpressText+** | オン | 11 種類のエフェクターを積み重ねて 3D テキストを文字単位で制御するコンテナーと、3D Text 行の **Split into letters** 操作を追加します。 | [ExpressText+](/docs/ja/2d-and-text/expresstext-plus/) |
 | **Geometry+** | オフ | Rounded Box、Polyhedron、Cone、Capsule、Tube、Gear、Helix、Spline の 8 種の 3D メッシュです。 | [Geometry+](/docs/ja/3d/geometry-plus/) |
 | **Light+** | オフ | Spot、Point、Directional、Hemisphere の各ネイティブ 3D ライト選択メニューです。 | [ライト](/docs/ja/3d/lights/) |
 | **Material+** | オフ | 補正済み UV を持つ PBR+、Node Material、Matcap、UV Custom、Image+ マテリアルです。 | [Material+](/docs/ja/3d/material-plus/) |

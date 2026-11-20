@@ -27,7 +27,7 @@ Find any plugin from the **Plugins** panel and jump straight to its guide and co
 | **Constraints** | On | **Track To** aiming and **Follow** transform copying for 3D objects. | [Constraints](/docs/3d/constraints/) |
 | **Effector** | On | Repeaters, Twist, Warp, Voronoi Fracture, Plain, and Delay for 3D hierarchies. | [Effector](/docs/3d/effector/) |
 | **Effector+** | Off | Compatibility loader for legacy Effector+ projects (uses Effector implementations). | [Effector](/docs/3d/effector/) |
-| **ExpressText+** | On | Tracked-letter 3D text container with an 11-effector stack. | [ExpressText+](/docs/2d-and-text/expresstext-plus/) |
+| **ExpressText+** | On | Tracked-letter 3D text container with an 11-effector stack and a **Split into letters** action on 3D Text rows. | [ExpressText+](/docs/2d-and-text/expresstext-plus/) |
 | **Geometry+** | Off | Eight procedural 3D meshes: Rounded Box, Polyhedron, Cone, Capsule, Tube, Gear, Helix, Spline. | [Geometry+](/docs/3d/geometry-plus/) |
 | **Light+** | Off | Native 3D light chooser for Spot, Point, Directional, and Hemisphere lights. | [Lights](/docs/3d/lights/) |
 | **Material+** | Off | PBR+, Node Material, Matcap, UV Custom, and Image+ materials with corrected UVs. | [Material+](/docs/3d/material-plus/) |

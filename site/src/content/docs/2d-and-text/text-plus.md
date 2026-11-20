@@ -4,7 +4,7 @@ description: Animate native 2D Text and 3D Text per character, stack up to three
 ---
 Use **Text+** (enabled by default) to animate individual characters on native 2D **Text** layers or native **3D Text** objects, assign separate front and side materials to chosen 3D characters, and control 3D text spacing and bevels.
 
-For a 3D text container with 11 reorderable effectors (including Formula, Spline, Orbit, Repeater, and Voronoi), see [ExpressText+](/docs/2d-and-text/expresstext-plus/). Note that when a Text+ container owns a 3D Text object, ExpressText+ yields to Text+.
+For a 3D text container with 11 reorderable effectors (including Formula, Spline, Orbit, Repeater, and Voronoi) or to split a **3D Text** object into separate per-character objects, see [ExpressText+](/docs/2d-and-text/expresstext-plus/). Note that when a Text+ container owns a 3D Text object, ExpressText+ yields to Text+.
 
 ## Animate a native 2D Text layer
 
