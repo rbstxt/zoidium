@@ -248,6 +248,7 @@
   function trackRendererListeners(exporter) {
     const renderer = exporter.renderer;
     if (!renderer) return;
+    renderer.__zoidiumExportRenderer = true;
     const owned = exporter.__zoidiumRendererListeners = [];
     for (const key of Object.keys(renderer)) {
       const method = renderer[key];
@@ -259,6 +260,27 @@
         finally { listenerOwner = previous; }
       };
     }
+  }
+  function recordAccumulationTargets(exporter) {
+    if (exporter.__zoidiumAccumulationRecorded) return;
+    const targets = exporter.compositor?.accumBuffers;
+    if (!Array.isArray(targets) || !targets.length) return;
+    const first = targets[0], width = first?.width, height = first?.height;
+    if (!(width > 0 && height > 0) || !targets.every(target => target?.width === width && target?.height === height && target?.texture?.type === THREE.FloatType)) return;
+    exporter.__zoidiumAccumulationRecorded = true;
+    try { globalThis.ZOIDIUM_DEBUG_LOG?.record?.("export-gpu-target", { owner: "CM3 accumulation", format: "RGBA float", width, height, count: targets.length, estimatedBytes: width * height * 16 * targets.length }); }
+    catch (_error) { /* Diagnostics must not interrupt export. */ }
+  }
+  function recordCompositorTargets(exporter) {
+    const compositor = exporter.compositor;
+    if (!compositor) return;
+    const targets = [...new Set([compositor.readBuffer, compositor.writeBuffer, ...(compositor.screenBuffers || [])].filter(Boolean))];
+    const width = targets[0]?.width, height = targets[0]?.height;
+    if (!(width > 0 && height > 0) || !targets.every(target => target.width === width && target.height === height)) return;
+    if (targets.length <= (exporter.__zoidiumCompositorTargetCount || 0)) return;
+    exporter.__zoidiumCompositorTargetCount = targets.length;
+    try { globalThis.ZOIDIUM_DEBUG_LOG?.record?.("export-gpu-target", { owner: "CM3 compositor", format: "RGBA8", width, height, count: targets.length, estimatedBytes: width * height * 4 * targets.length }); }
+    catch (_error) { /* Diagnostics must not interrupt export. */ }
   }
   // Counts constructed exports. A job compares it to learn whether a later
   // render, in any format, took over the editor.
@@ -354,7 +376,7 @@
     const index = pending?.index ?? this.exportPolicy?.outputIndex ?? this.framesRendered;
     const frame = pending?.frame ?? this.frame;
     const rate = this.sequence?.properties?.rate?.get?.() || 30;
-    return new Error(`WebGL context lost at output index ${index}, project frame ${frame}, time ${(frame / rate).toFixed(6)}s (${stage}). Start a new export.`);
+    return new Error(`WebGL context lost at output index ${index}, project frame ${frame}, time ${(frame / rate).toFixed(6)}s (${stage}). Lower the export resolution or close other GPU-heavy tabs, then start a new export.`);
   };
   PZ.export.prototype.failExportFrame = function failExportFrame(error) {
     this.__zoidiumExportGuard?.controller.abort(error || new Error("Export stopped."));
@@ -398,7 +420,9 @@
       this.checkExportContext("after preparation");
       await waitForExport(temporal?.prepareExportSamples?.(this, projectFrame), this.exportPolicy);
       this.checkExportContext("after shutter preparation");
+      try { recordAccumulationTargets(this); } catch (_error) { /* Diagnostics must not interrupt export. */ }
       this.compositor.renderSequence(projectFrame);
+      try { recordCompositorTargets(this); } catch (_error) { /* Diagnostics must not interrupt export. */ }
       this.checkExportContext("after composition");
 
       if (output && this.readPixelsWorkaround) {

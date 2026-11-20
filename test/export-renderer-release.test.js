@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const fs = require("node:fs");
 
-function host(nativeExport) {
+function host(nativeExport, debugLog) {
   class Dispatcher {
     addEventListener(name, listener) { (this.listeners ||= {}); (this.listeners[name] ||= []).push(listener); }
     removeEventListener(name, listener) {
@@ -38,7 +38,7 @@ function host(nativeExport) {
   };
   const PZ = { schedule: class {}, export: Native };
   vm.runInNewContext(fs.readFileSync("plugins/core/video-frame-export.js", "utf8"), {
-    PZ, setTimeout, clearTimeout, AbortController, THREE: { EventDispatcher: Dispatcher },
+    PZ, setTimeout, clearTimeout, AbortController, ZOIDIUM_DEBUG_LOG: debugLog, THREE: { EventDispatcher: Dispatcher },
   });
   return { PZ, sequence, texture, log, makeRenderer, onChanged };
 }
@@ -51,6 +51,8 @@ test("unloading an export releases its context and every reference to its render
   const editorWatchers = onChanged.watchers.slice();
   for (let run = 0; run < 3; run++) {
     const exporter = new PZ.export(sequence);
+    assert.equal(exporter.renderer.__zoidiumExportRenderer, true);
+    assert.equal(viewport.__zoidiumExportRenderer, undefined);
     exporter.renderer.render(texture);
     assert.equal(texture.listeners.dispose.length, 2);
     assert.equal(onChanged.watchers.length, editorWatchers.length + 1);
@@ -134,4 +136,36 @@ test("the native encoder never receives a frame or audio result after unload", a
   // A real frame failure unloads the export too. It must still reach the encoder.
   live.renderVideoFrame = async function () { this.unload(); throw new Error("fixture frame failure"); };
   await assert.rejects(live.getVideoFrame(new Uint8Array(4)), /fixture frame failure/);
+});
+
+
+test("export records the size of float accumulation targets once", async () => {
+  const events = [], { PZ, sequence } = host(undefined, { record: (type, detail) => events.push({ type, ...detail }) });
+  const exporter = new PZ.export(sequence);
+  Object.assign(exporter, { frame: 0, frameAdvance: 1, framesRendered: 0, totalFrames: 2 });
+  sequence.prepare = async () => {};
+  exporter.compositor.accumBuffers = Array.from({ length: 2 }, () => ({ width: 3840, height: 2160, texture: { type: undefined } }));
+  exporter.compositor.renderSequence = () => {};
+  await exporter.renderVideoFrame();
+  await exporter.renderVideoFrame();
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, "export-gpu-target");
+  assert.equal(events[0].estimatedBytes, 3840 * 2160 * 16 * 2);
+  assert.equal(events[0].count, 2);
+});
+
+
+test("export records compositor target estimates when the target count grows", async () => {
+  const events = [], { PZ, sequence } = host(undefined, { record: (type, detail) => events.push({ type, ...detail }) });
+  const exporter = new PZ.export(sequence);
+  Object.assign(exporter, { frame: 0, frameAdvance: 1, framesRendered: 0, totalFrames: 2 });
+  sequence.prepare = async () => {};
+  const makeTarget = () => ({ width: 3840, height: 2160 });
+  Object.assign(exporter.compositor, { readBuffer: makeTarget(), writeBuffer: makeTarget(), screenBuffers: [makeTarget()] });
+  exporter.compositor.renderSequence = () => {};
+  await exporter.renderVideoFrame();
+  exporter.compositor.screenBuffers.push(makeTarget());
+  await exporter.renderVideoFrame();
+  assert.deepEqual(events.map(event => event.count), [3, 4]);
+  assert.equal(events[1].estimatedBytes, 3840 * 2160 * 4 * 4);
 });

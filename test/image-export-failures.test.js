@@ -75,7 +75,7 @@ for (const format of ["png", "webp", "jpeg"]) test(`${format} encoding passes th
 });
 
 for (const message of [
-  "WebGL context lost at output index 0, project frame 12, time 0.400000s (before preparation). Start a new export.",
+  "WebGL context lost at output index 0, project frame 12, time 0.400000s (before preparation). Lower the export resolution or close other GPU-heavy tabs, then start a new export.",
   'Video decode failed for clip "Broken <img src=x onerror=alert(1)>", requested media time 0.400000s, output frame 0, stage metadata: Failed.',
 ]) test(`frame progress displays the diagnostic and restores the editor: ${message.split(" ")[0]}`, async () => {
   const f = fixture(), owner = new f.Frame();

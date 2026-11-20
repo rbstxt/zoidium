@@ -316,6 +316,21 @@ each line describes one visible change.
 
 ### Fixed
 
+- Shape+ uses far less GPU memory in the preview. Each layer used to keep a
+  full-frame supersampled image (about 127 MiB at 1080p and at 4K); now it keeps
+  only the finished image, the cache is capped at 256 MiB, and one shared work
+  image is reused. With 50 Shape+ layers at 4K this drops from about 6.3 GB to
+  about 380 MiB, so large projects no longer exhaust integrated GPUs and turn
+  the preview white. The preview looks exactly the same.
+- Exports with many Shape+ layers use much less GPU memory: each layer's
+  supersampled raster is freed as soon as it has been drawn into the frame.
+  At 4K this saved about 380 MiB in a three-frame test, which lowers the chance
+  of a lost WebGL context on integrated GPUs. Output pixels are unchanged.
+- After the browser loses and restores the WebGL context (for example when a
+  heavy export runs out of GPU memory), Shape+ layers draw again in the preview
+  instead of staying blank. When an export stops because the context was lost,
+  the message now suggests lowering the export resolution or closing other
+  GPU-heavy tabs.
 - S_Glow no longer darkens particles or other partly transparent content when
   it is on, even with glow Brightness 0.
 - S_Glow with Affect Alpha 0 no longer leaves bright fringes at transparent
