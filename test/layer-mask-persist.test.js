@@ -55,3 +55,22 @@ test("disposal restores the native methods", () => {
   for (const cleanup of disposed) cleanup();
   assert.deepEqual([PZ.layer.prototype.load, PZ.layer.prototype.toJSON], native);
 });
+
+test("adjustment overrides load and save without calling the base layer", () => {
+  function Layer() {}
+  Layer.prototype.load = function () {};
+  Layer.prototype.toJSON = function () { return { type: 0 }; };
+  Layer.adjustment = function Adjustment() {};
+  Layer.adjustment.prototype = Object.create(Layer.prototype);
+  Layer.adjustment.prototype.load = function (data) { this.type = data.type; };
+  Layer.adjustment.prototype.toJSON = function () { return { type: this.type }; };
+  const cleanup = [];
+  installMaskPersistence({ layer: Layer }, fn => cleanup.push(fn));
+  const layer = new Layer.adjustment();
+  layer.load({ type: 1, [FIELD]: [mask()] });
+  assert.deepEqual(layer[FIELD], [mask()]);
+  layer[FIELD].push(mask("m2"));
+  assert.deepEqual(layer.toJSON()[FIELD].map(entry => entry.id), ["m1", "m2"]);
+  cleanup.forEach(fn => fn());
+  assert.equal(layer.toJSON()[FIELD], undefined);
+});

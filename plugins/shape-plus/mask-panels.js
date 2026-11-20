@@ -422,6 +422,21 @@ function renderMasksSection(document, container, session, layer, focusPen, refre
   container.appendChild(add);
 }
 
+// Refresh the Properties rows only when controller activation changes the
+// active mask. Vertex selection changes must not replace focused controls.
+function watchPathSelection(session, refresh) {
+  const state = session.s, previous = state.onPathSelection;
+  let activeId = state.activeId;
+  function changed() {
+    previous?.();
+    if (activeId === state.activeId) return;
+    activeId = state.activeId;
+    refresh();
+  }
+  state.onPathSelection = changed;
+  return () => { if (state.onPathSelection === changed) state.onPathSelection = previous; };
+}
+
 function installMaskPanels(context, Content, focusPen) {
   const PZ = window.PZ, editor = window.CM;
   if (!PZ?.ui?.edit?.prototype) throw Error("Layer masks require the native property panels");
@@ -434,10 +449,10 @@ function installMaskPanels(context, Content, focusPen) {
   }
   // Live sections re-render their contents on project changes without
   // disturbing the surrounding native panel.
-  const live = new Set();
+  const live = new Set(), watched = new Map();
   function refreshLive() {
     for (const entry of live) {
-      if (!entry.container.isConnected) { live.delete(entry); continue; }
+      if (!entry.container.isConnected) { entry.dispose(); continue; }
       try {
         renderMasksSection(entry.container.ownerDocument, entry.container, entry.session, entry.layer, focusPen, entry.refresh, entry.hooks);
       } catch (_error) { /* Panel torn down mid-edit. */ }
@@ -446,9 +461,20 @@ function installMaskPanels(context, Content, focusPen) {
   function track(container, session, layer, hooks) {
     const entry = { container, session, layer, hooks, refresh: () => {} };
     entry.refresh = () => refreshLive();
-    for (const existing of live) if (existing.container === container) live.delete(existing);
+    for (const existing of live) if (existing.container === container) existing.dispose(false);
+    let watcher = watched.get(session);
+    if (!watcher) {
+      watcher = { count: 0, dispose: watchPathSelection(session, refreshLive) };
+      watched.set(session, watcher);
+    }
+    watcher.count++;
+    entry.dispose = (remove = true) => {
+      if (!live.delete(entry)) return;
+      if (--watcher.count === 0) { watcher.dispose(); watched.delete(session); }
+      if (remove) container.remove();
+    };
     live.add(entry);
-    return () => { live.delete(entry); container.remove(); };
+    return entry.dispose;
   }
   const cleanups = new WeakMap();
   function maskListItem(container, object) {
@@ -489,10 +515,11 @@ function installMaskPanels(context, Content, focusPen) {
     if (prototype.unloadListItem === maskUnloadListItem) prototype.unloadListItem = originalUnload;
   });
   context.lifecycle.onDispose(() => {
+    for (const entry of [...live]) entry.dispose();
     try { editor.project?.ui?.onChanged?.unwatch?.(refreshLive); } catch (_error) { /* ignore */ }
     try { editor.onProjectChanged.unwatch(projectChanged); } catch (_error) { /* ignore */ }
   });
   return { sessionFor };
 }
 
-module.exports = { installMaskPanels, renderMasksSection, isMaskable, setPanelActivator, getPanelActivator, rowCallbacks, keyframeStateFor };
+module.exports = { installMaskPanels, renderMasksSection, isMaskable, setPanelActivator, getPanelActivator, rowCallbacks, keyframeStateFor, watchPathSelection };
