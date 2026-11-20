@@ -20,7 +20,7 @@ function setup() {
   timeline.create();
   return { timeline, input, listeners };
 }
-function key(listeners, key) { let stopped = false; listeners.keydown({ key, stopPropagation() { stopped = true; }, preventDefault() {} }); return stopped; }
+function key(listeners, key, extra) { let stopped = false; listeners.keydown({ key, ...extra, stopPropagation() { stopped = true; }, preventDefault() {} }); return stopped; }
 test("accepts frames and displayed timecodes, clamps and stops shortcuts", () => {
   const { timeline, input, listeners } = setup();
   timeline.timestamp.onclick(); input.value = "250"; assert.equal(key(listeners, "Delete"), true); key(listeners, "Enter");
@@ -35,5 +35,21 @@ test("escape, blur and invalid input cancel", () => {
   timeline.timestamp.onclick(); input.value = "20"; key(listeners, "Escape");
   timeline.timestamp.onclick(); input.value = "30"; listeners.blur();
   timeline.timestamp.onclick(); input.value = "bad"; key(listeners, "Enter");
+  assert.equal(timeline.editor.playback.currentFrame, 0);
+});
+test("enter then blur seeks once, and IME composition does not commit", () => {
+  const { timeline, input, listeners } = setup();
+  let seeks = 0; const seek = timeline.setFrame; timeline.setFrame = px => { seeks++; seek(px); };
+  timeline.timestamp.onclick(); input.value = "12"; key(listeners, "Enter"); listeners.blur();
+  assert.equal(seeks, 1); assert.equal(timeline.editor.playback.currentFrame, 12);
+  timeline.timestamp.onclick(); input.value = "40"; key(listeners, "Enter", { isComposing: true });
+  assert.equal(seeks, 1); assert.equal(input.style.display, "block");
+});
+test("negative frames clamp and out-of-range timecode frames are rejected", () => {
+  const { timeline, input, listeners } = setup();
+  timeline.editor.playback.currentFrame = 50;
+  timeline.timestamp.onclick(); input.value = "-5"; key(listeners, "Enter");
+  assert.equal(timeline.editor.playback.currentFrame, 0);
+  timeline.timestamp.onclick(); input.value = "00:00:01:30"; key(listeners, "Enter");
   assert.equal(timeline.editor.playback.currentFrame, 0);
 });

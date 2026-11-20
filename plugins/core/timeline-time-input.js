@@ -5,8 +5,9 @@
 
   function parseFrame(text, fps) {
     const value = text.trim();
-    if (/^\d+$/.test(value)) return Number(value);
+    if (/^-?\d+$/.test(value)) return Number(value);
     let match = /^(\d+):(\d{2}):(\d{2}):(\d+)$/.exec(value);
+    if (match && Number(match[4]) >= Math.ceil(fps)) return NaN;
     if (match) return ((Number(match[1]) * 60 + Number(match[2])) * 60 + Number(match[3])) * fps + Number(match[4]);
     match = /^(\d+):(\d{2}):(\d{2}(?:\.\d+)?)$/.exec(value);
     if (match) return ((Number(match[1]) * 60 + Number(match[2])) * 60 + Number(match[3])) * fps;
@@ -21,7 +22,8 @@
     const input = global.document.createElement("input");
     input.type = "text";
     input.setAttribute("aria-label", "Jump to frame or timecode");
-    input.style.cssText = "display:none;width:100%;height:30px;box-sizing:border-box";
+    input.style.cssText = "display:none;width:100%;height:30px;box-sizing:border-box;padding:0 0 0 10px;border:1px solid #555;" +
+      "outline:none;background:#1D1D1D;color:#ccc;font:inherit";
     timestamp.parentNode.appendChild(input);
     function finish(commit) {
       if (input.style.display === "none") return;
@@ -43,6 +45,7 @@
     };
     input.addEventListener("keydown", function (event) {
       event.stopPropagation();
+      if (event.isComposing) return;
       if (event.key === "Enter" || event.key === "Escape") {
         event.preventDefault();
         finish(event.key === "Enter");
