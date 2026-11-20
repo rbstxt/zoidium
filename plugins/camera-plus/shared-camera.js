@@ -294,10 +294,9 @@ parts.shared = function (options) {
     return originalRenderLayer.apply(this, arguments);
   }, teardown);
   const renderSequence = PZ.compositor.prototype.renderSequence;
-  patchMethod(PZ.compositor.prototype, "renderSequence", function (frame) {
+  function renderSharedSequence(frame) {
     const sequence = this._sequence;
-    if (!sequence?.videoTracks?.some(track => track.track3d || track.layer instanceof CameraLayer)) return renderSequence.apply(this, arguments);
-    ensureSequence(sequence);
+  ensureSequence(sequence);
     const properties = sequence.properties;
     const count = Number(properties.motionBlur.get()) === 0 ? 1 : Math.max(1, Math.min(128, Math.floor(properties.motionBlurSamples.get(frame))));
     const shutter = properties.motionBlurShutter.get(frame) * properties.motionBlurSensitivity.get(frame) * .01;
@@ -330,6 +329,13 @@ parts.shared = function (options) {
       this.copyPass.uniforms.opacity.value = 1;
       if (count > 1) for (const track of sequence.videoTracks) if (track.layer) track.layer.update(frame - track.layer.parent.start);
     }
+  }
+  patchMethod(PZ.compositor.prototype, "renderSequence", function (frame) {
+    const sequence = this._sequence;
+    if (!sequence?.videoTracks?.some(track => track.track3d || track.layer instanceof CameraLayer)) return renderSequence.apply(this, arguments);
+    const temporal = PZ.zoidium?.temporal;
+    const draw = () => renderSharedSequence.call(this, frame);
+    return temporal?.withSequenceContext ? temporal.withSequenceContext(this, frame, draw) : draw();
   }, teardown);
   return { CameraLayer, masterAt, toggleTrack3d, projectChanged() {
     for (const layer of touched) for (const key of Object.keys(depthDefinitions)) layer.properties[key].visible = false;
