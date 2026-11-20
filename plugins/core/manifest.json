@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "163",
+  "version": "164",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -484,31 +484,31 @@
   "modules": [
     {
       "id": "single-graph-window",
-      "source": "./plugins/core/single-graph-window.js?v=163"
+      "source": "./plugins/core/single-graph-window.js?v=164"
     },
     {
       "id": "font-load",
-      "source": "./plugins/core/font-load.js?v=163"
+      "source": "./plugins/core/font-load.js?v=164"
     },
     {
       "id": "keyframe-row-reveal",
-      "source": "./plugins/core/keyframe-row-reveal.js?v=163"
+      "source": "./plugins/core/keyframe-row-reveal.js?v=164"
     },
     {
       "id": "video-texture-alpha",
-      "source": "./plugins/core/video-texture-alpha.js?v=163"
+      "source": "./plugins/core/video-texture-alpha.js?v=164"
     },
     {
       "id": "video-decode-hint",
-      "source": "./plugins/core/video-decode-hint.js?v=163"
+      "source": "./plugins/core/video-decode-hint.js?v=164"
     },
     {
       "id": "output-frame-cache",
-      "source": "./plugins/core/output-frame-cache.js?v=163"
+      "source": "./plugins/core/output-frame-cache.js?v=164"
     },
     {
       "id": "media-drop",
-      "source": "./plugins/core/media-drop.js?v=163"
+      "source": "./plugins/core/media-drop.js?v=164"
     }
   ]
 }
