@@ -1,6 +1,8 @@
 "use strict";
 const { clone } = require("./model.js");
 const geometry = require("./editor-geometry.js");
+const animation = require("./path-animation.js");
+const nativeTopology = require("./path-topology.js");
 function channels(data) {
   const path = data.properties.path;
   if (path.expression || path.objects?.some((c) => c.expression))
@@ -26,6 +28,21 @@ function topology(data, operation) {
   const result = clone(data),
     old = channels(result),
     ids = result.vertexIds.slice();
+  if (operation.kind === "first") {
+    const index = ids.indexOf(operation.id), closed = Number(result.properties.closed) === 1;
+    if (index < 0) throw Error("Unknown vertex ID");
+    if (index === 0) return result;
+    if (!closed && index !== ids.length - 1)
+      throw Error("Choose an endpoint to set the first vertex of an open path.");
+    const order = closed ? [...ids.slice(index), ...ids.slice(0, index)] : ids.slice().reverse();
+    const offsets = closed ? [0, 1, 2, 3, 4, 5] : [0, 1, 4, 5, 2, 3];
+    const reorder = values => order.flatMap(id => offsets.map(offset => values[ids.indexOf(id) * 6 + offset]));
+    const path = result.properties.path;
+    result.vertexIds = order;
+    if (path.objects) path.objects = reorder(path.objects);
+    else for (const key of path.keyframes) key.value = reorder(key.value);
+    return result;
+  }
   const frames = old[0].keyframes.length;
   let sources = ids.flatMap((_, i) => [0, 1, 2, 3, 4, 5].map((j) => i * 6 + j));
   if (operation.kind === "insert") {
@@ -80,4 +97,14 @@ function topology(data, operation) {
   delete result.properties.path.animated;
   return result;
 }
-module.exports = { channels, topology };
+function applyTopology(host, data, operation, adapter) {
+  const list = animation.channels(data);
+  const animated = list.some(channel => channel.animated || channel.keyframes.length > 1);
+  if (!animated) return false;
+  if (operation.kind === "delete" && data.vertexIds.every(id => operation.ids.includes(id))) {
+    // Deleting all vertices removes the whole path, as in the static editor.
+    host.commit(null);
+  } else nativeTopology.apply(host, operation, adapter);
+  return true;
+}
+module.exports = { channels, topology, applyTopology };

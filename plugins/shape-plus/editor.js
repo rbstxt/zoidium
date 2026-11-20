@@ -21,7 +21,7 @@ function editableClip(editor, viewport, Layer, PZ) {
   if (!inverse(matrix({ position: p.position.get(local), scale: p.scale.get(local), rotation: p.rotation.get(local) }))) return null;
   return clip;
 }
-function mountOverlay(context, layer, Content, viewport, panels, tool) {
+function mountOverlay(context, layer, Content, viewport, panels, tool, paths) {
   const canvas = document.createElement("canvas"), editor = window.CM, PZ = window.PZ;
   canvas.className = "shape-plus-overlay";
   canvas.setAttribute("aria-label", "Shape+ selection");
@@ -56,12 +56,15 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
       top.selection.splice(0, top.selection.length, ...selected);
   }
   s.refresh = () => { s.dirty = true; syncSelection(); };
+  s.onPathSelection = syncSelection;
+  paths?.register("shape", layer, s);
   s.selectItem = (id, extend = false) => {
     s.finishTextEdit?.();
     s.pointer?.commit(); s.finishNudge?.();
     if (!extend) s.treeSelection.clear();
     s.treeSelection.add(id); s.activeId = id;
-    s.selection.clear(); s.penFinished = false; s.refresh();
+    if (s.pathController?.activeHost !== s.sharedPathHost || s.pathController?.activePathId !== id) s.selection.clear();
+    s.penFinished = false; s.refresh();
   };
   s.clearSelection = () => {
     s.finishTextEdit?.();
@@ -69,53 +72,57 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
     s.treeSelection.clear(); s.activeId = null;
     s.selection.clear(); s.penFinished = false; s.refresh();
   };
-  // A new Pen path goes into the selected group, otherwise into a new
-  // untransformed group (see contents-ops.js planAdd with groupsOnly).
-  s.insertionMatrix = () => {
+  // Pen paths use the selected or enclosing group. Context-menu shapes
+  // retain the existing selected-group insertion behavior.
+  s.insertionMatrix = (pen = false) => {
     const entry = find(layer.contents, s.activeId);
-    if (!entry || entry.item.kind !== "group") return identity;
-    return [...entry.ancestors, entry.item].reduce((m, item) => multiply(m, matrix(item.evaluate(s.localFrame()).properties)), identity);
+    const groups = entry?.item.kind === "group" ? [...entry.ancestors, entry.item] : pen && entry?.ancestors || [];
+    return groups.reduce((m, item) => multiply(m, matrix(item.evaluate(s.localFrame()).properties)), identity);
   };
   s.canvasApi = createCanvas(s, canvas);
   s.pointer = createPointer(s, canvas);
   const actions = installActions(s, canvas);
   const textEditor = require("./text-inline.js").install(s);
-  let disposed = false;
+  let disposed = false, lastFrame;
   // Tool switches, native selection and teardown end an edit in progress but
   // keep it: what the preview shows is what history records. Only undo
   // (editor-actions.js) or an error roll a gesture back; in-place text
   // editing commits on Escape instead (see text-inline.js).
   function settle() { textEditor.finish(); s.pointer.commit(); s.finishNudge(); s.gesture.finish(); }
-  const changed = () => { if (!disposed && s.valid()) s.refresh(); };
+  const changed = () => { if (!disposed && s.valid()) { s.reconcilePaths?.(); s.refresh(); } };
   s.project.ui.onChanged.watch(changed);
   function update() {
     if (disposed) return;
     s.canvasApi.resize();
+    const frame = s.localFrame();
+    if (lastFrame !== undefined && lastFrame !== frame) s.pathInput?.notifyFrameChanged();
+    lastFrame = frame;
     // Gestures capture their frame and inverse transforms when they start,
     // so layout or projection changes mid-drag cannot corrupt them. A frame
     // change (playback) or a removed target ends the drag where it is.
     const gesture = s.pointer.active;
-    if (gesture && (gesture.frame !== s.localFrame() || (gesture.target != null && !s.find(gesture.target)))) settle();
+    if (gesture && (gesture.frame !== frame || (gesture.target != null && !s.find(gesture.target)))) settle();
     actions.check(); textEditor.check();
     s.canvasApi.draw();
   }
   return {
     canvas, state: s, update, settle,
-    tool(next) { settle(); s.tool = next; s.penFinished = false; canvas.focus(); },
+    tool(next) { if (s.tool !== next) settle(); s.tool = next; s.dirty = true; },
     select(items) {
-      const ids = items.filter(item => item instanceof Content).map(item => item.id);
+      const ids = items.filter(item => item instanceof Content && s.find(item.id) === item).map(item => item.id);
       if (ids[0] === s.activeId && ids.length === s.treeSelection.size && ids.every(id => s.treeSelection.has(id))) return;
-      settle(); s.activeId = ids[0] || null; s.treeSelection = new Set(ids); s.selection.clear(); s.penFinished = false;
+      settle(); s.activeId = ids[0] || null; s.treeSelection = new Set(ids); s.selection.clear(); s.penFinished = false; s.refresh();
     },
     dispose() {
       if (disposed) return;
       settle(); actions.dispose(); s.pointer.dispose(); s.canvasApi.dispose();
       s.project.ui.onChanged.unwatch(changed);
+      paths?.unregister(layer, s);
       disposed = true; canvas.remove();
     },
   };
 }
-function install(context, Layer, Content) {
+function install(context, Layer, Content, paths) {
   const editor = window.CM, PZ = window.PZ, viewport = editor.mainViewport;
   const panels = findObjectsPanel(PZ, editor, document);
   const transform = document.querySelector('button[title="layer transform controls (t)"]');
@@ -124,9 +131,9 @@ function install(context, Layer, Content) {
   let view = null, tool = "select", enabled = true, disposed = false, hiddenWidget = null;
   const commands = [], buttons = [];
   function setTool(next) {
-    if (next === "select") enabled = !enabled || tool !== "select";
-    else enabled = true;
+    enabled = true;
     tool = next;
+    if (paths && paths.controller.tool !== next) paths.controller.setTool(next);
     view?.tool(next);
     tick(false);
   }
@@ -139,29 +146,37 @@ function install(context, Layer, Content) {
     button.title = title; button.setAttribute("aria-label", title); button.cmd = command;
     const image = nativeIcon ? PZ.ui.generateIcon(nativeIcon) : icon(document, "pen");
     image.style.cssText = "width:25px;height:25px;pointer-events:none";
-    button.append(image); button.onclick = toolbar.click.bind(toolbar);
+    button.append(image);
+    if (paths) {
+      button.setAttribute("data-zoidium-path-control", "");
+      command.fn = () => paths.shortcuts?.tool(key, { currentTarget: button });
+      button.onclick = event => paths.shortcuts?.tool(key, event);
+    } else button.onclick = toolbar.click.bind(toolbar);
     transform.after(button); commands.push(command); buttons.push({ name, button, image });
   }
-  // Native toolbar owns shortcut dispatch, ignore-typing rules and modifiers.
-  // V and P are unused in CM3's native toolbar. Keep its C/T commands intact.
-  toolbar.buttons.push(...commands);
+  // The shared listener checks focus before dispatching path commands.
+  if (!paths) toolbar.buttons.push(...commands);
   const select = panels.top.selectItems;
   function selected() {
-    if (!view) return select.apply(this, arguments);
     // Finishing an edit can rebuild the native rows. Retain the clicked IDs
     // first, then select their live replacements instead of stale instances.
-    const requested = Array.from(this.list.getElementsByClassName("selected"), row => row.pz_object);
-    view?.settle();
-    this.deselectItems();
-    for (const row of this.list.querySelectorAll("li"))
-      if (requested.some(item => item instanceof Content ? row.pz_object instanceof Content && row.pz_object.id === item.id : row.pz_object === item))
-        row.classList.add("selected");
+    if (view) {
+      const requested = Array.from(this.list.getElementsByClassName("selected"), row => row.pz_object);
+      view.settle();
+      this.deselectItems();
+      for (const row of this.list.querySelectorAll("li"))
+        if (requested.some(item => item instanceof Content ? row.pz_object instanceof Content && row.pz_object.id === item.id : row.pz_object === item))
+          row.classList.add("selected");
+    }
     const result = select.apply(this, arguments);
-    view?.select(this.selection);
+    const layer = editableClip(editor, viewport, Layer, PZ)?.object;
+    const item = this.selection.length === 1 && this.selection[0];
+    if (!layer || !(item instanceof Content) || item.kind !== "path" ||
+        !paths?.activate("shape", layer, item.id)) view?.select(this.selection);
     return result;
   }
   panels.top.selectItems = selected;
-  const changed = () => { view?.dispose(); view = null; };
+  const changed = () => { view?.dispose(); view = null; enabled = true; tool = "select"; restoreWidget(); };
   editor.onProjectChanged.watch(changed);
   function restoreWidget() {
     if (hiddenWidget !== null) {
@@ -181,9 +196,9 @@ function install(context, Layer, Content) {
     const visible = enabled && !!layer;
     if (view && (!visible || view.state.layer !== layer || !view.state.valid())) { view.dispose(); view = null; }
     if (visible && !view) {
-      view = mountOverlay(context, layer, Content, viewport, panels, tool);
+      view = mountOverlay(context, layer, Content, viewport, panels, tool, paths);
       view.state.setTool = setTool;
-      view.select(panels.top.selection);
+      if (!view.state.activeId) view.select(panels.top.selection);
     }
     if (view) {
       if (hiddenWidget === null) {
@@ -221,5 +236,6 @@ function install(context, Layer, Content) {
     }
     for (const { button } of buttons) button.remove();
   });
+  return { setTool, update: () => tick(false), get state() { return view?.state; }, get canvas() { return view?.canvas; } };
 }
 module.exports = { install, mountOverlay, editableClip };

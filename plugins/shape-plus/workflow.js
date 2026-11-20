@@ -37,7 +37,7 @@ function decode(text, nextId) {
   if (/^\s*(?:<|[Mm]\s*[-+.\d])/.test(text)) return importSVG(text, nextId);
   return null;
 }
-function install(context, Layer, Content) {
+function install(context, Layer, Content, pathClipboard) {
   const PZ = window.PZ,
     editor = window.CM,
     viewport = editor.mainViewport;
@@ -48,13 +48,10 @@ function install(context, Layer, Content) {
       title: "Shape+",
       message: error.message || String(error),
     });
-  const owns = (target) =>
-    !target?.closest?.(
-      "input, textarea, select, [contenteditable]:not([contenteditable='false']), .editbox",
-    ) &&
-    [viewport.el, panels.top.el, panels.bottom.el].some((el) =>
-      el.contains(target),
-    );
+  const editable = target => target?.closest?.(
+    "input, textarea, select, [contenteditable]:not([contenteditable='false']), .editbox, .g2-editor, .g2-host",
+  );
+  const owns = target => [viewport.el, panels?.top.el, panels?.bottom.el].some(el => el?.contains(target));
   function selected() {
     const clips = viewport.objects,
       layer = clips?.length === 1 ? clips[0].object : null;
@@ -143,24 +140,23 @@ function install(context, Layer, Content) {
     if (
       event.isComposing || event.keyCode === 229 ||
       !(event.ctrlKey || event.metaKey) ||
-      event.altKey ||
-      !owns(event.target)
+      event.altKey || editable(event.target)
     )
       return;
-    const key = event.key.toLowerCase(),
-      state = selected();
-    if (
-      !state ||
-      !["c", "x", "v"].includes(key) ||
-      (key !== "v" && !state.items.length)
-    )
-      return;
+    const key = event.key.toLowerCase();
+    if (!["c", "x", "v"].includes(key)) return;
+    const state = panels && owns(event.target) ? selected() : null;
+    const path = pathClipboard?.capture(event.target, state, key);
+    if (!path && (!state || key !== "v" && !state.items.length)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     try {
       if (key === "v") {
         const text = await navigator.clipboard.readText();
-        if (!(await paste(state, text)) && current(state)) {
+        const envelope = path && pathClipboard.decode(text);
+        if (envelope) pathClipboard.paste(path, envelope);
+        else if ((!state || !(await paste(state, text))) &&
+            (path ? pathClipboard.current(path) : current(state))) {
           // Native packages still take the host path when the text is neither
           // SVG nor our contents envelope. Other panels never enter this hook.
           const nativeEvent = new KeyboardEvent("keydown", {
@@ -176,6 +172,10 @@ function install(context, Layer, Content) {
           forwarded.add(nativeEvent);
           event.target.dispatchEvent(nativeEvent);
         }
+      } else if (path) {
+        const data = pathClipboard.copy(path, key === "x");
+        await navigator.clipboard.writeText(data.text);
+        if (key === "x") data.remove();
       } else {
         await navigator.clipboard.writeText(payload(state));
         if (key === "x")
@@ -194,12 +194,26 @@ function install(context, Layer, Content) {
     }
   }
   function onPaste(event) {
-    if (!owns(event.target)) return;
-    const state = selected();
-    if (!state) return;
+    if (editable(event.target)) return;
+    const state = panels && owns(event.target) ? selected() : null;
+    const path = pathClipboard?.capture(event.target, state, "v");
     const text = event.clipboardData?.getData("text/plain") || "";
+    try {
+      const envelope = path && pathClipboard.decode(text);
+      if (envelope) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        pathClipboard.paste(path, envelope);
+        return;
+      }
+    } catch (error) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      notify(error);
+      return;
+    }
     if (
-      !/^\s*(?:<|[Mm]\s*[-+.\d]|\{\s*"format"\s*:\s*"zoidium-shape-plus-contents")/.test(
+      !state || !/^\s*(?:<|[Mm]\s*[-+.\d]|\{\s*"format"\s*:\s*"zoidium-shape-plus-contents")/.test(
         text,
       )
     )

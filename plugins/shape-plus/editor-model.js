@@ -1,12 +1,17 @@
 "use strict";
 const { selectionKey, selectionPart } = require("./editor-selection.js");
 const { clone, validate } = require("./model.js");
-const { createGesture } = require("./editor-history.js");
-const { topology, channels } = require("./editor-topology.js");
+const { createGesture, createPathOperationHost } = require("./editor-history.js");
+const nativeChannels = require("./path-native-channels.js");
+const animation = require("./path-animation.js");
+const multiMask = require("./path-multi-mask.js");
+const { topology, channels, applyTopology } = require("./editor-topology.js");
 const tree = require("./editor-tree-data.js");
 const g = require("./editor-geometry.js");
 const { primitivePath } = require("./primitives.js");
 const { planAdd } = require("./contents-ops.js");
+const { isLocked: isMaskLocked } = require("./mask-metadata.js");
+const { getMasks, coercePath: coerceMaskPath } = require("./mask-model.js");
 function replaceContents(layer, contents, Content) {
   validate(contents);
   // Load detached first, then publish the whole valid list in one notification.
@@ -19,6 +24,131 @@ function replaceContents(layer, contents, Content) {
   layer.contents.splice(0, layer.contents.length, ...nodes);
   layer.signature = null; layer.contentsState?.invalidate();
 }
+// Replace only path nodes. Keep their parent lists, transforms, paints,
+// and unrelated live properties intact. Remember slots for snapshot undo.
+function writePathRecords(layer, Content, records, slots, groupId) {
+  const contents = clone(layer.contents);
+  const incoming = new Map(records.map(record => [record.id, record]));
+  const changes = [];
+  function visit(list, parentId = null) {
+    for (let index = list.length - 1; index >= 0; index--) {
+      const item = list[index];
+      if (item.kind !== "path") {
+        if (item.contents) visit(item.contents, item.id);
+        continue;
+      }
+      const next = incoming.get(item.id);
+      incoming.delete(item.id);
+      if (next && JSON.stringify(next) === JSON.stringify(item)) continue;
+      changes.push({ id: item.id, next });
+      if (next) list[index] = next;
+      else {
+        slots.set(item.id, { parentId, index });
+        list.splice(index, 1);
+      }
+    }
+  }
+  visit(contents);
+  const additions = [...incoming.values()].map(next => {
+    const { parentId, index } = slots.get(next.id) || { parentId: groupId, index: Infinity };
+    return { next, parentId, index };
+  }).sort((a, b) => a.index - b.index);
+  for (const { next, parentId, index } of additions) {
+    const list = tree.find(contents, parentId)?.item.contents || contents;
+    list.splice(Math.min(index, list.length), 0, next);
+  }
+  validate(contents);
+  const load = next => {
+    if (!next) return null;
+    const item = new Content(next.kind, next);
+    item.load(next);
+    return item;
+  };
+  const replacements = changes.map(({ id, next }) => ({ id, item: load(next) }));
+  const inserts = additions.map(event => ({ ...event, item: load(event.next) }));
+  for (const { id, item } of replacements) {
+    const entry = tree.find(layer.contents, id);
+    entry.item.unload();
+    entry.list.splice(entry.index, 1, ...(item ? [item] : []));
+  }
+  for (const { item, parentId, index } of inserts) {
+    const list = tree.find(layer.contents, parentId)?.item.contents || layer.contents;
+    list.splice(Math.min(index, list.length), 0, item);
+  }
+  layer.signature = null;
+  layer.contentsState?.invalidate();
+}
+
+function bindPathSession(s, controller, host) {
+  s.pathController = controller;
+  s.sharedPathHost = host;
+  // The controller stores vertex IDs. Handles keep their distinct selection
+  // keys in the overlay while their parent vertex stays selected.
+  s.applyPathSelection = ({ pathId, vertices }) => {
+    if (s.maskSelection) {
+      s.maskSelection.prune(host.listPathIds());
+      if (pathId && s.maskSelection.has(pathId)) s.maskSelection.setActive(pathId);
+      else if (pathId) s.maskSelection.click(pathId);
+      else if (s.activeId && !host.hasPath(s.activeId) && s.maskSelection.getActive()) {
+        controller.activate(host, s.maskSelection.getActive());
+        return;
+      }
+    }
+    const samePath = pathId === s.activeId;
+    if (!samePath) {
+      s.activeId = pathId;
+      s.treeSelection = new Set(pathId ? [pathId] : []);
+      s.penFinished = false;
+    }
+    const wanted = new Set(vertices);
+    const keys = samePath ? [...s.selection].filter(key => wanted.has(selectionPart(key).id)) : [];
+    for (const key of keys) wanted.delete(selectionPart(key).id);
+    for (const id of wanted) keys.push(selectionKey(id));
+    s.selection = new Set(keys);
+    s.dirty = true;
+    s.onPathSelection?.();
+  };
+  s.syncPathSelection = () => {
+    if (controller.disposed) return;
+    const id = s.activeId;
+    if (id && s.treeSelection.size === 1 && host.hasPath(id)) {
+      const vertices = [...new Set([...s.selection].map(key => selectionPart(key).id))];
+      if (controller.activeHost !== host || controller.activePathId !== id) {
+        s.pathInput?.notifyExternalSelection();
+        controller.activate(host, id);
+        if (!vertices.length) return;
+      }
+      const before = controller.getSelection();
+      if (before.length !== vertices.length || vertices.some(vertex => !before.includes(vertex))) {
+        s.pathInput?.notifyExternalSelection();
+        controller.setSelection(host, id, vertices);
+      }
+    } else if (controller.activeHost === host) {
+      // Preserve Shape+ group/primitive selection when leaving a path.
+      controller.deactivate({ mirror: false });
+      s.pathInput?.notifyExternalSelection();
+    }
+  };
+  if (!s.pathRefresh) {
+    s.pathRefresh = s.refresh;
+    s.refresh = function(...args) {
+      s.syncPathSelection?.();
+      return s.pathRefresh?.apply(this, args);
+    };
+  }
+  s.reconcilePaths = () => {
+    if (controller.disposed) return;
+    s.maskSelection?.prune(host.listPathIds());
+    if (controller.activeHost === host) controller.handlePathsChanged(host);
+  };
+  if (s.maskSelection) s.multiMaskVertices = () => {
+    const selected = s.maskSelection.getSelected();
+    return new Map(selected.map(id => [id, id === s.activeId
+      ? [...s.selection].map(selectionPart).filter(part => !part.side).map(part => part.id)
+      : controller.getSelection(host, id)]));
+  };
+}
+
 // A path host lets the same pen, pointer, transform and action modules edit
 // something that is not a Shape+ layer. The default host is the layer's own
 // contents; a host supplies { contents(), owns(target), valid(), write(data),
@@ -41,7 +171,7 @@ function createEditorModel(s) {
     const target = resolve();
     if (host) {
       if (history) return host.readHistory(target);
-      return target && host.owns(target) ? clone(liveContents()) : null;
+      return target && host.owns(target) ? (host.readLive?.() || clone(liveContents())) : null;
     }
     if (!history && target !== layer) return null;
     return target && target.type === layer.type ? clone(target.contents) : null;
@@ -61,22 +191,28 @@ function createEditorModel(s) {
   s.read = read;
   s.find = (id) => tree.find(liveContents(), id)?.item || null;
   s.active = () => s.find(s.activeId);
-  s.localFrame = () => {
-    let clip = null;
+  s.pathLocked = id => s.sharedPathHost?.isLocked(id) ||
+    !!host && isMaskLocked(getMasks(resolve()).find(mask => mask.id === id));
+  s.requireEditablePath = id => {
+    if (s.pathLocked(id)) throw Error(host ? "Layer mask is locked" : "Shape+ path is locked");
+  };
+  s.pathClip = () => {
     try {
-      clip = layer.tryGetParentOfType(PZ.clip);
+      return layer.tryGetParentOfType(PZ.clip);
     } catch (_error) {
-      /* Detached target closes below. */
+      return null;
     }
-    return (
-      editor.playback.currentFrame - (clip?.start || 0) + (clip?.offset || 0)
-    );
+  };
+  s.localFrame = () => {
+    const clip = s.pathClip();
+    return editor.playback.currentFrame - (clip?.start || 0) + (clip?.offset || 0);
   };
   s.gesture = createGesture(editor.history, read, write, () => {
     // Property drags and nudges mutate the live items without a write; the
     // host persists the settled state so the layer field (rendering, saving,
     // the preview-cache key) never lags the editor.
-    host?.persist?.();
+    if (s.valid()) host?.persist?.();
+    s.reconcilePaths?.();
     s.refresh?.(true);
   }, () => editor.project);
   s.preview = () => {
@@ -88,10 +224,11 @@ function createEditorModel(s) {
     // change notifications belong to finishOperation, once per gesture.
     s.dirty = true;
   };
-  s.mutate = (work) => {
+  s.mutate = (work, pathIds = []) => {
     s.pointer?.cancel();
     s.finishNudge?.();
     try {
+      for (const id of pathIds) s.requireEditablePath(id);
       return s.gesture.run(() => {
         work();
         validate(read());
@@ -103,6 +240,7 @@ function createEditorModel(s) {
     }
   };
   s.replaceItem = (id, data) => {
+    s.requireEditablePath(id);
     const entry = tree.find(liveContents(), id);
     if (!entry) return;
     if (!data) {
@@ -120,18 +258,44 @@ function createEditorModel(s) {
     layer.contentsState?.invalidate();
     s.canvasApi?.invalidateScene?.();
   };
-  s.topology = (operation) => {
-    const item = s.active();
-    if (item?.kind !== "path") return;
-    const data = clone(item);
+  s.pathAdapter = nativeChannels.create(PZ);
+  s.pathFor = (id, { preview = false, join = false } = {}) => createPathOperationHost({
+    read: () => {
+      if (!s.valid()) return null;
+      const item = host?.readLiveItem ? host.readLiveItem(id) : clone(s.find(id));
+      return item?.kind === "path" ? item : null;
+    },
+    write: next => {
+      if (preview) s.pathAdapter.preview(s.find(id).properties.path, next.properties.path.objects);
+      else s.replaceItem(id, next);
+      s.preview();
+    },
+    assertEditable: () => s.requireEditablePath(id),
+    gesture: s.gesture,
+    playback: editor.playback,
+    preview, join,
+  });
+  s.topology = (operation, id = s.activeId) => {
+    s.requireEditablePath(id);
+    const target = s.pathFor(id, { join: true }), data = target.data;
+    if (!data) return false;
+    if (operation.kind === "first" && data.vertexIds[0] === operation.id) return false;
+    if (applyTopology(target, data, operation, s.pathAdapter)) return true;
     data.vertexModes = data.vertexModes || {};
-    s.replaceItem(item.id, topology(data, operation));
+    s.replaceItem(id, topology(data, operation));
     s.preview();
+    return true;
   };
+  s.setFirstVertex = (id, vertex) => s.mutate(() => s.topology({ kind: "first", id: vertex }, id), [id]);
   // A snapshot transaction owns inverse data. Native keyframe objects and
   // notifications supply the same current-frame behavior as startEdit without
   // recording a second set of inverse commands for those same changes.
   s.setValue = (property, value, frame = s.localFrame()) => {
+    const owner = property.parentObject;
+    if (owner?.kind === "path" && owner.properties.path === property) {
+      return animation.edit(s.pathFor(owner.id, { preview: true }), frame, value, s.pathAdapter);
+    }
+    if (owner?.kind === "path") s.requireEditablePath(owner.id);
     const axes = property.objects || [property],
       values = property.objects ? value : [value];
     if (
@@ -177,8 +341,11 @@ function createEditorModel(s) {
       ? g.vertices(item.properties.path.get(s.localFrame()))
       : [];
   };
-  s.setPoints = (points) =>
-    s.setValue(s.active().properties.path, g.values(points));
+  s.setPoints = (points) => {
+    const item = s.active();
+    s.requireEditablePath(item.id);
+    s.setValue(item.properties.path, g.values(points));
+  };
   // Pen paths and context-menu shapes use the same AE structure as the
   // native add menu: a new group owns the shape and its paints unless a
   // group is selected (see contents-ops.js). A path host may override the
@@ -205,8 +372,10 @@ function createEditorModel(s) {
     s.preview();
     return s.active();
   };
-  s.treeAction = (action, ...args) =>
-    s.mutate(() => {
+  s.treeAction = (action, ...args) => {
+    if (s.maskSelection?.size() > 1 && ["forward", "backward"].includes(action))
+      return s.moveMasks(s.activeId, action === "forward" ? -1 : 1);
+    return s.mutate(() => {
       if (host && !host.allows(action)) throw Error("Layer masks do not support " + action);
       const contents = read();
       let selected;
@@ -241,7 +410,39 @@ function createEditorModel(s) {
         s.treeSelection = new Set(selected);
       }
       s.selection.clear();
+    }, action === "delete" ? [...s.treeSelection] : []);
+  };
+  s.moveMasks = (id, step) => {
+    const adapter = s.sharedPathHost;
+    if (!adapter) return false;
+    const order = adapter.listPathIds(), selected = s.maskSelection;
+    const moving = selected.has(id) ? selected.getSelected() : [id];
+    const wanted = new Set(moving), indexes = order.map((_, i) => i);
+    if (step > 0) indexes.reverse();
+    for (const i of indexes) {
+      const j = i + step;
+      if (j >= 0 && j < order.length && wanted.has(order[i]) && !wanted.has(order[j]))
+        [order[i], order[j]] = [order[j], order[i]];
+    }
+    return s.mutate(() => multiMask.reorderSelected({ host: adapter, selection: moving, idsInOrder: order }));
+  };
+  s.previewMaskTransform = (geometry, frame) => {
+    const adapter = s.sharedPathHost, byId = new Map(geometry.map(item => [item.id, item]));
+    const vertices = Object.fromEntries(geometry.map(item => [
+      item.id, item.changed.map(index => adapter.listVertexIds(item.id)[index]),
+    ]));
+    multiMask.transformSelected({
+      host: adapter, selection: s.maskSelection, verticesByMask: vertices,
+      apply(mask) {
+        let next = mask;
+        const values = g.values(byId.get(mask.id).vertices);
+        animation.edit({ data: mask, commit: data => { next = data; } }, frame, values, s.pathAdapter);
+        if (next !== mask) next.properties.path = coerceMaskPath(next.properties.path);
+        return next;
+      },
     });
+    s.preview();
+  };
   // Text Animator items: one history step per add or feature toggle.
   s.addAnimator = (textId, propertyKey) =>
     s.mutate(() => {
@@ -309,35 +510,55 @@ function createEditorModel(s) {
       s.activeId = ids[0] || null; s.treeSelection = new Set(ids); s.selection.clear(); s.refresh();
     } catch (error) { s.message(error.message); }
   };
-  s.keyframe = () =>
-    s.mutate(() => {
-      const item = s.active();
-      if (item?.kind !== "path") return;
-      const path = item.properties.path;
-      channels(clone(item));
-      const frame = s.localFrame(),
-        value = path.get(frame).slice();
-      if (
-        path.animated &&
-        path.objects.every((channel) => channel.hasKeyframe(frame))
-      ) {
-        if (path.objects.every((channel) => channel.keyframes.length > 1)) {
-          for (const channel of path.objects) {
-            const key = channel.deleteKeyframe(frame);
-            channel.onKeyframeDeleted.update(key);
-          }
-        } else {
-          // Disable the stopwatch without removing the sole native key.
-          for (const channel of path.objects) channel.animated = false;
-        }
-        s.preview();
-      } else {
-        for (const channel of path.objects) channel.animated = true;
-        s.setValue(path, value, frame);
-      }
-    });
+  const mutatePath = work => s.mutate(work, [s.activeId]);
+  function pathAnimationCommand(id, work) {
+    s.pointer?.commit();
+    s.finishNudge?.();
+    try {
+      s.requireEditablePath(id);
+      const target = s.pathFor(id);
+      if (target.data) return work(target, s.localFrame());
+    } catch (error) { s.message(error.message); }
+    return false;
+  }
+  s.pathKeyState = (id = s.activeId) => {
+    const path = s.find(id)?.properties.path, axes = path?.objects;
+    if (path?.expression || !axes?.some(axis => axis.animated)) return "hollow";
+    const frame = s.localFrame();
+    return axes.some(axis => axis.keyframes?.some(key => key.frame === frame)) ? "filled" : "outlined";
+  };
+  s.setPathAnimation = (id = s.activeId) => pathAnimationCommand(id, (target, frame) =>
+    animation.setEnabled(target, animation.diamond(target.data, frame) === "hollow", frame,
+      s.pathAdapter, { nativeStopwatch: true }));
+  s.togglePathKey = (id = s.activeId) => pathAnimationCommand(id, (target, frame) => {
+    const status = animation.diamond(target.data, frame);
+    if (status === "hollow") return animation.setEnabled(target, true, frame, s.pathAdapter);
+    if (animation.toggleKey(target, frame, s.pathAdapter)) return true;
+    s.message("The path must keep at least one key per channel.");
+    return false;
+  });
+  // The original model command also acts as a stopwatch at the final key.
+  s.keyframe = () => pathAnimationCommand(s.activeId, (target, frame) => {
+    const status = animation.diamond(target.data, frame);
+    if (status === "hollow") return animation.setEnabled(target, true, frame, s.pathAdapter);
+    return animation.toggleKey(target, frame, s.pathAdapter) ||
+      animation.setEnabled(target, false, frame, s.pathAdapter);
+  });
+  s.seekPathKey = (id, direction) => {
+    s.pointer?.commit();
+    s.finishNudge?.();
+    try {
+      const target = s.pathFor(id), data = target.data;
+      if (!data) return false;
+      const find = direction < 0 ? animation.previous : animation.next;
+      const frame = find(data, editor.playback.currentFrame, s.pathClip());
+      if (frame === null) { s.message("No further path keyframe"); return false; }
+      target.seek(frame);
+      return true;
+    } catch (error) { s.message(error.message); return false; }
+  };
   s.setMode = (mode) =>
-    s.mutate(() => {
+    mutatePath(() => {
       const item = s.active();
       if (item?.kind !== "path") return;
       let points = s.pathPoints();
@@ -350,7 +571,7 @@ function createEditorModel(s) {
       s.setPoints(points);
     });
   s.deleteAnchors = () =>
-    s.mutate(() => {
+    mutatePath(() => {
       const ids = [...s.selection]
         .map(selectionPart)
         .filter((part) => !part.side)
@@ -359,7 +580,7 @@ function createEditorModel(s) {
       s.selection.clear();
     });
   s.closePath = () =>
-    s.mutate(() => {
+    mutatePath(() => {
       const item = s.active();
       if (item?.kind === "path") {
         channels(clone(item));
@@ -367,7 +588,7 @@ function createEditorModel(s) {
         s.preview();
       }
     });
-  s.reverse = () => s.mutate(() => s.topology({ kind: "reverse" }));
+  s.reverse = () => mutatePath(() => s.topology({ kind: "reverse" }));
   return s;
 }
-module.exports = { createEditorModel, replaceContents };
+module.exports = { bindPathSession, createEditorModel, replaceContents, writePathRecords };

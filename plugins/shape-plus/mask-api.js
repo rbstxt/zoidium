@@ -93,7 +93,7 @@ function installMaskApi({ PZ, THREE, Content, onDispose }) {
         item = new Content(data.kind, data);
         item.load(data);
         const geometry = evaluateMask(item, frame);
-        evaluated = { ...geometry, mode: "add", feather: data.feather || 0, opacity: data.opacity === undefined ? 1 : data.opacity, invert: !!data.invert, enabled: geometry.enabled && data.enabled !== false && data.enabled !== 0 };
+        evaluated = { ...geometry, mode: "add", feather: data.feather || 0, expansion: data.expansion, opacity: data.opacity === undefined ? 1 : data.opacity, invert: !!data.invert, enabled: geometry.enabled && data.enabled !== false && data.enabled !== 0 };
       } catch (_error) {
         return null;
       }

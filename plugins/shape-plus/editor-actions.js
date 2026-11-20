@@ -4,6 +4,50 @@ const g = require("./editor-geometry.js");
 const { createMenu } = require("./editor-menu.js");
 const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
+const { PREFS_MIN_PX, PREFS_MAX_PX } = require("./path-feedback.js");
+const { isEditableTarget, isComposingEvent } = require("./path-input.js");
+function createPathKeyControls(document, target) {
+  const element = document.createElement("div");
+  element.className = "zoidium-path-keys";
+  element.setAttribute("data-zoidium-path-control", "");
+  element.style.cssText = "display:inline-flex;gap:2px;align-items:center";
+  const button = (label, text, run) => {
+    const control = document.createElement("button");
+    control.type = "button";
+    control.className = "actionbutton";
+    control.textContent = text;
+    control.title = label;
+    control.setAttribute("aria-label", label);
+    control.setAttribute("data-zoidium-path-control", "");
+    control.addEventListener("click", event => {
+      event.stopPropagation();
+      const { state, id } = target();
+      if (state && id) run(state, id);
+      update();
+    });
+    return control;
+  };
+  const animation = button("Toggle path animation", "⏱", (s, id) => s.setPathAnimation(id));
+  const prev = button("Previous path keyframe", "‹", (s, id) => s.seekPathKey(id, -1));
+  const diamond = button("Toggle path keyframe", "◇", (s, id) => s.togglePathKey(id));
+  const next = button("Next path keyframe", "›", (s, id) => s.seekPathKey(id, 1));
+  element.append(animation, prev, diamond, next);
+  function update() {
+    const { state, id } = target();
+    element.hidden = !id;
+    element.style.display = id ? "inline-flex" : "none";
+    const status = state?.pathKeyState(id) || "hollow";
+    const locked = !id || state?.pathLocked(id);
+    animation.disabled = diamond.disabled = !!locked;
+    animation.setAttribute("aria-pressed", String(status !== "hollow"));
+    diamond.setAttribute("aria-pressed", String(status === "filled"));
+    diamond.setAttribute("data-key-state", { hollow: "off", outlined: "armed", filled: "keyed" }[status]);
+    diamond.textContent = status === "filled" ? "◆" : "◇";
+    diamond.style.color = status === "hollow" ? "" : "var(--zui-accent,#58a6ff)";
+  }
+  update();
+  return { element, animation, update };
+}
 function installActions(s, root, options = {}) {
   const shapes = options.shapes !== false;
   let nudge = null;
@@ -11,9 +55,27 @@ function installActions(s, root, options = {}) {
   s.closeMenu = () => menu.close(false);
   const mac = /Mac|iPhone|iPad/.test(s.window.navigator?.platform || "");
   const key = (text) => (mac ? text.replace("Ctrl+Shift+", "\u21e7\u2318").replace("Ctrl+", "\u2318") : text);
+  const display = s.canvasApi;
+  const settings = s.context?.ui?.openWindow && {
+    label: "Path Display Settings…",
+    action: () => s.context.ui.openWindow({
+      id: "shape-plus/path-display", title: "Path Display Settings",
+      width: 300, height: 150, resizable: false,
+      mount(body) {
+        const prefs = display.displayPrefs();
+        for (const [key, label] of [["vertexSize", "Vertex size (px)"], ["handleSize", "Handle size (px)"]]) {
+          const control = s.context.ui.controls.number({
+            label, value: prefs[key], min: PREFS_MIN_PX, max: PREFS_MAX_PX, step: 1,
+            onChange: value => display.setDisplaySize(key, value),
+          });
+          body.appendChild(control.element);
+        }
+      },
+    }),
+  };
   // Right-click selects what is under the pointer first, like a click, then
   // shows one menu for that selection. Empty space offers new shapes there.
-  s.openItemMenu = (x, y, point) => {
+  s.openItemMenu = (x, y, point, vertex) => {
     const item = s.active(),
       many = s.treeSelection.size > 1,
       path = !many && item?.kind === "path",
@@ -36,9 +98,15 @@ function installActions(s, root, options = {}) {
         );
       }
       entries.push({ label: "Pen", shortcut: "P", action: () => s.setTool?.("pen") });
+      if (settings) entries.push(settings);
       menu.open(x, y, entries, { title: shapes ? "Shape+" : "Mask", focusReturn: s.canvas });
       return;
     }
+    if (vertex) entries.push({
+      label: "Set First Vertex",
+      disabled: vertex.locked,
+      action: () => s.setFirstVertex(vertex.pathId, vertex.vertexId),
+    }, { separator: true });
     if (path)
       entries.push(
         { label: Number(item.properties.closed.get()) === 1 ? "Open Path" : "Close Path", action: s.closePath },
@@ -52,7 +120,7 @@ function installActions(s, root, options = {}) {
         { separator: true },
       );
     if (primitive && shapes) entries.push({ label: "Convert to Path", action: s.convert }, { separator: true });
-    if (!shapes && path) entries.push({ label: "Keyframe Path", action: s.keyframe }, { separator: true });
+    if (path) entries.push({ label: "Keyframe Path", action: () => s.togglePathKey() }, { separator: true });
     const animatorLabels = { position: "Position", scale: "Scale", rotation: "Rotation", skew: "Skew", skewAxis: "Skew Axis", anchor: "Anchor Point", tracking: "Tracking Amount", charOffset: "Character Offset", groupingAlignment: "Grouping Alignment" };
     const axisOf = (node) => Object.keys(node.properties || {}).filter(key => key.startsWith("axis_")).map(key => ({ key, label: node.properties[key].definition?.name || key.slice(5) }));
     const flagOf = (node, key) => { try { return Number(node.properties["enabled_" + key]?.get()) === 1; } catch (_error) { return false; } };
@@ -96,6 +164,7 @@ function installActions(s, root, options = {}) {
       { label: "Duplicate", shortcut: key("Ctrl+D"), action: () => s.treeAction("duplicate") },
       { label: "Delete", shortcut: "Del", action: () => s.treeAction("delete") },
     );
+    if (settings) entries.push({ separator: true }, settings);
     const name = item.properties.name?.get?.() || item.kind;
     menu.open(x, y, entries, { title: many ? s.treeSelection.size + " items" : name, focusReturn: s.canvas });
   };
@@ -103,15 +172,21 @@ function installActions(s, root, options = {}) {
     if (!nudge) return;
     nudge = null;
     s.gesture.finish(cancel);
+    if (!s.pathController?.disposed && s.pathController?.gesture?.kind === "nudge") s.pathController.endGesture(cancel);
     s.refresh(true);
   }
   s.finishNudge = finishNudge;
-  const typing = (target) =>
-    !!target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
   function keydown(event) {
-    if (event.isComposing || event.keyCode === 229 || typing(event.target)) return;
+    if (isComposingEvent(event) || isEditableTarget(event.target) || s.pathShortcuts && !s.pathShortcuts.allows(event)) return;
     const key = event.key.toLowerCase(),
       command = event.metaKey || event.ctrlKey;
+    // The viewport shortcut listener owns path commands before they reach
+    // the overlay. Other Shape+ commands keep their existing canvas scope.
+    // On an active path these keys belong to the path shortcuts, except Enter
+    // during a drag or nudge, which still commits it below. Non-path items
+    // keep their Shape+ handling (Delete removes the selected item).
+    if (s.pathInput && s.active()?.kind === "path" && (key === "escape" || key === "delete" || key === "backspace" ||
+        key === "enter" && !s.pointer.active && !nudge)) return;
     const consume = () => {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -134,7 +209,6 @@ function installActions(s, root, options = {}) {
       }
       if (s.tool === "pen" && !s.penFinished) {
         s.penFinished = true;
-        s.selection.clear();
         s.refresh();
         consume();
         return;
@@ -181,7 +255,6 @@ function installActions(s, root, options = {}) {
       s.pointer.commit();
       finishNudge();
       s.penFinished = true;
-      s.selection.clear();
       s.refresh();
       return;
     }
@@ -197,6 +270,7 @@ function installActions(s, root, options = {}) {
       arrowup: [0, 1],
       arrowdown: [0, -1],
     }[key];
+    if (direction && s.pathLocked?.(s.activeId)) return;
     if (direction && !(s.active()?.kind === "path" && s.selection.size) && s.treeSelection.size) {
       // No anchors selected: arrows move the selected items themselves.
       consume();
@@ -204,9 +278,10 @@ function installActions(s, root, options = {}) {
       if (!nudge) {
         if (!s.gesture.begin()) return;
         nudge = { frame: s.localFrame(), target: s.activeId };
+        s.pathController?.beginGesture({ kind: "nudge" });
       }
       try {
-        if (!xf.nudge(s, [...s.treeSelection], g.mul(direction, event.shiftKey ? 10 : 1))) finishNudge(true);
+        if (!xf.nudge(s, [...s.treeSelection].filter(id => !s.pathLocked?.(id)), g.mul(direction, event.shiftKey ? 10 : 1))) finishNudge(true);
       } catch (error) {
         finishNudge(true);
         s.message(error.message);
@@ -219,6 +294,7 @@ function installActions(s, root, options = {}) {
       if (!nudge) {
         if (!s.gesture.begin()) return;
         nudge = { frame: s.localFrame(), target: s.activeId };
+        s.pathController?.beginGesture({ kind: "nudge" });
       }
       const item = s.active(),
         points = s.pathPoints(),
@@ -246,9 +322,9 @@ function installActions(s, root, options = {}) {
     }
   }
   function keyup(event) {
-    if (event.code === "Space") {
+    if (event.code === "Space" && !s.pathInput) {
       s.space = false;
-      if (!event.isComposing && event.keyCode !== 229 && !typing(event.target)) {
+      if (!isComposingEvent(event) && !isEditableTarget(event.target)) {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
@@ -269,12 +345,15 @@ function installActions(s, root, options = {}) {
     s.pointer.commit();
     const r = s.canvas.getBoundingClientRect(),
       point = [event.clientX - r.left, event.clientY - r.top];
-    const entry = s.canvasApi.itemAt(point);
-    if (entry) {
+    const vertex = s.pointer.contextTarget?.(point);
+    const entry = vertex ? null : s.canvasApi.itemAt(point);
+    if (vertex && vertex.pathId !== s.activeId) {
+      s.pathController.activate(s.sharedPathHost, vertex.pathId);
+    } else if (entry) {
       const target = pickTarget(s.layer.contents, entry.item.id, s.treeSelection);
       if (!s.treeSelection.has(target)) s.selectItem(target);
-    } else if (s.tool === "select" && !s.selection.size) s.clearSelection();
-    s.openItemMenu(event.clientX, event.clientY, point);
+    } else if (!vertex && s.tool === "select" && !s.selection.size) s.clearSelection();
+    s.openItemMenu(event.clientX, event.clientY, point, vertex);
   }
   const keyRoot = s.canvas;
   keyRoot.addEventListener("keydown", keydown, true);
@@ -288,8 +367,16 @@ function installActions(s, root, options = {}) {
     });
   keyRoot.addEventListener("focusout", focusout);
   s.window.addEventListener("blur", blur);
+  const keys = s.pathKeyState && createPathKeyControls(s.document, () => ({
+    state: s, id: s.active()?.kind === "path" ? s.activeId : null,
+  }));
+  if (keys) {
+    keys.element.style.cssText += ";position:absolute;right:8px;bottom:8px;z-index:2";
+    keyRoot.parentElement.appendChild(keys.element);
+  }
   return {
     check() {
+      keys?.update();
       if (
         nudge &&
         (nudge.frame !== s.localFrame() || nudge.target !== s.activeId)
@@ -303,7 +390,142 @@ function installActions(s, root, options = {}) {
       root.removeEventListener("contextmenu", context);
       keyRoot.removeEventListener("focusout", focusout);
       s.window.removeEventListener("blur", blur);
+      keys?.element.remove();
     },
   };
 }
-module.exports = { installActions };
+const PATH_CONTROL = "[data-zoidium-path-control], .zoidium-masks button, .mask-row-name, .mask-row-edit";
+const GRAPH = ".g2-editor, .g2-host";
+
+function installPathShortcuts({ paths, viewport, document, window, session, routeTool, suspendPen }) {
+  let composing = false;
+  const within = (root, target) => !!target && root.contains(target);
+  const isScope = target => within(viewport.el, target) || !!target?.closest?.(PATH_CONTROL);
+  function focusOptions(target = document.activeElement, button = false) {
+    const active = document.activeElement;
+    const graphFocused = !!(active?.closest?.(GRAPH) || target?.closest?.(GRAPH));
+    const viewportFocused = !graphFocused && !isEditableTarget(active) && !isEditableTarget(target) &&
+      (button ? isScope(target) : isScope(active) && isScope(target));
+    return { viewportFocused, graphFocused, composing };
+  }
+  function apply(result, s) {
+    switch (result.action) {
+      case "select-pen": case "select-points": case "temporary-select": case "restore-tool":
+        routeTool(result.tool);
+        break;
+      case "defer-to-layer":
+        if (paths.controller.tool !== "select") paths.controller.setTool("select");
+        routeTool("select");
+        break;
+      case "cancel-gesture":
+        s?.pointer.cancel();
+        s?.finishNudge(true);
+        break;
+      case "finish-drawing":
+        if (s) { s.penFinished = true; s.refresh(); }
+        break;
+      case "delete-vertices":
+        s?.deleteAnchors();
+        break;
+      case "blocked-locked":
+        s?.message(result.message);
+        break;
+      case "defer-to-native":
+        if (result.reason === "native-command" && result.key === "t") suspendPen?.();
+        break;
+    }
+  }
+  function dispatch(event, button = false) {
+    if (event.defaultPrevented || !viewport.enabled) return;
+    const s = session(), controller = paths.controller;
+    if (s) s.pathShortcuts = shortcuts;
+    const options = focusOptions(event.target, button);
+    const selected = viewport.objects?.length === 1 ? viewport.objects[0] : null;
+    const host = s?.sharedPathHost || paths.hostForLayer(selected?.object || selected);
+    const activeHere = !!host && controller.activeHost === host && host.hasPath(controller.activePathId);
+    if (options.viewportFocused && !composing && !isComposingEvent(event) && s) {
+      if (!controller.ownsFocus()) controller.claimFocus();
+    } else if (controller.ownsFocus()) controller.releaseFocus();
+    const result = paths.input.handleKeyDown(event, {
+      ...options,
+      activeHere: activeHere || !!s && !!controller.gesture,
+      selectedAnchors: s && activeHere ? [...s.selection].filter(key => !selectionPart(key).side).length : 0,
+      locked: activeHere && host.isLocked(controller.activePathId),
+    });
+    if (result.action === "defer-to-viewport" && within(viewport.el, document.activeElement) &&
+        within(viewport.el, event.target) && s?.pointer.setSpaceHeld?.(true)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+    apply(result, s);
+    return result;
+  }
+  const down = event => dispatch(event);
+  const up = event => {
+    const s = session();
+    if (event.code === "Space" || event.key === " " || event.key === "Spacebar") s?.pointer.setSpaceHeld?.(false);
+    apply(paths.input.handleKeyUp(event), s);
+  };
+  const blur = () => {
+    paths.controller.releaseFocus();
+    const s = session();
+    s?.pointer.commit();
+    s?.pointer.setSpaceHeld?.(false);
+    s?.finishNudge();
+    apply(paths.input.handleBlur(), s);
+  };
+  const windowBlur = () => { composing = false; blur(); };
+  const focusin = event => {
+    const controller = paths.controller;
+    if (session() && focusOptions(event.target).viewportFocused && !composing && !controller.ownsFocus()) controller.claimFocus();
+  };
+  const focusout = event => {
+    if (isScope(event.target) && !focusOptions(event.relatedTarget).viewportFocused) blur();
+  };
+  const compositionStart = () => {
+    composing = true;
+    session()?.pointer.setSpaceHeld?.(false);
+  };
+  const compositionEnd = () => { composing = false; };
+  const viewportPress = event => {
+    if ((event.target === viewport.canvas || event.target === viewport.el) && !isEditableTarget(event.target)) {
+      viewport.el.focus({ preventScroll: true });
+    }
+  };
+  const hadTabIndex = viewport.el.hasAttribute("tabindex");
+  if (!hadTabIndex) viewport.el.tabIndex = -1;
+  viewport.el.addEventListener("pointerdown", viewportPress, true);
+  document.addEventListener("keydown", down, true);
+  document.addEventListener("keyup", up, true);
+  document.addEventListener("focusin", focusin, true);
+  document.addEventListener("focusout", focusout, true);
+  document.addEventListener("compositionstart", compositionStart, true);
+  document.addEventListener("compositionend", compositionEnd, true);
+  window.addEventListener("blur", windowBlur);
+  const shortcuts = {
+    allows(event) {
+      const options = focusOptions(event.target);
+      return options.viewportFocused && !options.composing;
+    },
+    tool(key, event) {
+      // Native toolbar buttons call the same dispatcher as the keyboard.
+      const target = event.currentTarget;
+      return dispatch({ key, target, ctrlKey: event.ctrlKey, metaKey: event.metaKey,
+        altKey: event.altKey, shiftKey: event.shiftKey }, true);
+    },
+    dispose() {
+      blur();
+      viewport.el.removeEventListener("pointerdown", viewportPress, true);
+      if (!hadTabIndex) viewport.el.removeAttribute("tabindex");
+      document.removeEventListener("keydown", down, true);
+      document.removeEventListener("keyup", up, true);
+      document.removeEventListener("focusin", focusin, true);
+      document.removeEventListener("focusout", focusout, true);
+      document.removeEventListener("compositionstart", compositionStart, true);
+      document.removeEventListener("compositionend", compositionEnd, true);
+      window.removeEventListener("blur", windowBlur);
+    },
+  };
+  return shortcuts;
+}
+module.exports = { installActions, installPathShortcuts, createPathKeyControls };

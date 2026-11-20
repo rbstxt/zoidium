@@ -15,45 +15,96 @@
 const { FIELD, validateMasks } = require("./mask-model.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 
+function installMaskClipTrim(PZ, onDispose) {
+  const tracks = PZ.ui?.timeline?.tracks?.prototype;
+  const moveClip = tracks?.moveClip;
+  if (typeof moveClip !== "function") return;
+  function moveClipWithMasks(edit) {
+    const { type, oldTrackIdx, oldIdx, start, length, offset, timeStart, timeEnd } = edit || {};
+    if (type !== 0 || !Number.isFinite(offset) || offset === 0 || !Number.isFinite(start))
+      return moveClip.apply(this, arguments);
+    const clip = this.timeline.sequence.videoTracks[oldTrackIdx]?.clips[oldIdx];
+    const layer = clip?.object;
+    const current = layer?.[FIELD];
+    if (!current?.length || start - clip.start !== -offset)
+      return moveClip.apply(this, arguments);
+
+    // A start trim keeps the end fixed, or adjusts both source times if both
+    // handles move. A whole-clip proxy can carry an offset without either.
+    if (length - clip.length !== offset && !(Number.isFinite(timeStart) && Number.isFinite(timeEnd)))
+      return moveClip.apply(this, arguments);
+
+    // CM3 routes each trim proxy and its inverse through moveClip. Shift
+    // mask keys, including locked paths, before it notifies the timeline.
+    const next = clone(current);
+    for (const mask of next) {
+      const path = mask.properties.path;
+      for (const channel of path.objects || [path])
+        for (const key of channel.keyframes) key.frame += offset;
+    }
+    layer[FIELD] = next;
+    try {
+      return moveClip.apply(this, arguments);
+    } catch (error) {
+      layer[FIELD] = current;
+      throw error;
+    }
+  }
+  tracks.moveClip = moveClipWithMasks;
+  onDispose(() => { if (tracks.moveClip === moveClipWithMasks) tracks.moveClip = moveClip; });
+}
+
 function installMaskPersistence(PZ, onDispose) {
   if (!PZ?.layer?.prototype) throw Error("Layer masks need the native layer runtime");
-  const prototype = PZ.layer.prototype;
-  const originalLoad = prototype.load;
-  const originalToJSON = prototype.toJSON;
-  function loadWithMasks(data) {
-    const result = originalLoad.apply(this, arguments);
-    try {
-      const masks = data && typeof data === "object" ? data[FIELD] : undefined;
-      if (masks !== undefined) {
-        validateMasks(masks);
-        this[FIELD] = clone(masks);
+  const prototypes = [PZ.layer.prototype, PZ.layer.adjustment?.prototype, PZ.layer.scene?.prototype]
+    .filter((prototype, index, list) => prototype && list.indexOf(prototype) === index);
+  for (const prototype of prototypes) {
+    const hadOwnLoad = Object.hasOwn(prototype, "load");
+    const hadOwnToJSON = Object.hasOwn(prototype, "toJSON");
+    const originalLoad = prototype.load;
+    const originalToJSON = prototype.toJSON;
+    function loadWithMasks(data) {
+      const result = originalLoad.apply(this, arguments);
+      try {
+        const masks = data && typeof data === "object" ? data[FIELD] : undefined;
+        if (masks !== undefined) {
+          validateMasks(masks);
+          this[FIELD] = clone(masks);
+        }
+      } catch (_error) {
+        delete this[FIELD];
       }
-    } catch (_error) {
-      delete this[FIELD];
+      return result;
     }
-    return result;
-  }
-  function serializeMasks() {
-    const json = originalToJSON.apply(this, arguments);
-    try {
-      const masks = this[FIELD];
-      if (masks !== undefined && json && typeof json === "object" && !Array.isArray(json)) {
-        validateMasks(masks);
-        json[FIELD] = clone(masks);
+    function serializeMasks() {
+      const json = originalToJSON.apply(this, arguments);
+      try {
+        const masks = this[FIELD];
+        if (masks !== undefined && json && typeof json === "object" && !Array.isArray(json)) {
+          validateMasks(masks);
+          json[FIELD] = clone(masks);
+        }
+      } catch (_error) {
+        /* Corrupt live state never breaks saving; the field is dropped. */
       }
-    } catch (_error) {
-      /* Corrupt live state never breaks saving; the field is dropped. */
+      return json;
     }
-    return json;
+    prototype.load = loadWithMasks;
+    prototype.toJSON = serializeMasks;
+    onDispose(() => {
+      // Restore only what is still ours; a wrapper further out owns the chain
+      // then, and removing from the middle would corrupt it.
+      if (prototype.load === loadWithMasks) {
+        if (hadOwnLoad) prototype.load = originalLoad;
+        else delete prototype.load;
+      }
+      if (prototype.toJSON === serializeMasks) {
+        if (hadOwnToJSON) prototype.toJSON = originalToJSON;
+        else delete prototype.toJSON;
+      }
+    });
   }
-  prototype.load = loadWithMasks;
-  prototype.toJSON = serializeMasks;
-  onDispose(() => {
-    // Restore only what is still ours; a wrapper further out owns the chain
-    // then, and removing from the middle would corrupt it.
-    if (prototype.load === loadWithMasks) prototype.load = originalLoad;
-    if (prototype.toJSON === serializeMasks) prototype.toJSON = originalToJSON;
-  });
+  installMaskClipTrim(PZ, onDispose);
 }
 
 module.exports = { installMaskPersistence };

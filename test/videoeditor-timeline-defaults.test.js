@@ -12,6 +12,7 @@ const {
   FRAME_TIME_FORMAT,
   applyTimelineDefaults,
   installTimelineDefaults,
+  installClipDragPatch,
 } = require("../plugins/core/videoeditor-timeline-defaults");
 
 const projectRoot = path.resolve(__dirname, "..");
@@ -23,6 +24,72 @@ const patchSource = fs.readFileSync(
 // Video Editor 2 builds its timeline with `new PZ.ui.timeline(VE)` and assigns
 // `zoom = .012` afterwards, so the fixture mirrors that order.
 const VIDEOEDITOR_ZOOM = 0.012;
+
+test("a clip click leaves the native drag update idle until the pointer moves", () => {
+  class Tracks {
+    clipDragStart() {}
+    clipDrag() {}
+    clipDragUpdate() { this.updates++; }
+  }
+  const PZ = { ui: { timeline: { tracks: Tracks } } };
+  assert.equal(installClipDragPatch(PZ), true);
+  assert.equal(installClipDragPatch(PZ), false);
+  const drag = Object.assign(new Tracks(), { updates: 0 });
+  const press = { pageX: 790, pageY: 740 };
+  drag.clipDragStart(press);
+  drag.clipDrag(press);
+  drag.clipDragUpdate();
+  assert.equal(drag.updates, 0);
+  drag.clipDrag({ ...press, pageY: 755 });
+  drag.clipDragUpdate();
+  assert.equal(drag.updates, 1);
+  drag.clipDrag(press);
+  drag.clipDragUpdate();
+  assert.equal(drag.updates, 2);
+});
+
+test("stationary touch coordinates suppress updates until the touch moves", () => {
+  class Tracks {
+    clipDragStart() {}
+    clipDrag() {}
+    clipDragUpdate() { this.updates++; }
+  }
+  installClipDragPatch({ ui: { timeline: { tracks: Tracks } } });
+  const drag = Object.assign(new Tracks(), { updates: 0 });
+  const press = { touches: [{ pageX: 12, pageY: 34 }], pageX: 100, pageY: 100 };
+  drag.clipDragStart(press);
+  drag.clipDrag({ touches: press.touches });
+  drag.clipDragUpdate();
+  assert.equal(drag.updates, 0);
+  drag.clipDrag({ touches: [{ pageX: 13, pageY: 34 }], pageX: 100, pageY: 100 });
+  drag.clipDragUpdate();
+  assert.equal(drag.updates, 1);
+});
+
+test("incomplete pointer coordinates leave updates to the native drag handler", () => {
+  class Tracks {
+    clipDragStart() {}
+    clipDrag() {}
+    clipDragUpdate() { return "native update"; }
+  }
+  installClipDragPatch({ ui: { timeline: { tracks: Tracks } } });
+  const drag = new Tracks();
+  const press = { pageX: 12, pageY: 34 };
+  for (const event of [
+    { touches: [{ pageX: 12 }], ...press },
+    { pageX: 12, pageY: Infinity },
+    { pageX: "12", pageY: 34 },
+    { touches: [] },
+  ]) {
+    drag.clipDragStart(press);
+    drag.clipDragStart(event);
+    drag.clipDrag(event);
+    assert.equal(drag.clipDragUpdate(), "native update");
+  }
+  drag.clipDragStart(press);
+  drag.clipDrag({ touches: [{ pageX: 12 }] });
+  assert.equal(drag.clipDragUpdate(), "native update");
+});
 
 function createLayout() {
   const records = { timelines: [], calls: 0, statics: null };
@@ -186,9 +253,10 @@ function loadCm3() {
     videoeditor: "videoeditor-2.0.69.js",
     clipmaker: "clipmaker-3.0.106.js",
   };
+  const cache = process.env.ZOIDIUM_RESOURCE_DIR || path.join(projectRoot, ".zoidium-resources");
   const loaded = {};
   for (const [key, name] of Object.entries(files)) {
-    const filePath = path.join(projectRoot, ".zoidium-resources", name);
+    const filePath = path.join(cache, name);
     if (!fs.existsSync(filePath)) return null;
     loaded[key] = fs.readFileSync(filePath, "utf8");
   }

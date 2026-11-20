@@ -10,10 +10,10 @@ const { createCanvas } = require("./editor-canvas.js");
 const { createPointer } = require("./editor-pointer.js");
 const { installActions } = require("./editor-actions.js");
 const { matrix } = require("./compiler.js");
+const { isPerspectiveView, PERSPECTIVE_EDIT_MESSAGE } = require("./path-projection.js");
 const { inverse } = require("./editor-geometry.js");
 const { icon } = require("./editor-icons.js");
 const { createMaskSession, maskSessionFor } = require("./mask-host.js");
-const { getMasks } = require("./mask-model.js");
 
 function maskableLayer(PZ, layer) {
   return !!layer && (layer instanceof PZ.layer.scene || layer instanceof PZ.layer.adjustment);
@@ -22,12 +22,10 @@ function maskableLayer(PZ, layer) {
 // Clip entries from viewport picking and timeline selection share one shape:
 // { object, parent, start, length, offset }. Raw clips work too.
 //
-// Unlike the Shape+ overlay, this must NOT gate on viewport.renderMode:
-// selecting a Scene clip always switches the native viewport into camera
-// render mode (edit && scene), while a Shape+ selection clears the viewport
-// scene and leaves render mode off. The mask pen is a 2D overlay over the
-// edited frame either way, like the native 2D transform widget.
+// Masks edit the composited layer plane. The viewport's Scene camera has
+// a perspective projection, so it needs a ray/plane mapping before editing.
 function maskClip(editor, viewport, PZ) {
+  if (isPerspectiveView(viewport)) return null;
   const clips = viewport.objects;
   if (!viewport.enabled || clips?.length !== 1) return null;
   const entry = clips[0];
@@ -70,12 +68,9 @@ function mountMaskOverlay(session, viewport, context, tool) {
   s.pointer = createPointer(s, canvas);
   const actions = installActions(s, canvas, { shapes: false });
   s.setTool = next => {
-    s.pointer?.commit?.();
-    s.finishNudge?.();
+    if (s.tool !== next) { s.pointer?.commit?.(); s.finishNudge?.(); }
     s.tool = next;
-    s.penFinished = false;
     s.refresh();
-    canvas.focus();
   };
   s.select = items => {
     const ids = items.filter(item => item instanceof s.Content).map(item => item.id);
@@ -87,12 +82,16 @@ function mountMaskOverlay(session, viewport, context, tool) {
     s.penFinished = false;
     s.refresh();
   };
-  let disposed = false;
+  let disposed = false, lastFrame;
   function update() {
     if (disposed) return;
     s.canvasApi.resize();
+    const frame = s.localFrame();
+    if (lastFrame !== undefined && lastFrame !== frame) s.pathInput?.notifyFrameChanged();
+    lastFrame = frame;
+    s.reconcilePaths?.();
     const gesture = s.pointer.active;
-    if (gesture && (gesture.frame !== s.localFrame() || (gesture.target != null && !s.find(gesture.target)))) {
+    if (gesture && (gesture.frame !== frame || (gesture.target != null && !s.find(gesture.target)))) {
       s.pointer.commit();
       s.finishNudge?.();
       s.gesture.finish();
@@ -120,29 +119,36 @@ function mountMaskOverlay(session, viewport, context, tool) {
   };
 }
 
-function install(context, Content) {
+function install(context, Content, paths) {
   const editor = window.CM, PZ = window.PZ, viewport = editor.mainViewport;
   const transform = document.querySelector('button[title="layer transform controls (t)"]');
   const toolbar = transform?.closest(".toolbarpanel")?.pz_panel;
   if (!viewport || !toolbar) throw Error("Layer masks require the native viewport toolbar");
   function sessionFor(layer) {
-    return maskSessionFor(layer, () => createMaskSession({ PZ, editor, project: editor.project, nativeLayer: layer, Content,
+    const session = maskSessionFor(layer, () => createMaskSession({ PZ, editor, project: editor.project, nativeLayer: layer, Content,
       notify: text => context.ui.notify({ title: "Masks", message: text }) }));
+    paths?.register("mask", layer, session.s);
+    return session;
   }
   // The overlay owns viewport pointer input only while mask editing is on:
   // "off" leaves drags to the native viewport (editing-camera orbit, the 2D
-  // transform widget); "pen" draws; "select" reshapes. Q cycles
-  // off → pen → select → off. M stays the native marker toggle.
+  // transform widget); "pen" draws; "select" reshapes. M stays native.
   const MODES = ["off", "pen", "select"];
   let view = null, mode = "off", modeLayer = null, disposed = false;
   function setMode(next) {
     if (!MODES.includes(next)) throw Error(`Unknown mask mode ${next}`);
+    if (next !== "off" && isPerspectiveView(viewport)) {
+      context.ui.notify({ title: "Masks", message: PERSPECTIVE_EDIT_MESSAGE });
+      return;
+    }
+    if (next !== "off") modeLayer = maskClip(editor, viewport, PZ)?.layer || null;
     mode = next;
+    if (mode !== "off" && paths && paths.controller.tool !== mode) paths.controller.setTool(mode);
     if (mode === "off") { view?.dispose(); view = null; }
-    else view?.tool(mode);
+    else if (view?.state.pathHost.owns(modeLayer)) view.tool(mode);
     tick(false);
   }
-  const command = { title: "Mask pen (q)", key: "q", fn: () => setMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]) };
+  const command = { title: "Mask pen (q)", key: "q", fn: () => setMode("pen") };
   const button = document.createElement("button");
   button.title = "Mask pen (q)";
   button.setAttribute("aria-label", "Mask pen (q)");
@@ -150,10 +156,14 @@ function install(context, Content) {
   const image = icon(document, "pen");
   image.style.cssText = "width:25px;height:25px;pointer-events:none";
   button.append(image);
-  button.onclick = toolbar.click.bind(toolbar);
+  if (paths) {
+    button.setAttribute("data-zoidium-path-control", "");
+    command.fn = () => paths.shortcuts?.tool("q", { currentTarget: button });
+    button.onclick = event => paths.shortcuts?.tool("q", event);
+  } else button.onclick = toolbar.click.bind(toolbar);
   transform.after(button);
-  toolbar.buttons.push(command);
-  const changed = () => { view?.dispose(); view = null; mode = "off"; };
+  if (!paths) toolbar.buttons.push(command);
+  const changed = () => { view?.dispose(); view = null; mode = "off"; modeLayer = null; restoreWidget(); };
   editor.onProjectChanged.watch(changed);
   // Hide the native 2D widget while the overlay is mounted and give back
   // both its visibility and its edit state afterwards.
@@ -183,20 +193,16 @@ function install(context, Content) {
     if (disposed) return;
     const found = maskClip(editor, viewport, PZ);
     const layer = found?.layer || null;
-    // A different selection starts with mask editing off.
+    // Follow Pen when a compatible layer becomes editable.
     if (layer !== modeLayer) {
       modeLayer = layer;
-      if (mode !== "off") mode = "off";
+      mode = layer && paths?.controller.tool === "pen" ? "pen" : "off";
     }
     const active = !!found && mode !== "off";
-    if (view && (!active || !view.state.valid())) { view.dispose(); view = null; }
+    if (view && (!active || !view.state.pathHost.owns(layer) || !view.state.valid())) { view.dispose(); view = null; }
     if (active && !view) {
       const session = sessionFor(layer);
       view = mountMaskOverlay(session, viewport, context, mode);
-      // Entering the pen with existing masks continues the last one unless
-      // the Masks panel already picked a mask to edit.
-      const masks = getMasks(layer);
-      if (masks.length && !session.s.activeId) session.s.selectItem(masks[masks.length - 1].id);
     }
     if (view) {
       hideWidget();
@@ -204,7 +210,7 @@ function install(context, Content) {
     } else restoreWidget();
     button.disabled = !found;
     const on = !!found && mode !== "off";
-    button.title = on ? `Mask ${mode === "pen" ? "pen" : "point editing"} (q: next)` : "Mask pen (q)";
+    button.title = on ? `Mask ${mode === "pen" ? "pen" : "point editing"} (q)` : "Mask pen (q)";
     button.setAttribute("aria-pressed", String(on));
     image.style.fill = on ? "var(--zui-toggle-on)" : "var(--zui-toggle-off)";
     image.style.color = on ? "var(--zui-toggle-on)" : "var(--zui-toggle-off)";
@@ -223,7 +229,7 @@ function install(context, Content) {
     if (index >= 0) toolbar.buttons.splice(index, 1);
     button.remove();
   });
-  return { sessionFor, setMode };
+  return { sessionFor, setMode, update: () => tick(false), get state() { return view?.state; } };
 }
 
 module.exports = { install, mountMaskOverlay, maskClip, maskableLayer };

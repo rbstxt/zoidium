@@ -18,6 +18,7 @@
 const { clone, validate } = require("./model.js");
 const { FIELD, validateMasks, ensureNames, coercePath } = require("./mask-model.js");
 const { createEditorModel } = require("./editor-model.js");
+const { createMultiMaskSelection } = require("./path-multi-mask.js");
 // Identity 2D matrix in the compiler convention ([a,b,c,d,e,f]).
 const IDENTITY_2D = [1, 0, 0, 1, 0, 0];
 
@@ -34,7 +35,7 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
   } catch (_error) {
     nativeAddress = null;
   }
-  const state = { source: undefined, items: [] };
+  const state = { source: undefined, items: [], baseline: new Map() };
   let warned = false;
   function warn(error) {
     if (warned) return;
@@ -71,9 +72,34 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
         warn(error);
       }
       state.items = items;
+      state.baseline = new Map(items.map(item => [item.id, clone(item)]));
       state.source = data;
     }
     return state.items;
+  }
+  function editedItem(item, saved) {
+    const current = clone(item), baseline = state.baseline.get(item.id);
+    if (!baseline || !saved) return current;
+    // Native properties add defaults during load and serialization. Keep the
+    // saved representation of fields that the overlay has not edited.
+    const data = clone(saved);
+    const merge = (target, before, after) => {
+      for (const key of Object.keys(after)) {
+        if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) target[key] = after[key];
+      }
+    };
+    const { properties, ...fields } = current;
+    merge(data, baseline, fields);
+    merge(data.properties, baseline.properties, properties);
+    return data;
+  }
+  function readLive() {
+    const items = sync(), stored = new Map(readField(nativeLayer).map(item => [item.id, item]));
+    return items.map(item => editedItem(item, stored.get(item.id)));
+  }
+  function readLiveItem(id) {
+    const item = sync().find(candidate => candidate.id === id);
+    return item && editedItem(item, readField(nativeLayer).find(candidate => candidate.id === id));
   }
   function owns(target) {
     return !!target && target === nativeLayer;
@@ -92,6 +118,7 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
   // present-but-invalid parameters still fail validation below.
   function normalize(data) {
     if (!Array.isArray(data)) throw Error("Layer masks must be an array");
+    const saved = new Map(readField(nativeLayer).map(item => [item.id, item]));
     const flat = [];
     for (const entry of data) {
       if (entry && entry.kind === "group" && Array.isArray(entry.contents) && entry.contents.length === 1 &&
@@ -107,8 +134,9 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
       if (item.feather === undefined) item.feather = 0;
       if (item.opacity === undefined) item.opacity = 1;
       if (item.invert === undefined) item.invert = 0;
-      if (item.properties && typeof item.properties === "object")
-        item.properties.path = coercePath(item.properties.path, item.vertexIds.length * 6);
+      if (item.properties && JSON.stringify(item.properties.path) !==
+          JSON.stringify(saved.get(item.id)?.properties?.path))
+        item.properties.path = coercePath(item.properties.path);
     }
     return ensureNames(flat);
   }
@@ -136,6 +164,8 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
   const host = {
     adapter,
     contents: sync,
+    readLive,
+    readLiveItem,
     owns,
     valid,
     write,
@@ -144,14 +174,13 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
     },
     writeHistory(target, data) {
       if (!historyTarget(target)) return;
-      if (target === nativeLayer) { write(data); return; }
-      const normalized = normalize(clone(data));
-      validate(normalized);
-      validateMasks(normalized);
-      target[FIELD] = normalized;
+      validate(data);
+      validateMasks(data);
+      target[FIELD] = clone(data);
     },
     persist() {
-      write(clone(sync()));
+      const data = readLive();
+      if (JSON.stringify(data) !== JSON.stringify(readField(nativeLayer))) write(data);
     },
     allows(action) {
       return action === "duplicate" || action === "delete" || action === "forward" ||
@@ -181,6 +210,7 @@ function createMaskSession({ PZ, editor, project, nativeLayer, Content, notify }
     PZ, editor, project, Content,
     layer: host.adapter,
     pathHost: host,
+    maskSelection: createMultiMaskSelection(),
     nextId: randomId,
     tool: "pen",
     snap: true,

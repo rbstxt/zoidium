@@ -30,7 +30,7 @@ function createGesture(history, read, write, notify = () => {}, currentProject =
     // transaction mid-gesture. Never finish or discard another operation; keep
     // the edit, recorded as its own entry when the history is free again.
     if (history.operation !== state.operation) {
-      if (changed && cancel) write(clone(state.before));
+      if (changed && cancel) write(clone(state.before), true);
       else if (changed && history.operation === null) {
         history.startOperation();
         history.pushCommand(exchange, { history, read, write, data: state.before, project: state.project, currentProject });
@@ -40,7 +40,7 @@ function createGesture(history, read, write, notify = () => {}, currentProject =
       return;
     }
     if (cancel || !after || !changed) {
-      if (changed) write(clone(state.before));
+      if (changed) write(clone(state.before), true);
       history.discardOperation();
     } else {
       history.pushCommand(exchange, {
@@ -74,4 +74,20 @@ function createGesture(history, read, write, notify = () => {}, currentProject =
     },
   };
 }
-module.exports = { createGesture };
+
+function createPathOperationHost({ read, write, assertEditable, gesture, playback, preview = false, join = false }) {
+  return {
+    get data() { return read(); },
+    commit(next) {
+      assertEditable();
+      if (!read()) throw Error("Path is unavailable");
+      if (preview || (join && gesture.active)) write(next);
+      else if (!gesture.run(() => write(next))) throw Error("Finish the current edit before changing path keys");
+    },
+    seek(frame) {
+      playback.speed = 0;
+      playback.currentFrame = frame;
+    },
+  };
+}
+module.exports = { createGesture, createPathOperationHost };
