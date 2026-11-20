@@ -52,6 +52,7 @@ function fixture() {
 test("renders both hierarchies and positions model frames after offset and zoom", () => {
   const f = fixture();
   assert.deepEqual(f.panel.labels.children.map((n) => n.textContent), ["Masks", "Mask A", "Mask Path", "Shape+", "Shape A", "Path"]);
+  assert.equal(f.panel.labels.children[0].style.color, "var(--zui-text,#ddd)");
   assert.deepEqual(f.diamonds().slice(0, 3).map((n) => n.style.left), ["160px", "170px", "180px"]);
   f.context.clip.start = 120;
   f.panel.objectOffsetChanged();

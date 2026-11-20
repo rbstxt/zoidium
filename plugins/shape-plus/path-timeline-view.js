@@ -119,6 +119,7 @@ function install(PZ) {
         const label = doc.createElement("div"), track = doc.createElement("div");
         label.classList.add("noselect"); label.textContent = row.label; label.title = row.label;
         label.style.height = "20px"; label.style.lineHeight = "20px";
+        label.style.color = "var(--zui-text,#ddd)";
         label.style.paddingLeft = (5 + depth * 14) + "px";
         track.classList.add("kftrack"); track.style.height = "20px";
         track.style.width = Math.max(panel.container.clientWidth, parseFloat(panel.timeline.scrollBar.firstElementChild.style.width) || 0) + "px";
