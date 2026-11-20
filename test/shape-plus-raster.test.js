@@ -173,3 +173,26 @@ test("layers with effects or 3D group rotation keep pre-transform rendering and 
   assert.equal(group.scale.x, 4);
   layer.unload();
 });
+
+test("context restoration invalidates the cached raster and dispose removes its listener", () => {
+  class Canvas extends EventTarget {
+    constructor() { super(); this.listeners = 0; }
+    addEventListener(...args) { this.listeners++; super.addEventListener(...args); }
+    removeEventListener(...args) { this.listeners--; super.removeEventListener(...args); }
+  }
+  const h = host(), engine = createRenderer(h.THREE), canvas = new Canvas();
+  h.renderer.domElement = canvas;
+  engine.setCommands([paint], [640, 360]);
+  engine.render(h.renderer, destination);
+  engine.render(h.renderer, destination);
+  assert.equal(engine.stats.treeRenders, 1);
+  canvas.dispatchEvent(new Event("webglcontextrestored"));
+  engine.render(h.renderer, destination);
+  assert.equal(engine.stats.treeRenders, 2);
+  const otherCanvas = new Canvas(), other = { ...h.renderer, domElement: otherCanvas };
+  engine.render(other, destination);
+  assert.equal(canvas.listeners, 0);
+  assert.equal(otherCanvas.listeners, 1);
+  engine.dispose();
+  assert.equal(otherCanvas.listeners, 0);
+});

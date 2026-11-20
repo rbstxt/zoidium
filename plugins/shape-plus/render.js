@@ -80,6 +80,15 @@ function createRenderer(THREE, sampleScale = "auto") {
   const planes = [];
   // appliedTransform: undefined = unknown (force), null = identity, else the key.
   let contentVersion = 0, rasterKey = null, rasterRenderer = null, appliedTransform;
+  let observedCanvas = null;
+  const invalidateRaster = () => { rasterKey = null; };
+  function observeRenderer(renderer) {
+    const canvas = renderer.domElement || renderer.context?.canvas || null;
+    if (canvas === observedCanvas) return;
+    observedCanvas?.removeEventListener?.("webglcontextrestored", invalidateRaster);
+    observedCanvas = canvas;
+    observedCanvas?.addEventListener?.("webglcontextrestored", invalidateRaster);
+  }
   function releaseTree() {
     for (const value of paintAllocations) {
       const key = materialKeys.get(value);
@@ -219,6 +228,7 @@ function createRenderer(THREE, sampleScale = "auto") {
   const stats = { renders: 0, treeRenders: 0, skips: 0, width: 0, height: 0, supersample: sampleScale, transform: null };
   function render(renderer, destination, transform = null) {
     if (!root) return;
+    observeRenderer(renderer);
     const inverse = transform == null ? null : inverseAffine(transform);
     if (transform != null && !inverse) throw Error("Invalid Shape+ layer transform");
     const width = Math.max(1, Math.round(destination.viewport.z)), height = Math.max(1, Math.round(destination.viewport.w));
@@ -259,7 +269,7 @@ function createRenderer(THREE, sampleScale = "auto") {
       if (renderer.setRenderTarget && previousTarget !== undefined) renderer.setRenderTarget(previousTarget);
     }
   }
-  function dispose() { releaseTree(); for (const resource of allocations) resource.dispose(); allocations.clear(); warmMaterials.clear(); }
+  function dispose() { observeRenderer({}); releaseTree(); for (const resource of allocations) resource.dispose(); allocations.clear(); warmMaterials.clear(); }
   return { render, setCommands, dispose, stats, get scene() { return root?.scene; }, camera: shapeCamera };
 }
 module.exports = { createRenderer };
