@@ -354,7 +354,7 @@
     const index = pending?.index ?? this.exportPolicy?.outputIndex ?? this.framesRendered;
     const frame = pending?.frame ?? this.frame;
     const rate = this.sequence?.properties?.rate?.get?.() || 30;
-    return new Error(`WebGL context lost at output index ${index}, project frame ${frame}, time ${(frame / rate).toFixed(6)}s (${stage}). Start a new export.`);
+    return new Error(`WebGL context lost at output index ${index}, project frame ${frame}, time ${(frame / rate).toFixed(6)}s (${stage}). Lower the export resolution or close other GPU-heavy tabs, then start a new export.`);
   };
   PZ.export.prototype.failExportFrame = function failExportFrame(error) {
     this.__zoidiumExportGuard?.controller.abort(error || new Error("Export stopped."));

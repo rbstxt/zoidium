@@ -31,7 +31,7 @@ for (const stage of ["before", "prepare", "compose", "readback"]) {
       compositor: { renderSequence() { lost ||= stage === "compose"; }, unload() { disposed++; } },
       renderer: { domElement: canvas, dispose() { disposed++; }, context: {
         isContextLost: () => lost, readPixels() { lost ||= stage === "readback"; } } } });
-    await assert.rejects(exp.renderVideoFrame(new Uint8Array(4)), /WebGL context lost.*output.*0.*project frame 12.*0\.4/);
+    await assert.rejects(exp.renderVideoFrame(new Uint8Array(4)), /WebGL context lost.*output.*0.*project frame 12.*0\.4.*lower the export resolution.*close other GPU-heavy tabs/i);
     assert.equal(exp.framesRendered, 0); assert.equal(exp.frame, 12);
     assert.equal(exp.framePromise, null); assert.equal(exp.frameWaiting, -1);
     assert.equal(disposed, 2);
