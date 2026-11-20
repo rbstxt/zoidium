@@ -191,10 +191,20 @@ function install(PZ) {
         currentContext.onError(error);
       }
     }
+    function bind(next) {
+      const sameClip = currentContext && next && currentContext.project === next.project && currentContext.clip === next.clip;
+      if (!sameClip) { generation++; selectedId = null; }
+      currentContext = next;
+      // Opening or closing the overlay replaces the observer on this clip.
+      // An in-progress timeline drag still owns the existing diamonds.
+      muted = !!(sameClip && activeDrag);
+      try { model.bind(next); } finally { muted = false; }
+      if (!next) clear();
+    }
     const s = { clear, render, position, select, clearSelection, dragStart, drag, dragUpdate, dragEnd,
       hasSelection: () => selectedId !== null && frames(selectedId).length > 0,
       remove: () => { if (selectedId !== null) run(() => model.remove(selectedId, frames(selectedId))); },
-      bind: (next) => { generation++; selectedId = null; currentContext = next; model.bind(next); if (!next) clear(); },
+      bind,
       dispose() {
         disposed = true;
         generation++;

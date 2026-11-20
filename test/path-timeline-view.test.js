@@ -114,3 +114,22 @@ test("selection stays within one path and dispose restores the prototype", () =>
   const node = f.diamonds()[0]; f.installer.dispose();
   assert.equal(node.listeners.mousedown, undefined); assert.notEqual(f.panel.keyframeDragStart, originalWrapper);
 });
+
+test("rebinding the overlay for the same clip preserves a selected key drag", () => {
+  const f = fixture();
+  const [first, second] = f.diamonds();
+  f.panel.selectKeyframe(first);
+  f.panel.selectKeyframe(second);
+  const drag = { ctx: f.panel };
+  f.panel.keyframeDragStart.call(drag, f.event(first));
+  f.adapter.bind({ ...f.context, overlay: {} });
+  assert.equal(f.listeners.size, 1);
+  assert.equal(f.diamonds()[0], first);
+  f.panel.keyframeDrag.call(drag, f.event(first, { pageX: 164 }));
+  f.panel.keyframeDragUpdate.call(drag, f.event(first));
+  f.panel.keyframeDragEnd.call(drag, f.event(first));
+  assert.deepEqual(f.state.value.properties.path.objects[0].keyframes.map(key => key.frame), [2, 7, 10]);
+  assert.deepEqual(f.diamonds().filter(node => node.classList.contains("selected") &&
+    node.zoidiumPathDiamond.id === "m").map(node => node.pz_frame), [82, 87]);
+  f.installer.dispose();
+});

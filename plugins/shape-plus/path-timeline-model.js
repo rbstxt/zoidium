@@ -41,7 +41,7 @@ function create(initial, onRefresh = () => {}) {
     detach();
     const previous = identity;
     context = next || null;
-    identity = next ? [next.project, next.clip, next.overlay] : null;
+    identity = next ? [next.project, next.clip] : null;
     if (!identity || !previous || identity.some((value, i) => value !== previous[i])) selection.clear();
     if (context?.observe) {
       const token = generation;
