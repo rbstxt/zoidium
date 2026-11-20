@@ -60,7 +60,7 @@ Find any plugin from the **Plugins** panel and jump straight to its guide and co
 ## Built-in core features
 
 **Zoidium Core** always runs and does not appear in the **Plugins** panel.
-It provides editor layouts, themes, pop-out windows, preview cache, restore points, linked-clip cleanup, multi-clip trimming, frame-rate timing preservation, single frame capture, and custom export resolutions.
+It provides editor layouts, themes, pop-out windows, preview cache, restore points, [typed timeline seeking](/docs/workflow/timeline/), [per-effect bypass](/docs/effects/bypass/), linked-clip cleanup, multi-clip trimming, frame-rate timing preservation, single frame capture, and custom export resolutions.
 
 ## Reading control tables
 

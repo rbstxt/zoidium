@@ -43,7 +43,7 @@ Cache memory and **Player+** preview quality are independent controls. A larger 
 ### What enters the cache
 
 - Complete viewport frames are copied on the GPU and reused when the frame and project state match. A cache miss draws live.
-- Project edits, resource loads, resolution changes, and plugin changes invalidate the affected cached frames.
+- Project edits, [effect bypass](/docs/effects/bypass/) toggles, resource loads, resolution changes, and plugin changes invalidate the affected cached frames.
 - Export and eyedropper draws use separate paths and never fill the cache.
 - When paused and idle, eligible scenes pre-render a bounded window of nearby frames. Frames inside a video item's decode window, video projects with time-based effects, and slow-drawing scenes skip idle pre-rendering, though frames drawn normally can still be retained.
 - While video is visible, live playback is not frame-exact, so live frames are not retained. After playback pauses and the editor stays idle for about 0.8 seconds, Zoidium decodes and retains the current frame, plus up to 30 frames ahead and 4 frames behind. **Settings** reports **Video frames are not cached in this preview.** or **Preparing video frames for the preview cache.** during these states.

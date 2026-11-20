@@ -1,8 +1,8 @@
 ---
 title: Timeline and frame rate
-description: Change sequence frame rate without shifting timing, trim multiple clips together, and manage linked timeline clips.
+description: Jump to a typed frame or timecode, change sequence frame rate without shifting timing, trim multiple clips together, and manage linked timeline clips.
 ---
-Zoidium extends the native CM3 timeline with multi-clip trimming, linked-clip cleanup, and frame-rate changes that preserve timing in seconds.
+Zoidium extends the native CM3 timeline with typed frame and timecode seeking, multi-clip trimming, linked-clip cleanup, and frame-rate changes that preserve timing in seconds.
 
 ## Change the sequence frame rate without changing timing
 
@@ -30,6 +30,26 @@ For example, a move that ends at frame 30 at 30 FPS moves to frame 60 at 60 FPS.
 2. Press Ctrl+Y (or Cmd+Shift+Z on macOS) to redo the change.
 
 If you made edits after the frame-rate change, undo those edits first. One **Undo** restores both the previous frame rate and every adjusted time.
+
+## Jump to a frame or timecode
+
+Click the current time at the top left of the timeline to type a target frame or timecode instead of dragging the playhead.
+
+1. Click the current time readout at the top left of the timeline.
+2. Type a frame number or timecode in any of the three formats that right-click cycles through.
+3. Press **Enter** to move the playhead.
+
+You can enter any of these three formats, no matter which format the readout currently shows:
+
+| Format | Example | Meaning |
+| --- | --- | --- |
+| `HH:MM:SS.sss` | `00:00:01.500` | Hours, minutes, and seconds (fractional seconds are optional). |
+| `HH:MM:SS:FF` | `00:00:02:10` | Hours, minutes, seconds, and frames within the second. |
+| Plain frame number | `120` | Whole frame index from the start of the sequence. |
+
+- **Cancel:** Press **Escape** or click outside the field to close it without moving the playhead. If an input method editor (IME) is composing, pressing **Enter** does not commit the seek.
+- **Range and validation:** A negative frame number jumps to frame `0`. If a timecode in `HH:MM:SS:FF` has a frame field at or above the sequence frame rate, Zoidium rejects it and leaves the playhead where it is. Unrecognized text also leaves the playhead where it is.
+- **Shortcuts and Undo:** Typing in the time field does not trigger timeline shortcuts. Seeking to a frame does not add an **Undo** step.
 
 ## Trim multiple clips at once
 

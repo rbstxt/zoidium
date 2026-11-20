@@ -38,6 +38,7 @@ When **Plugins** has **Native FX** enabled, its 23 effects appear in the **Effec
 Each reference table covers every property specific to this pack.
 Vector rows include the component labels ending in **.X** and **.Y**.
 **Enabled** defaults to **on** in every effect. **off** bypasses processing.
+To turn an effect off without changing its **Enabled** value or keyframes, use the header eye button described in [Bypassing effects](/docs/effects/bypass/).
 Common layer transforms and effect ordering remain CM3 controls.
 
 [Time effects](/docs/effects/native-fx/time/) defines sample times, clip boundaries, and sample caps.
