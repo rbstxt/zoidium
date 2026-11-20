@@ -3,7 +3,7 @@
     // S_Glow HQ native FX — experimental five-level Gaussian bloom for Zoidium.
     // One effect, many internal GPU passes. No layer inputs or CM3 shader assets.
     // Based on the runtime conventions in Native FX / Drop Shadow (not its code).
-    this.defaultName = "S_Glow (beta 1.0)";
+    this.defaultName = "S_Glow (beta 1.1)";
     const number = (name, value, min, max, step) => ({
       dynamic: true, name, type: PZ.property.type.NUMBER, value,
       min, max, step: (step || 1) * 0.1, decimals: 2,
@@ -196,7 +196,7 @@
     `;
     const brightFns = `
     vec3 bright(vec4 c, float threshold, vec3 thresholdAdd, float fromAlpha, float opacityMode){
-      if(opacityMode>0.5 && opacityMode<1.5)c.rgb*=c.a;
+      // CM3 input RGB is already premultiplied by alpha.
       if(opacityMode<0.5)c.a=1.0;
       vec3 s=mix(c.rgb,vec3(c.a),clamp(fromAlpha,0.0,1.0));
       vec3 t=vec3(threshold)+thresholdAdd;
@@ -311,7 +311,7 @@
     uniform sampler2D uOriginal,uL0,uL1,uL2,uL3,uL4;
     uniform vec2 uSrcScale,uResolution,uAtmosScale,uAtmosOffset;
     uniform vec3 uW0,uW1,uW2,uW3,uW4,uColor,uThresholdAdd;
-    uniform float uBrightness,uThreshold,uFromAlpha,uOpacityMode,uShow;
+    uniform float uBrightness,uThreshold,uFromAlpha,uOpacityMode,uShow,uAdjustment;
     uniform float uCombine,uAffectAlpha,uGlowUnder,uLight,uSourceOpacity;
         uniform float uAtmosAmp,uAtmosFreq,uAtmosDetail,uAtmosSeed,uAtmosSpeed,uTime,uAtmosModel;
         uniform sampler2D uAEGlow,uAEFine;
@@ -432,7 +432,7 @@ float simplex(vec3 v){
     }
     void main(){
       vec4 source=texture2D(uOriginal,vUv*uSrcScale);
-      if(uOpacityMode>0.5 && uOpacityMode<1.5)source.rgb*=source.a;
+      // Keep CM3 premultiplied RGB unchanged in Normal mode.
       if(uOpacityMode<0.5)source.a=1.0;
       if(uShow>0.5){
         vec3 t=bright(texture2D(uOriginal,vUv*uSrcScale),uThreshold,uThresholdAdd,uFromAlpha,uOpacityMode);
@@ -459,12 +459,23 @@ float simplex(vec3 v){
       // negative light that subtracts from the retained source underneath.
       // Apply this at the glow/alpha boundary, preserving positive HDR peaks.
       rgb=max(rgb,vec3(0.0));
-      vec4 glow=vec4(rgb,clamp(max(rgb.r,max(rgb.g,rgb.b))*uAffectAlpha,0.0,1.0));
-      vec4 s=source*clamp(uSourceOpacity,0.0,1.0);
+      float coverage=clamp(max(rgb.r,max(rgb.g,rgb.b)),0.0,1.0);
+      float affect=clamp(uAffectAlpha,0.0,1.0);
+      float sourceOpacity=clamp(uSourceOpacity,0.0,1.0);
+      // When glow cannot add coverage, fade the associated result as a whole.
+      float preserve=1.0-affect;
+      vec4 glow=vec4(rgb,clamp(coverage*max(uAffectAlpha,1.0),0.0,1.0));
+      vec4 s=source*mix(sourceOpacity,1.0,preserve);
       vec4 normal=mix(combine4(glow,s),s+glow,light);
       vec4 back=mix(combine4(glow,vec4(0.0)),glow,light);
       vec4 under=s+back*(1.0-s.a);
       vec4 result=mix(normal,under,screen1(clamp(uGlowUnder,0.0,1.0),light));
+      // Reduce coverage and its premultiplied color together. This prevents
+      // bright RGB from surviving beneath an almost transparent edge.
+      float alpha=mix(s.a,result.a,affect);
+      result.rgb*=result.a>0.000001?alpha/result.a:0.0;
+      result.a=alpha;
+      result*=mix(1.0,sourceOpacity,preserve);
       if(uOpacityMode<0.5)result.a=1.0;
       if(uOpacityMode>1.5)result.rgb*=result.a;
       // Stable, neutral sub-LSB dither at the final 8-bit output only.
@@ -473,6 +484,10 @@ float simplex(vec3 v){
         float noise=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(0.06711056,0.00583715))))-0.5;
         result.rgb=max(vec3(0.0),result.rgb+vec3(noise*clamp(result.a,0.0,1.0)/255.0));
       }
+      // On adjustment layers, cover the backdrop only where it exists, so the
+      // original no longer shows through while transparent areas (including
+      // expanded-border padding) stay transparent.
+      if(uAdjustment>0.5)result.a=max(result.a,source.a);
       gl_FragColor=result;
     }`;
     
@@ -511,7 +526,7 @@ float simplex(vec3 v){
         uThreshold:{value:.5},uThresholdAdd:{value:new THREE.Vector3()},
         uFromAlpha:{value:0},uOpacityMode:{value:1},uShow:{value:0},
         uCombine:{value:2},uAffectAlpha:{value:1},uGlowUnder:{value:0},
-        uLight:{value:0},uSourceOpacity:{value:1},
+        uLight:{value:0},uSourceOpacity:{value:1},uAdjustment:{value:0},
         uAtmosAmp:{value:0},uAtmosFreq:{value:1},uAtmosDetail:{value:.6},
         uAtmosSeed:{value:.123},uAtmosSpeed:{value:1},uTime:{value:0},uAtmosModel:{value:0},
           uAEGlow:{value:null},uAEFine:{value:null},uAEMix:{value:0},uUseAE:{value:0},uNoBlur:{value:0},uDither:{value:0},
@@ -604,6 +619,8 @@ float simplex(vec3 v){
           const uvScale=this.pass.uniforms.uvScale.value;
           const source=readBuffer.texture;
           const C=this.compositeMat.uniforms;
+          const AdjustmentLayer=PZ.layer?.adjustment;
+          C.uAdjustment.value=AdjustmentLayer && this.parent && this.parentLayer instanceof AdjustmentLayer?1:0;
           C.uOriginal.value=source;
           C.uSrcScale.value.copy(uvScale);
           const expanded=this.expandedFrame;
@@ -868,7 +885,7 @@ float simplex(vec3 v){
       };
       if(support)this.pass.render=support.matchPreview(this,THREE,this.pass.render);
       this.properties.load(data&&data.properties);
-      if(/^S_Glow(?: HQ.*| \(beta [\d.]+\))?$/.test(data?.properties?.name||""))this.properties.name?.set("S_Glow (beta 1.0)");
+      if(/^S_Glow(?: HQ.*| \(beta [\d.]+\))?$/.test(data?.properties?.name||""))this.properties.name?.set("S_Glow (beta 1.1)");
       timeReady=true;
       const saved=data?.properties;
       if(saved?.time!==undefined && saved.timeMode===undefined){

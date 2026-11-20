@@ -22,7 +22,7 @@ description: エフェクトやエフェクトグループを削除せず、設�
 次の経路でも、オフにしたエフェクトはスキップされます。
 
 - **時間エフェクト:** **Time Offset**、**Time Remap**、**Posterize Time** をオフにすると、レイヤー時刻の再計算は行われません。詳しくは [Native FX の時間エフェクト](/docs/ja/effects/native-fx/time/) を参照してください。
-- **フレームサンプラー:** **Echo**、**Smart Motion Blur**、**ZSMB (beta 1.0)**、**Frame blending** を **frame mix** にした **Time Remap** など、別フレームを取得するエフェクトをオフにすると、フレーム取得と事前準備は行われません。
+- **フレームサンプラー:** **Echo**、**Smart Motion Blur**、**ZSMB (beta 1.1)**、**Frame blending** を **frame mix** にした **Time Remap** など、別フレームを取得するエフェクトをオフにすると、フレーム取得と事前準備は行われません。
 - **エフェクトグループ:** グループをオフにすると、入れ子のグループを含め内部のすべてのエフェクトがオフになります。オンのグループ内で子エフェクトだけをオフにした場合は、その子だけがスキップされ、同じグループの他の有効なエフェクトは動作します。
 - **Layer Input:** [Layer Input](/docs/ja/workflow/layer-input/) が参照するソースレイヤーでも、オフにしたエフェクトとグループはスキップされます。
 - **S_Glow:** [S_Glow](/docs/ja/effects/s-glow/) をオフにすると、**Expand Borders** の余白拡張やプロジェクト解像度でのシーケンス処理も省略されます。

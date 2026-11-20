@@ -1,6 +1,6 @@
 # ZSMB reference
 
-ZSMB (beta 1.0) adds optical-flow motion blur as a native effect in the Zoidium
+ZSMB (beta 1.1) adds optical-flow motion blur as a native effect in the Zoidium
 external extension layer around CM3. Its stable effect ID is
 `smart-motion-blur-lite`.
 

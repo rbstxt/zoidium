@@ -127,7 +127,7 @@ function draw(renderer,write,read){
 }
 
 ZoidiumPluginApis.defineFrameSampler.call(effect, {
-  displayName: "ZSMB (beta 1.0)",
+  displayName: "ZSMB (beta 1.1)",
   properties: {
     qualityPresetVersion: {visible:false,name:"Quality preset version",type:PZ.property.type.NUMBER,value:2},
     quality: { dynamic:true,name:"Quality",type:PZ.property.type.OPTION,value:1,items:"Full;1/2;1/4;1/8",description:"Sets how much detail the motion analysis uses. Full analyses every pixel and is the most accurate and the slowest. 1/2, 1/4, and 1/8 analyse a smaller image for faster preview and faster export. Blur length stays the same at every level, and a smaller preview limits the analysis size." },
@@ -175,7 +175,7 @@ ZoidiumPluginApis.defineFrameSampler.call(effect, {
       effect.properties.qualityPresetVersion?.set?.(2);
       const savedName=data?.properties?.name;
       if(typeof savedName === "string" && /^(?:Smart Motion Blur Lite|ZSMB)(?: v\d+| \(beta [\d.]+\))?$/.test(savedName)) {
-        effect.properties.name?.set("ZSMB (beta 1.0)");
+        effect.properties.name?.set("ZSMB (beta 1.1)");
       }
     },
     update(frame) { effect._smbSettings = settings(frame); },

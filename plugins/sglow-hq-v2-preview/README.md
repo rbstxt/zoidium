@@ -1,6 +1,6 @@
 # S_Glow reference
 
-S_Glow (beta 1.0) adds a thresholded, blurred glow as a native effect in the
+S_Glow (beta 1.1) adds a thresholded, blurred glow as a native effect in the
 Zoidium external extension layer around CM3. Its stable effect ID is
 `sglow-hq-v2-preview`.
 
