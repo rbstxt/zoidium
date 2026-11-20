@@ -25,12 +25,15 @@ test("export detects active samplers and skips bypassed preparation", async () =
   h.sequence.properties.motionBlurShutter = { get: () => 1 };
   h.owner.effects = [h.effect, { zoidiumBypassed: true, prepare: () => { throw Error("bypassed preparation"); } }];
   h.effect.prepare = async () => { calls++; };
-  const exporter = { sequence: h.sequence, exportPolicy: { check() {} } };
+  let checks = 0;
+  const exporter = { sequence: h.sequence, exportPolicy: { check() { checks++; } } };
   await h.parts.exportPreparation.prepare(h.state, exporter, 30);
   assert.equal(calls, 2);
   h.effect.zoidiumBypassed = true;
+  checks = 0;
   await h.parts.exportPreparation.prepare(h.state, exporter, 30);
   assert.equal(calls, 2);
+  assert.equal(checks, 0);
 });
 
 test("asynchronous effect loading retains bypass serialization", async () => {
