@@ -29,3 +29,21 @@ test('native shader hook preserves raw source and binds local time, frame and ab
  effect.update(7.5);assert.equal(effect.pass.uniforms.zFps.value,30);assert.equal(effect.pass.uniforms.zTime.value,.5);
  const plain='void main(){gl_FragColor=vec4(1.0);}';effect.properties.fragShader=p(plain);effect.dirty=true;effect.update(4);assert.equal(effect.pass.material.fragmentShader,plain);assert.deepEqual(Object.keys(effect.pass.uniforms),['tDiffuse']);
 });
+test('native shader binds expression properties and local time on successive frames',{skip:!fs.existsSync(core)},()=>{
+ const {nativeHost}=require('./expressions-plus-harness'), {KINDS}=require('../plugins/shader-plus/kinds');
+ const h=nativeHost(),{PZ,THREE}=h;
+ const {installEngine}=require('../plugins/expressions-plus/engine');
+ const sequence=new PZ.sequence(); sequence.properties.load();
+ const clip=new PZ.clip.video(); clip.parent=sequence; clip.start=10; clip.length=300; clip.properties.load(); clip.object.properties.load();
+ const effect=new PZ.effect.shader(); clip.object.effects.push(effect); effect.properties.load();
+ const property=PZ.property.create(KINDS.slider.create()); effect.customProperties.push(property); property.load(); property.properties.name.set('Amount');
+ property.animated=true; property.expression=new PZ.expression('time');
+ effect.properties.fragShader.set('uniform float Amount; uniform float zTime; void main(){gl_FragColor=vec4(Amount+zTime);}');
+ effect.pass={uniforms:{},material:{defines:{}},enabled:true};
+ const engine=installEngine({...h,sequence:()=>sequence});
+ const pipeline=require('../plugins/core/shader-pipeline').forHost(PZ,h.patch);
+ require('../plugins/shader-plus/runtime').installRuntime({PZ,THREE,pipeline,patch:h.patch,onDispose() {},doc:{},curves:{},editor:()=>null,presetFont:()=>null});
+ installShaders({...h,store:{list:()=>[]},engine});
+ effect.update(30); assert.equal(property.get(30),1); assert.equal(effect.pass.uniforms.Amount.value,1); assert.equal(effect.pass.uniforms.zTime.value,1);
+ effect.update(60); assert.equal(property.get(60),2); assert.equal(effect.pass.uniforms.Amount.value,2); assert.equal(effect.pass.uniforms.zTime.value,2);
+});
