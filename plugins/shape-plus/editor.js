@@ -106,7 +106,7 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, paths) {
     canvas, state: s, update, settle,
     tool(next) { if (s.tool !== next) settle(); s.tool = next; s.dirty = true; },
     select(items) {
-      const ids = items.filter(item => item instanceof Content).map(item => item.id);
+      const ids = items.filter(item => item instanceof Content && s.find(item.id) === item).map(item => item.id);
       if (ids[0] === s.activeId && ids.length === s.treeSelection.size && ids.every(id => s.treeSelection.has(id))) return;
       settle(); s.activeId = ids[0] || null; s.treeSelection = new Set(ids); s.selection.clear(); s.penFinished = false; s.refresh();
     },
@@ -146,6 +146,7 @@ function install(context, Layer, Content, paths) {
     button.append(image);
     if (paths) {
       button.setAttribute("data-zoidium-path-control", "");
+      command.fn = () => paths.shortcuts?.tool(key, { currentTarget: button });
       button.onclick = event => paths.shortcuts?.tool(key, event);
     } else button.onclick = toolbar.click.bind(toolbar);
     transform.after(button); commands.push(command); buttons.push({ name, button, image });
@@ -154,21 +155,25 @@ function install(context, Layer, Content, paths) {
   if (!paths) toolbar.buttons.push(...commands);
   const select = panels.top.selectItems;
   function selected() {
-    if (!view) return select.apply(this, arguments);
     // Finishing an edit can rebuild the native rows. Retain the clicked IDs
     // first, then select their live replacements instead of stale instances.
-    const requested = Array.from(this.list.getElementsByClassName("selected"), row => row.pz_object);
-    view?.settle();
-    this.deselectItems();
-    for (const row of this.list.querySelectorAll("li"))
-      if (requested.some(item => item instanceof Content ? row.pz_object instanceof Content && row.pz_object.id === item.id : row.pz_object === item))
-        row.classList.add("selected");
+    if (view) {
+      const requested = Array.from(this.list.getElementsByClassName("selected"), row => row.pz_object);
+      view.settle();
+      this.deselectItems();
+      for (const row of this.list.querySelectorAll("li"))
+        if (requested.some(item => item instanceof Content ? row.pz_object instanceof Content && row.pz_object.id === item.id : row.pz_object === item))
+          row.classList.add("selected");
+    }
     const result = select.apply(this, arguments);
-    view?.select(this.selection);
+    const layer = editableClip(editor, viewport, Layer, PZ)?.object;
+    const item = this.selection.length === 1 && this.selection[0];
+    if (!layer || !(item instanceof Content) || item.kind !== "path" ||
+        !paths?.activate("shape", layer, item.id)) view?.select(this.selection);
     return result;
   }
   panels.top.selectItems = selected;
-  const changed = () => { view?.dispose(); view = null; };
+  const changed = () => { view?.dispose(); view = null; enabled = true; tool = "select"; restoreWidget(); };
   editor.onProjectChanged.watch(changed);
   function restoreWidget() {
     if (hiddenWidget !== null) {
@@ -228,6 +233,6 @@ function install(context, Layer, Content, paths) {
     }
     for (const { button } of buttons) button.remove();
   });
-  return { setTool, get state() { return view?.state; }, get canvas() { return view?.canvas; } };
+  return { setTool, update: () => tick(false), get state() { return view?.state; }, get canvas() { return view?.canvas; } };
 }
 module.exports = { install, mountOverlay, editableClip };

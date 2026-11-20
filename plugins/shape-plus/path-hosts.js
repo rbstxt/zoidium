@@ -494,7 +494,7 @@ function applyCreation(request, options = {}) {
 // The runtime owns this registry. A project change discards both the
 // controller and the adapters, including adapters for closed overlays.
 function createEditorPathRegistry(editor, viewport) {
-  let controller, input;
+  let controller, input, mount;
   function reset() {
     controller?.dispose();
     controller = createPathController({ project: editor.project, viewport });
@@ -569,13 +569,24 @@ function createEditorPathRegistry(editor, viewport) {
     hostForLayer: layer => hosts.get(layer)?.host,
     register,
     unregister,
+    setMounter(fn) { mount = fn; },
     activate(kind, layer, pathId) {
+      if (controller.disposed || !HOST_KINDS.includes(kind) || !layer ||
+          typeof pathId !== "string" || !pathId) return false;
+      if (mount && !mount(kind, layer, pathId)) return false;
       const entry = hosts.get(layer);
       if (!entry || entry.kind !== kind || !entry.host.hasPath(pathId)) return false;
+      input.notifyExternalSelection();
       controller.activate(entry.host, pathId);
+      entry.session?.canvas?.focus({ preventScroll: true });
       return true;
     },
-    dispose() { editor.onProjectChanged.unwatch(changed); controller.dispose(); hosts = new WeakMap(); },
+    dispose() {
+      editor.onProjectChanged.unwatch(changed);
+      controller.dispose();
+      hosts = new WeakMap();
+      mount = null;
+    },
   };
 }
 

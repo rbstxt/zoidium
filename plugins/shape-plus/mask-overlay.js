@@ -135,11 +135,11 @@ function install(context, Content, paths) {
   let view = null, mode = "off", modeLayer = null, disposed = false;
   function setMode(next) {
     if (!MODES.includes(next)) throw Error(`Unknown mask mode ${next}`);
-    if (mode === "off" && next !== "off") modeLayer = maskClip(editor, viewport, PZ)?.layer || null;
+    if (next !== "off") modeLayer = maskClip(editor, viewport, PZ)?.layer || null;
     mode = next;
     if (mode !== "off" && paths && paths.controller.tool !== mode) paths.controller.setTool(mode);
     if (mode === "off") { view?.dispose(); view = null; }
-    else view?.tool(mode);
+    else if (view?.state.pathHost.owns(modeLayer)) view.tool(mode);
     tick(false);
   }
   const command = { title: "Mask pen (q)", key: "q", fn: () => setMode("pen") };
@@ -152,11 +152,12 @@ function install(context, Content, paths) {
   button.append(image);
   if (paths) {
     button.setAttribute("data-zoidium-path-control", "");
+    command.fn = () => paths.shortcuts?.tool("q", { currentTarget: button });
     button.onclick = event => paths.shortcuts?.tool("q", event);
   } else button.onclick = toolbar.click.bind(toolbar);
   transform.after(button);
   if (!paths) toolbar.buttons.push(command);
-  const changed = () => { view?.dispose(); view = null; mode = "off"; };
+  const changed = () => { view?.dispose(); view = null; mode = "off"; modeLayer = null; restoreWidget(); };
   editor.onProjectChanged.watch(changed);
   // Hide the native 2D widget while the overlay is mounted and give back
   // both its visibility and its edit state afterwards.
@@ -192,7 +193,7 @@ function install(context, Content, paths) {
       if (mode !== "off") mode = "off";
     }
     const active = !!found && mode !== "off";
-    if (view && (!active || !view.state.valid())) { view.dispose(); view = null; }
+    if (view && (!active || !view.state.pathHost.owns(layer) || !view.state.valid())) { view.dispose(); view = null; }
     if (active && !view) {
       const session = sessionFor(layer);
       view = mountMaskOverlay(session, viewport, context, mode);
@@ -222,14 +223,7 @@ function install(context, Content, paths) {
     if (index >= 0) toolbar.buttons.splice(index, 1);
     button.remove();
   });
-  return { sessionFor, setMode, get state() { return view?.state; }, activate(layer, pathId) {
-    if (!paths || maskClip(editor, viewport, PZ)?.layer !== layer) return false;
-    sessionFor(layer);
-    if (!paths.activate("mask", layer, pathId)) return false;
-    modeLayer = layer;
-    setMode("select");
-    return true;
-  } };
+  return { sessionFor, setMode, update: () => tick(false), get state() { return view?.state; } };
 }
 
 module.exports = { install, mountMaskOverlay, maskClip, maskableLayer };

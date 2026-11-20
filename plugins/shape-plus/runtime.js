@@ -2,9 +2,9 @@
 const { createModel, defaults } = require("./model.js");
 const { createLayerClass, TYPE } = require("./layer.js");
 const { titles } = require("./properties.js");
-const { inverse } = require("./editor-geometry.js");
-const { displayMatrix } = require("./viewport-mapping.js");
-const { transform } = require("./compiler.js");
+const { createMapping } = require("./viewport-mapping.js");
+const { find } = require("./editor-tree-data.js");
+const { getMasks } = require("./mask-model.js");
 const { planAdd } = require("./contents-ops.js");
 const { requestCreation } = require("./path-hosts.js");
 const DEFAULT_CLIP_LENGTH = 180;
@@ -73,6 +73,7 @@ function timelineTracks(editor, PZ, document) {
 }
 
 function selectTimelineClips(tracks, clips) {
+  if (!tracks) return false;
   const requested = new Set(clips);
   const rows = [...tracks.container.querySelectorAll(".clip")].filter(row => requested.has(row.pz_object));
   if (rows.length !== requested.size) return false;
@@ -128,6 +129,58 @@ function installPathEditing(context, Layer, Content) {
   // mask-overlay.js, mask-panels.js).
   const maskEditor = require("./mask-overlay.js");
   const maskOverlay = maskEditor.install(context, Content, paths);
+  function selectedLayer() {
+    const selected = viewport.objects?.length === 1 ? viewport.objects[0] : null;
+    return selected?.object || selected;
+  }
+  paths.setMounter((kind, layer, pathId) => {
+    if (!viewport.enabled || !editor.project || !editor.sequence) return false;
+    if (kind === "shape") {
+      if (!(layer instanceof Layer) || find(layer.contents, pathId)?.item.kind !== "path") return false;
+    } else if (!maskEditor.maskableLayer(PZ, layer) || !getMasks(layer).some(mask => mask.id === pathId)) {
+      return false;
+    }
+    const clip = layer.parent && layer.parentObject;
+    if (!(clip instanceof PZ.clip) || clip.object !== layer ||
+        clip.tryGetParentOfType(PZ.sequence) !== editor.sequence || clip.length <= 0) return false;
+    try {
+      if (editor.project.addressLookup(layer.getAddress()) !== layer) return false;
+    } catch (_error) {
+      return false;
+    }
+    if (selectedLayer() !== layer && !selectTimelineClips(timelineTracks(editor, PZ, document), [clip])) return false;
+    if (editor.playback.currentFrame < clip.start || editor.playback.currentFrame >= clip.start + clip.length) {
+      editor.playback.speed = 0;
+      editor.playback.currentFrame = clip.start;
+    }
+    if (kind === "mask") {
+      shapeOverlay.update();
+      maskOverlay.setMode("select");
+      return !!maskOverlay.state?.pathHost.owns(layer);
+    }
+    maskOverlay.update();
+    shapeOverlay.setTool("select");
+    return shapeOverlay.state?.layer === layer;
+  });
+  const publicPaths = Object.freeze({ activate: paths.activate });
+  PZ.zoidium ??= {};
+  if (PZ.zoidium.define) PZ.zoidium.define("pathEditor", publicPaths, "shape-plus");
+  else PZ.zoidium.pathEditor = publicPaths;
+  own(() => {
+    if (PZ.zoidium.pathEditor === publicPaths) delete PZ.zoidium.pathEditor;
+  });
+
+  function routeTool(tool) {
+    const mask = maskEditor.maskClip(editor, viewport, PZ)?.layer;
+    if (mask) {
+      shapeOverlay.update();
+      const host = paths.hostForLayer(mask);
+      if (tool === "pen" || maskOverlay.state || (host && host === paths.controller.activeHost)) maskOverlay.setMode(tool);
+    } else {
+      maskOverlay.update();
+      shapeOverlay.setTool(tool);
+    }
+  }
   paths.shortcuts = require("./editor-actions.js").installPathShortcuts({
     paths, viewport, document, window,
     session: () => {
@@ -137,32 +190,44 @@ function installPathEditing(context, Layer, Content) {
       if (mask && maskOverlay.state?.pathHost.owns(mask)) return maskOverlay.state;
       return null;
     },
-    routeTool(tool) {
-      if (maskEditor.maskClip(editor, viewport, PZ)) {
-        if (tool === "pen" || maskOverlay.state || paths.hostForLayer(viewport.objects[0].object || viewport.objects[0]) === paths.controller.activeHost)
-          maskOverlay.setMode(tool);
-      } else shapeOverlay.setTool(tool);
-    },
+    routeTool,
   });
   own(() => paths.shortcuts.dispose());
+
+  // Timeline selection is an observable list in the native viewport.
+  // Rebind it when the viewport switches to another selection list.
+  function selectionChanged() {
+    if (paths.controller.tool === "pen") routeTool("pen");
+    else { shapeOverlay.update(); maskOverlay.update(); }
+  }
+  let selectionEvents;
+  function bindSelection() {
+    selectionEvents?.unwatch(selectionChanged);
+    selectionEvents = viewport.objects?.onListChanged;
+    selectionEvents?.watch(selectionChanged);
+    selectionChanged();
+  }
+  viewport.onObjectsChanged?.watch(bindSelection);
+  bindSelection();
+  own(() => {
+    viewport.onObjectsChanged?.unwatch(bindSelection);
+    selectionEvents?.unwatch(selectionChanged);
+  });
 
   function canvasPress(event) {
     if (event.target !== viewport.canvas || event.button !== 0 || event.isPrimary === false ||
         !editor.project || !editor.sequence || !viewport.enabled || paths.controller.tool !== "pen") return;
-    const selected = viewport.objects?.length === 1 ? viewport.objects[0] : null;
-    const layer = selected?.object || selected;
+    const layer = selectedLayer();
     // A compatible selection with an unavailable projection stays on its
     // host. It must not silently add a layer to a different coordinate space.
     if (layer instanceof Layer || maskEditor.maskableLayer(PZ, layer)) return;
     const request = requestCreation();
     if (request.kind !== "new-shape-layer") return;
-    const rect = viewport.canvas.getBoundingClientRect();
-    const base = displayMatrix(rect, editor.sequence.properties.resolution.get(), {
+    const mapping = createMapping(viewport.canvas.getBoundingClientRect(), editor.sequence.properties.resolution.get(), {
       position: [0, 0, 0], scale: [1, 1, 1], rotation: 0,
     });
-    const toLocal = base && inverse(base);
-    if (!toLocal) return;
-    const point = transform([event.clientX - rect.left, event.clientY - rect.top], toLocal);
+    if (!mapping) return;
+    const point = mapping.client([event.clientX, event.clientY]);
     event.preventDefault();
     event.stopImmediatePropagation();
     try {
