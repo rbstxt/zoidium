@@ -237,6 +237,11 @@ function createRenderer(THREE, sampleScale = "auto") {
     stats.supersample = scale;
     const max = renderer.capabilities.maxTextureSize;
     if (w > max || h > max || w * h * targets.length > 67108864) throw Error("Shape+ antialiasing target budget exceeded");
+    if (renderer.__zoidiumExportRenderer && w * h * 4 * targets.length > (renderer.__zoidiumShapeTargetPeak || 0)) {
+      renderer.__zoidiumShapeTargetPeak = w * h * 4 * targets.length;
+      try { globalThis.ZOIDIUM_DEBUG_LOG?.record?.("export-gpu-target", { owner: "Shape+ raster", format: "RGBA8", width: w, height: h, count: targets.length, estimatedBytes: renderer.__zoidiumShapeTargetPeak }); }
+      catch (_error) { /* Diagnostics must not interrupt export. */ }
+    }
     if (size[0] !== w || size[1] !== h) {
       for (const t of targets) t.setSize(w, h);
       size = [w, h]; stats.width = w; stats.height = h;
@@ -267,6 +272,12 @@ function createRenderer(THREE, sampleScale = "auto") {
       throw error;
     } finally { renderer.setClearColor(clearColor, clearAlpha); renderer.autoClear = autoClear;
       if (renderer.setRenderTarget && previousTarget !== undefined) renderer.setRenderTarget(previousTarget);
+      // Export layers can accumulate many full-frame rasters. The resolve has
+      // already consumed these pixels; re-create them if the layer draws again.
+      if (renderer.__zoidiumExportRenderer) {
+        rasterKey = null;
+        for (const t of targets) t.dispose();
+      }
     }
   }
   function dispose() { observeRenderer({}); releaseTree(); for (const resource of allocations) resource.dispose(); allocations.clear(); warmMaterials.clear(); }
