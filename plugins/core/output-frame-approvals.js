@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "7f9e7db97d68eb42bbff7436f232ceffba596c9a28bfe0f1438de2a7b8be7b71",
+  "fingerprint": "5412bdd3e1941bf0417fca5a940d30ae91f506551afe7003af0a1c2301e4d7e1",
   "plugins": {
     "native-fx": {
       "version": "43",
@@ -96,7 +96,7 @@
       ]
     },
     "trapcode-suite": {
-      "version": "54",
+      "version": "55",
       "cases": [
         "Particular",
         "Default burst",
@@ -134,7 +134,7 @@
       ]
     },
     "shader-plus": {
-      "version": "34",
+      "version": "35",
       "cases": [
         "time-sample",
         "time-sample-adjustment",
@@ -148,7 +148,7 @@
       ]
     },
     "camera-plus": {
-      "version": "24",
+      "version": "25",
       "cases": [
         "scene-camera-animation",
         "shared-camera-animation",
