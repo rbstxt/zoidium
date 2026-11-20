@@ -105,6 +105,8 @@ function create(initial, onRefresh = () => {}) {
       channel.keyframes.sort((a, b) => a.frame - b.frame);
     }
     const next = copy(entry.host.data), property = next.properties.path;
+    // Masks store the grouped encoding: mask-host.js normalize() converts these
+    // separate channels back on commit. Keep that conversion if normalize changes.
     property.objects = list;
     delete property.animated;
     delete property.keyframes;

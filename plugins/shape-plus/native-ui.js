@@ -300,7 +300,13 @@ function installPathTimeline(PZ, editor, sessionFor, overlayFor, notify, onDispo
       panels.delete(panel);
     }
   }
-  function tick() { sync(); request = window.requestAnimationFrame(tick); }
+  // Panel discovery has no construction event to watch, so poll, but at most
+  // four times a second instead of on every animation frame.
+  let lastSync = -Infinity;
+  function tick(now) {
+    if (!(now - lastSync < 250)) { lastSync = Number.isFinite(now) ? now : lastSync; sync(); }
+    request = window.requestAnimationFrame(tick);
+  }
   tick();
   editor.onProjectChanged.watch(sync);
   onDispose(() => {

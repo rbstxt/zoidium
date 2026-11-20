@@ -81,7 +81,7 @@ function createPathOperationHost({ read, write, assertEditable, gesture, playbac
     commit(next) {
       assertEditable();
       if (!read()) throw Error("Path is unavailable");
-      if (preview || join && gesture.active) write(next);
+      if (preview || (join && gesture.active)) write(next);
       else if (!gesture.run(() => write(next))) throw Error("Finish the current edit before changing path keys");
     },
     seek(frame) {
