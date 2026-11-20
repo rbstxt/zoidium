@@ -199,6 +199,7 @@ function installActions(s, root, options = {}) {
       arrowup: [0, 1],
       arrowdown: [0, -1],
     }[key];
+    if (direction && s.pathLocked?.(s.activeId)) return;
     if (direction && !(s.active()?.kind === "path" && s.selection.size) && s.treeSelection.size) {
       // No anchors selected: arrows move the selected items themselves.
       consume();
@@ -209,7 +210,7 @@ function installActions(s, root, options = {}) {
         s.pathController?.beginGesture({ kind: "nudge" });
       }
       try {
-        if (!xf.nudge(s, [...s.treeSelection], g.mul(direction, event.shiftKey ? 10 : 1))) finishNudge(true);
+        if (!xf.nudge(s, [...s.treeSelection].filter(id => !s.pathLocked?.(id)), g.mul(direction, event.shiftKey ? 10 : 1))) finishNudge(true);
       } catch (error) {
         finishNudge(true);
         s.message(error.message);

@@ -8,7 +8,7 @@ const { createPointerMachine } = require("./editor-pointer-machine.js");
 const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
 const { transform } = require("./compiler.js");
-const { startMarquee, applyMarquee } = require("./path-selection.js");
+const { startMarquee, applyMarquee, pointsInRect, HIT_RADIUS_PX } = require("./path-selection.js");
 const { requestCreation } = require("./path-hosts.js");
 function createPointer(s, canvas) {
   const api = s.canvasApi;
@@ -38,9 +38,10 @@ function createPointer(s, canvas) {
       },
     };
   }
-  function pen(event, start) {
-    const hit = api.hit(start), item = s.active();
+  function pen(event, start, hit) {
+    const item = s.active();
     if (hit?.kind === "anchor") return clickEdit(() => {
+      s.requireEditablePath?.(item.id);
       if (hit.index === 0 && item.vertexIds.length > 1 && Number(item.properties.closed.get()) !== 1) {
         channels(clone(item));
         item.properties.closed.set(1);
@@ -65,7 +66,7 @@ function createPointer(s, canvas) {
       if (
         item?.kind === "path" &&
         Number(item.properties.closed.get()) !== 1 &&
-        !s.penFinished &&
+        !s.penFinished && !s.pathLocked?.(item.id) &&
         (s.sharedPathHost?.kind !== "mask" || drawing?.pathId === item.id)
       ) {
         local = api.local(start);
@@ -126,8 +127,8 @@ function createPointer(s, canvas) {
             points[index].in = broken.slice();
           } else broken = null;
           points[index] = g.handle(points[index], "out", vector, mode);
-          path.vertexModes[id] = mode;
           s.setPoints(points);
+          path.vertexModes[id] = mode;
         });
         },
         end() {
@@ -148,6 +149,20 @@ function createPointer(s, canvas) {
       return null;
     }
   }
+  function pathCandidates(point) {
+    if (!s.pathInput) return [];
+    return api.entries().filter(entry => entry.enabled && entry.item.kind === "path" &&
+      g.hit(api.cssPoints(entry), entry.path.closed, point, 8 / HIT_RADIUS_PX, false))
+      .map(entry => entry.item.id);
+  }
+  function toggleAnchorMode(item, index) {
+    const id = item.vertexIds[index];
+    s.selection = new Set([selectionKey(id)]);
+    s.refresh();
+    if (s.pathLocked?.(item.id)) return;
+    const before = item.vertexModes[id];
+    s.setMode(!before || before === "corner" ? "smooth" : "corner");
+  }
   function beginInner(event) {
     canvas.focus({ preventScroll: true });
     s.closeMenu?.();
@@ -167,13 +182,25 @@ function createPointer(s, canvas) {
     }
     const control = controls.beginHandle(s, start, point);
     if (control) return control;
-    if (s.tool === "pen" && api.hit(start)?.kind !== "handle")
-      return pen(event, start);
+    const frame = s.localFrame();
+    let hit = s.tool === "pen" || s.treeSelection.size === 1 ? api.hit(start) : null;
+    if (s.pathInput && hit?.kind !== "anchor" && hit?.kind !== "handle" &&
+        (s.tool === "select" || !hit)) {
+      const candidates = pathCandidates(start);
+      const activated = s.pathInput.activateAt(start, candidates, s.sharedPathHost, frame);
+      if (activated && s.tool === "pen") return null;
+      if (activated) hit = api.hit(start);
+    }
+    const item = s.active(), locked = s.pathLocked?.(item?.id);
+    if (s.pathInput && event.altKey && hit?.kind === "anchor") {
+      toggleAnchorMode(item, hit.index);
+      return null;
+    }
+    if (s.tool === "pen" && hit?.kind !== "handle" && (!locked || !hit))
+      return pen(event, start, hit);
     const boxHandle = s.tool === "select" ? xf.handleAt(s, start) : null;
     if (boxHandle) return xf.boxGesture(s, boxHandle, start, point);
-    const item = s.active(),
-      hit = s.treeSelection.size === 1 ? api.hit(start) : null;
-    const frame = s.localFrame();
+    if (hit?.kind === "segment" && locked) return null;
     if (s.tool === "select" && hit?.kind === "segment") {
       const origin = s.pathPoints(), startLocal = api.local(start);
       if (!startLocal) return null;
@@ -194,12 +221,13 @@ function createPointer(s, canvas) {
       if (event.shiftKey) {
         if (s.selection.has(key)) {
           s.selection.delete(key);
-          s.dirty = true;
+          s.refresh();
           return null;
         }
         s.selection.add(key);
       } else if (!s.selection.has(key)) s.selection = new Set([key]);
       s.refresh();
+      if (locked) return null;
       const origin = s.pathPoints(),
         startLocal = api.local(start),
         selection = new Set(s.selection),
@@ -259,7 +287,9 @@ function createPointer(s, canvas) {
                 vector,
                 mode,
               );
+              s.setPoints(points);
               item.vertexModes[id] = mode;
+              return;
             }
             s.setPoints(points);
           });
@@ -277,8 +307,9 @@ function createPointer(s, canvas) {
     }
     // A drawn shape: select it (AE-style depth, see editor-pick.js) and drag
     // the whole selection. Shift toggles the clicked item in the selection.
+    const editing = item?.kind === "path" && s.treeSelection.size === 1;
     const entry = api.itemAt(start);
-    if (entry) {
+    if (entry && !(s.pathInput && editing && entry.item.kind === "path")) {
       const target = pickTarget(s.layer.contents, entry.item.id, s.treeSelection);
       if (event.shiftKey) {
         if (s.treeSelection.has(target)) {
@@ -293,14 +324,13 @@ function createPointer(s, canvas) {
         s.selection.clear();
         s.refresh();
       } else if (!s.treeSelection.has(target)) s.selectItem(target);
-      return xf.moveGesture(s, start, point, [...s.treeSelection]);
+      return xf.moveGesture(s, start, point, [...s.treeSelection].filter(id => !s.pathLocked?.(id)));
     }
     // Empty space inside the selected box still drags the selection.
     if (!event.shiftKey && insideSelection(start))
-      return xf.moveGesture(s, start, point, [...s.treeSelection]);
+      return xf.moveGesture(s, start, point, [...s.treeSelection].filter(id => !s.pathLocked?.(id)));
     // Empty space: a marquee. With a path open for editing it selects
     // anchors; otherwise it selects whole top-level items.
-    const editing = item?.kind === "path" && s.treeSelection.size === 1;
     const beforeAnchors = new Set(s.selection),
       beforeItems = event.shiftKey ? new Set(s.treeSelection) : new Set(),
       pathEntry = editing ? api.active() : null;
@@ -310,8 +340,8 @@ function createPointer(s, canvas) {
       if (!editing) {
         s.treeSelection.clear();
         s.activeId = null;
-        s.refresh();
       }
+      s.refresh();
     }
     s.marquee = { start, end: start };
     s.dirty = true;
@@ -324,11 +354,12 @@ function createPointer(s, canvas) {
         s.marquee = { start, end };
         const lo = [Math.min(start[0], end[0]), Math.min(start[1], end[1])],
           hi = [Math.max(start[0], end[0]), Math.max(start[1], end[1])];
-        const inside = (p) => p[0] >= lo[0] && p[0] <= hi[0] && p[1] >= lo[1] && p[1] <= hi[1];
         if (pathEntry) {
-          const picked = api.cssPoints(pathEntry).flatMap((v, i) =>
-            inside(v.point) ? [selectionKey(pathEntry.item.vertexIds[i])] : []);
+          const picked = pointsInRect(api.cssPoints(pathEntry).map((v, i) => ({
+            point: v.point, key: selectionKey(pathEntry.item.vertexIds[i]),
+          })), s.marquee);
           s.selection = applyMarquee(marquee, picked, event.shiftKey);
+          s.syncPathSelection?.();
         } else if (Math.hypot(...g.sub(end, start)) >= 3) {
           const picked = new Set(beforeItems);
           for (const top of s.layer.contents) {
@@ -366,6 +397,14 @@ function createPointer(s, canvas) {
     controller.beginGesture({ kind: "pointer", pathId: gesture.target });
     return {
       ...gesture,
+      move(e) {
+        s.pathInput?.trackPointer(point(e));
+        if (gesture.target && s.pathLocked?.(gesture.target) && !s.marquee) {
+          pointer.commit();
+          return;
+        }
+        gesture.move?.(e);
+      },
       end(e) {
         if (!controller.disposed) controller.endGesture();
         gesture.end?.(e);
@@ -405,15 +444,10 @@ function createPointer(s, canvas) {
       hit = s.treeSelection.size === 1 ? api.hit(p) : null;
     event.preventDefault();
     if (hit?.kind === "anchor") {
-      s.selection = new Set([selectionKey(item.vertexIds[hit.index])]);
-      s.setMode(
-        item.vertexModes[item.vertexIds[hit.index]] === "corner" ||
-          !item.vertexModes[item.vertexIds[hit.index]]
-          ? "smooth"
-          : "corner",
-      );
+      toggleAnchorMode(item, hit.index);
       return;
     }
+    if (pathCandidates(p).length) return;
     const entry = api.itemAt(p);
     if (entry) {
       if (entry.item.kind === "text") {
@@ -435,6 +469,7 @@ function createPointer(s, canvas) {
     return api.scoped(() => {
     if (pointer.active || !s.valid()) return;
     const p = point(event);
+    s.pathInput?.trackPointer(p);
     let cursor = "default",
       id = null;
     if (s.tool === "pen") cursor = "crosshair";
@@ -458,6 +493,7 @@ function createPointer(s, canvas) {
     });
   };
   const leave = () => {
+    s.pathInput?.notifyExternalSelection();
     if (s.hover !== null) {
       s.hover = null;
       s.dirty = true;

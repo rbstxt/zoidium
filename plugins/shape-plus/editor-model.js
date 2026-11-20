@@ -7,6 +7,8 @@ const tree = require("./editor-tree-data.js");
 const g = require("./editor-geometry.js");
 const { primitivePath } = require("./primitives.js");
 const { planAdd } = require("./contents-ops.js");
+const { isLocked: isMaskLocked } = require("./mask-metadata.js");
+const { getMasks } = require("./mask-model.js");
 function replaceContents(layer, contents, Content) {
   validate(contents);
   // Load detached first, then publish the whole valid list in one notification.
@@ -104,7 +106,11 @@ function bindPathSession(s, controller, host) {
         controller.activate(host, id);
         if (!vertices.length) return;
       }
-      controller.setSelection(host, id, vertices);
+      const before = controller.getSelection();
+      if (before.length !== vertices.length || vertices.some(vertex => !before.includes(vertex))) {
+        s.pathInput?.notifyExternalSelection();
+        controller.setSelection(host, id, vertices);
+      }
     } else if (controller.activeHost === host) {
       // Preserve Shape+ group/primitive selection when leaving a path.
       controller.deactivate({ mirror: false });
@@ -165,6 +171,11 @@ function createEditorModel(s) {
   s.read = read;
   s.find = (id) => tree.find(liveContents(), id)?.item || null;
   s.active = () => s.find(s.activeId);
+  s.pathLocked = id => s.sharedPathHost?.isLocked(id) ||
+    !!host && isMaskLocked(getMasks(resolve()).find(mask => mask.id === id));
+  s.requireEditablePath = id => {
+    if (s.pathLocked(id)) throw Error(host ? "Layer mask is locked" : "Shape+ path is locked");
+  };
   s.localFrame = () => {
     let clip = null;
     try {
@@ -208,6 +219,7 @@ function createEditorModel(s) {
     }
   };
   s.replaceItem = (id, data) => {
+    s.requireEditablePath(id);
     const entry = tree.find(liveContents(), id);
     if (!entry) return;
     if (!data) {
@@ -237,6 +249,8 @@ function createEditorModel(s) {
   // notifications supply the same current-frame behavior as startEdit without
   // recording a second set of inverse commands for those same changes.
   s.setValue = (property, value, frame = s.localFrame()) => {
+    const owner = property.parentObject;
+    if (owner?.kind === "path") s.requireEditablePath(owner.id);
     const axes = property.objects || [property],
       values = property.objects ? value : [value];
     if (
@@ -282,8 +296,11 @@ function createEditorModel(s) {
       ? g.vertices(item.properties.path.get(s.localFrame()))
       : [];
   };
-  s.setPoints = (points) =>
-    s.setValue(s.active().properties.path, g.values(points));
+  s.setPoints = (points) => {
+    const item = s.active();
+    s.requireEditablePath(item.id);
+    s.setValue(item.properties.path, g.values(points));
+  };
   // Pen paths and context-menu shapes use the same AE structure as the
   // native add menu: a new group owns the shape and its paints unless a
   // group is selected (see contents-ops.js). A path host may override the
@@ -322,7 +339,10 @@ function createEditorModel(s) {
         selected = tree.ungroup(contents, s.activeId);
       else if (action === "duplicate")
         selected = tree.duplicate(contents, [...s.treeSelection], s.nextId);
-      else if (action === "delete") tree.remove(contents, [...s.treeSelection]);
+      else if (action === "delete") {
+        for (const id of s.treeSelection) s.requireEditablePath(id);
+        tree.remove(contents, [...s.treeSelection]);
+      }
       else if (action === "forward" || action === "backward") {
         // Earlier contents draw on top, so forward moves toward index 0.
         const step = action === "forward" ? -1 : 1;
@@ -418,6 +438,7 @@ function createEditorModel(s) {
     s.mutate(() => {
       const item = s.active();
       if (item?.kind !== "path") return;
+      s.requireEditablePath(item.id);
       const path = item.properties.path;
       channels(clone(item));
       const frame = s.localFrame(),
@@ -445,6 +466,7 @@ function createEditorModel(s) {
     s.mutate(() => {
       const item = s.active();
       if (item?.kind !== "path") return;
+      s.requireEditablePath(item.id);
       let points = s.pathPoints();
       for (const key of s.selection) {
         const index = item.vertexIds.indexOf(selectionPart(key).id);
@@ -467,6 +489,7 @@ function createEditorModel(s) {
     s.mutate(() => {
       const item = s.active();
       if (item?.kind === "path") {
+        s.requireEditablePath(item.id);
         channels(clone(item));
         item.properties.closed.set(Number(item.properties.closed.get()) === 1 ? 0 : 1);
         s.preview();

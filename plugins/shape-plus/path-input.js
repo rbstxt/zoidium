@@ -60,6 +60,7 @@
 //   from the host (`isLocked`) or P1.2 metadata in the caller.
 const {
   createCycleState,
+  samePoint,
   chooseCandidate,
   resetCycle,
   deletionDecision,
@@ -111,6 +112,8 @@ function createPathInput(options = {}) {
   }
   const state = {
     cycle: createCycleState(),
+    frame: undefined,
+    hostId: null,
     temporarySelect: false,
     altHeld: false,
   };
@@ -259,12 +262,17 @@ function createPathInput(options = {}) {
   // frontmost candidate; repeated clicks at the same location cycle front
   // to back, including the active path. Returns the activated path ID, or
   // null when nothing is under the point.
-  function activateAt(point, candidateIds, host) {
-    const id = chooseCandidate(state.cycle, point, candidateIds);
-    if (id === null) return null;
+  function activateAt(point, candidateIds, host, frame) {
     const target = host || controller.activeHost;
     if (!target) return null;
-    controller.activate(target, id);
+    if (state.frame !== frame || state.hostId !== target.id) {
+      state.frame = frame;
+      state.hostId = target.id;
+      notifyFrameChanged();
+    }
+    const id = chooseCandidate(state.cycle, point, candidateIds);
+    if (id === null) return null;
+    if (controller.activeHost !== target || controller.activePathId !== id) controller.activate(target, id);
     return id;
   }
 
@@ -272,6 +280,10 @@ function createPathInput(options = {}) {
   // playback frame changes restart the overlap cycle.
   function notifyExternalSelection() {
     resetCycle(state.cycle);
+  }
+
+  function trackPointer(point) {
+    if (state.cycle.lastPoint && !samePoint(state.cycle.lastPoint, point)) resetCycle(state.cycle);
   }
 
   function notifyFrameChanged() {
@@ -283,6 +295,7 @@ function createPathInput(options = {}) {
     handleKeyUp,
     handleBlur,
     activateAt,
+    trackPointer,
     notifyExternalSelection,
     notifyFrameChanged,
     isTemporarySelect() {
