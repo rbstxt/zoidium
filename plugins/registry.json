@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=166",
       "bundle": "./plugins/core/bundle.json?v=166",
-      "integrity": "sha256-h3ChnCntP6fZ1+a7nyTYfNAmt5Q37F6Z830HdghJ1hU="
+      "integrity": "sha256-WdIXIqOO7xbwzggxDWOs6RVauMjz0UB2wvDlRltfdwc="
     },
     {
       "id": "easing-plus",
@@ -485,7 +485,7 @@
       "defaultEnabled": true,
       "manifest": "./plugins/shape-plus/manifest.json?v=44",
       "bundle": "./plugins/shape-plus/bundle.json?v=44",
-      "integrity": "sha256-ayEfIxK4raOeKeDRUSGiBQ6PbnF55fF0KbUT8i9vFyQ="
+      "integrity": "sha256-ToP9Ot7JLCDhTeViWNXZVvJ9lxVY4oxxerbnTP7Jt5s="
     },
     {
       "id": "constraints",

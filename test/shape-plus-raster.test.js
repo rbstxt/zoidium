@@ -23,6 +23,7 @@ function host() {
   const THREE = { Scene, Mesh, OrthographicCamera: Camera, ShaderMaterial: Material, BufferGeometry: Geometry, PlaneBufferGeometry: Geometry,
     RGBAFormat: 1023, UnsignedByteType: 1009, BufferAttribute: class {}, Color: class {}, Vector2: Vector, Matrix3: class { set() {} }, Matrix4, WebGLRenderTarget: Target };
   const renderer = { capabilities: { maxTextureSize: 16384 }, autoClear: false, getClearColor: () => ({ clone: () => ({}) }), getClearAlpha: () => 1, setClearColor() {},
+    dispose() {},
     render(scene, camera, target) { draws.push({ scene, camera, target, cameraMatrix: camera.matrix.elements.slice(), auto: camera.matrixAutoUpdate }); } };
   return { THREE, renderer, resources, draws };
 }
@@ -174,27 +175,37 @@ test("layers with effects or 3D group rotation keep pre-transform rendering and 
   layer.unload();
 });
 
-test("context restoration invalidates the cached raster and dispose removes its listener", () => {
+test("context loss releases preview targets and restoration redraws them", () => {
   class Canvas extends EventTarget {
-    constructor() { super(); this.listeners = 0; }
-    addEventListener(...args) { this.listeners++; super.addEventListener(...args); }
-    removeEventListener(...args) { this.listeners--; super.removeEventListener(...args); }
+    listeners = new Set();
+    addEventListener(type, callback) { this.listeners.add(type); super.addEventListener(type, callback); }
+    removeEventListener(type, callback) { this.listeners.delete(type); super.removeEventListener(type, callback); }
   }
   const h = host(), engine = createRenderer(h.THREE), canvas = new Canvas();
   h.renderer.domElement = canvas;
+  let lost = false;
+  h.renderer.context = { isContextLost: () => lost };
   engine.setCommands([paint], [640, 360]);
   engine.render(h.renderer, destination);
   engine.render(h.renderer, destination);
   assert.equal(engine.stats.treeRenders, 1);
+  const [scratch, resolved] = h.draws.map(draw => draw.target);
+  assert.equal(scratch.disposals, 0);
+  lost = true;
+  canvas.dispatchEvent(new Event("webglcontextlost"));
+  assert.equal(scratch.disposals, 1);
+  assert.equal(resolved.disposals, 1);
+  engine.render(h.renderer, destination);
+  assert.equal(engine.stats.renders, 2, "a lost context allocates no new targets");
+  lost = false;
   canvas.dispatchEvent(new Event("webglcontextrestored"));
   engine.render(h.renderer, destination);
   assert.equal(engine.stats.treeRenders, 2);
-  const otherCanvas = new Canvas(), other = { ...h.renderer, domElement: otherCanvas };
-  engine.render(other, destination);
-  assert.equal(canvas.listeners, 0);
-  assert.equal(otherCanvas.listeners, 1);
+  assert.notEqual(h.draws.at(-3).target, scratch);
+  assert.notEqual(h.draws.at(-2).target, resolved);
   engine.dispose();
-  assert.equal(otherCanvas.listeners, 0);
+  h.renderer.dispose();
+  assert.equal(canvas.listeners.size, 0);
 });
 
 function byteDestination(width, height) {
@@ -205,7 +216,7 @@ function byteDestination(width, height) {
   };
 }
 
-test("preview resolves into a 1x cache and releases every supersampled target", () => {
+test("preview resolves into a 1x cache and releases isolation and coverage targets", () => {
   const h = host(), engine = createRenderer(h.THREE);
   const output = byteDestination(640, 360);
   engine.setCommands([{ kind: "isolation", opacity: .5, commands: [{ ...paint, coverage: paint.positions }] }], [640, 360]);
@@ -213,20 +224,24 @@ test("preview resolves into a 1x cache and releases every supersampled target", 
   const targets = h.resources.filter(value => value instanceof h.THREE.WebGLRenderTarget);
   const scratch = targets.filter(target => target.width === 2560);
   const [resolved] = targets.filter(target => target.width === 640);
+  const root = h.draws.at(-3).target;
   assert.equal(scratch.length, 3);
-  assert.ok(scratch.every(target => target.disposals === 1));
+  assert.equal(root.disposals, 0);
+  assert.ok(scratch.filter(target => target !== root).every(target => target.disposals === 1));
   assert.equal(resolved.height, 360);
   assert.equal(resolved.disposals, 0);
   assert.deepEqual(h.draws.slice(-2).map(draw => draw.target), [resolved, output]);
   engine.render(h.renderer, output);
   assert.equal(engine.stats.skips, 1);
   assert.equal(h.draws.at(-1).target, output);
-  assert.ok(scratch.every(target => target.disposals === 1));
   engine.dispose();
   assert.equal(resolved.disposals, 1);
+  assert.equal(root.disposals, 0);
+  h.renderer.dispose();
+  assert.equal(root.disposals, 1);
 });
 
-test("preview destinations with a different format resolve directly and release the scratch", () => {
+test("preview destinations with a different format resolve directly and reuse the scratch", () => {
   const h = host(), engine = createRenderer(h.THREE);
   const output = byteDestination(640, 360);
   output.texture.type = 1015;
@@ -235,11 +250,50 @@ test("preview destinations with a different format resolve directly and release 
   engine.render(h.renderer, output);
   const targets = h.resources.filter(value => value instanceof h.THREE.WebGLRenderTarget);
   assert.equal(targets.length, 1);
-  assert.equal(targets[0].disposals, 2);
+  assert.equal(targets[0].disposals, 0);
   assert.equal(engine.stats.treeRenders, 2);
   assert.equal(h.draws.length, 4);
   assert.equal(h.draws.at(-1).target, output);
+  assert.equal(h.draws[0].target, h.draws[2].target);
   engine.dispose();
+  h.renderer.dispose();
+  assert.equal(targets[0].disposals, 1);
+});
+
+test("preview misses share one scratch target until the renderer or size changes", () => {
+  const h = host();
+  const first = createRenderer(h.THREE), second = createRenderer(h.THREE);
+  const draw = (engine, output = destination, renderer = h.renderer) => {
+    const start = h.draws.length;
+    engine.render(renderer, output);
+    return h.draws[start].target;
+  };
+  first.setCommands([paint], [640, 360]);
+  second.setCommands([paint], [640, 360]);
+  const scratch = draw(first);
+  assert.equal(draw(second), scratch);
+  first.setCommands([{ ...paint, opacity: .5 }], [640, 360]);
+  assert.equal(draw(first), scratch);
+  first.setCommands([{ ...paint, id: "replacement" }], [640, 360]);
+  assert.equal(draw(first), scratch);
+  first.dispose();
+  assert.equal(scratch.disposals, 0);
+
+  const smaller = draw(second, byteDestination(320, 180));
+  assert.equal(scratch.disposals, 1);
+  assert.deepEqual([smaller.width, smaller.height], [1280, 720]);
+  const other = { ...h.renderer, dispose() {} };
+  const separate = draw(second, byteDestination(320, 180), other);
+  const otherResolved = h.draws.at(-2).target;
+  assert.notEqual(separate, smaller);
+  assert.equal(smaller.disposals, 0);
+  h.renderer.dispose();
+  assert.equal(smaller.disposals, 1);
+  assert.equal(separate.disposals, 0);
+  other.dispose();
+  assert.equal(separate.disposals, 1);
+  assert.equal(otherResolved.disposals, 1);
+  second.dispose();
 });
 
 test("preview cache evicts the least recently used raster within each renderer budget", () => {
@@ -262,7 +316,7 @@ test("preview cache evicts the least recently used raster within each renderer b
   assert.equal(resolved().filter(target => target.disposals === 0).length, 8);
 
   layers[1].dispose();
-  const other = { ...h.renderer };
+  const other = { ...h.renderer, dispose() {} };
   draw(0, other);
   assert.equal(resolved().filter(target => target.disposals === 0).length, 7);
   draw(2);
@@ -272,6 +326,8 @@ test("preview cache evicts the least recently used raster within each renderer b
     "the second renderer has its own budget and disposal returns space to the first");
   assert.equal(layers[0].stats.treeRenders, 2);
   layers.forEach(layer => layer.dispose());
+  h.renderer.dispose();
+  other.dispose();
   assert.ok(resolved().every(target => target.disposals === 1));
 });
 

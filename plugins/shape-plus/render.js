@@ -14,10 +14,44 @@ const previewRasterCaches = new WeakMap();
 function getRasterCache(renderer) {
   let cache = previewRasterCaches.get(renderer);
   if (!cache) {
-    cache = { entries: new Map(), bytes: 0 };
+    cache = { entries: new Map(), bytes: 0, scratch: null };
     previewRasterCaches.set(renderer, cache);
+    const canvas = renderer.domElement || renderer.context?.canvas;
+    function releaseTargets() {
+      cache.scratch?.dispose();
+      cache.scratch = null;
+      for (const release of cache.entries.keys()) release();
+    }
+    canvas?.addEventListener?.("webglcontextlost", releaseTargets);
+    canvas?.addEventListener?.("webglcontextrestored", releaseTargets);
+    // Three r91 exposes dispose() without a renderer disposal event.
+    const dispose = renderer.dispose;
+    if (typeof dispose === "function") renderer.dispose = function disposeShapePreview(...args) {
+      releaseTargets();
+      canvas?.removeEventListener?.("webglcontextlost", releaseTargets);
+      canvas?.removeEventListener?.("webglcontextrestored", releaseTargets);
+      previewRasterCaches.delete(renderer);
+      if (renderer.dispose === disposeShapePreview) renderer.dispose = dispose;
+      return dispose.apply(this, args);
+    };
   }
   return cache;
+}
+function rasterTarget(THREE, width, height) {
+  const target = new THREE.WebGLRenderTarget(width, height, {
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
+    depthBuffer: false, stencilBuffer: false,
+  });
+  target.texture.generateMipmaps = false;
+  return target;
+}
+function previewScratch(cache, THREE, width, height) {
+  const scratch = cache.scratch;
+  if (scratch && scratch.width === width && scratch.height === height) return scratch;
+  scratch?.dispose();
+  cache.scratch = null;
+  cache.scratch = rasterTarget(THREE, width, height);
+  return cache.scratch;
 }
 function inverseAffine(t) {
   if (!Array.isArray(t) || t.length !== 6 || !t.every(Number.isFinite)) return null;
@@ -80,11 +114,12 @@ function createRenderer(THREE, sampleScale = "auto") {
   const resolveShader = "varying vec2 uvShape; uniform sampler2D image; uniform vec2 texel; uniform float samples; void main(){if(samples>2.5){vec4 c=texture2D(image,uvShape+texel)+texture2D(image,uvShape-texel)+texture2D(image,uvShape+vec2(texel.x,-texel.y))+texture2D(image,uvShape+vec2(-texel.x,texel.y));gl_FragColor=c*.25;}else{gl_FragColor=texture2D(image,uvShape);}}";
   const resolveMaterial = material(resolveShader, { image: { value: null }, samples: { value: 2 }, texel: { value: new THREE.Vector2() } }, false);
   resolveScene.add(new THREE.Mesh(plane(), resolveMaterial));
-  function target() {
-    const t = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false });
-    t.texture.generateMipmaps = false; targets.push(t); return t;
+  function intermediateTarget() {
+    const target = rasterTarget(THREE, 1, 1);
+    targets.push(target);
+    return target;
   }
-  let coverageTarget = null, scratchReleased = false;
+  let coverageTarget = null, intermediatesReleased = false, exportTarget = null;
   let resolvedTarget = null;
   let root = null, paintAllocations = new Set(), size = [0, 0], resolution = [1, 1], structureKey = null;
   // Full-frame planes that composite isolated child targets; they must stay
@@ -92,18 +127,16 @@ function createRenderer(THREE, sampleScale = "auto") {
   const planes = [];
   // appliedTransform: undefined = unknown (force), null = identity, else the key.
   let contentVersion = 0, rasterKey = null, rasterRenderer = null, appliedTransform;
-  let observedCanvas = null;
   function releaseResolved() {
     if (resolvedTarget) {
-      const cache = getRasterCache(rasterRenderer);
+      const cache = previewRasterCaches.get(rasterRenderer);
       cache.bytes -= cache.entries.get(releaseResolved);
       cache.entries.delete(releaseResolved);
       resolvedTarget.dispose();
     }
     resolvedTarget = null; rasterKey = null; rasterRenderer = null;
   }
-  function useResolvedTarget(renderer, width, height) {
-    const cache = getRasterCache(renderer);
+  function useResolvedTarget(renderer, cache, width, height) {
     const bytes = width * height * 4;
     if (resolvedTarget) cache.entries.delete(releaseResolved);
     else {
@@ -121,17 +154,10 @@ function createRenderer(THREE, sampleScale = "auto") {
     }
     cache.entries.set(releaseResolved, bytes);
   }
-  function releaseScratch() {
-    if (scratchReleased) return;
+  function releaseIntermediates() {
+    if (intermediatesReleased) return;
     for (const t of targets) t.dispose();
-    scratchReleased = true;
-  }
-  function observeRenderer(renderer) {
-    const canvas = renderer.domElement || renderer.context?.canvas || null;
-    if (canvas === observedCanvas) return;
-    observedCanvas?.removeEventListener?.("webglcontextrestored", releaseResolved);
-    observedCanvas = canvas;
-    observedCanvas?.addEventListener?.("webglcontextrestored", releaseResolved);
+    intermediatesReleased = true;
   }
   function releaseTree() {
     for (const value of paintAllocations) {
@@ -140,8 +166,8 @@ function createRenderer(THREE, sampleScale = "auto") {
       else { value.dispose(); allocations.delete(value); }
     }
     paintAllocations.clear(); coverageGeometries.clear();
-    releaseScratch(); releaseResolved();
-    targets.length = 0; scratchReleased = false; coverageTarget = null; root = null; structureKey = null;
+    releaseIntermediates(); releaseResolved();
+    targets.length = 0; intermediatesReleased = false; coverageTarget = null; exportTarget = null; root = null; structureKey = null;
     planes.length = 0; rasterKey = null; appliedTransform = undefined; contentVersion++;
   }
   function build(commands) {
@@ -150,7 +176,7 @@ function createRenderer(THREE, sampleScale = "auto") {
     for (const command of commands) {
       let mesh, child = null;
       if (command.kind === "isolation") {
-        child = build(command.commands); children.push(child);
+        child = build(command.commands); child.target = intermediateTarget(); children.push(child);
         const g = plane(); g.scale(resolution[0] / 2, resolution[1] / 2, 1);
         mesh = new THREE.Mesh(g, material(textureShader, { image: { value: child.target.texture }, opacity: { value: command.opacity } }));
         planes.push(mesh);
@@ -163,7 +189,7 @@ function createRenderer(THREE, sampleScale = "auto") {
           const coverageMesh = new THREE.Mesh(coverageGeometry(command.coverage), material("void main(){gl_FragColor=vec4(1.0);}", {}, false));
           coverageTransform(coverageMesh,command);
           coverageMesh.frustumCulled = false; scene.add(coverageMesh);
-          child = { scene, children: [], entries: [], target: coverageTarget || (coverageTarget = target()), coverageMesh, coverage:command.coverage };
+          child = { scene, children: [], entries: [], target: coverageTarget || (coverageTarget = intermediateTarget()), coverageMesh, coverage:command.coverage };
           children.push(child);
           uniforms.coverage = { value: child.target.texture };
           uniforms.coverageSize = { value: new THREE.Vector2() };
@@ -175,7 +201,7 @@ function createRenderer(THREE, sampleScale = "auto") {
       entries.push({ mesh, child, singleScene, positionsSnapshot: command.positions && Float64Array.from(command.positions) });
       mesh.renderOrder = order++; mesh.frustumCulled = false; scene.add(mesh);
     }
-    return { scene, children, entries, target: target() };
+    return { scene, children, entries };
   }
   function updateTree(node, commands) {
     commands.forEach((command, index) => {
@@ -239,8 +265,8 @@ function createRenderer(THREE, sampleScale = "auto") {
   }
   const shapeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 100);
   shapeCamera.position.z = 10;
-  function renderTree(node, renderer) {
-    for (const child of node.children) if (!child.coverageMesh) renderTree(child, renderer);
+  function renderTree(node, renderer, target) {
+    for (const child of node.children) if (!child.coverageMesh) renderTree(child, renderer, child.target);
     for (const entry of node.entries) if (entry?.mesh.material.uniforms.coverageSize) entry.mesh.material.uniforms.coverageSize.value.set(size[0], size[1]);
     if (node.entries.some(entry=>entry?.child?.coverageMesh)) {
       // All stroke masks share one target. Consume each mask immediately,
@@ -250,10 +276,10 @@ function createRenderer(THREE, sampleScale = "auto") {
         renderer.autoClear=false;
         for (const entry of node.entries) if (entry) {
           if (entry.child?.coverageMesh) renderer.render(entry.child.scene,shapeCamera,entry.child.target,true);
-          renderer.render(entry.singleScene,shapeCamera,node.target,first);first=false;
+          renderer.render(entry.singleScene,shapeCamera,target,first);first=false;
         }
       } finally {renderer.autoClear=autoClear;}
-    } else renderer.render(node.scene, shapeCamera, node.target, true);
+    } else renderer.render(node.scene, shapeCamera, target, true);
   }
   // r91 Camera.updateMatrixWorld rebuilds matrixWorldInverse from matrix, so a
   // camera at L^-1 * T(0, 0, 10) draws content at L. Isolation planes use L^-1
@@ -277,25 +303,27 @@ function createRenderer(THREE, sampleScale = "auto") {
   }
   const stats = { renders: 0, treeRenders: 0, skips: 0, width: 0, height: 0, supersample: sampleScale, transform: null };
   function render(renderer, destination, transform = null) {
-    if (!root) return;
-    observeRenderer(renderer);
+    const exporting = renderer.__zoidiumExportRenderer;
+    if (!root || (!exporting && renderer.context?.isContextLost?.())) return;
     const inverse = transform == null ? null : inverseAffine(transform);
     if (transform != null && !inverse) throw Error("Invalid Shape+ layer transform");
     const width = Math.max(1, Math.round(destination.viewport.z)), height = Math.max(1, Math.round(destination.viewport.w));
-    const scale = sampleScale === "auto" ? (Math.max(width, height) <= 2048 && width * height * 16 * targets.length <= 67108864 ? 4 : 2) : sampleScale;
+    const targetCount = targets.length + 1;
+    const scale = sampleScale === "auto" ? (Math.max(width, height) <= 2048 && width * height * 16 * targetCount <= 67108864 ? 4 : 2) : sampleScale;
     const w = width * scale, h = height * scale;
     stats.supersample = scale;
     const max = renderer.capabilities.maxTextureSize;
-    if (w > max || h > max || w * h * targets.length > 67108864) throw Error("Shape+ antialiasing target budget exceeded");
-    if (renderer.__zoidiumExportRenderer && w * h * 4 * targets.length > (renderer.__zoidiumShapeTargetPeak || 0)) {
-      renderer.__zoidiumShapeTargetPeak = w * h * 4 * targets.length;
-      try { globalThis.ZOIDIUM_DEBUG_LOG?.record?.("export-gpu-target", { owner: "Shape+ raster", format: "RGBA8", width: w, height: h, count: targets.length, estimatedBytes: renderer.__zoidiumShapeTargetPeak }); }
+    if (w > max || h > max || w * h * targetCount > 67108864) throw Error("Shape+ antialiasing target budget exceeded");
+    if (exporting && w * h * 4 * targetCount > (renderer.__zoidiumShapeTargetPeak || 0)) {
+      renderer.__zoidiumShapeTargetPeak = w * h * 4 * targetCount;
+      try { globalThis.ZOIDIUM_DEBUG_LOG?.record?.("export-gpu-target", { owner: "Shape+ raster", format: "RGBA8", width: w, height: h, count: targetCount, estimatedBytes: renderer.__zoidiumShapeTargetPeak }); }
       catch (_error) { /* Diagnostics must not interrupt export. */ }
     }
     // Keep the original resolve for export and destinations whose framebuffer
     // cannot round to the same RGBA8 values at the same pixel coordinates.
     const { texture, viewport } = destination;
-    const cacheable = !renderer.__zoidiumExportRenderer && texture &&
+    const cache = exporting ? null : getRasterCache(renderer);
+    const cacheable = cache && texture &&
       texture.format === THREE.RGBAFormat && texture.type === THREE.UnsignedByteType &&
       !destination.isWebGLRenderTargetCube && !destination.scissorTest &&
       viewport.x === 0 && viewport.y === 0 && viewport.z === width && viewport.w === height &&
@@ -308,9 +336,10 @@ function createRenderer(THREE, sampleScale = "auto") {
     stats.transform = inverse ? transform.slice() : null;
     const clearColor = renderer.getClearColor().clone(), clearAlpha = renderer.getClearAlpha(), autoClear = renderer.autoClear;
     const previousTarget = renderer.getRenderTarget?.();
+    let scratch;
     try {
       renderer.setClearColor(0, 0); renderer.autoClear = true;
-      if (cacheable) useResolvedTarget(renderer, width, height);
+      if (cacheable) useResolvedTarget(renderer, cache, width, height);
       if (cached) stats.skips++;
       else {
         if (size[0] !== w || size[1] !== h) {
@@ -320,14 +349,20 @@ function createRenderer(THREE, sampleScale = "auto") {
         shapeCamera.left = -resolution[0] / 2; shapeCamera.right = resolution[0] / 2;
         shapeCamera.top = resolution[1] / 2; shapeCamera.bottom = -resolution[1] / 2; shapeCamera.updateProjectionMatrix();
         applyTransform(inverse);
-        scratchReleased = false;
-        renderTree(root, renderer);
+        if (cache) scratch = previewScratch(cache, THREE, w, h);
+        else {
+          if (!exportTarget) exportTarget = rasterTarget(THREE, w, h);
+          else if (exportTarget.width !== w || exportTarget.height !== h) exportTarget.setSize(w, h);
+          scratch = exportTarget;
+        }
+        intermediatesReleased = false;
+        renderTree(root, renderer, scratch);
         stats.treeRenders++;
         if (cacheable) {
           rasterKey = null;
-          resolve(renderer, root.target.texture, resolvedTarget, scale, w, h);
+          resolve(renderer, scratch.texture, resolvedTarget, scale, w, h);
           rasterKey = key;
-        } else resolve(renderer, root.target.texture, destination, scale, w, h);
+        } else resolve(renderer, scratch.texture, destination, scale, w, h);
       }
       if (cacheable) resolve(renderer, resolvedTarget.texture, destination, 1, width, height);
       stats.renders++;
@@ -336,12 +371,14 @@ function createRenderer(THREE, sampleScale = "auto") {
       renderer.state?.reset();
       throw error;
     } finally {
+      resolveMaterial.uniforms.image.value = null;
       renderer.setClearColor(clearColor, clearAlpha); renderer.autoClear = autoClear;
       if (renderer.setRenderTarget && previousTarget !== undefined) renderer.setRenderTarget(previousTarget);
-      releaseScratch();
+      releaseIntermediates();
+      if (exporting) scratch?.dispose();
     }
   }
-  function dispose() { observeRenderer({}); releaseTree(); for (const resource of allocations) resource.dispose(); allocations.clear(); warmMaterials.clear(); }
+  function dispose() { releaseTree(); for (const resource of allocations) resource.dispose(); allocations.clear(); warmMaterials.clear(); }
   return { render, setCommands, dispose, stats, get scene() { return root?.scene; }, camera: shapeCamera };
 }
 module.exports = { createRenderer };

@@ -23,7 +23,7 @@ function host() {
   class Camera { constructor() { this.position = {}; } updateProjectionMatrix() {} }
   class Vector { set(x, y) { this.x = x; this.y = y; } }
   const THREE = { Scene, Mesh, OrthographicCamera: Camera, ShaderMaterial: Material, BufferGeometry: Geometry, PlaneBufferGeometry: Geometry, BufferAttribute, Color: class {}, Vector2: Vector, WebGLRenderTarget: Target };
-  const renderer = { capabilities: { maxTextureSize: 16384 }, autoClear: false, getClearColor: () => ({ clone: () => ({}) }), getClearAlpha: () => .7, setClearColor() {}, render(scene, camera, target) { draws.push({ scene, camera, target }); } };
+  const renderer = { capabilities: { maxTextureSize: 16384 }, autoClear: false, getClearColor: () => ({ clone: () => ({}) }), getClearAlpha: () => .7, setClearColor() {}, dispose() {}, render(scene, camera, target) { draws.push({ scene, camera, target }); } };
   return { THREE, renderer, resources, draws };
 }
 const paint = { kind: "paint", id: "fill", positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], color: [1, 0, 0], opacity: .5 };
@@ -45,6 +45,7 @@ test("r91 mesh retirement, isolated opacity and resolution-based AA dispose all 
   assert.equal(engine.stats.width, 7680);
   assert.equal(h.renderer.autoClear, false);
   engine.dispose(); engine.dispose();
+  h.renderer.dispose();
   assert.ok(h.resources.every(r => r.disposals === 1));
 });
 
@@ -95,5 +96,7 @@ test("a failed mask frame restores target, clear state and recovers on the next 
   assert.equal(current,oldTarget);assert.equal(h.renderer.autoClear,false);assert.equal(resets,1);
   fail=false;assert.doesNotThrow(()=>engine.render(h.renderer,destination));assert.equal(current,oldTarget);
   engine.dispose();
-  assert.ok(h.resources.every(r=>r.disposals===(r instanceof h.THREE.WebGLRenderTarget?2:1)));
+  h.renderer.dispose();
+  const coverageTarget = h.draws[0].target;
+  assert.ok(h.resources.every(r=>r.disposals===(r===coverageTarget?2:1)));
 });
