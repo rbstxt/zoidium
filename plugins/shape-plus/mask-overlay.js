@@ -13,7 +13,6 @@ const { matrix } = require("./compiler.js");
 const { inverse } = require("./editor-geometry.js");
 const { icon } = require("./editor-icons.js");
 const { createMaskSession, maskSessionFor } = require("./mask-host.js");
-const { getMasks } = require("./mask-model.js");
 
 function maskableLayer(PZ, layer) {
   return !!layer && (layer instanceof PZ.layer.scene || layer instanceof PZ.layer.adjustment);
@@ -197,10 +196,6 @@ function install(context, Content, paths) {
     if (active && !view) {
       const session = sessionFor(layer);
       view = mountMaskOverlay(session, viewport, context, mode);
-      // Entering the pen with existing masks continues the last one unless
-      // the Masks panel already picked a mask to edit.
-      const masks = getMasks(layer);
-      if (masks.length && !session.s.activeId) session.s.selectItem(masks[masks.length - 1].id);
     }
     if (view) {
       hideWidget();

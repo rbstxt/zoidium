@@ -2,6 +2,12 @@
 const { createModel, defaults } = require("./model.js");
 const { createLayerClass, TYPE } = require("./layer.js");
 const { titles } = require("./properties.js");
+const { inverse } = require("./editor-geometry.js");
+const { displayMatrix } = require("./viewport-mapping.js");
+const { transform } = require("./compiler.js");
+const { planAdd } = require("./contents-ops.js");
+const { requestCreation } = require("./path-hosts.js");
+const DEFAULT_CLIP_LENGTH = 180;
 function gradientFacade(property, frame) {
   return new Proxy(property, { get(target, key) {
     if (key === "definition") return { ...target.definition, zoidiumControl: undefined };
@@ -24,7 +30,7 @@ function install(context) {
   own(apis.layers.registerPicker({ type: TYPE, name: "Shape+", desc: "Ordered vector paths, groups, fills and strokes." }));
   const data = { type: TYPE, schemaVersion: 1, renderVersion: 1, properties: { name: "Shape+" }, effects: [], contents: defaults() };
   own(apis.media.registerPreset({ id: "shape-plus/shape-layer", name: "Shape+", icon: "shape", json: {
-    assets: [], baseType: "track", data: [{ type: 0, clips: [{ type: 0, start: 0, length: 180, offset: 0, link: null, properties: { name: "Shape+" }, object: data }] }],
+    assets: [], baseType: "track", data: [{ type: 0, clips: [{ type: 0, start: 0, length: DEFAULT_CLIP_LENGTH, offset: 0, link: null, properties: { name: "Shape+" }, object: data }] }],
   } }));
   PZ.ui.objectTypes.set(Content, Object.keys(titles).map(kind => ({ type: kind, name: titles[kind], desc: "Add " + titles[kind].toLowerCase() + " to the contents." })));
   own(() => PZ.ui.objectTypes.delete(Content));
@@ -51,6 +57,68 @@ function install(context) {
   require("./mask-render.js").installMaskRender({ PZ, THREE, Content, onDispose: own });
   require("./mask-persist.js").installMaskPersistence(PZ, own);
   require("./native-ui.js").install(PZ, Layer, Content, own);
+  const { maskOverlay } = installPathEditing(context, Layer, Content);
+  require("./mask-panels.js").installMaskPanels(context, Content, mode => maskOverlay.setMode(mode));
+  require("./mask-api.js").installMaskApi({ PZ, THREE, Content, onDispose: own });
+  require("./convert-native.js").install(context, Layer);
+  require("./workflow.js").install(context, Layer, Content);
+}
+function timelineTracks(editor, PZ, document) {
+  for (const element of document.querySelectorAll(".editorpanel")) {
+    const panel = element.pz_panel;
+    if (PZ.ui.timeline && panel instanceof PZ.ui.timeline &&
+        panel.editor === editor && panel.sequence === editor.sequence) return panel.tracks;
+  }
+  return null;
+}
+
+function selectTimelineClips(tracks, clips) {
+  const requested = new Set(clips);
+  const rows = [...tracks.container.querySelectorAll(".clip")].filter(row => requested.has(row.pz_object));
+  if (rows.length !== requested.size) return false;
+  tracks.deselectClips();
+  for (const row of rows) row.classList.add("selected");
+  tracks.selectClips();
+  return true;
+}
+
+function createShapeClip(editor, tracks, point, nextId) {
+  const { sequence, history } = editor;
+  if (!tracks || history.operation !== null) return null;
+  const contents = [];
+  const { item } = planAdd(contents, "path", { nextId, point, paints: ["stroke", "fill"], strokeWidth: 2 });
+  const index = sequence.videoTracks.length, start = Math.max(0, Math.round(editor.playback.currentFrame));
+  const previous = Array.from(tracks.selection);
+  const data = { type: 0, start, length: DEFAULT_CLIP_LENGTH, offset: 0, link: null,
+    properties: { name: "Shape+" }, object: { type: TYPE, schemaVersion: 1, renderVersion: 1,
+      properties: { name: "Shape+" }, effects: [], contents } };
+  const clip = () => sequence.videoTracks[index]?.clips[0];
+  function undoSelection() {
+    selectTimelineClips(tracks, previous);
+    history.pushCommand(redoSelection);
+  }
+  function redoSelection() {
+    selectTimelineClips(tracks, [clip()]);
+    history.pushCommand(undoSelection);
+  }
+  history.startOperation();
+  try {
+    // These native commands record the track and clip inverses in the
+    // same operation. The clip starts with its first path already loaded.
+    tracks.createTrack({ type: 0, newTrackIdx: index, data: null });
+    tracks.createClip({ type: 0, newTrackIdx: index, newIdx: 0, start, length: DEFAULT_CLIP_LENGTH, data });
+    redoSelection();
+    history.finishOperation();
+    return { clip: clip(), pathId: item.id };
+  } catch (error) {
+    if (history.operation !== null) history.discardOperation();
+    throw error;
+  }
+}
+
+function installPathEditing(context, Layer, Content) {
+  const editor = window.CM, viewport = editor.mainViewport, PZ = window.PZ;
+  const own = cleanup => context.lifecycle.onDispose(cleanup);
   const paths = require("./path-hosts.js").createEditorPathRegistry(window.CM, window.CM.mainViewport);
   own(() => paths.dispose());
   const shapeEditor = require("./editor.js");
@@ -60,7 +128,6 @@ function install(context) {
   // mask-overlay.js, mask-panels.js).
   const maskEditor = require("./mask-overlay.js");
   const maskOverlay = maskEditor.install(context, Content, paths);
-  const editor = window.CM, viewport = editor.mainViewport;
   paths.shortcuts = require("./editor-actions.js").installPathShortcuts({
     paths, viewport, document, window,
     session: () => {
@@ -78,9 +145,45 @@ function install(context) {
     },
   });
   own(() => paths.shortcuts.dispose());
-  require("./mask-panels.js").installMaskPanels(context, Content, mode => maskOverlay.setMode(mode));
-  require("./mask-api.js").installMaskApi({ PZ, THREE, Content, onDispose: own });
-  require("./convert-native.js").install(context, Layer);
-  require("./workflow.js").install(context, Layer, Content);
+
+  function canvasPress(event) {
+    if (event.target !== viewport.canvas || event.button !== 0 || event.isPrimary === false ||
+        !editor.project || !editor.sequence || !viewport.enabled || paths.controller.tool !== "pen") return;
+    const selected = viewport.objects?.length === 1 ? viewport.objects[0] : null;
+    const layer = selected?.object || selected;
+    // A compatible selection with an unavailable projection stays on its
+    // host. It must not silently add a layer to a different coordinate space.
+    if (layer instanceof Layer || maskEditor.maskableLayer(PZ, layer)) return;
+    const request = requestCreation();
+    if (request.kind !== "new-shape-layer") return;
+    const rect = viewport.canvas.getBoundingClientRect();
+    const base = displayMatrix(rect, editor.sequence.properties.resolution.get(), {
+      position: [0, 0, 0], scale: [1, 1, 1], rotation: 0,
+    });
+    const toLocal = base && inverse(base);
+    if (!toLocal) return;
+    const point = transform([event.clientX - rect.left, event.clientY - rect.top], toLocal);
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    try {
+      editor.playback.speed = 0;
+      const created = createShapeClip(editor, timelineTracks(editor, PZ, document), point,
+        () => "sp-" + window.crypto.randomUUID());
+      if (!created) return;
+      shapeOverlay.setTool("pen");
+      const state = shapeOverlay.state, host = state?.sharedPathHost;
+      if (state?.layer !== created.clip.object || !host?.hasPath(created.pathId)) return;
+      paths.controller.activate(host, created.pathId);
+      paths.controller.setSelection(host, created.pathId, host.listVertexIds(created.pathId));
+      paths.controller.startDrawing({ points: [point] });
+      shapeOverlay.canvas.focus({ preventScroll: true });
+    } catch (error) {
+      context.ui.notify({ title: "Shape+", message: error.message });
+    }
+  }
+  viewport.el.addEventListener("pointerdown", canvasPress, true);
+  own(() => viewport.el.removeEventListener("pointerdown", canvasPress, true));
+  return { paths, shapeOverlay, maskOverlay };
 }
-module.exports = { install, gradientFacade };
+
+module.exports = { install, gradientFacade, installPathEditing };

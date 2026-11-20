@@ -369,7 +369,8 @@ function createShapePathHost({ id, store, mirror = null, controller = null, isLo
     return clone(data);
   }
 
-  function createPath({ vertexIds = ["v1"], fields = {} } = {}) {
+  function createPath({ vertexIds = ["v1"], fields = {}, point } = {}) {
+    if (store.createPath) return store.createPath(checkPoint(point));
     const vertices = checkShapeTopology(vertexIds);
     const before = current();
     checkShapeRecords(before);
@@ -534,6 +535,10 @@ function createEditorPathRegistry(editor, viewport) {
         },
       };
       if (kind === "mask") store.live = () => entry.maskHost.contents();
+      else if (session.addItem) store.createPath = point => {
+        if (!entry.session?.valid()) throw Error("Shape+ path editing is unavailable");
+        return entry.session.addItem("path", point, { groupsOnly: false }).id;
+      };
       const options = { id: "editor-path-host-" + (++nextHostId), store, controller };
       entry.host = kind === "mask" ? createMaskPathHost(options) : createShapePathHost(options);
       hosts.set(layer, entry);

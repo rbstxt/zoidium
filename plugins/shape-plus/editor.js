@@ -72,12 +72,12 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, paths) {
     s.treeSelection.clear(); s.activeId = null;
     s.selection.clear(); s.penFinished = false; s.refresh();
   };
-  // A new Pen path goes into the selected group, otherwise into a new
-  // untransformed group (see contents-ops.js planAdd with groupsOnly).
-  s.insertionMatrix = () => {
+  // Pen paths use the selected or enclosing group. Context-menu shapes
+  // retain the existing selected-group insertion behavior.
+  s.insertionMatrix = (pen = false) => {
     const entry = find(layer.contents, s.activeId);
-    if (!entry || entry.item.kind !== "group") return identity;
-    return [...entry.ancestors, entry.item].reduce((m, item) => multiply(m, matrix(item.evaluate(s.localFrame()).properties)), identity);
+    const groups = entry?.item.kind === "group" ? [...entry.ancestors, entry.item] : pen && entry?.ancestors || [];
+    return groups.reduce((m, item) => multiply(m, matrix(item.evaluate(s.localFrame()).properties)), identity);
   };
   s.canvasApi = createCanvas(s, canvas);
   s.pointer = createPointer(s, canvas);
@@ -228,6 +228,6 @@ function install(context, Layer, Content, paths) {
     }
     for (const { button } of buttons) button.remove();
   });
-  return { setTool, get state() { return view?.state; } };
+  return { setTool, get state() { return view?.state; }, get canvas() { return view?.canvas; } };
 }
 module.exports = { install, mountOverlay, editableClip };

@@ -9,6 +9,7 @@ const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
 const { transform } = require("./compiler.js");
 const { startMarquee, applyMarquee } = require("./path-selection.js");
+const { requestCreation } = require("./path-hosts.js");
 function createPointer(s, canvas) {
   const api = s.canvasApi;
   const point = (event) => {
@@ -64,7 +65,8 @@ function createPointer(s, canvas) {
       if (
         item?.kind === "path" &&
         Number(item.properties.closed.get()) !== 1 &&
-        !s.penFinished
+        !s.penFinished &&
+        (s.sharedPathHost?.kind !== "mask" || drawing?.pathId === item.id)
       ) {
         local = api.local(start);
         if (!local) {
@@ -79,12 +81,18 @@ function createPointer(s, canvas) {
           );
         s.topology({ kind: "append", id: s.nextId(), point: local });
       } else {
-        local = api.local(start, { matrix: s.insertionMatrix() });
+        local = api.local(start, { matrix: s.insertionMatrix(true) });
         if (!local) {
           s.gesture.finish(true);
           return null;
         }
-        s.addItem("path", local);
+        const host = s.sharedPathHost;
+        if (host) {
+          const request = requestCreation({ [host.kind]: host });
+          const pathId = request.host.createPath({ point: local });
+          s.pathController.activate(request.host, pathId);
+          s.preview();
+        } else s.addItem("path", local);
         const snapped = api.snap(local, s.active().vertexIds);
         s.setPoints([{ point: snapped, in: [0, 0], out: [0, 0] }]);
         s.penFinished = false;
