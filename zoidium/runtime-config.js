@@ -31,6 +31,7 @@
       "./zoidium/debug-crash.js",
       "./zoidium/debug-log.js",
       "./plugins/core/timeline-keyframe-drag.js",
+      "./plugins/core/timeline-time-input.js",
       "./plugins/core/timeline-ruler-drag.js",
       "./plugins/core/window-stylesheet-guard.js",
       "./plugins/core/project-media-fps.js",
