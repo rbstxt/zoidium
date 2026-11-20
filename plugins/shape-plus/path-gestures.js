@@ -163,12 +163,12 @@ function createPathGestures(options = {}) {
   }
 
   function transformFor(active, delta, shiftKey) {
-    const { mode = "move", pivot, handle, origin = active.start } = active.transform;
+    const { mode = "move", pivot, handle, anchor, origin = active.start } = active.transform;
     const gesture = {
       mode, pivot, handle, origin, modifiers: { shift: !!shiftKey },
       snap: store.snapping?.() === false ? false : { guides: guides(), origin },
     };
-    if (mode === "move") return { ...gesture, delta };
+    if (mode === "move") return { ...gesture, delta, anchor };
     const offset = [handle[0] - pivot[0], handle[1] - pivot[1]];
     const next = [offset[0] + delta[0], offset[1] + delta[1]];
     if (mode === "rotate") {
@@ -387,7 +387,8 @@ function createPathGestures(options = {}) {
         onSelect({ type: "click", pathId: target.pathId, vertexIndex: target.vertexIndex, toggle: false });
         activated = true;
       }
-      startTransform("move", pointerId, screen, request.transform, {
+      const anchor = target.kind === "anchor" ? { pathId: target.pathId, vertexIndex: target.vertexIndex } : null;
+      startTransform("move", pointerId, screen, { ...request.transform, anchor }, {
         pathId: target.pathId, vertexIndex: target.vertexIndex,
       });
       return { action: "move", capture: true, pointerId, activated };

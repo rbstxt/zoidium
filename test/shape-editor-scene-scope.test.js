@@ -1,7 +1,7 @@
 "use strict";
 // Fix 3: operation-scoped editor scene snapshots. The old full-walk scene is
-// kept here as the exactness reference: the same picks, bounds, snap results
-// and drawn handle positions as before.
+// kept here as the reference for picks and for the geometry used by snapping,
+// bounds and drawing.
 const test = require("node:test"),
   assert = require("node:assert/strict");
 const { PZ } = require("./shape-plus-host.js");
@@ -10,7 +10,9 @@ const canvasModule = require("../plugins/shape-plus/editor-canvas.js");
 const { scene, createCanvas } = canvasModule;
 const { matrix, identity, transform } = require("../plugins/shape-plus/compiler.js");
 const { find } = require("../plugins/shape-plus/editor-tree-data.js");
+const { selectionKey } = require("../plugins/shape-plus/editor-selection.js");
 const g = require("../plugins/shape-plus/editor-geometry.js");
+const { pickPaths } = require("../plugins/shape-plus/path-projection.js");
 
 // Reference: the pre-fix walk. A group calls item.evaluate(), which evaluates
 // its whole subtree, and then the walk evaluates every child again. Text reads
@@ -280,8 +282,8 @@ function host(frameState) {
   assert.ok(api.resize(), "projection builds");
   return { s, api, layer, ctx };
 }
-// Independent reference for picks: the old walk plus the documented screen
-// projection, resolved through the same g.hit contract.
+// The old walk and manual projection supply screen-space geometry to the
+// current picker, including its fixed radius and richer hit results.
 function refCss(projection, entry) {
   const combined = g.multiply(projection, entry.matrix);
   return entry.path.vertices.map((v) => ({
@@ -290,16 +292,24 @@ function refCss(projection, entry) {
     out: g.sub(transform(g.add(v.point, v.out), combined), transform(v.point, combined)),
   }));
 }
-function refHit(contents, frame, projection, activeId, point, tool = "select") {
+function refHit(contents, frame, projection, activeId, point) {
   const entry = oldScene(contents, frame).find((e) => e.item.id === activeId);
   if (!entry?.enabled || entry.item.kind !== "path") return null;
-  return g.hit(refCss(projection, entry), entry.path.closed, point, 1, true, tool === "pen");
+  const vertices = refCss(projection, entry), closed = entry.path.closed;
+  const { target } = pickPaths([{ id: activeId, vertices, closed }], point, {
+    handleFilter: (_path, i, side) => closed || (side === "in" ? i > 0 : i < vertices.length - 1),
+  });
+  if (!target) return null;
+  const index = target.vertexIndex ?? target.segmentIndex;
+  const isEndpoint = target.kind === "anchor" && (index === 0 || index === vertices.length - 1);
+  return { ...target, index, isEndpoint, pathClosed: closed };
 }
 function refItemAt(contents, frame, projection, point) {
   for (const e of oldScene(contents, frame)) {
     if (!e.enabled) continue;
     // isPointInPath is stubbed false, so only the shared outline band picks.
-    if (g.hit(refCss(projection, e), e.path.closed, point, 1, false)) return e.item.id;
+    const path = { id: e.item.id, vertices: refCss(projection, e), closed: e.path.closed };
+    if (pickPaths([path], point, { handleFilter: () => false }).target) return e.item.id;
   }
   return null;
 }
@@ -393,17 +403,23 @@ test("picks match the old walk under nested transforms, disabled groups and fram
     for (const point of [[60, 30], [150, 40], [500, 300], [10, 10]]) {
       assert.deepEqual(api.snap(point, []), (() => {
         const entry = oldScene(layer.contents, frame).find((e) => e.item.id === "path");
-        const world = transform(point, g.multiply(projection, entry.matrix));
-        let closest = null, distance = 8;
+        const mapping = g.multiply(projection, entry.matrix);
+        const world = transform(point, mapping);
+        let closest = null, distance = Infinity;
         for (const other of oldScene(layer.contents, frame).filter((e) => e.enabled))
           other.path.vertices.forEach((v) => {
-            const p = transform(v.point, g.multiply(projection, other.matrix));
+            const otherMapping = g.multiply(projection, other.matrix);
+            const p = transform(v.point, otherMapping);
             const d = Math.hypot(...g.sub(world, p));
-            if (d < distance) { closest = p; distance = d; }
+            if (d <= 9 && d < distance) {
+              closest = { point: v.point, screen: p, mapping: otherMapping };
+              distance = d;
+            }
           });
         if (!closest) return point;
-        const inv = g.inverse(g.multiply(projection, entry.matrix));
-        return inv ? transform(closest, inv) : point;
+        if (closest.mapping.every((value, i) => value === mapping[i])) return closest.point;
+        const inv = g.inverse(mapping);
+        return inv ? transform(closest.screen, inv) : point;
       })(), `snap frame ${frame} point ${point}`);
     }
   }
@@ -501,21 +517,29 @@ test("drawn handle positions match the old walk", () => {
   const { s, api, layer, ctx } = host(frameState);
   s.treeSelection = new Set(["path"]);
   s.activeId = "path";
-  api.scoped(() => api.draw());
-  const squares = ctx.calls.filter(([name]) => name === "fillRect").map(([, ...args]) => args);
-  const knobs = ctx.calls.filter(([name]) => name === "arc").map(([, ...args]) => args);
   const refEntry = oldScene(layer.contents, 15).find((e) => e.item.id === "path");
+  s.selection.add(selectionKey(refEntry.item.vertexIds[1]));
+  api.scoped(() => api.draw());
+  const drawn = method => ctx.calls.filter(([name]) => name === method).map(([, ...args]) => args);
   const css = refCss(api.projection(), refEntry);
   const expectedSquares = css.map((v) => [v.point[0] - 4, v.point[1] - 4, 8, 8]);
-  const expectedKnobs = [];
+  const expectedArcs = [];
   css.forEach((v, i) => {
     for (const side of ["in", "out"]) {
       if ((side === "in" && i === 0) || (side === "out" && i === css.length - 1)) continue;
       if (Math.hypot(...v[side]) < 1e-8) continue;
       const p = [v.point[0] + v[side][0], v.point[1] + v[side][1]];
-      expectedKnobs.push([p[0], p[1], 3.5, 0, Math.PI * 2]);
+      const knob = [p[0], p[1], 3, 0, Math.PI * 2];
+      expectedArcs.push(knob, knob);
     }
   });
-  assert.deepEqual(squares, expectedSquares, "anchor squares");
-  assert.deepEqual(knobs, expectedKnobs, "handle knobs");
+  // The overlay draws a border and outline for every marker. Only a selected
+  // anchor is filled, and the first anchor also has two outlined rings.
+  for (const radius of [7, 10]) {
+    const ring = [...css[0].point, radius, 0, Math.PI * 2];
+    expectedArcs.push(ring, ring);
+  }
+  assert.deepEqual(drawn("strokeRect"), expectedSquares.flatMap(square => [square, square]), "anchor outlines");
+  assert.deepEqual(drawn("fillRect"), [expectedSquares[1]], "selected anchor fill");
+  assert.deepEqual(drawn("arc"), expectedArcs, "handle knobs and first-anchor rings");
 });

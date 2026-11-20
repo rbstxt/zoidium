@@ -616,15 +616,29 @@ function createCanvas(s, canvas) {
     const entry = active();
     const mapping = projected(entry);
     if (!mapping) return point;
+    if (!g.inverse(mapping)) return local(transform(point, mapping), entry) || point;
     const screenOrigin = origin && transform(origin, mapping);
     let world = transform(point, mapping);
     if (shift && screenOrigin) world = g.add(screenOrigin, constrainMoveDelta(g.sub(world, screenOrigin), { shift }));
-    const excluded = new Set(exclude);
-    const vertices = entries().filter(e => e.enabled && g.inverse(projected(e)))
-      .flatMap(e => cssPoints(e).filter((_v, i) => !excluded.has(e.item.vertexIds?.[i])).map(v => v.point));
-    const result = s.snap ? snapPoint(world, { vertices, guides: guides(), origin: screenOrigin }) : { point: world };
-    s.snapGuide = result.guide || null;
-    return local(result.point, entry) || point;
+    let result;
+    if (s.snap) {
+      const excluded = new Set(exclude);
+      const targets = [];
+      for (const candidate of entries()) {
+        const targetMapping = projected(candidate);
+        if (!candidate.enabled || !targetMapping || !g.inverse(targetMapping)) continue;
+        cssPoints(candidate).forEach((vertex, i) => {
+          if (!excluded.has(candidate.item.vertexIds?.[i]))
+            targets.push({ screen: vertex.point, point: candidate.path.vertices[i].point, mapping: targetMapping });
+        });
+      }
+      result = snapPoint(world, { vertices: targets.map(target => target.screen), guides: guides(), origin: screenOrigin });
+      s.snapGuide = result.guide;
+      const target = targets[result.targetIndex];
+      if (target && target.mapping.every((value, i) => value === mapping[i])) return target.point.slice();
+    } else s.snapGuide = null;
+    if (!result?.snapped && !(shift && screenOrigin)) return point;
+    return local(result?.point || world, entry) || point;
   }
   function gesturePaths() {
     if (!projection) return [];
