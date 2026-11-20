@@ -58,6 +58,7 @@ module.exports = function createRender(state, deps) {
     if (mode === "source") return;
 
     for (const effect of effects || []) {
+      if (state.PZ?.zoidium?.effectBypass?.bypassed(effect)) continue;
       const Group = state.PZ?.effect?.group;
       if (Group && effect instanceof Group) {
         if (effect.enabled) {
