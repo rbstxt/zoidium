@@ -103,6 +103,22 @@
           registerCompositor(this, root);
         }
       },
+      withSequenceContext(compositor, frame, draw) {
+        registerCompositor(this, compositor);
+        const singleEvaluation = layers.usesSingleEvaluation(compositor._sequence);
+        layers.installSingleEvaluation(this, compositor._sequence);
+        this.contexts.push({
+          exportPolicy: compositor.__zoidiumExportPolicy,
+          resourcePolicy: compositor.__zoidiumCommunityResourcePolicy,
+          singleEvaluation, compositor, frameSamplerDepth: 0, outputFrame: frame,
+          renderingSequence: true, rootCompositor: compositor,
+        });
+        try { return draw(); }
+        finally {
+          this.frameSamplerRuntimes.get(compositor)?.publishedReservations.clear();
+          this.contexts.pop();
+        }
+      },
       resolveFrameSamples(effect) {
         return resolveFrameSamples(this, effect);
       },
@@ -224,25 +240,7 @@
     state.originalCompositorUnload = prototype.unload;
 
     prototype.renderSequence = function temporalRenderSequence(frame) {
-      registerCompositor(state, this);
-      const singleEvaluation = layers.usesSingleEvaluation(this._sequence);
-      layers.installSingleEvaluation(state, this._sequence);
-      state.contexts.push({
-        exportPolicy: this.__zoidiumExportPolicy,
-        resourcePolicy: this.__zoidiumCommunityResourcePolicy,
-        singleEvaluation,
-        compositor: this,
-        frameSamplerDepth: 0,
-        outputFrame: frame,
-        renderingSequence: true,
-        rootCompositor: this,
-      });
-      try {
-        return state.originalRenderSequence.apply(this, arguments);
-      } finally {
-        state.frameSamplerRuntimes.get(this)?.publishedReservations.clear();
-        state.contexts.pop();
-      }
+      return state.withSequenceContext(this, frame, () => state.originalRenderSequence.apply(this, arguments));
     };
 
     if (typeof prototype.setSize === "function") {

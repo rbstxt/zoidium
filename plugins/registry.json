@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "159",
+      "version": "160",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=159",
-      "bundle": "./plugins/core/bundle.json?v=159",
-      "integrity": "sha256-7p+58yhrbx8aP2JY+SXex9uPy2DjFG32MvcIRbReFFg="
+      "manifest": "./plugins/core/manifest.json?v=160",
+      "bundle": "./plugins/core/bundle.json?v=160",
+      "integrity": "sha256-/C20DIqadSzZSrIU3QGO+KAAaaWWiapFjxnBg03I5Gc="
     },
     {
       "id": "easing-plus",
@@ -344,16 +344,16 @@
       "category": "scene",
       "name": "Camera+",
       "author": "DaviFX",
-      "version": "24",
+      "version": "25",
       "itemCount": 1,
       "format": "camera rig",
       "tagline": "Camera layers, 3D tracks and DOF",
       "color": "#3d7bc5",
       "description": "Adds a separate Camera+ object with depth of field, seeded vibrate and focus tools, Camera layers, and a 3D switch on video tracks that lets scenes and flat layers follow the shared camera. The default CM3 camera is left unchanged.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/camera-plus/manifest.json?v=24",
-      "bundle": "./plugins/camera-plus/bundle.json?v=24",
-      "integrity": "sha256-1Q3LQg1o/hKS2mY76rkZfpkOHxIY3Ddd9fj+4AGYqnI="
+      "manifest": "./plugins/camera-plus/manifest.json?v=25",
+      "bundle": "./plugins/camera-plus/bundle.json?v=25",
+      "integrity": "sha256-RNYhBOCgL/RVVjeXhdTiveEempE8MyOaVEndf74BaZA="
     },
     {
       "id": "native-fx",

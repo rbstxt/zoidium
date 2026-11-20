@@ -123,8 +123,15 @@ test('one sequence sample updates a layer once; shutter samples restore its auth
   compositor.renderer = { clearTarget() {}, setClearColor() {} }; compositor.clear = () => {};
   compositor.mixPass = { render() {} }; compositor.swapAccumBuffers = () => {};
   compositor.copyPass = { uniforms: { tDiffuse: {}, opacity: {} }, render() {} };
-  compositor.renderLayer = () => {};
+  let active = false, calls = 0;
+  h.PZ.zoidium.temporal = { withSequenceContext(owner, frame, draw) {
+    assert.equal(owner, compositor); assert.equal(frame, 20); calls++; active = true;
+    try { return draw(); } finally { active = false; }
+  } };
+  compositor.renderLayer = () => assert.equal(active, true);
   compositor.renderSequence(20);
+  assert.equal(calls, 1);
+  assert.equal(active, false);
   assert.deepEqual(times, [10]);
   times.length = 0; properties.motionBlur.set("0");
   compositor.renderSequence(20);
