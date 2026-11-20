@@ -568,14 +568,16 @@ vec3 fxHaze(vec3 c, vec2 uv) {
   float hr = 1.0 + u_hazeSoftness * 14.0;
   vec3 glow = lkBox(uv, hr, 0.0);
   vec3 hazed = glow * u_hazeTintTint + vec3(0.02);
-  vec3 r = mix(c, hazed, clamp(u_hazeSpillage, 0.0, 1.0));
+  float hbox = max(abs(uv.x - 0.5), abs(uv.y - 0.5)) * 2.0;
+  float hout = lkSmooth(u_hazeMatteBoxSize, u_hazeMatteBoxSize + 0.08, hbox);
+  // The matte box shades the haze spillage itself. It never multiplies the
+  // scene, so entering from zero spillage cannot darken unhazed pixels.
+  float spill = clamp(u_hazeSpillage, 0.0, 1.0) * (1.0 - hout * u_hazeMatteBoxShade * 0.85);
+  vec3 r = mix(c, hazed, spill);
   if (u_hazeReflection > 0.5 && u_hazeReflectionExposure != 0.0) {
     vec3 hs = lkLine(uv, u_hazeReach * resolution.x * 0.04, vec2(1.0, 0.0), 7);
     r = r + hs * u_hazeTintTint * (u_hazeReflectionExposure * 0.15);
   }
-  float hbox = max(abs(uv.x - 0.5), abs(uv.y - 0.5)) * 2.0;
-  float hout = lkSmooth(u_hazeMatteBoxSize, u_hazeMatteBoxSize + 0.08, hbox);
-  if (u_hazeSpillage > 0.0) r = r * (1.0 - hout * u_hazeMatteBoxShade * 0.85);
   return lkExposure(r, u_hazeExposure);
 }
 
