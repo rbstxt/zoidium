@@ -12,9 +12,11 @@ const animation = require("./path-animation.js");
 const geometry = require("./editor-geometry.js");
 const copy = (value) => JSON.parse(JSON.stringify(value));
 function certify(adapter, phase, before, after, operation, closed, beforeIds, afterIds) {
-  if (typeof adapter?.certify !== "function" ||
-      adapter.certify({ phase, before: copy(before), after: copy(after), operation: copy(operation), closed: Number(closed) === 1, beforeIds: copy(beforeIds), afterIds: copy(afterIds) }) !== true)
-    throw Error("Cannot establish exact animation preservation for this topology change");
+  const result = adapter?.certify?.({ phase, before: copy(before), after: copy(after),
+    operation: copy(operation), closed: Number(closed) === 1, beforeIds: copy(beforeIds), afterIds: copy(afterIds) });
+  if (result === true) return;
+  throw Error(typeof result === "string" ? result :
+    "Cannot establish exact animation preservation for this topology change");
 }
 function prepare(item, adapter, operation) {
   const before = animation.channels(item), list = copy(before);
@@ -64,8 +66,10 @@ function validate(item, operation) {
     const index = ids.indexOf(operation.id);
     if (index < 0) throw Error("Unknown vertex ID");
     if (Number(item.properties.closed) !== 1 && index !== 0 && index !== ids.length - 1)
-      throw Error("An open path can only start at an endpoint");
+      throw Error("Choose an endpoint to set the first vertex of an open path.");
     if (index === 0) return false;
+  } else if (kind === "reverse") {
+    if (ids.length < 2) return false;
   } else throw Error("Unknown topology operation");
   return true;
 }
@@ -91,8 +95,9 @@ function apply(host, operation, adapter) {
     operation.ids.forEach((id) => { delete modes[id]; });
   } else {
     const index = ids.indexOf(operation.id);
-    const order = Number(result.properties.closed) === 1 ? [...ids.slice(index), ...ids.slice(0, index)] : ids.slice().reverse();
-    sources = order.flatMap((id) => (Number(result.properties.closed) === 1 ? [0, 1, 2, 3, 4, 5] : [0, 1, 4, 5, 2, 3])
+    const rotate = operation.kind === "first" && Number(result.properties.closed) === 1;
+    const order = rotate ? [...ids.slice(index), ...ids.slice(0, index)] : ids.slice().reverse();
+    sources = order.flatMap((id) => (rotate ? [0, 1, 2, 3, 4, 5] : [0, 1, 4, 5, 2, 3])
       .map((offset) => ids.indexOf(id) * 6 + offset));
     result.vertexIds = order;
   }

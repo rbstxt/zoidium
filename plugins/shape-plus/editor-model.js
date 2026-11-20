@@ -4,7 +4,7 @@ const { clone, validate } = require("./model.js");
 const { createGesture, createPathOperationHost } = require("./editor-history.js");
 const nativeChannels = require("./path-native-channels.js");
 const animation = require("./path-animation.js");
-const { topology, channels } = require("./editor-topology.js");
+const { topology, channels, applyTopology } = require("./editor-topology.js");
 const tree = require("./editor-tree-data.js");
 const g = require("./editor-geometry.js");
 const { primitivePath } = require("./primitives.js");
@@ -257,14 +257,17 @@ function createEditorModel(s) {
     playback: editor.playback,
     preview,
   });
-  s.topology = (operation) => {
-    const item = s.active();
-    if (item?.kind !== "path") return;
-    const data = clone(item);
+  s.topology = (operation, id = s.activeId) => {
+    s.requireEditablePath(id);
+    const target = s.pathFor(id), data = target.data;
+    if (!data) return false;
+    if (applyTopology(target, data, operation, s.pathAdapter)) return true;
     data.vertexModes = data.vertexModes || {};
-    s.replaceItem(item.id, topology(data, operation));
+    s.replaceItem(id, topology(data, operation));
     s.preview();
+    return true;
   };
+  s.setFirstVertex = (id, vertex) => s.mutate(() => s.topology({ kind: "first", id: vertex }, id), [id]);
   // A snapshot transaction owns inverse data. Native keyframe objects and
   // notifications supply the same current-frame behavior as startEdit without
   // recording a second set of inverse commands for those same changes.

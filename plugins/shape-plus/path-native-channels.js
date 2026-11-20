@@ -55,11 +55,12 @@ function create(PZ) {
     if (phase === "synchronize") return synchronize(before, after) || "Synchronization changes interpolation";
     if (phase !== "topology" || !operation || !Array.isArray(beforeIds) || !Array.isArray(afterIds)) return "Invalid topology proof";
     let sources;
-    if (operation.kind === "delete" || operation.kind === "first") {
+    if (["delete", "first", "reverse"].includes(operation.kind)) {
       sources = afterIds.flatMap(id => {
         const index = beforeIds.indexOf(id);
         if (index < 0) return [-1];
-        const offsets = operation.kind === "first" && !closed ? [0, 1, 4, 5, 2, 3] : [0, 1, 2, 3, 4, 5];
+        const reverse = operation.kind === "reverse" || operation.kind === "first" && !closed;
+        const offsets = reverse ? [0, 1, 4, 5, 2, 3] : [0, 1, 2, 3, 4, 5];
         return offsets.map(offset => index * 6 + offset);
       });
       return sources.length === after.length && sources.every((index, i) => index >= 0 &&

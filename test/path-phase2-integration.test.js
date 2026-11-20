@@ -488,15 +488,19 @@ test("Set First Vertex reverses an open path only from its other endpoint", t =>
   assert.deepEqual(h.points()[2].in, [4, 2]);
 });
 
-test("Set First Vertex defers animated topology and leaves every key unchanged", t => {
+test("Set First Vertex rotates the animated channel blocks and undoes in one step", t => {
   const h = fixture(t, { contents: [path("p", [vertex([-40, 0]), vertex([0, 0]), vertex([40, 20])],
     { closed: true, animated: true })] });
   h.activate("p");
   const before = h.snapshot();
   h.command([120, 80]).action();
-  assert.match(h.notices.pop(), /available in a later update/i);
+  const after = h.snapshot()[0];
+  assert.deepEqual(after.vertexIds, ["p-1", "p-2", "p-0"]);
+  const channels = before[0].properties.path.objects;
+  assert.deepEqual(after.properties.path.objects, [...channels.slice(6), ...channels.slice(0, 6)]);
+  assert.equal(h.editor.history.undoStack.length, 1);
+  h.editor.history.undo();
   assert.deepEqual(h.snapshot(), before);
-  assert.equal(h.editor.history.undoStack.length, 0);
 });
 
 test("Escape and a drag back to its start restore an animated path without new keys", t => {

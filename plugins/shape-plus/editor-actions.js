@@ -4,7 +4,6 @@ const g = require("./editor-geometry.js");
 const { createMenu } = require("./editor-menu.js");
 const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
-const { setStaticFirstVertex } = require("./path-hosts.js");
 const { PREFS_MIN_PX, PREFS_MAX_PX } = require("./path-feedback.js");
 const { isEditableTarget, isComposingEvent } = require("./path-input.js");
 function createPathKeyControls(document, target) {
@@ -105,7 +104,7 @@ function installActions(s, root, options = {}) {
     if (vertex) entries.push({
       label: "Set First Vertex",
       disabled: vertex.locked,
-      action: () => setStaticFirstVertex(s, vertex.pathId, vertex.vertexId),
+      action: () => s.setFirstVertex(vertex.pathId, vertex.vertexId),
     }, { separator: true });
     if (path)
       entries.push(

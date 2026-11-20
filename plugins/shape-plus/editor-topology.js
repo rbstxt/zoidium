@@ -1,6 +1,8 @@
 "use strict";
 const { clone } = require("./model.js");
 const geometry = require("./editor-geometry.js");
+const animation = require("./path-animation.js");
+const nativeTopology = require("./path-topology.js");
 function channels(data) {
   const path = data.properties.path;
   if (path.expression || path.objects?.some((c) => c.expression))
@@ -80,4 +82,14 @@ function topology(data, operation) {
   delete result.properties.path.animated;
   return result;
 }
-module.exports = { channels, topology };
+function applyTopology(host, data, operation, adapter) {
+  const list = animation.channels(data);
+  const animated = list.some(channel => channel.animated || channel.keyframes.length > 1);
+  if (operation.kind !== "first" && !animated) return false;
+  if (operation.kind === "delete" && data.vertexIds.every(id => operation.ids.includes(id))) {
+    // Deleting all vertices removes the whole path, as in the static editor.
+    host.commit(null);
+  } else nativeTopology.apply(host, operation, adapter);
+  return true;
+}
+module.exports = { channels, topology, applyTopology };
