@@ -333,8 +333,7 @@ var PZ = PZ || {};
             this.points.frustumCulled = false;
             this.points.onBeforeRender = function (renderer) {
                 if (!this.material || !this.material.uniforms) return;
-                var size = renderer.getSize();
-                this.material.uniforms.resolution.value.set(size.width, size.height);
+                T.setParticleResolution(renderer, this.material.uniforms.resolution.value);
             };
             this.threeObj.add(this.points);
             this.stringMaterial = new THREE.LineBasicMaterial({

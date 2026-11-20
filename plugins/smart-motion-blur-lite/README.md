@@ -49,7 +49,7 @@ Eighth values to 1/2, now applies only to projects below version 2.
 | `video-decoder.js` | Preview sample decoding with bounded caching and a native parity check. |
 | `shaders/reconstruct.glsl` | Reconstruction pass from the current image and the motion field. |
 | `analysis-mode.js` | Chooses the analysis size from the Quality level, the project frame, and the rendered frame. |
-| `native-particles.js`, `tooltips.js` | Host integration for particle sizing and hover text. |
+| `tooltips.js` | Host integration for hover text. |
 
 The preview decoder embeds Mediabunny 1.62.0 from `plugins/mp4-export/vendor/`
 in this plugin's bundle, so ZSMB works when the MP4 Export plugin is disabled.

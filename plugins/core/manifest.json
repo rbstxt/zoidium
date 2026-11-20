@@ -41,6 +41,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "particle-viewport",
+      "source": "./plugins/core/particle-viewport.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "particle-defaults",
       "source": "./plugins/core/particle-defaults.js",
       "phase": "pre-init"

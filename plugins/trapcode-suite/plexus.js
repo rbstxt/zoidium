@@ -311,8 +311,7 @@ var PZ = PZ || {};
             this.pointCloud.frustumCulled = false;
             this.pointCloud.onBeforeRender = function (renderer) {
                 if (!this.material || !this.material.uniforms || !this.material.uniforms.resolution) return;
-                var size = renderer.getSize();
-                this.material.uniforms.resolution.value.set(size.width, size.height);
+                T.setParticleResolution(renderer, this.material.uniforms.resolution.value);
             };
             this.threeObj.add(this.pointCloud);
 
