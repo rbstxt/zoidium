@@ -48,7 +48,8 @@
     preserveInputRGB = false,
   ) {
     const { finiteNumber, temporalMode } = registry.math;
-    const { usesSingleEvaluation, installSingleEvaluation, canRenderLayer, getClipForLayer, isAdjustmentLayer } = registry.layers;
+    const { usesSingleEvaluation, installSingleEvaluation, canRenderLayer, getClipForLayer,
+      isAdjustmentLayer, isSceneLayer } = registry.layers;
     const { getFrameSamplerInputFrame, getFrameSamplerCapture, copyRenderTarget,
       bindSampleTextures, restoreLayerAtContextFrame, ownsFrameSamplerScope } = registry.sampler;
     const sequence = root?._sequence;
@@ -101,14 +102,17 @@
         if (!track || track.enabled === false) continue;
         const clip = inputClip(stage, track, index, projectFrame);
         const layer = clip?.object;
-        if (!clip || !canRenderLayer(layer)) continue;
+        // Camera+ checks eligibility after looking up the sampled camera.
+        const renderSharedScene = track.track3d && isSceneLayer(layer) && capture.renderFrameSamplerScene;
+        if (!renderSharedScene && !canRenderLayer(layer)) continue;
         changedLayers.set(layer, layer.__zoidiumTemporalLastUpdateFrame);
         if (!Number.isFinite(preparedLayers?.get(layer)) ||
           preparedLayers.get(layer) !== layer.__zoidiumTemporalUpdateRevision) {
           layer.update(projectFrame - finiteNumber(clip.start, 0));
         }
         settleCompTime(layer);
-        capture.renderLayer(layer, 0, false);
+        if (renderSharedScene) renderSharedScene.call(capture, layer, projectFrame);
+        else capture.renderLayer(layer, 0, false);
       }
 
       changedLayers.set(stage.layer, stage.layer.__zoidiumTemporalLastUpdateFrame);

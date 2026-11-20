@@ -233,27 +233,42 @@ parts.shared = function (options) {
   if (project?.sequence) ensureSequence(project.sequence);
   teardown.push(() => { for (const sequence of sequences) for (const key of Object.keys(sequenceDefinitions)) sequence.properties[key].visible = false; });
   const depthPass = parts.sharedDepth({ PZ, THREE, teardown, patchMethod, masterAt, CameraLayer });
+  const sampledScenes = new WeakMap();
+  patchMethod(PZ.compositor.prototype, "renderFrameSamplerScene", function (layer, frame) {
+    const previous = sampledScenes.get(this);
+    sampledScenes.set(this, { layer, frame });
+    try {
+      return this.renderLayer(layer, 0, false);
+    } finally {
+      if (previous) sampledScenes.set(this, previous);
+      else sampledScenes.delete(this);
+    }
+  }, teardown);
   const originalRenderLayer = PZ.compositor.prototype.renderLayer;
   patchMethod(PZ.compositor.prototype, "renderLayer", function (layer) {
     if (layer instanceof CameraLayer) return;
     const track = ownerTrack(layer);
     const time = layer.__cameraPlusTime ?? 0;
+    const sample = sampledScenes.get(this);
+    const sampled = sample?.layer === layer;
     let root = layer;
     while (root.parent && !(root.parent instanceof PZ.track.video) && root.parent.start === undefined) root = root.parent;
-    const frame = time + (root.parent?.start || 0);
+    const frame = sampled ? sample.frame : time + (root.parent?.start || 0);
     // A detached layer has no project; its parentProject getter would throw.
     const sequence = this._sequence || layer.tryGetParentOfType?.(PZ.project)?.sequence;
-    if (!sequence || !track?.track3d) {
-      restoreMaterialSides(layer);
-      return originalRenderLayer.apply(this, arguments);
-    }
-    const master = masterAt(sequence, frame);
+    const master = sequence && track?.track3d ? masterAt(sequence, frame) : null;
     if (!master) {
       restoreMaterialSides(layer);
+      if (sampled) {
+        // Clear any borrowed camera left by a different tap.
+        syncScene(layer, time);
+        if (!layer.pass?.camera) return;
+      }
       return originalRenderLayer.apply(this, arguments);
     }
     if (layer instanceof PZ.layer.scene) {
       syncScene(layer, time, master.camera, master);
+      if (sampled && !layer.pass?.camera) return;
     } else if (!(layer instanceof PZ.layer.adjustment)) {
       ensureDepth(layer);
       const world = new THREE.Vector3();

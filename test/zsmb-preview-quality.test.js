@@ -277,7 +277,6 @@ for (const [quality, label] of ["Full", "1/2", "1/4", "1/8"].entries()) {
         assert.equal(cameraFrames.filter(time => time === frame - 5).length, scenes.length);
       }
       cameraTrack.enabled = false;
-      for (const scene of scenes) prepared.delete(scene);
       assert.equal(sample(12), true);
       assert.deepEqual(draws, [], "a missing master still leaves camera-less Scenes out of the sample");
     } finally {
