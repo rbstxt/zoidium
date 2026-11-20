@@ -116,8 +116,33 @@ function copyRenderCallbacks(source, target) {
   }
 }
 
-function cloneRenderTree(source) {
-  const clone = source.clone(true);
+// Three.js r91 Mesh.clone() reads geometry.isBufferGeometry, so a mesh whose
+// geometry was released during unload cannot be cloned. Give such meshes an
+// empty geometry for the duration of the clone and restore the released state
+// afterwards, so the source stays exactly as unloaded.
+function cloneObjectTree(source, THREE) {
+  if (!source || typeof source.clone !== "function") return null;
+  const released = [];
+  if (typeof source.traverse === "function") {
+    source.traverse((node) => {
+      if (node && node.isMesh && !node.geometry) released.push(node);
+    });
+  }
+  if (!released.length) return source.clone(true);
+  const api = THREE || globalThis.THREE;
+  const geometry = api && typeof api.Geometry === "function" ? new api.Geometry() : null;
+  if (!geometry) return null;
+  for (const node of released) node.geometry = geometry;
+  try {
+    return source.clone(true);
+  } finally {
+    for (const node of released) node.geometry = null;
+  }
+}
+
+function cloneRenderTree(source, THREE) {
+  const clone = cloneObjectTree(source, THREE);
+  if (!clone) return null;
   clone.traverse((node) => {
     if (node.geometry && typeof node.geometry.clone === "function") {
       node.geometry = node.geometry.clone();
@@ -196,6 +221,6 @@ function mapRenderNodes(source, rendered, nodes = new Map()) {
 
 module.exports = {
   objectSignature, copyObjectState, cloneMaterial, copyRenderCallbacks,
-  cloneRenderTree, disposeClonedResources, markGeneratedRenderTree,
+  cloneObjectTree, cloneRenderTree, disposeClonedResources, markGeneratedRenderTree,
   restoreDeformedTree, traverseDeformMeshes, findRenderNodePath, getRenderNode, mapRenderNodes
 };

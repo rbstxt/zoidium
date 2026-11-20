@@ -155,7 +155,7 @@ parts.camera = (function () {
     return a.distanceTo(b);
   }
 
-  function createClass(PZ, THREE, vibrate, getEditor) {
+  function createClass(PZ, THREE, vibrate, getEditor, publishCamera) {
     class CameraPlus extends PZ.object3d {
       constructor() {
         super();
@@ -195,6 +195,17 @@ parts.camera = (function () {
         this.properties.load(data && data.properties);
         this.threeObj.rotation.order = this.properties.eulerOrder.get();
         this.updateProjection(this._time);
+        // CM3's compositor skips a Scene without a pass camera before it calls
+        // its update, so a Scene that only holds Camera+ must publish here.
+        this.__cameraPlusUnloaded = false;
+        if (typeof publishCamera === "function") publishCamera(this);
+      }
+
+      unload() {
+        // Let the owning Scene fall back to a native camera before the removed
+        // object stops updating.
+        this.__cameraPlusUnloaded = true;
+        if (typeof publishCamera === "function") publishCamera(this);
       }
 
       toJSON() {

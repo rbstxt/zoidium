@@ -522,7 +522,14 @@ function createPZ() {
         PZ.schedule.updateSchedules(seq, seq.audioSchedules, PZ.schedule.combineTracks(seq.audioTracks), 1);
       },
     },
-    ui: { timeline: { tracks: TracksUI } },
+    ui: {
+      timeline: { tracks: TracksUI },
+      // Minimal Edit panel stand-in. Its Objects view maps a clip to
+      // clip.object.objects and lists that list through generateObjectList.
+      edit: class EditPanel {
+        generateObjectList() { return "listed"; }
+      },
+    },
   });
   return PZ;
 }

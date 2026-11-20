@@ -25,6 +25,7 @@ const openComp = engine.openComp;
 const analyzeVideo = engine.analyzeVideo;
 const activeProjectJSON = engine.activeProjectJSON;
 const adoptCompLayer = engine.adoptCompLayer;
+const RENDER_COPIES = engine.renderCopiesFlag;
 // Engine-level messages surface through the shared toast channel (the same
 // one ZoidiumUI.notify uses) instead of blocking engine alerts, so the
 // editor and desktop builds behave the same.
@@ -83,6 +84,38 @@ function install(editor) {
         return out;
       };
     }));
+    // CM3's Objects panel maps a selected clip to clip.object.objects directly,
+    // bypassing childFilter. Hide the composition layer's runtime-only list
+    // there so its disposable render copies cannot be selected or edited.
+    const EditPanel = PZ.ui && PZ.ui.edit && PZ.ui.edit.prototype;
+    if (EditPanel && typeof EditPanel.generateObjectList === "function") {
+      restores.push(patch(EditPanel, "generateObjectList", function (original) {
+        return function (row, list) {
+          if (list && list[RENDER_COPIES]) {
+            if (row && row.classList && typeof row.classList.add === "function") row.classList.add("parent");
+            if (row && row.style) row.style.display = "none";
+            return undefined;
+          }
+          return original.apply(this, arguments);
+        };
+      }));
+    }
+    if (EditPanel && typeof EditPanel.objectsChanged === "function") {
+      restores.push(patch(EditPanel, "objectsChanged", function (original) {
+        return function () {
+          const out = original.apply(this, arguments);
+          const list = this.list;
+          const emptyMessage = this.emptyMessage;
+          if (list && emptyMessage && emptyMessage.style && list.children && list.children.length > 0) {
+            const allHiddenRenderCopies = Array.from(list.children).every(function (item) {
+              return item && item.pz_object && item.pz_object[RENDER_COPIES] && item.style && item.style.display === "none";
+            });
+            if (allHiddenRenderCopies) emptyMessage.style.display = "";
+          }
+          return out;
+        };
+      }));
+    }
     restores.push(patch(PZ.schedule, "analyzeSequence", function (original) {
       return function (seq) {
         try {

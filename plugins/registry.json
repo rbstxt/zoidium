@@ -33,7 +33,11 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=163",
       "bundle": "./plugins/core/bundle.json?v=163",
+<<<<<<< HEAD
       "integrity": "sha256-ZM477eTsy7ZIWf/qUIIADjV0weZd4oCDg8COT8cPnlk="
+=======
+      "integrity": "sha256-temjvii5rQjO4wFa0pcNdabVvM1RCEeHD/rWq70hQyQ="
+>>>>>>> t3/deepseek-precomp-discord
     },
     {
       "id": "easing-plus",
@@ -119,16 +123,16 @@
       "category": "utilities",
       "name": "Precomp+",
       "author": "DaviFX",
-      "version": "22",
+      "version": "23",
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Pre-compose and nested compositions",
       "color": "#4f9db6",
       "description": "Pre-compose selected video clips into compositions, manage them in a Compositions window, and render them nested in Main.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/precomp-plus/manifest.json?v=22",
-      "bundle": "./plugins/precomp-plus/bundle.json?v=22",
-      "integrity": "sha256-iB3PtFVrqLJ3ElsVJWVhZWq/0gOFvU3ugqN38MIZg78="
+      "manifest": "./plugins/precomp-plus/manifest.json?v=23",
+      "bundle": "./plugins/precomp-plus/bundle.json?v=23",
+      "integrity": "sha256-dQwLALqsTVisz24wLzmE6tHEeqqv07ZDdOY97cddiWs="
     },
     {
       "id": "gif-support",
@@ -196,23 +200,23 @@
       "category": "scene",
       "name": "Geometry+",
       "author": "Zoidium",
-      "version": "10",
+      "version": "11",
       "itemCount": 8,
       "format": "3D geometry",
       "tagline": "Procedural 3D Shapes",
       "color": "#6b86c5",
       "description": "Adds rounded boxes, low-poly polyhedra, and procedural primitives to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/geometry-plus/manifest.json?v=10",
-      "bundle": "./plugins/geometry-plus/bundle.json?v=10",
-      "integrity": "sha256-lpr9qQClh1K2WD5v35Tk6NkyXfQMqPitpDAwnN3XGAY="
+      "manifest": "./plugins/geometry-plus/manifest.json?v=11",
+      "bundle": "./plugins/geometry-plus/bundle.json?v=11",
+      "integrity": "sha256-xYCKG+T9C8diNca7M0c9fNXxGUdrjGe+KrdE+y9Oxuk="
     },
     {
       "id": "repeater",
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "46",
+      "version": "47",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -220,9 +224,9 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=46",
-      "bundle": "./plugins/scene-plus/bundle.json?v=46",
-      "integrity": "sha256-igc7xlvMmRb+lYeAThw0ItoLcMrMdQebTVu0zvfPGAI="
+      "manifest": "./plugins/scene-plus/manifest.json?v=47",
+      "bundle": "./plugins/scene-plus/bundle.json?v=47",
+      "integrity": "sha256-mDVv1rl4os6IpuClTSOQKB1CJyIX6f6HudfMTaHV2wU="
     },
     {
       "id": "material-plus",
@@ -344,16 +348,16 @@
       "category": "scene",
       "name": "Camera+",
       "author": "DaviFX",
-      "version": "25",
+      "version": "26",
       "itemCount": 1,
       "format": "camera rig",
       "tagline": "Camera layers, 3D tracks and DOF",
       "color": "#3d7bc5",
       "description": "Adds a separate Camera+ object with depth of field, seeded vibrate and focus tools, Camera layers, and a 3D switch on video tracks that lets scenes and flat layers follow the shared camera. The default CM3 camera is left unchanged.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/camera-plus/manifest.json?v=25",
-      "bundle": "./plugins/camera-plus/bundle.json?v=25",
-      "integrity": "sha256-RNYhBOCgL/RVVjeXhdTiveEempE8MyOaVEndf74BaZA="
+      "manifest": "./plugins/camera-plus/manifest.json?v=26",
+      "bundle": "./plugins/camera-plus/bundle.json?v=26",
+      "integrity": "sha256-otUQFIf+tyk7jYZj6HHAdRr/WITwiaFzIpT5OzNOJYk="
     },
     {
       "id": "native-fx",

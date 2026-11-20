@@ -3,7 +3,7 @@
   "id": "geometry-plus",
   "name": "Geometry+",
   "author": "Zoidium",
-  "version": "10",
+  "version": "11",
   "kind": "object",
   "objectCategory": "GEOMETRY+",
   "objectClassParent": {
@@ -104,33 +104,33 @@
     {
       "id": "geometry-helpers",
       "type": "text",
-      "source": "./plugins/geometry-plus/geometry-helpers.js?v=10"
+      "source": "./plugins/geometry-plus/geometry-helpers.js?v=11"
     },
     {
       "id": "spline-math",
       "type": "text",
-      "source": "./plugins/geometry-plus/spline-math.js?v=10"
+      "source": "./plugins/geometry-plus/spline-math.js?v=11"
     },
     {
       "id": "tube-geometry",
       "type": "text",
-      "source": "./plugins/geometry-plus/tube-geometry.js?v=10"
+      "source": "./plugins/geometry-plus/tube-geometry.js?v=11"
     },
     {
       "id": "mesh-object-base",
       "type": "text",
-      "source": "./plugins/geometry-plus/mesh-object-base.js?v=10"
+      "source": "./plugins/geometry-plus/mesh-object-base.js?v=11"
     },
     {
       "id": "primitive-shapes",
       "type": "text",
-      "source": "./plugins/geometry-plus/primitive-shapes.js?v=10"
+      "source": "./plugins/geometry-plus/primitive-shapes.js?v=11"
     }
   ],
   "modules": [
     {
       "id": "geometry-plus-runtime",
-      "source": "./plugins/geometry-plus/geometry-plus.js?v=10"
+      "source": "./plugins/geometry-plus/geometry-plus.js?v=11"
     }
   ]
 }

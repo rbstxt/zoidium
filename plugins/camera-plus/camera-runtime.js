@@ -129,7 +129,7 @@ function activateCameraPlus(context, teardown) {
   const focus = parts.focus;
   const SceneDof = parts.dof.createSceneDofClass(THREE);
   const SceneMotionBlur = parts.motion.createSceneMotionBlurClass(THREE);
-  const CameraPlus = camera.createClass(PZ, THREE, parts.vibrate, () => getEditor());
+  const CameraPlus = camera.createClass(PZ, THREE, parts.vibrate, () => getEditor(), publishCamera);
   const worldDistance = camera.worldDistance;
 
   let live = true;
@@ -158,7 +158,56 @@ function activateCameraPlus(context, teardown) {
   // ---- scene selection and depth of field ---------------------------------
 
   function isCameraPlusObject(object) {
-    return !!object && object.type === camera.OBJECT_TYPE && !object._zoidiumMissingObject;
+    return !!object && object.type === camera.OBJECT_TYPE
+      && !object._zoidiumMissingObject && !object.__cameraPlusUnloaded;
+  }
+
+  // Nearest Scene above an object, through nested groups and their lists.
+  // Loading can run before an object is attached, so walk defensively.
+  function owningScene(object) {
+    let node = object;
+    for (let depth = 0; node && depth < 64; depth += 1) {
+      if (node instanceof PZ.layer.scene) return node;
+      node = node.parent;
+    }
+    return null;
+  }
+
+  // Load can run while the playhead is anywhere, so publish at the Scene's
+  // local time instead of always frame 0. A group that is disabled at frame 0
+  // but enabled now would otherwise stay unpublished, and the compositor would
+  // keep skipping the Scene before update could fix it.
+  function publishTime(scene) {
+    const frame = Number(getEditor()?.playback?.currentFrame);
+    if (!Number.isFinite(frame)) return 0;
+    let start = Number(scene?.parent?.start);
+    if (!Number.isFinite(start) && typeof PZ.clip === "function") {
+      start = Number(scene?.tryGetParentOfType?.(PZ.clip)?.start);
+    }
+    return Number.isFinite(start) ? frame - start : frame;
+  }
+
+  // Publish an active Camera+ to its Scene as soon as it loads or unloads.
+  // Normal rendering refines this through scene.update, but a Scene without a
+  // pass camera is skipped by the compositor before update can run.
+  function publishCamera(object) {
+    if (!live) return;
+    try {
+      const scene = owningScene(object);
+      if (scene) {
+        syncScene(scene, publishTime(scene));
+        return;
+      }
+      if (object?.__cameraPlusUnloaded) {
+        for (const [trackedScene, entry] of Array.from(scenes.entries())) {
+          if (entry && entry.cameraObject === object) {
+            syncScene(trackedScene, publishTime(trackedScene));
+          }
+        }
+      }
+    } catch (error) {
+      reportOnce(error);
+    }
   }
 
   function findActiveCamera(scene, time) {
@@ -198,7 +247,10 @@ function activateCameraPlus(context, teardown) {
       pass.__cameraPlusDof = null;
       pass.__cameraPlusState = null;
       const own = nativeCameraObjectOf(scene, entry.previousCamera)?.threeObj;
-      pass.camera = own || entry.previousCamera || pass.camera;
+      // Clear the borrowed camera when nothing authored remains: a Scene
+      // without a camera is skipped by the compositor, which is the native
+      // result of deleting the only camera from it.
+      pass.camera = own || entry.previousCamera || null;
     }
     if (entry.blur) { entry.blur.unload(); entry.blur = null; }
     if (entry.dof) {
@@ -318,6 +370,21 @@ function activateCameraPlus(context, teardown) {
   // ---- scene update and unload ---------------------------------------------
 
   const sceneProto = PZ.layer.scene.prototype;
+  const originalSceneLoad = sceneProto.load;
+  patchMethod(sceneProto, "load", function loadWithCameraPlus() {
+    const out = originalSceneLoad.apply(this, arguments);
+    // A pasted, duplicated, or pre-composed Scene must render on its first
+    // frame, before anything calls update on it.
+    if (live) {
+      try {
+        syncScene(this, publishTime(this));
+      } catch (error) {
+        reportOnce(error);
+      }
+    }
+    return out;
+  }, teardown);
+
   const originalSceneUpdate = sceneProto.update;
   patchMethod(sceneProto, "update", function updateWithCameraPlus(time) {
     const out = originalSceneUpdate.apply(this, arguments);

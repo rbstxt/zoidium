@@ -7,6 +7,14 @@ each line describes one visible change.
 
 ### Added
 
+- ExpressText+ has a Letters setting. Per text treats each text under the
+  container as its own set of letters, the same as giving each text its own
+  copy of the container with the same settings; Across texts numbers letters
+  continuously across every text, as before. New containers start on Per text.
+  Existing projects open on Across texts and look the same.
+- A 3D Text row has Split into letters, which replaces the text with a group of
+  one Text per letter in the same places. Position, rotation, and scale
+  keyframes and expressions move to the group. One undo restores the original.
 - Each effect has an eye button in its header that turns the effect off
   without deleting it. A turned-off effect does nothing in preview or export,
   including time effects, effect groups (and everything inside them), and

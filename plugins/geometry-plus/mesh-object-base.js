@@ -103,6 +103,10 @@ function createMeshObjectBase(PZ, THREE) {
         this.threeObj.geometry.dispose();
         this.threeObj.geometry = null;
       }
+      // The released mesh must be rebuildable: a later update (for example
+      // after an undo restores the layer) has to generate geometry again.
+      this.geometryNeedsUpdate = true;
+      this._geometrySignature = undefined;
       if (this.material) this.material.unload();
     }
 
@@ -111,6 +115,7 @@ function createMeshObjectBase(PZ, THREE) {
       const geometrySignature = this.getGeometrySignature(currentFrame);
       if (
         this.geometryNeedsUpdate ||
+        !this.threeObj.geometry ||
         geometrySignature !== this._geometrySignature
       ) {
         this.updateGeometry(this.generateGeometry(currentFrame));
