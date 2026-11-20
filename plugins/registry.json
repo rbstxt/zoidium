@@ -478,14 +478,14 @@
       "id": "shape-plus",
       "name": "Shape+",
       "author": "Zoidium",
-      "version": "42",
+      "version": "43",
       "tagline": "Animated vector layers",
       "description": "Animated vector layers, procedural contents, pen masks for Scene and Adjustment layers, SVG import and native preview path editing.",
       "category": "scene",
       "defaultEnabled": true,
-      "manifest": "./plugins/shape-plus/manifest.json?v=42",
-      "bundle": "./plugins/shape-plus/bundle.json?v=42",
-      "integrity": "sha256-1F5/yWCoSfK+ZN4SMTx3aYlE1ICQDR8GpiIp1tE9ZbM="
+      "manifest": "./plugins/shape-plus/manifest.json?v=43",
+      "bundle": "./plugins/shape-plus/bundle.json?v=43",
+      "integrity": "sha256-zESAZcHwe+idJ3Stch98B1jd6Dn60NTVdV5jqrnR27Y="
     },
     {
       "id": "constraints",
