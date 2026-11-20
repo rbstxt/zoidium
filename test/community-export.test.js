@@ -135,3 +135,17 @@ test("without the preview, an export scans a first-party project once instead of
   const held = host({ enabled: false });
   await assert.rejects(held.exporter().renderVideoFrame(new Uint8Array(4)), /Community effect export is unavailable/);
 });
+test("bypassed community effects do not require export fallback", async () => {
+  const h = host();
+  h.payload.zoidiumBypassed = true;
+  assert.doesNotThrow(() => h.api.check(h.project, h.exporter()));
+  h.payload.zoidiumBypassed = false;
+  assert.throws(() => h.api.check(h.project, h.exporter()), /Community effect export is unavailable/);
+});
+test("a bypassed effect group excludes its community children from export requirements", () => {
+  const h = host();
+  h.data.media[0].closed.effects = [{ type: 0, zoidiumBypassed: true, objects: [h.payload] }];
+  assert.doesNotThrow(() => h.api.check(h.project, h.exporter()));
+  h.data.media[0].closed.effects[0].zoidiumBypassed = false;
+  assert.throws(() => h.api.check(h.project, h.exporter()), /Community effect export is unavailable/);
+});

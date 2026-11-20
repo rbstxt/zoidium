@@ -6,10 +6,22 @@
   const grants = new WeakMap(), sessions = new WeakMap();
   const ERROR = "Community effect export is unavailable. Use Export with missing or failed plugins to bypass all community effects for one export.";
   const documentFor = project => JSON.parse(JSON.stringify(project));
-  const signature = data => JSON.stringify(Projects.records(data));
+  function activeRecords(value, found = [], effect = false) {
+    if (!value || typeof value !== "object") return found;
+    if (effect && value.zoidiumBypassed === true) return found;
+    if (Projects.isCommunity(value.type)) { found.push(value); return found; }
+    for (const [key, child] of Object.entries(value)) {
+      if (Array.isArray(child)) {
+        const effectChildren = key === "effects" || effect && value.type === 0 && key === "objects";
+        for (const item of child) activeRecords(item, found, effectChildren);
+      } else activeRecords(child, found);
+    }
+    return found;
+  }
   function requirements(project) {
     const data = documentFor(project);
-    return { data, records: Projects.records(data), signature: signature(data) };
+    const records = activeRecords(data);
+    return { data, records, signature: JSON.stringify(records) };
   }
   async function requestFallback(project, ui = root.ZoidiumUI) {
     if (!Projects.enabled() || !project) return false;
