@@ -154,6 +154,9 @@ each line describes one visible change.
 
 ### Changed
 
+- S_Glow: Atmosphere Amp is now half as strong for the same slider value,
+  as the effect's author intended; it was twice too strong. Saved slider
+  values do not change, so projects that use atmosphere look softer.
 - Expressions+: Checkbox controls now return the numbers 1 and 0 to
   expressions, like After Effects, instead of the text "1" and "0".
   Expressions that compare with the text "1" or "0", or combine the value
@@ -218,6 +221,19 @@ each line describes one visible change.
 
 ### Fixed
 
+- Native particles and Trapcode Form, Particular, and Plexus keep the same
+  particle size relative to the picture in every preview size, in
+  fullscreen, at every preview quality, and in exports. Before, the size
+  changed with the preview window, and only adding ZSMB happened to correct
+  native particles. Particles in existing projects may look slightly
+  different in the preview; they now match the export.
+- A disabled S_Glow no longer changes how the rest of the scene renders.
+  Before, particles and Form looked different until the effect was deleted.
+- ZSMB blurs scenes whose camera comes from a Camera+ layer. Before, it
+  passed those frames through unchanged.
+- Shader+ custom property rows show their name once. A second copy of the
+  name could appear behind the label after Rename when rules or group
+  settings refreshed the row.
 - Echo, Time Remap, Time Difference, Time Displacement, CC Wide Time, and
   Magic Looks now free their GPU memory when removed.
 - Audio track mute and Shader+ Layer Input mode changes can now be undone

@@ -7,7 +7,7 @@
   // it: Chrome pauses muted video and suspends media in background tabs, a
   // play() can be interrupted, and a starving element waits for data. The
   // editor then stayed frozen or crawled at about 1 fps after alt-tab until
-  // the user stopped and restarted playback (Discord, 2026-11-14).
+  // the user stopped and restarted playback (reported 2026-11-14).
   //
   // This patch keeps the native media clock while its element can run, clocks
   // a tick from the frame time while it cannot, and asks a paused element that
