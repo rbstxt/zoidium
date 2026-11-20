@@ -20,15 +20,22 @@ function installMaskClipTrim(PZ, onDispose) {
   const moveClip = tracks?.moveClip;
   if (typeof moveClip !== "function") return;
   function moveClipWithMasks(edit) {
-    const { type, oldTrackIdx, oldIdx, offset } = edit || {};
-    const layer = type === 0 && this.timeline.sequence.videoTracks[oldTrackIdx]?.clips[oldIdx]?.object;
+    const { type, oldTrackIdx, oldIdx, start, length, offset, timeStart, timeEnd } = edit || {};
+    if (type !== 0 || !Number.isFinite(offset) || offset === 0 || !Number.isFinite(start))
+      return moveClip.apply(this, arguments);
+    const clip = this.timeline.sequence.videoTracks[oldTrackIdx]?.clips[oldIdx];
+    const layer = clip?.object;
     const current = layer?.[FIELD];
-    if (!current?.length || !Number.isFinite(offset) || offset === 0)
+    if (!current?.length || start - clip.start !== -offset)
       return moveClip.apply(this, arguments);
 
-    // CM3 shifts native property keyframes on a left trim. Mask paths live
-    // outside that property tree, so shift their local frames in the same
-    // command, before CM3 notifies the timeline. Its inverse also runs here.
+    // A start trim keeps the end fixed, or adjusts both source times if both
+    // handles move. A whole-clip proxy can carry an offset without either.
+    if (length - clip.length !== offset && !(Number.isFinite(timeStart) && Number.isFinite(timeEnd)))
+      return moveClip.apply(this, arguments);
+
+    // CM3 routes each trim proxy and its inverse through moveClip. Shift
+    // mask keys, including locked paths, before it notifies the timeline.
     const next = clone(current);
     for (const mask of next) {
       const path = mask.properties.path;
