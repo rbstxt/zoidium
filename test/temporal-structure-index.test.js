@@ -201,3 +201,9 @@ test("late effect initialization invalidates cached descriptor flags", () => {
   effect.properties.onListChanged.update();
   assert.equal(h.api.usesSingleEvaluation(h.sequence, true), false);
 });
+
+test("bypassed samplers do not set scheduling flags", () => {
+  const h = host(); h.PZ.zoidium = { effectBypass: { bypassed: e => e.zoidiumBypassed } };
+  h.tracks[0].layer.effects.push({ zoidiumBypassed: true, _zoidiumTemporal: {}, _zoidiumFrameSampler: {} });
+  assert.equal(h.api.usesSingleEvaluation(h.sequence), false);
+});

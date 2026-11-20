@@ -99,6 +99,9 @@
   let structureRevision = 0;
   const invalidateStructure = () => { structureRevision += 1; };
   let observedPrototype = null;
+  if (typeof window !== "undefined") window.ZoidiumEditSignals?.subscribe(reason => {
+    if (reason === "api.effect-bypass") invalidateStructure();
+  });
 
   function observeStructure(event) {
     const prototype = typeof PZ !== "undefined" ? PZ.observable?.prototype : null;
@@ -141,6 +144,7 @@
         // property definitions. The effect may already be in its owner list.
         observeStructure(effect?.properties?.onListChanged);
         observeStructure(effect?.customProperties?.onListChanged);
+        if (typeof PZ !== "undefined" && PZ.zoidium?.effectBypass?.bypassed(effect)) continue;
         result.temporal ||= Boolean(effect?._zoidiumTemporal);
         result.sampler ||= Boolean(effect?._zoidiumFrameSampler);
       }
@@ -419,7 +423,7 @@
       Array.from(track.clips || [], clip => clip.object)) ||
       (layer instanceof PZ.layer.composite ? layer.objects || [] : []);
     return Array.from(children).some(child =>
-      child.effects?.some(effect => effect?._zoidiumFrameSampler) || hasNestedFrameSampler(child));
+      child.effects?.some(effect => effect?._zoidiumFrameSampler && !PZ.zoidium?.effectBypass?.bypassed(effect)) || hasNestedFrameSampler(child));
   }
 
   function installSingleEvaluation(state, sequence) {

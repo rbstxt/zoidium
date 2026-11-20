@@ -51,7 +51,7 @@
       if (!layers.isAdjustmentLayer(layer)) continue;
       const effect = layer.effects?.[0];
       const descriptor = effect?._zoidiumFrameSampler;
-      if (!descriptor) continue;
+      if (!descriptor || PZ.zoidium?.effectBypass?.bypassed(effect)) continue;
       const local = frame - math.finiteNumber(clip.start, 0);
       const request = descriptor.getRequest(effect, local);
       if (!request?.enabled || !request.reuseCurrentInput) continue;
