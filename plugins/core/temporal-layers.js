@@ -166,7 +166,8 @@
           result.indexes.set(layer, indexes);
           visit(layer);
           adjustment ||= isAdjustmentLayer(layer) && Array.from(layer.effects || [])
-            .some(effect => Boolean(effect?._zoidiumTemporal));
+            .some(effect => Boolean(effect?._zoidiumTemporal) &&
+              !(typeof PZ !== "undefined" && PZ.zoidium?.effectBypass?.bypassed(effect)));
         }
       }
       if (adjustment) result.adjustments.push(index);
