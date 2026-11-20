@@ -163,6 +163,16 @@ function installPathEditing(context, Layer, Content) {
     return shapeOverlay.state?.layer === layer;
   });
   const publicPaths = Object.freeze({ activate: paths.activate });
+  // Clicking a mask name in Properties starts editing that mask at once.
+  const maskPanels = require("./mask-panels.js");
+  maskPanels.setPanelActivator((session, layer, maskId, focusPen, refresh) => {
+    if (!paths.activate("mask", layer, maskId)) {
+      session.s.selectItem(maskId);
+      if (typeof focusPen === "function") focusPen("select");
+    }
+    if (typeof refresh === "function") refresh();
+  });
+  own(() => maskPanels.setPanelActivator(null));
   PZ.zoidium ??= {};
   if (PZ.zoidium.define) PZ.zoidium.define("pathEditor", publicPaths, "shape-plus");
   else PZ.zoidium.pathEditor = publicPaths;

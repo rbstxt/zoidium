@@ -722,3 +722,26 @@ test("public activation mounts either host and survives session rebinds until pr
   assert.equal(h.api.activate("mask", h.scene.object, "mask"), false);
   assert.equal(h.frames.size, 0);
 });
+
+test("a mask name click in Properties activates the mask through the shared path editor", t => {
+  const h = editorFixture(t, ({ addClip, choose }) => {
+    const scene = addClip(4, { masks: [mask("mask", [[60, 60], [180, 60], [180, 105]])] });
+    choose(scene);
+    return { scene };
+  });
+  const panels = require("../plugins/shape-plus/mask-panels.js");
+  const activator = panels.getPanelActivator();
+  assert.equal(typeof activator, "function");
+  assert.equal(h.maskOverlay.state, undefined);
+  let refreshed = 0, fallback = 0;
+  const session = { s: { selectItem() { fallback++; } } };
+  activator(session, h.scene.object, "mask", () => {}, () => { refreshed++; });
+  assert.notEqual(h.maskOverlay.state, undefined);
+  assert.equal(h.paths.controller.activePathId, "mask");
+  assert.equal(fallback, 0);
+  assert.equal(refreshed, 1);
+  activator(session, h.scene.object, "missing", () => {}, () => { refreshed++; });
+  assert.equal(fallback, 1);
+  h.dispose();
+  assert.equal(panels.getPanelActivator(), null);
+});
