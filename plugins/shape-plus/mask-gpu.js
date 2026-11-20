@@ -7,8 +7,19 @@
 // the CPU applies (three horizontal/vertical passes of the same clamped
 // 2r+1 box, so pixels agree with the reference within a couple of LSBs),
 // and combines in order with the AE blend modes. Static masks cost ~0 per
-// frame: re-renders happen only when the signature (geometry + feather +
-// mode stack + resolution, see signatureOf) changes.
+// frame: re-renders happen only when the signature (geometry + expansion +
+// feather + mode stack + resolution, see signatureOf) changes.
+//
+// Expansion (P1.8 signed distance, P1.9): the distance convention is shared
+// with mask-expansion.js (`coverage = clamp(0.5 + s + offset)`, half-coverage
+// boundary). There is no SDF fragment shader yet, so nonzero expansion does
+// not triangulate: renderCoverage computes the final coverage on the CPU
+// (exact, same rasterizeCoverage the fallback uses) and caches it as a GPU
+// DataTexture when the runtime provides one, else it returns null and the
+// caller uses its own CPU upload (same pixels). At expansion 0 the old
+// triangulated fill/blur/combine path runs exactly, byte-identical to before.
+// Signatures and scaling include expansion, so P1.7 can wire the persisted
+// field without changing this module.
 //
 // Orientation: mask row 0 (mask-space top) renders to the top framebuffer
 // row, so texture v = 1 samples the top, exactly like the CPU DataTexture
@@ -19,14 +30,27 @@
 // tap reads an exact texel value; only the final summation is float. The
 // blur loop bound is fixed (WebGL1 needs constant bounds); feather radii
 // above MAX_GPU_FEATHER fall back to the CPU reference, which the tests pin
-// pixel-for-pixel.
+// pixel-for-pixel. Expanded masks upload exact CPU bytes today (tolerance 0
+// vs the CPU raster); a future pure-GL SDF shader sampling 8-bit scratch
+// targets is expected to match within the same couple of LSBs as feather,
+// and gpuCoverageData below is the conformance oracle for it (validated to
+// +/-MAX_GPU_EXPANSION in Node).
 const { flattenPath } = require("./path.js");
-const { closeContour } = require("./mask-raster.js");
+const { closeContour, rasterizeCoverage } = require("./mask-raster.js");
+const { normalizeExpansion } = require("./mask-expansion.js");
 const earcut = require("./vendor/earcut.js");
 
 // Long-side caps live with the callers (2048 for layer masks, 1024 for
 // Shader+ inputs); this module renders whatever size it is given.
 const MAX_GPU_FEATHER = 64;
+// Validated expansion bound for the shared signed-distance convention, in
+// coverage pixels after scaleEvaluated. Mirrors the feather loop bound: the
+// band cost scales with perimeter x |expansion| and stays well under one
+// fill through +/-64 px (see report-P1.9.md timings); beyond this the GPU
+// entry falls back to the caller's CPU upload, exactly like extreme
+// feather. The CPU API bound stays +/-128 (mask-expansion.js); the GPU
+// cache simply does not hold larger magnitudes.
+const MAX_GPU_EXPANSION = 64;
 // Fixed WebGL1 loop bound: 2 * MAX_GPU_FEATHER + 1 nearest taps.
 const MAX_TAPS = 2 * MAX_GPU_FEATHER + 1;
 // Shared-cache budget: entries are small (coverage size), evicted oldest.
@@ -34,8 +58,11 @@ const MAX_CACHE_ENTRIES = 8;
 
 // Vertices to coverage pixels: mask space (top-left, y down) at the
 // coverage scale. The GPU renders scaled geometry into a scaled target, the
-// same input the CPU raster takes.
+// same input the CPU raster takes. Expansion scales like feather (both are
+// distances); missing expansion defaults to 0 so old projects pass through
+// unchanged. Invalid values throw visibly instead of clamping.
 function scaleEvaluated(evaluated, scale) {
+  if (!Number.isFinite(scale) || !(scale > 0)) throw Error("Layer mask GPU needs a positive scale");
   return evaluated.map(entry => ({
     ...entry,
     vertices: entry.vertices.map(vertex => ({
@@ -44,20 +71,49 @@ function scaleEvaluated(evaluated, scale) {
       out: [vertex.out[0] * scale, vertex.out[1] * scale],
     })),
     feather: (entry.feather || 0) * scale,
+    expansion: normalizeExpansion(entry ? entry.expansion : undefined) * scale,
   }));
 }
 
 // Cache key of everything that affects coverage pixels: geometry (with
-// handles, which steer the flatten), closed state, combine parameters and
-// the target size. The same frame always evaluates to the same floats, so
-// raw JSON is a stable key.
+// handles, which steer the flatten), closed state, combine parameters,
+// expansion and the target size. Missing and explicit-zero expansion share
+// the same key (both scale to 0). The same frame always evaluates to the
+// same floats, so raw JSON is a stable key.
 function signatureOf(scaled, width, height) {
   return JSON.stringify([width, height, scaled.map(entry => [
     entry.vertices.map(vertex => [...vertex.point, ...vertex.in, ...vertex.out]),
     entry.closed ? 1 : 0, entry.mode || "add", entry.feather || 0,
     entry.opacity === undefined ? 1 : entry.opacity, entry.invert ? 1 : 0,
     entry.enabled === false || entry.enabled === 0 ? 0 : 1,
+    entry.expansion || 0,
   ])]);
+}
+
+// True when a scaled (coverage-pixel) expansion can live in the GPU cache.
+// Beyond this bound renderCoverage returns null and the caller falls back
+// to its own CPU upload (same pixels, same as extreme feather).
+function isGpuExpansionSupported(expansionScaled) {
+  return Number.isFinite(expansionScaled) && Math.abs(expansionScaled) <= MAX_GPU_EXPANSION;
+}
+
+// Pure CPU oracle for what the GPU path holds for expanded masks: the exact
+// final coverage bytes (expand -> feather -> opacity -> invert -> ordered
+// combine) the hybrid upload caches. In Node tests this is compared against
+// rasterizeCoverage directly (tolerance 0 today); it also pins the shared
+// `clamp(0.5 + s + offset)` convention a future SDF fragment shader must
+// reproduce within the feather-like couple of LSBs.
+function gpuCoverageData(scaled, width, height) {
+  if (!Number.isInteger(width) || width < 1 || !Number.isInteger(height) || height < 1)
+    throw Error("Layer mask GPU coverage needs a positive integer size");
+  for (const entry of scaled) {
+    const expansion = entry && entry.expansion !== undefined ? entry.expansion : 0;
+    if (!Number.isFinite(expansion)) throw Error("Layer mask GPU expansion must be a finite number");
+    if (Math.abs(expansion) > MAX_GPU_EXPANSION)
+      throw Error("Layer mask GPU expansion " + expansion + " px is outside the GPU range -" +
+        MAX_GPU_EXPANSION + ".." + MAX_GPU_EXPANSION + " px");
+  }
+  return rasterizeCoverage(scaled, width, height);
 }
 
 // A clamped 2r+1 box blur: integer texel offsets with a shared weight.
@@ -324,10 +380,18 @@ function createMaskGpu(THREE) {
 
   // Render (or fetch) the coverage texture for already-scaled entries.
   // Returns null when the caller should use the CPU reference instead
-  // (feather beyond the GPU loop bound, or a forced-CPU probe).
+  // (feather beyond the GPU loop bound, expansion beyond the GPU bound,
+  // no DataTexture runtime for the hybrid upload, or a forced-CPU probe).
+  // At expansion 0 the triangulated fill/blur/combine path below runs
+  // exactly as before. Nonzero expansion within MAX_GPU_EXPANSION uploads
+  // exact CPU bytes (same rasterizeCoverage the fallback uses) into the GPU
+  // cache, so later frames cost ~0 and layer/shader consumers share one
+  // texture; beyond the bound the caller falls back, like extreme feather.
   function renderCoverage(renderer, scaled, width, height, signature) {
     if (!renderer || forceCpu) return null;
     if (Math.max(0, ...scaled.map(entry => Math.round(entry.feather || 0))) > MAX_GPU_FEATHER) return null;
+    const maxExpansion = Math.max(0, ...scaled.map(entry => Math.abs(entry.expansion || 0)));
+    if (maxExpansion > MAX_GPU_EXPANSION) return null;
     const state = stateFor(renderer);
     const hit = state.entries.get(signature);
     if (hit) {
@@ -337,6 +401,50 @@ function createMaskGpu(THREE) {
       return hit.texture;
     }
     const started = Date.now();
+    const hasExpansion = scaled.some(entry => entry && (entry.expansion || 0) !== 0);
+    if (hasExpansion) {
+      if (!THREE || !THREE.DataTexture) return null;
+      let data;
+      try {
+        data = rasterizeCoverage(scaled, width, height).data;
+      } catch (_error) {
+        stats.cpuFallbacks++;
+        return null;
+      }
+      const rgba = new Uint8Array(data.length * 4);
+      for (let i = 0; i < data.length; i++) {
+        rgba[i * 4] = 255;
+        rgba[i * 4 + 1] = 255;
+        rgba[i * 4 + 2] = 255;
+        rgba[i * 4 + 3] = data[i];
+      }
+      let texture = null;
+      try {
+        texture = new THREE.DataTexture(rgba, width, height, THREE.RGBAFormat, THREE.UnsignedByteType);
+        texture.minFilter = texture.magFilter = THREE.LinearFilter;
+        texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.generateMipmaps = false;
+        texture.flipY = true;
+        texture.needsUpdate = true;
+      } catch (_error) {
+        stats.cpuFallbacks++;
+        return null;
+      }
+      const stored = { target: texture, texture, width, height };
+      state.entries.set(signature, stored);
+      while (state.entries.size > MAX_CACHE_ENTRIES) {
+        const oldest = state.entries.keys().next().value;
+        if (oldest === signature) break;
+        const victim = state.entries.get(oldest);
+        state.entries.delete(oldest);
+        try {
+          victim.target.dispose();
+        } catch (_error) { /* Eviction is best effort. */ }
+      }
+      stats.misses++;
+      stats.lastBuildMs = Date.now() - started;
+      return stored.texture;
+    }
     ensureScratch(renderer, state, width, height);
     const live = scaled.filter(entry => entry && entry.enabled !== false && entry.enabled !== 0);
     const entryTarget = target(width, height, THREE.LinearFilter);
@@ -416,4 +524,5 @@ function sharedGpu(THREE) {
   return shared;
 }
 
-module.exports = { createMaskGpu, sharedGpu, scaleEvaluated, signatureOf, blurTaps, MAX_GPU_FEATHER, MAX_TAPS, MAX_CACHE_ENTRIES };
+module.exports = { createMaskGpu, sharedGpu, scaleEvaluated, signatureOf, blurTaps, gpuCoverageData,
+  isGpuExpansionSupported, MAX_GPU_FEATHER, MAX_GPU_EXPANSION, MAX_TAPS, MAX_CACHE_ENTRIES };
