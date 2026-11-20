@@ -55,6 +55,10 @@ function lockMask(store, id, locked = true) {
   store.write(data);
 }
 
+function firstVertex(store, id) {
+  return store.read().find(entry => entry.id === id).vertexIds[0];
+}
+
 function pointOf(store, id) {
   const mask = store.read().find(entry => entry.id === id);
   return mask.properties.path.keyframes[0].value.slice(0, 2);
@@ -137,9 +141,8 @@ test("V transform writes selected vertices across unlocked masks in one history 
   sel.click(ids[0]);
   sel.shiftClick(ids[1]);
   sel.shiftClick(ids[2]);
-  controller.setSelection(host, ids[0], ["v1"]);
-  controller.setSelection(host, ids[1], ["v1"]);
-  controller.setSelection(host, ids[2], ["v1"]);
+  // Vertex IDs are unique across masks, so select each mask's own first vertex.
+  for (const id of ids) controller.setSelection(host, id, [firstVertex(store, id)]);
   const before = store.read();
   const result = multi.transformSelected({ host, selection: sel, controller, apply: translate(5, -2), history });
   assert.deepEqual(result, { transformed: ids, skippedLocked: [], skippedEmpty: [], skippedMissing: [] });
