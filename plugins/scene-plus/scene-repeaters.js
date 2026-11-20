@@ -9,7 +9,7 @@ const {
 } = require("./scene-values.js");
 const { createPropertyCategory, makeProperties } = require("./scene-fields.js");
 const {
-  cloneRenderTree, copyObjectState, disposeClonedResources,
+  cloneObjectTree, cloneRenderTree, copyObjectState, disposeClonedResources,
   markGeneratedRenderTree, objectSignature, restoreDeformedTree,
 } = require("./scene-clone.js");
 
@@ -150,7 +150,8 @@ function createRepeaterClass(PZ, THREE, mode, type) {
             root.name = `${this.defaultName || "Echo Repeater"} ${index + 1}`;
             const clones = [];
             for (const source of sources) {
-              const clone = cloneRenderTree(source.threeObj);
+              const clone = cloneRenderTree(source.threeObj, THREE);
+              if (!clone) continue;
               root.add(clone);
               clones.push({ source: source.threeObj, clone });
             }
@@ -176,7 +177,8 @@ function createRepeaterClass(PZ, THREE, mode, type) {
         root.name = `${this.defaultName || "Repeater"} ${index + 1}`;
         const clones = [];
         for (const source of sources) {
-          const clone = source.threeObj.clone(true);
+          const clone = cloneObjectTree(source.threeObj, THREE);
+          if (!clone) continue;
           markGeneratedRenderTree(clone);
           root.add(clone);
           clones.push({ source: source.threeObj, clone });

@@ -196,23 +196,23 @@
       "category": "scene",
       "name": "Geometry+",
       "author": "Zoidium",
-      "version": "10",
+      "version": "11",
       "itemCount": 8,
       "format": "3D geometry",
       "tagline": "Procedural 3D Shapes",
       "color": "#6b86c5",
       "description": "Adds rounded boxes, low-poly polyhedra, and procedural primitives to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/geometry-plus/manifest.json?v=10",
-      "bundle": "./plugins/geometry-plus/bundle.json?v=10",
-      "integrity": "sha256-lpr9qQClh1K2WD5v35Tk6NkyXfQMqPitpDAwnN3XGAY="
+      "manifest": "./plugins/geometry-plus/manifest.json?v=11",
+      "bundle": "./plugins/geometry-plus/bundle.json?v=11",
+      "integrity": "sha256-xYCKG+T9C8diNca7M0c9fNXxGUdrjGe+KrdE+y9Oxuk="
     },
     {
       "id": "repeater",
       "category": "scene",
       "name": "Effector",
       "author": "Zoidium",
-      "version": "46",
+      "version": "47",
       "defaultEnabled": true,
       "itemCount": 7,
       "format": "3D effectors",
@@ -220,9 +220,9 @@
       "color": "#6c7fb5",
       "description": "Adds procedural repeaters plus Twist, Warp and Voronoi Fracture effectors to 3D Scene.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/scene-plus/manifest.json?v=46",
-      "bundle": "./plugins/scene-plus/bundle.json?v=46",
-      "integrity": "sha256-igc7xlvMmRb+lYeAThw0ItoLcMrMdQebTVu0zvfPGAI="
+      "manifest": "./plugins/scene-plus/manifest.json?v=47",
+      "bundle": "./plugins/scene-plus/bundle.json?v=47",
+      "integrity": "sha256-mDVv1rl4os6IpuClTSOQKB1CJyIX6f6HudfMTaHV2wU="
     },
     {
       "id": "material-plus",
@@ -344,16 +344,16 @@
       "category": "scene",
       "name": "Camera+",
       "author": "DaviFX",
-      "version": "25",
+      "version": "26",
       "itemCount": 1,
       "format": "camera rig",
       "tagline": "Camera layers, 3D tracks and DOF",
       "color": "#3d7bc5",
       "description": "Adds a separate Camera+ object with depth of field, seeded vibrate and focus tools, Camera layers, and a 3D switch on video tracks that lets scenes and flat layers follow the shared camera. The default CM3 camera is left unchanged.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/camera-plus/manifest.json?v=25",
-      "bundle": "./plugins/camera-plus/bundle.json?v=25",
-      "integrity": "sha256-RNYhBOCgL/RVVjeXhdTiveEempE8MyOaVEndf74BaZA="
+      "manifest": "./plugins/camera-plus/manifest.json?v=26",
+      "bundle": "./plugins/camera-plus/bundle.json?v=26",
+      "integrity": "sha256-wehRDyZ7FajliREy7jWMvCiypJLvDsMVA3/VedFN+Wk="
     },
     {
       "id": "native-fx",
