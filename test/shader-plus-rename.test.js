@@ -219,8 +219,10 @@ test("row labels follow the first matching rule and return to the property name"
   const rows = view.el.querySelectorAll("li").filter(row => row.pz_object?.parent === list);
   for (const entry of rows) Object.defineProperty(entry, "isConnected", { value: true });
   const row = rows.find(entry => entry.pz_object === target);
-  const label = doc.createElement("span"); row.firstElementChild.appendChild(label);
+  const button = doc.createElement("button"), label = doc.createElement("span");
+  button.innerText = "collapse"; row.firstElementChild.append(button, label);
   level.set(0, 0); installed.sync();
+  assert.equal(button.innerText, "collapse");
   assert.equal(label.innerText, "Rotation");
   level.set(3, 0); installed.sync();
   assert.equal(label.innerText, "Scale", "the first matching rule wins");

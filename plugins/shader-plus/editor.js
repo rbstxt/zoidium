@@ -488,7 +488,7 @@ function installEditor({ context, patch, presetFont }) {
       const update = () => {
         native();
         const frame = CM.playback ? CM.playback.currentFrame - p.frameOffset : 0;
-        const label = row.firstElementChild?.firstElementChild;
+        const label = Array.from(row.firstElementChild?.children || []).find(child => child.tagName === "SPAN");
         if (label) label.innerText = displayName(effectOf(p), p, p.definition.zoidiumShader || {}, frame);
       };
       try { p.properties.name.onChanged.unwatch(native); p.properties.name.onChanged.watch(update, true); }
@@ -543,7 +543,7 @@ function installEditor({ context, patch, presetFont }) {
       if (!effect) { rows.delete(ref); continue; }
       const frame = CM.playback.currentFrame - p.frameOffset;
       const meta = p.definition.zoidiumShader || {};
-      const shown = displayName(effect, p, meta, frame), label = row.firstElementChild?.firstElementChild;
+      const shown = displayName(effect, p, meta, frame), label = Array.from(row.firstElementChild?.children || []).find(child => child.tagName === "SPAN");
       if (label && label.innerText !== shown) label.innerText = shown;
       const when = meta.visibleWhen, controller = when && effect.customProperties.find(q => q.properties.name.get() === when.property);
       const own = !when || !!controller && matchesController(when, controller, controller.get(frame));
