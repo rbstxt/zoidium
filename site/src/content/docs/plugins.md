@@ -48,8 +48,8 @@ Find any plugin from the **Plugins** panel and jump straight to its guide and co
 | **Native FX** | Off | 23 native image, time, keying, generator, transition, and Smart Motion Blur effects. | [Native FX](/docs/effects/native-fx/), [Motion blur](/docs/effects/motion-blur/) |
 | **Node Effect** | On | GPU node graph for building custom layer filters that save as native Custom Shaders. | [Node Effect](/docs/effects/node-effect/) |
 | **OpenZoid Legacy** | Off | Echo, Posterize Time, Jpeg Damage, VHS, Datamosh, Tracery, ASCII, and True datamosh WebM export. | [OpenZoid Legacy](/docs/effects/openzoid-legacy/) |
-| **S_Glow (beta 1.0)** | Off | High-precision threshold glow with per-channel spread, border expansion, and atmosphere. | [S_Glow](/docs/effects/s-glow/) |
-| **ZSMB (beta 1.0)** | Off | Lightweight optical-flow motion blur with selectable analysis quality levels. | [Motion blur](/docs/effects/motion-blur/) |
+| **S_Glow (beta 1.1)** | Off | High-precision threshold glow with per-channel spread, border expansion, and atmosphere. | [S_Glow](/docs/effects/s-glow/) |
+| **ZSMB (beta 1.1)** | Off | Lightweight optical-flow motion blur with selectable analysis quality levels. | [Motion blur](/docs/effects/motion-blur/) |
 
 ## Experimental
 

@@ -535,14 +535,14 @@
       "category": "adjustment",
       "name": "ZSMB (beta 1.0)",
       "author": "Zoidium contributors",
-      "version": "51",
+      "version": "52",
       "itemCount": 1,
       "format": "native effect",
       "tagline": "High-quality, lightweight optical flow & vector-based motion blur",
       "description": "High-quality, lightweight optical flow & vector-based motion blur",
-      "manifest": "./plugins/smart-motion-blur-lite/manifest.json?v=51",
-      "bundle": "./plugins/smart-motion-blur-lite/bundle.json?v=51",
-      "integrity": "sha256-F7kupOwiJs8wAlcfmV9Zh9nESm8IsrzG7t7qXOgO0Mc=",
+      "manifest": "./plugins/smart-motion-blur-lite/manifest.json?v=52",
+      "bundle": "./plugins/smart-motion-blur-lite/bundle.json?v=52",
+      "integrity": "sha256-uCNwaor9OSK1/mHuDlpS6EHMaRMoNYB5b0D/AKOEpb0=",
       "zoidiumOnly": true
     },
     {
@@ -557,7 +557,7 @@
       "description": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
       "manifest": "./plugins/sglow-hq-v2-preview/manifest.json?v=20",
       "bundle": "./plugins/sglow-hq-v2-preview/bundle.json?v=20",
-      "integrity": "sha256-Mr+hG5qYKFCP/sxWvcf3IeT91UUfkcKyDUIlCGwA+7k=",
+      "integrity": "sha256-DHSi+X0IUeoWtKmYxSbeBmvCY7gjNsSr+TFMaSGBnpg=",
       "zoidiumOnly": true
     }
   ]

@@ -48,8 +48,8 @@ description: Zoidium の全プラグイン、Plugins パネルのカテゴリ、
 | **Native FX** | オフ | 画像、時間、キーイング、ジェネレーター、トランジション、Smart Motion Blur の計 23 エフェクトです。 | [Native FX](/docs/ja/effects/native-fx/)、[モーションブラー](/docs/ja/effects/motion-blur/) |
 | **Node Effect** | オン | ノードグラフで GPU レイヤーフィルターを構築します。保存時はネイティブの Custom Shader として描画されます。 | [Node Effect](/docs/ja/effects/node-effect/) |
 | **OpenZoid Legacy** | オフ | Echo、Posterize Time、Jpeg Damage、VHS、Datamosh、Tracery、ASCII、True datamosh WebM 書き出しです。 | [OpenZoid Legacy](/docs/ja/effects/openzoid-legacy/) |
-| **S_Glow (beta 1.0)** | オフ | チャンネル別の広がり、境界拡張、アトモスフィア調整を備えた高精度グローです。 | [S_Glow](/docs/ja/effects/s-glow/) |
-| **ZSMB (beta 1.0)** | オフ | 解析品質を選べる軽量なオプティカルフローベースのモーションブラーです。 | [モーションブラー](/docs/ja/effects/motion-blur/) |
+| **S_Glow (beta 1.1)** | オフ | チャンネル別の広がり、境界拡張、アトモスフィア調整を備えた高精度グローです。 | [S_Glow](/docs/ja/effects/s-glow/) |
+| **ZSMB (beta 1.1)** | オフ | 解析品質を選べる軽量なオプティカルフローベースのモーションブラーです。 | [モーションブラー](/docs/ja/effects/motion-blur/) |
 
 ## Experimental
 

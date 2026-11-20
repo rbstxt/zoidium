@@ -7,7 +7,7 @@ Zoidium provides three motion-blur options depending on what is moving:
 | Option | Plugin | Best for |
 | --- | --- | --- |
 | **Smart Motion Blur** | **Native FX** | 3D Scenes and particles (via **Shutter Samples**), or footage and Adjustment layers (via **Optical Flow**). |
-| **ZSMB (beta 1.0)** | **ZSMB (beta 1.0)** | Lightweight optical-flow motion blur with fast preview and export quality levels (`Full`, `1/2`, `1/4`, `1/8`). |
+| **ZSMB (beta 1.1)** | **ZSMB (beta 1.1)** | Lightweight optical-flow motion blur with fast preview and export quality levels (`Full`, `1/2`, `1/4`, `1/8`). |
 | **Camera Motion Blur** | **Camera+** | Camera-only shutter blur inside a 3D Scene (see [Camera+](/docs/3d/camera-plus/)). |
 
 ## Smart Motion Blur
@@ -52,14 +52,14 @@ Zoidium provides three motion-blur options depending on what is moving:
 - **Shutter Samples** clamps captures to clip boundaries and ignores **Analysis Frames**, **Vector Smoothness**, **Max Displacement**, and positive **Motion Sensitivity** changes. Recorded footage cannot gain intermediate source frames, and finite samples can band on very fast thin edges.
 - **Optical Flow** cannot invent detail occluded in all analyzed frames; disocclusion, repeated patterns, or similar colors crossing paths can mis-track. There is no external motion-vector input.
 
-## ZSMB (beta 1.0)
+## ZSMB (beta 1.1)
 
-**ZSMB (beta 1.0)** is a lightweight optical-flow motion blur that tracks an adjacent frame and scales its analysis width to stay fast in both preview and export.
+**ZSMB (beta 1.1)** is a lightweight optical-flow motion blur that tracks an adjacent frame and scales its analysis width to stay fast in both preview and export.
 
 ### Add and configure ZSMB
 
-1. In **Plugins**, enable **ZSMB (beta 1.0)**.
-2. Select a footage or **3D Scene** clip and add **ZSMB (beta 1.0)** under **NATIVE FX**.
+1. In **Plugins**, enable **ZSMB (beta 1.1)**.
+2. Select a footage or **3D Scene** clip and add **ZSMB (beta 1.1)** under **NATIVE FX**.
 3. Move to a frame with motion, set **Blur Amount** above `0` (default `0.5` for a 180-degree shutter), and choose **Quality**.
 
 ### Quality levels

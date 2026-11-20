@@ -3,7 +3,7 @@
     // S_Glow HQ native FX — experimental five-level Gaussian bloom for Zoidium.
     // One effect, many internal GPU passes. No layer inputs or CM3 shader assets.
     // Based on the runtime conventions in Native FX / Drop Shadow (not its code).
-    this.defaultName = "S_Glow (beta 1.0)";
+    this.defaultName = "S_Glow (beta 1.1)";
     const number = (name, value, min, max, step) => ({
       dynamic: true, name, type: PZ.property.type.NUMBER, value,
       min, max, step: (step || 1) * 0.1, decimals: 2,
@@ -882,7 +882,7 @@ float simplex(vec3 v){
       };
       if(support)this.pass.render=support.matchPreview(this,THREE,this.pass.render);
       this.properties.load(data&&data.properties);
-      if(/^S_Glow(?: HQ.*| \(beta [\d.]+\))?$/.test(data?.properties?.name||""))this.properties.name?.set("S_Glow (beta 1.0)");
+      if(/^S_Glow(?: HQ.*| \(beta [\d.]+\))?$/.test(data?.properties?.name||""))this.properties.name?.set("S_Glow (beta 1.1)");
       timeReady=true;
       const saved=data?.properties;
       if(saved?.time!==undefined && saved.timeMode===undefined){

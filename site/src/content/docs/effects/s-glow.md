@@ -2,12 +2,12 @@
 title: S_Glow
 description: Add soft threshold glow with per-channel spread, border expansion, blur engine selection, and procedural atmosphere.
 ---
-Use **S_Glow (beta 1.0)** to extract bright regions above a threshold, blur them with per-axis or per-channel spread, and blend the glow back over or under your clip.
+Use **S_Glow (beta 1.1)** to extract bright regions above a threshold, blur them with per-axis or per-channel spread, and blend the glow back over or under your clip.
 
 ## Add S_Glow
 
-1. In **Plugins**, enable **S_Glow (beta 1.0)**.
-2. Select a clip and add **S_Glow (beta 1.0)** under **NATIVE FX** in the Effects picker.
+1. In **Plugins**, enable **S_Glow (beta 1.1)**.
+2. Select a clip and add **S_Glow (beta 1.1)** under **NATIVE FX** in the Effects picker.
 3. Raise **Threshold** until only the bright areas you want emit light.
 4. Set **Show** to **Threshold** if you want to inspect the extracted emitter alone, then switch **Show** back to **Result** before export.
 

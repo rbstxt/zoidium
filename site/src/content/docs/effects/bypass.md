@@ -22,7 +22,7 @@ When you toggle the eye button, Zoidium invalidates affected frames in the [prev
 The following paths also skip turned-off effects:
 
 - **Time effects:** **Time Offset**, **Time Remap**, and **Posterize Time** stop remapping layer time when turned off. See [Native FX time effects](/docs/effects/native-fx/time/).
-- **Frame samplers:** Effects that capture other frames, such as **Echo**, **Smart Motion Blur**, **ZSMB (beta 1.0)**, and **Time Remap** with **Frame blending** set to **frame mix**, stop sampling and preparing input frames when turned off.
+- **Frame samplers:** Effects that capture other frames, such as **Echo**, **Smart Motion Blur**, **ZSMB (beta 1.1)**, and **Time Remap** with **Frame blending** set to **frame mix**, stop sampling and preparing input frames when turned off.
 - **Effect groups:** When you turn off an effect group, every effect and nested group inside it turns off. When you turn off a single child inside an active group, Zoidium skips that child while its active siblings still run.
 - **Layer Input:** Source layers read by [Layer Input](/docs/workflow/layer-input/) skip turned-off effects and groups.
 - **S_Glow:** A turned-off [S_Glow](/docs/effects/s-glow/) skips **Expand Borders** padding and project-resolution sequence sizing.

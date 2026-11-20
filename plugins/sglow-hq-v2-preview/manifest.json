@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "sglow-hq-v2-preview",
-  "name": "S_Glow (beta 1.0)",
+  "name": "S_Glow (beta 1.1)",
   "author": "Zoidium",
   "version": "20",
   "kind": "native-fx",
@@ -9,7 +9,7 @@
   "nativeEffects": [
     {
       "id": "sglow-hq-v2-preview",
-      "name": "S_Glow (beta 1.0)",
+      "name": "S_Glow (beta 1.1)",
       "description": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
       "source": "./plugins/sglow-hq-v2-preview/effects/sglow-hq-v2-preview.js?v=20"
     }
