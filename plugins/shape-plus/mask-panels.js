@@ -381,7 +381,7 @@ function renderMasksSection(document, container, session, layer, focusPen, refre
   const head = document.createElement("div");
   head.textContent = "Masks";
   head.style.cssText = "font-weight:600;padding:2px 0;cursor:default";
-  container.append(head);
+  container.appendChild(head);
   const callbacks = rowCallbacks(session, layer, focusPen, refresh, hooks);
   const masks = clone(session.host.contents());
   let frame = 0;
@@ -397,7 +397,7 @@ function renderMasksSection(document, container, session, layer, focusPen, refre
       canMoveUp: index > 0,
       canMoveDown: index < masks.length - 1,
     };
-    container.append(renderMaskRow(document, mask, state, callbacks));
+    container.appendChild(renderMaskRow(document, mask, state, callbacks));
   });
   const add = document.createElement("button");
   add.className = "actionbutton";
@@ -419,7 +419,7 @@ function renderMasksSection(document, container, session, layer, focusPen, refre
     }
     if (typeof refresh === "function") refresh();
   });
-  container.append(add);
+  container.appendChild(add);
 }
 
 function installMaskPanels(context, Content, focusPen) {
@@ -462,7 +462,7 @@ function installMaskPanels(context, Content, focusPen) {
           section = row.ownerDocument.createElement("div");
           section.className = "zoidium-masks";
           section.style.cssText = "padding:2px 0 4px 14px";
-          row.append(section);
+          row.appendChild(section);
         }
         renderMasksSection(row.ownerDocument, section, session, object, focusPen, () => refreshLive());
         cleanups.set(row, track(section, session, object));
