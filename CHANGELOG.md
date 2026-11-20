@@ -7,6 +7,30 @@ each line describes one visible change.
 
 ### Added
 
+- Masks and Shape+ paths share one path editor. Q (or P) is the Pen: the
+  first click draws a mask on a selected Scene or Adjustment layer, a path on a
+  selected Shape+ layer, or a new Shape+ layer when nothing suitable is selected.
+  V selects points with a marquee and Shift; hold Ctrl/Cmd in the Pen to select,
+  Alt to break or convert handles. Escape finishes a path (a second Escape
+  clears the selection); Enter is no longer required. Clicking a mask name, a
+  Shape+ path, or an outline in the preview starts editing it, and repeated
+  clicks cycle overlapping paths.
+- The mask row is rebuilt: rename, combine mode, invert, a keyframe diamond,
+  Edit, delete, and an expandable section with Feather, Opacity, Expansion
+  (-128 to 128 px), outline colour, lock, duplicate, and move up or down. A
+  locked mask cannot be reshaped, keyed or deleted but can still be reordered.
+  Shift-click names to edit several masks at once.
+- Path editing is more precise: points and segments are picked within 9 screen
+  pixels at any zoom or layer transform, the Pen cursor shows what a click will
+  do (close, continue, delete, add), selected points can be moved, scaled and
+  rotated together, segments can be dragged, points snap to other points,
+  frame edges and axes, Space-drag pans and the wheel zooms, and Set First
+  Vertex is in the right-click menu. Point and handle sizes are adjustable.
+- Mask and Shape+ path keyframes show as diamonds in the timeline (Masks >
+  name > Mask Path). Editing an animated path keys the current frame; adding
+  or deleting points keeps the animation between keys, and is refused with an
+  explanation when that cannot be guaranteed. Paths can be copied and pasted,
+  and converted between masks and Shape+ paths with their animation.
 - ExpressText+ has a Letters setting. Per text treats each text under the
   container as its own set of letters, the same as giving each text its own
   copy of the container with the same settings; Across texts numbers letters
@@ -247,6 +271,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Trimming the start of a clip with masks keeps the mask animation aligned
+  with the clip's content.
+- A stationary click on a timeline clip no longer nudges it.
+- Saving a Shape+ project without changes keeps the file byte-identical.
 - Shape+ uses far less GPU memory in the preview. Each layer used to keep a
   full-frame supersampled image (about 127 MiB at 1080p and at 4K); now it keeps
   only the finished image, the cache is capped at 256 MiB, and one shared work
