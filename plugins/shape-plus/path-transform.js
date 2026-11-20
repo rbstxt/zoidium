@@ -216,24 +216,25 @@ function snapPoint(point, options = {}) {
   const threshold = options.threshold === undefined ? SNAP_THRESHOLD_PX : options.threshold;
   if (!(threshold > 0) || !Number.isFinite(threshold)) throw Error("Snapping needs a positive threshold");
   const targets = Array.isArray(options.vertices) ? options.vertices : [];
-  let best = null,
+  let targetIndex = -1,
     bestDistance = Infinity;
-  for (const target of targets) {
+  for (const [i, target] of targets.entries()) {
     if (!isFinitePoint(target)) throw Error("Snap vertices must hold finite screen points");
     const distance = Math.hypot(target[0] - point[0], target[1] - point[1]);
     if (distance <= threshold && distance < bestDistance) {
-      best = target;
+      targetIndex = i;
       bestDistance = distance;
     }
   }
-  if (best) {
-    const snapped = copyPoint(best);
+  if (targetIndex !== -1) {
+    const snapped = copyPoint(targets[targetIndex]);
     return {
       snapped: true,
       point: snapped,
       delta: [snapped[0] - point[0], snapped[1] - point[1]],
       kind: "vertex",
       target: snapped,
+      targetIndex,
       guide: { kind: "vertex", point: snapped.slice() },
     };
   }
@@ -281,16 +282,20 @@ function snapPoint(point, options = {}) {
 // Screen anchors of every unselected vertex: the vertex snap targets for a
 // gesture. Locked paths contribute targets exactly like unlocked ones;
 // `selection` maps path IDs to selected vertex indices.
-function collectSnapVertices(projectedPaths, selection = {}) {
+function collectSnapTargets(projectedPaths, selection = {}) {
   const out = [];
   for (const path of projectedPaths || []) {
     const selected = new Set(selection?.[path.id] || []);
     (path.vertices || []).forEach((vertex, index) => {
       if (selected.has(index)) return;
-      if (isFinitePoint(vertex?.point)) out.push(copyPoint(vertex.point));
+      if (isFinitePoint(vertex?.point)) out.push({ pathId: path.id, index, point: vertex.point });
     });
   }
   return out;
+}
+
+function collectSnapVertices(projectedPaths, selection) {
+  return collectSnapTargets(projectedPaths, selection).map(target => copyPoint(target.point));
 }
 
 function unsnappedAt(point) {
@@ -308,7 +313,7 @@ function describeFailure(reason) {
 // `matrix` is the path's combined host transform (null means identity);
 // `selection` maps path IDs to selected vertex indices; `projection` is
 // the shared viewport affine (null means identity). `gesture` is one of:
-// - `{ mode: "move", delta, origin?, modifiers?, snap? }`
+// - `{ mode: "move", delta, origin?, anchor?, modifiers?, snap? }`
 // - `{ mode: "scale", sx, sy, pivot?, handle?, modifiers?, snap? }`
 // - `{ mode: "rotate", angle, pivot?, handle?, modifiers?, snap? }`
 // `handle` is the dragged screen point the gesture started from (a
@@ -320,6 +325,8 @@ function describeFailure(reason) {
 // disables snapping. Locked paths are reported in `skippedLocked` and left
 // untouched; singular mappings are reported in `failures`. Inputs are
 // never mutated; edited paths return full new vertex arrays.
+// A direct vertex drag uses `anchor: { pathId, vertexIndex }` as the snap
+// reference even if the press is offset within the anchor's hit radius.
 function freeTransform(input = {}) {
   const { paths, selection, projection = null, gesture = {} } = input;
   if (!Array.isArray(paths)) throw Error("Point transform needs a paths array");
@@ -378,7 +385,7 @@ function freeTransform(input = {}) {
     projected.push({
       id: path.id,
       locked: !!path.locked,
-      matrix: path.matrix === undefined ? null : path.matrix,
+      mapping,
       vertices: path.vertices,
       screen: projectVertices(path.vertices, path.matrix === undefined ? null : path.matrix, projection),
     });
@@ -433,23 +440,14 @@ function freeTransform(input = {}) {
         extraVertices: Array.isArray(snapInput.vertices) ? snapInput.vertices : [],
       }
     : null;
-  let snapTargets = [];
-  if (snapEnabled) {
-    const auto = snapOptions.includeVertices
-      ? collectSnapVertices(
-          projected.map((entry) => ({
-            id: entry.id,
-            vertices: entry.screen.map((vertex) => ({ point: vertex.point })),
-          })),
-          selection,
-        )
-      : [];
-    snapTargets = [...auto, ...snapOptions.extraVertices];
-  }
+  const snapTargets = snapOptions?.includeVertices
+    ? collectSnapTargets(projected.map(entry => ({ id: entry.id, vertices: entry.screen })), selection)
+    : [];
+  const snapVertices = snapEnabled ? [...snapTargets.map(target => target.point), ...snapOptions.extraVertices] : [];
   const runSnap = (reference) =>
     snapEnabled
       ? snapPoint(reference, {
-          vertices: snapTargets,
+          vertices: snapVertices,
           guides: snapOptions.guides,
           origin: snapOptions.origin,
           threshold: snapOptions.threshold,
@@ -464,13 +462,15 @@ function freeTransform(input = {}) {
   if (mode === "move") {
     const delta = constrainMoveDelta(gesture.delta || [0, 0], modifiers);
     constrained = { delta };
-    const origin = isFinitePoint(gesture.origin) ? copyPoint(gesture.origin) : copyPoint(bounds.center);
-    const reference = [origin[0] + delta[0], origin[1] + delta[1]];
+    const dragged = selected.find(item => item.pathId === gesture.anchor?.pathId && item.vertexIndex === gesture.anchor.vertexIndex);
+    const moveOrigin = dragged?.anchor || (isFinitePoint(gesture.origin) ? gesture.origin : bounds.center);
+    const reference = [moveOrigin[0] + delta[0], moveOrigin[1] + delta[1]];
     snap = runSnap(reference);
     const final = [delta[0] + snap.delta[0], delta[1] + snap.delta[1]];
     applied = { delta: final };
     transformed = selected.map((item) => ({
       ...item,
+      atMoveOrigin: item.anchor[0] === moveOrigin[0] && item.anchor[1] === moveOrigin[1],
       anchor: [item.anchor[0] + final[0], item.anchor[1] + final[1]],
       handleIn: item.handleIn.slice(),
       handleOut: item.handleOut.slice(),
@@ -555,6 +555,8 @@ function freeTransform(input = {}) {
   }
   const edited = [];
   const skippedLocked = [];
+  const target = snapTargets[snap.targetIndex];
+  const targetPath = target && projected.find(entry => entry.id === target.pathId);
   for (const [pathId, items] of byPath) {
     const path = byId.get(pathId);
     if (path.locked) {
@@ -562,6 +564,10 @@ function freeTransform(input = {}) {
       continue;
     }
     const matrix = path.matrix === undefined ? null : path.matrix;
+    const mapping = composeMapping(matrix, projection);
+    // A target in the same local space already has the exact coordinates.
+    const exactPoint = targetPath && mapping.every((value, i) => value === targetPath.mapping[i])
+      ? targetPath.vertices[target.index].point : null;
     const next = path.vertices.map((vertex) => vertex);
     let failed = null;
     for (const item of items) {
@@ -581,7 +587,7 @@ function freeTransform(input = {}) {
       const source = path.vertices[item.vertexIndex];
       next[item.vertexIndex] = {
         ...source,
-        point: [anchor.local[0], anchor.local[1]],
+        point: copyPoint(item.atMoveOrigin && exactPoint ? exactPoint : anchor.local),
         in: mode === "move" ? copyPoint(source.in || [0, 0]) : [knobIn.local[0] - anchor.local[0], knobIn.local[1] - anchor.local[1]],
         out: mode === "move" ? copyPoint(source.out || [0, 0]) : [knobOut.local[0] - anchor.local[0], knobOut.local[1] - anchor.local[1]],
       };

@@ -410,10 +410,9 @@ function createPointer(s, canvas) {
                   [...selection].map((key) => selectionPart(key).id),
                 );
               delta = g.sub(snapped, origin[hit.index].point);
-              if (e.shiftKey) delta = g.constrain(delta);
               for (let i = 0; i < points.length; i++)
                 if (selection.has(selectionKey(item.vertexIds[i])))
-                  points[i].point = g.add(origin[i].point, delta);
+                  points[i].point = i === hit.index ? snapped : g.add(origin[i].point, delta);
               // Individually selected handles move with the same delta unless
               // their anchor is already moving, in which case relative handles stay.
               for (let i = 0; i < points.length; i++)

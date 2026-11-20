@@ -73,6 +73,15 @@ test("a vertex drag round-trips through two transformed groups and a transformed
   assert.equal(h.editor.history.undoStack.length, 1);
   h.editor.history.undo();
   assert.deepEqual(h.points()[0].point, [-34, 12]);
+
+  h.state().snap = true;
+  const [x, y] = screen([46, -18]);
+  h.pointer("pointerdown", grab);
+  h.pointer("pointermove", shifted([x - 4, y + 2]));
+  assert.equal(h.state().snapGuide.kind, "vertex");
+  assert.deepEqual(h.points()[0].point, [46, -18]);
+  h.pointer("pointerup", shifted([x - 4, y + 2]), { buttons: 0 });
+  assert.deepEqual(h.points()[0].point, [46, -18]);
 });
 
 test("a mask drag accounts for its top-left origin and the layer transform", t => {
