@@ -15,7 +15,7 @@ To follow a scene light instead, set **Source** to **Light** and set **Light ind
 
 ## Build the element stack
 
-The renderer draws at most the first `24` elements in stack order; elements beyond `24` do not render.
+The renderer reads at most the first `24` elements in stack order. Elements beyond `24` do not render. An empty saved stack stays empty.
 
 1. In **Browser > Elements**, click an element tile to add it to the stack.
 2. Select an element in the **Elements** list and edit **Size**, **Brightness**, **Position**, and **Color** under **Selected element**.

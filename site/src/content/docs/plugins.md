@@ -33,7 +33,7 @@ Find any plugin from the **Plugins** panel and jump straight to its guide and co
 | **Material+** | Off | PBR+, Node Material, Matcap, UV Custom, and Image+ materials with corrected UVs. | [Material+](/docs/3d/material-plus/) |
 | **Optical Flares** | Off | 3D lens flares with a 24-element stack, presets, occlusion, and custom layers. | [Optical Flares](/docs/3d/optical-flares/) |
 | **Particles+** | Off | 54 monochrome particle texture sprites added to the native Texture picker. | [Particles+ sprites](/docs/3d/particles-plus/) |
-| **Rowbyte & Red Giant Suite** | Off | Trapcode Particular, Trapcode Form, Plexus, and 8 Trapcode Lights. | [Trapcode Particular](/docs/3d/trapcode-particular/), [Form](/docs/3d/trapcode-form/), [Plexus](/docs/3d/plexus/), [Lights](/docs/3d/lights/) |
+| **Rowbyte & Red Giant Suite** | Off | Trapcode Particular, Trapcode Form, Plexus, and 8 Trapcode Lights. | [Trapcode Suite](/docs/3d/trapcode-suite/), [Particular](/docs/3d/trapcode-particular/), [Form](/docs/3d/trapcode-form/), [Plexus](/docs/3d/plexus/), [Lights](/docs/3d/lights/) |
 | **Shape+** | On | Vector shape layers, editable paths, layer masks for Scene and Adjustment clips, and 2D vector text. | [Shape+ and layer masks](/docs/2d-and-text/shape-plus/) |
 | **Text+** | On | Per-character animation for 2D and 3D text, 3D Character Material, and 3D bevel controls. | [Text+](/docs/2d-and-text/text-plus/) |
 

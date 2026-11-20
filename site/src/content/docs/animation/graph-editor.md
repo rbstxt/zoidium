@@ -36,7 +36,7 @@ Each multi-component property has a parent row and colored axis rows.
 - Click an axis row to show that axis and select its keys. Ctrl-click or Shift-click to combine axes, or click the parent row to select all components.
 - Click the eye button to hide a curve, or **S** to solo an axis. Visibility stays local and is not saved in the project.
 - Turn on **Link axes** to keep sibling keys at the same frame moving together horizontally while value drags stay per axis.
-- Easing, tangent, value, delete, copy, and paste apply to selected axes. **+Key** uses selected axes (or visible axes when none are selected). Pasting maps axis names automatically; to paste a single copied axis onto a different axis, select only that destination axis.
+- Easing, tangent, value, delete, copy, and paste apply to selected axes. **+Key** uses selected axes (or visible axes when none are selected). Copy and paste preserve axis names. To paste a single copied axis onto another axis, select only the destination axis.
 
 ### Inspect expression curves
 

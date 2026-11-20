@@ -29,7 +29,7 @@ Spot, Point, and Directional lights default **Position** to `[0, 100, 100]` and 
 
 1. In **Plugins**, enable **Rowbyte & Red Giant Suite**.
 2. Open the scene's 3D object picker and open **Trapcode Lights**.
-3. Choose one of the eight light types below.
+3. Choose one of the eight light types below. To import photometry, choose **Photometric IES Light** and select a local LM-63 Type C `.ies` file with `TILT=NONE` in **IES File**.
 
 | Picker name | Visible controls |
 | --- | --- |

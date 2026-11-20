@@ -52,7 +52,7 @@ Cache memory and **Player+** preview quality are independent controls. A larger 
 
 When frames cannot be retained or reused, the status line in **Settings** shows **Not caching:** followed by the reason. Raising the memory limit does not bypass these checks.
 
-- **Unverified plugins or community content:** Community content and plugin versions without cache verification render live. The status note names the plugin and version when available.
+- **Unverified plugins or third-party items:** Every required plugin must be enabled at a version approved in this build's preview-cache verification list. Third-party plugin items and unapproved plugin versions render live instead of caching. When a plugin version fails verification, the status note names the plugin and version.
 - **Uncacheable time effects:** Time effects that cannot cache frames render live. Smart Motion Blur does not disable caching on its own, provided its plugin version passes verification.
 - **Stateful expressions:** Expressions that can retain values across frames stay on live preview. Live rendering and export are unchanged.
 - **Loading or failed plugins:** Any plugin currently loading blocks caching. A bundle-load failure in an unused plugin still allows caching only if activation never started. Once activation starts, or for any enabled, required, or Core plugin, an error blocks caching for all projects until you disable or repair that plugin.

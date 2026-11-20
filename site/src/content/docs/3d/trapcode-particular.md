@@ -3,7 +3,7 @@ title: Trapcode Particular
 description: Emit deterministic GPU or CPU particle systems in 3D Scenes with physics, fields, audio reactors, and lighting.
 ---
 Use **Trapcode Particular** (inside **Rowbyte & Red Giant Suite**) to add an emitter-based 3D particle system edited in a floating designer window or the native Properties panel.
-For a fixed particle lattice instead of an emitter, see [Trapcode Form](/docs/3d/trapcode-form/). For connected point networks, see [Plexus](/docs/3d/plexus/). For suite lights, see [Lights](/docs/3d/lights/).
+See [Trapcode Suite](/docs/3d/trapcode-suite/) to choose between [Trapcode Particular](/docs/3d/trapcode-particular/), [Trapcode Form](/docs/3d/trapcode-form/), [Plexus](/docs/3d/plexus/), and [Lights](/docs/3d/lights/).
 
 ## Add and hide a suite object
 
@@ -11,7 +11,7 @@ For a fixed particle lattice instead of an emitter, see [Trapcode Form](/docs/3d
 2. Open the scene's **Objects** picker and choose **Trapcode Particular**.
 3. Open its designer window or edit parameters directly in Properties, then inspect the result in the viewport.
 
-To hide a 3D object and skip its update and preparation, set **Enabled** to **off** (animatable with keyframes). When re-enabled, Particular evaluates the requested frame deterministically. For cameras, switch cameras or use Camera+ **Active Camera** instead.
+To hide a 3D object and skip its update and preparation, set **Enabled** to **off** (animatable with keyframes). When re-enabled, Particular evaluates the requested frame. Cameras do not have **Enabled** yet; switch to a different camera or use Camera+ **Active Camera** instead.
 
 A dash (`—`) in the tables below means no declared minimum or maximum.
 

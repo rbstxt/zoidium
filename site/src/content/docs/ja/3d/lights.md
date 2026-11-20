@@ -29,7 +29,7 @@ Spot、Point、Directional の初期 **Position** は `[0, 100, 100]` で、**Ca
 
 1. **Plugins** で **Rowbyte & Red Giant Suite** を有効にします。
 2. シーンの 3D オブジェクトピッカーで **Trapcode Lights** を開きます。
-3. 以下の 8 種類からライトを追加します。
+3. 以下の 8 種類からライトを追加します。測光データを取り込むには、**Photometric IES Light** を選び、**IES File** で `TILT=NONE` のローカル LM-63 Type C `.ies` ファイルを選択します。
 
 | ピッカー名 | 表示コントロール |
 | --- | --- |

@@ -3,7 +3,7 @@ title: Trapcode Particular
 description: 物理演算、フィールド、オーディオリアクター、ライティングを備えたエミッター式 3D パーティクルシステムです。
 ---
 **Trapcode Particular** (**Rowbyte & Red Giant Suite** 内) は、フローティングデザイナーまたは Properties パネルで制御できるエミッター式 3D パーティクルシステムです。
-格子状のパーティクル配列には [Trapcode Form](/docs/ja/3d/trapcode-form/)、点群ネットワークには [Plexus](/docs/ja/3d/plexus/)、スイートのライトには [ライト](/docs/ja/3d/lights/) を使います。
+[Trapcode Particular](/docs/ja/3d/trapcode-particular/)、[Trapcode Form](/docs/ja/3d/trapcode-form/)、[Plexus](/docs/ja/3d/plexus/)、[ライト](/docs/ja/3d/lights/) の使い分けは [Trapcode Suite](/docs/ja/3d/trapcode-suite/) を参照してください。
 
 ## 追加と非表示の切り替え
 
@@ -11,7 +11,7 @@ description: 物理演算、フィールド、オーディオリアクター、�
 2. シーンの **Objects** ピッカーから **Trapcode Particular** を追加します。
 3. デザイナーウィンドウを開くか Properties パネルで各パラメーターを調整し、ビューポートで確認します。
 
-3D オブジェクトを隠して更新と準備処理も省きたい場合は、**Enabled** を **off** にします (キーフレームで切り替え可能)。再びオンにすると、Particular はそのフレームを確定的に評価します。カメラを切り替える場合は別カメラを使うか Camera+ の **Active Camera** を使ってください。
+3D オブジェクトを隠して更新と準備処理も省きたい場合は、**Enabled** を **off** にします (キーフレームで切り替え可能)。再びオンにすると、Particular は要求されたフレームを評価します。カメラにはまだ **Enabled** がないため、別のカメラへ切り替えるか Camera+ の **Active Camera** を使ってください。
 
 以下の表で `—` は範囲指定なしを示します。
 

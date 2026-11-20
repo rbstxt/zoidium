@@ -33,7 +33,7 @@ description: Zoidium の全プラグイン、Plugins パネルのカテゴリ、
 | **Material+** | オフ | 補正済み UV を持つ PBR+、Node Material、Matcap、UV Custom、Image+ マテリアルです。 | [Material+](/docs/ja/3d/material-plus/) |
 | **Optical Flares** | オフ | 最大 24 要素のスタック、プリセット、遮蔽、カスタムレイヤーを備えた 3D レンズフレアです。 | [Optical Flares](/docs/ja/3d/optical-flares/) |
 | **Particles+** | オフ | ネイティブの Texture ピッカーに 54 種のモノクロパーティクルスプライトを追加します。 | [Particles+ スプライト](/docs/ja/3d/particles-plus/) |
-| **Rowbyte & Red Giant Suite** | オフ | Trapcode Particular、Trapcode Form、Plexus、および 8 種類の Trapcode Lights です。 | [Trapcode Particular](/docs/ja/3d/trapcode-particular/)、[Form](/docs/ja/3d/trapcode-form/)、[Plexus](/docs/ja/3d/plexus/)、[ライト](/docs/ja/3d/lights/) |
+| **Rowbyte & Red Giant Suite** | オフ | Trapcode Particular、Trapcode Form、Plexus、および 8 種類の Trapcode Lights です。 | [Trapcode Suite](/docs/ja/3d/trapcode-suite/)、[Particular](/docs/ja/3d/trapcode-particular/)、[Form](/docs/ja/3d/trapcode-form/)、[Plexus](/docs/ja/3d/plexus/)、[ライト](/docs/ja/3d/lights/) |
 | **Shape+** | オン | ベクターシェイプレイヤー、パス編集、Scene / Adjustment レイヤーマスク、2D ベクターテキストです。 | [Shape+ とレイヤーマスク](/docs/ja/2d-and-text/shape-plus/) |
 | **Text+** | オン | 2D / 3D テキストの文字単位アニメーション、3D Character Material、3D ベベル設定です。 | [Text+](/docs/ja/2d-and-text/text-plus/) |
 
