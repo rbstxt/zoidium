@@ -884,7 +884,6 @@ float simplex(vec3 v){
     };
     this.toJSON=function(){return {type:this.type,properties:this.properties};};
     this.update=function(frame){
-      this._sglowEnsureSequence?.();
       if(!this.pass)return;
       this.cached={};
       for(const key of Object.keys(this.propertyDefinitions)){
@@ -894,6 +893,7 @@ float simplex(vec3 v){
       }
       Object.assign(this.cached,{previewMatch:1,deband:1,atmosphereModel:0});
       this.pass.enabled=Number(this.properties.enabled.get(frame))===1;
+      this._sglowEnsureSequence?.();
     };
     // Native layer resolution is stable when the preview viewport changes.
     // Fall back to the input buffer for effects not attached to a normal layer.

@@ -221,7 +221,7 @@ module.exports.installSequence=function(state,PZ){
   const proto=PZ.compositor.prototype,original=proto.renderSequence,unload=proto.unload,setSize=proto.setSize;
   const requested=new Map(),resizing=new WeakSet();
   const contains=layer=>{
-    const effects=items=>Array.from(items||[]).some(item=>state.effects.has(item)||typeof PZ.effect.group==="function"&&item instanceof PZ.effect.group&&effects(item.objects));
+    const effects=items=>Array.from(items||[]).some(item=>state.effects.has(item)&&item.pass?.enabled||typeof PZ.effect.group==="function"&&item instanceof PZ.effect.group&&item.enabled&&effects(item.objects));
     return effects(layer?.effects)||Array.from(layer?.objects||[]).some(contains);
   };
   const nativeSize=c=>{
@@ -233,7 +233,14 @@ module.exports.installSequence=function(state,PZ){
     return size.map(Math.round);
   };
   const ensure=c=>{
-    const size=nativeSize(c);if(!size||c.readBuffer.width===size[0]&&c.readBuffer.height===size[1])return;
+    if(c.__zoidiumRenderSettings)return;
+    const size=nativeSize(c);
+    if(!size){
+      const previous=requested.get(c);if(!previous)return;
+      requested.delete(c);resizing.add(c);try{setSize.call(c,...previous);}finally{resizing.delete(c);}
+      return;
+    }
+    if(c.readBuffer.width===size[0]&&c.readBuffer.height===size[1])return;
     if(!requested.has(c))requested.set(c,[c.readBuffer.width,c.readBuffer.height]);
     resizing.add(c);try{setSize.call(c,...size);}finally{resizing.delete(c);}
   };
@@ -245,7 +252,7 @@ module.exports.installSequence=function(state,PZ){
   };
   const hook=function(){ensure(this);return original.apply(this,arguments);};
   const resizeHook=function(w,h){
-    const size=nativeSize(this);if(size)requested.set(this,[w,h]);
+    const size=nativeSize(this);if(size)requested.set(this,[w,h]);else if(!this.__zoidiumRenderSettings)requested.delete(this);
     resizing.add(this);try{return setSize.call(this,...(size||[w,h]));}finally{resizing.delete(this);}
   };
   const unloadHook=function(){if(!resizing.has(this))requested.delete(this);return unload.apply(this,arguments);};
