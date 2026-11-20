@@ -8,7 +8,7 @@ const { createPointerMachine } = require("./editor-pointer-machine.js");
 const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
 const { transform } = require("./compiler.js");
-const { startMarquee, applyMarquee, pointsInRect, HIT_RADIUS_PX } = require("./path-selection.js");
+const { startMarquee, applyMarquee, pointsInRect } = require("./path-selection.js");
 const { requestCreation } = require("./path-hosts.js");
 function createPointer(s, canvas) {
   const api = s.canvasApi;
@@ -160,10 +160,7 @@ function createPointer(s, canvas) {
     }
   }
   function pathCandidates(point) {
-    if (!s.pathInput) return [];
-    return api.entries().filter(entry => entry.enabled && entry.item.kind === "path" &&
-      g.hit(api.cssPoints(entry), entry.path.closed, point, 8 / HIT_RADIUS_PX, false))
-      .map(entry => entry.item.id);
+    return s.pathInput ? api.pickPaths(point).candidates : [];
   }
   function toggleAnchorMode(item, index) {
     const id = item.vertexIds[index];

@@ -10,6 +10,7 @@ const { createCanvas } = require("./editor-canvas.js");
 const { createPointer } = require("./editor-pointer.js");
 const { installActions } = require("./editor-actions.js");
 const { matrix } = require("./compiler.js");
+const { isPerspectiveView } = require("./path-projection.js");
 const { inverse } = require("./editor-geometry.js");
 const { icon } = require("./editor-icons.js");
 const { createMaskSession, maskSessionFor } = require("./mask-host.js");
@@ -21,12 +22,10 @@ function maskableLayer(PZ, layer) {
 // Clip entries from viewport picking and timeline selection share one shape:
 // { object, parent, start, length, offset }. Raw clips work too.
 //
-// Unlike the Shape+ overlay, this must NOT gate on viewport.renderMode:
-// selecting a Scene clip always switches the native viewport into camera
-// render mode (edit && scene), while a Shape+ selection clears the viewport
-// scene and leaves render mode off. The mask pen is a 2D overlay over the
-// edited frame either way, like the native 2D transform widget.
+// Masks edit the composited layer plane. The viewport's Scene camera has
+// a perspective projection, so it needs a ray/plane mapping before editing.
 function maskClip(editor, viewport, PZ) {
+  if (isPerspectiveView(viewport)) return null;
   const clips = viewport.objects;
   if (!viewport.enabled || clips?.length !== 1) return null;
   const entry = clips[0];

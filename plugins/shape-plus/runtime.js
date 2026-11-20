@@ -7,6 +7,7 @@ const { find } = require("./editor-tree-data.js");
 const { getMasks } = require("./mask-model.js");
 const { planAdd } = require("./contents-ops.js");
 const { createEditorPathRegistry } = require("./path-hosts.js");
+const { isPerspectiveView, PERSPECTIVE_EDIT_MESSAGE } = require("./path-projection.js");
 const DEFAULT_CLIP_LENGTH = 180;
 function gradientFacade(property, frame) {
   return new Proxy(property, { get(target, key) {
@@ -133,7 +134,9 @@ function installPathEditing(context, Layer, Content) {
     const selected = viewport.objects?.length === 1 ? viewport.objects[0] : null;
     return selected?.object || selected;
   }
+  const notifyPerspective = () => context.ui.notify({ title: "Path editing", message: PERSPECTIVE_EDIT_MESSAGE });
   paths.setMounter((kind, layer, pathId) => {
+    if (isPerspectiveView(viewport) && selectedLayer() === layer) { notifyPerspective(); return false; }
     if (!viewport.enabled || !editor.project || !editor.sequence) return false;
     if (kind === "shape") {
       if (!(layer instanceof Layer) || find(layer.contents, pathId)?.item.kind !== "path") return false;
@@ -153,6 +156,7 @@ function installPathEditing(context, Layer, Content) {
       editor.playback.speed = 0;
       editor.playback.currentFrame = clip.start;
     }
+    if (isPerspectiveView(viewport)) { notifyPerspective(); return false; }
     if (kind === "mask") {
       shapeOverlay.update();
       maskOverlay.setMode("select");
@@ -180,7 +184,11 @@ function installPathEditing(context, Layer, Content) {
     if (PZ.zoidium.pathEditor === publicPaths) delete PZ.zoidium.pathEditor;
   });
 
-  function routeTool(tool) {
+  function routeTool(tool, explain = true) {
+    if (isPerspectiveView(viewport)) {
+      if (explain) notifyPerspective();
+      return;
+    }
     const mask = maskEditor.maskClip(editor, viewport, PZ)?.layer;
     if (mask) {
       shapeOverlay.update();
@@ -214,7 +222,7 @@ function installPathEditing(context, Layer, Content) {
   // Timeline selection is an observable list in the native viewport.
   // Rebind it when the viewport switches to another selection list.
   function selectionChanged() {
-    if (paths.controller.tool === "pen") routeTool("pen");
+    if (paths.controller.tool === "pen") routeTool("pen", false);
     else { shapeOverlay.update(); maskOverlay.update(); }
   }
   let selectionEvents;
@@ -234,6 +242,7 @@ function installPathEditing(context, Layer, Content) {
   function canvasPress(event) {
     if (event.target !== viewport.canvas || event.button !== 0 || event.isPrimary === false ||
         !editor.project || !editor.sequence || !viewport.enabled || paths.controller.tool !== "pen") return;
+    if (isPerspectiveView(viewport)) { notifyPerspective(); return; }
     const layer = selectedLayer();
     // A compatible selection with an unavailable projection stays on its
     // host. It must not silently add a layer to a different coordinate space.

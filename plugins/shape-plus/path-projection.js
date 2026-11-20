@@ -40,6 +40,11 @@ const REFINE_STEPS = 32;
 // A ray this close to parallel with the editing plane counts as edge-on:
 // the intersection would slide arbitrarily far from a tiny pointer move.
 const EDGE_ON_EPSILON = 1e-9;
+const PERSPECTIVE_EDIT_MESSAGE = "Path editing is unavailable in perspective view. Press C to switch to the composited view.";
+
+function isPerspectiveView(viewport) {
+  return !!(viewport?.renderMode && viewport.camera?.isPerspectiveCamera);
+}
 
 function isMapping(m) {
   return (
@@ -175,12 +180,13 @@ function pickPaths(paths, screen, options = {}) {
   paths.forEach((path, order) => {
     if (!path || typeof path.id !== "string") throw Error("Path picking needs a string id per path");
     const full = composeMapping(path.matrix, options.projection);
-    if (!full) return;
+    if (!full || !inverse(full)) return;
     const projected = projectVertices(path.vertices || [], path.matrix, options.projection);
     let hitPath = false;
     if (!editable || editable.has(path.id)) {
       projected.forEach((v, vertexIndex) => {
         for (const side of ["out", "in"]) {
+          if (options.handleFilter && !options.handleFilter(path, vertexIndex, side)) continue;
           if (Math.hypot(v[side][0], v[side][1]) <= 1e-8) continue;
           const knob = [v.point[0] + v[side][0], v.point[1] + v[side][1]];
           const distance = Math.hypot(knob[0] - screen[0], knob[1] - screen[1]);
@@ -315,6 +321,8 @@ function screenToLocalOnPlane(screen, { rayFor, plane, worldFromLocal } = {}) {
 
 module.exports = {
   HIT_RADIUS_PX,
+  PERSPECTIVE_EDIT_MESSAGE,
+  isPerspectiveView,
   SEGMENT_SAMPLES,
   composeMapping,
   projectVertices,
