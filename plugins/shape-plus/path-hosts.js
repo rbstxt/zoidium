@@ -39,6 +39,7 @@ const { createMask, validateMasks, ensureNames, getMasks } = require("./mask-mod
 const { createPathController } = require("./path-controller.js");
 const { createPathInput } = require("./path-input.js");
 const { bindPathSession, writePathRecords } = require("./editor-model.js");
+const { activateMask } = require("./path-multi-mask.js");
 
 const HOST_KINDS = ["mask", "shape"];
 const MINT_ATTEMPTS = 1024;
@@ -475,7 +476,10 @@ function applyCreation(request, options = {}) {
 // controller and the adapters, including adapters for closed overlays.
 function createEditorPathRegistry(editor, viewport) {
   let controller, input, mount;
+  const maskSelections = new Set();
   function reset() {
+    for (const selection of maskSelections) selection.clear();
+    maskSelections.clear();
     controller?.dispose();
     controller = createPathController({ project: editor.project, viewport });
     input = createPathInput({ controller });
@@ -483,6 +487,7 @@ function createEditorPathRegistry(editor, viewport) {
   reset();
   let hosts = new WeakMap(), layers = new WeakMap(), nextHostId = 0;
   function register(kind, layer, session) {
+    if (session.maskSelection) maskSelections.add(session.maskSelection);
     let entry = hosts.get(layer);
     if (!entry || entry.kind !== kind) {
       entry = { kind, session, maskHost: session.pathHost };
@@ -559,6 +564,11 @@ function createEditorPathRegistry(editor, viewport) {
     projectEvents?.watch(reconcileActive);
   }
   editor.onProjectChanged.watch(changed);
+  function settle(entry) {
+    entry.session?.pointer?.commit();
+    entry.session?.finishNudge?.();
+    entry.session?.finishTextEdit?.();
+  }
   return {
     get controller() { return controller; },
     get input() { return input; },
@@ -572,19 +582,31 @@ function createEditorPathRegistry(editor, viewport) {
       if (mount && !mount(kind, layer, pathId)) return false;
       const entry = hosts.get(layer);
       if (!entry || entry.kind !== kind) return false;
-      entry.session?.pointer?.commit();
-      entry.session?.finishNudge?.();
-      entry.session?.finishTextEdit?.();
+      settle(entry);
       if (!entry.host.hasPath(pathId)) return false;
       input.notifyExternalSelection();
       controller.activate(entry.host, pathId);
       entry.session?.canvas?.focus({ preventScroll: true });
       return true;
     },
+    selectMask(layer, pathId, additive) {
+      const entry = hosts.get(layer);
+      if (!entry?.session?.maskSelection || !entry.host.hasPath(pathId)) return false;
+      settle(entry);
+      const { session, host } = entry, selection = session.maskSelection;
+      selection.prune(host.listPathIds());
+      input.notifyExternalSelection();
+      const next = activateMask({ controller, host, selection, id: pathId, additive });
+      if (next.active && mount?.("mask", layer, next.active)) session.canvas?.focus({ preventScroll: true });
+      session.onPathSelection?.();
+      return true;
+    },
     dispose() {
       editor.onProjectChanged.unwatch(changed);
       projectEvents?.unwatch(reconcileActive);
       controller.dispose();
+      for (const selection of maskSelections) selection.clear();
+      maskSelections.clear();
       hosts = new WeakMap();
       layers = new WeakMap();
       mount = null;

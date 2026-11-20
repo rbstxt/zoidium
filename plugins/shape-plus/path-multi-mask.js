@@ -210,7 +210,7 @@ function pruneSelection(selection, host) {
 }
 
 function resolveVertices({ controller, host, maskId, verticesByMask }) {
-  if (verticesByMask && verticesByMask[maskId] !== undefined) {
+  if (verticesByMask && Object.hasOwn(verticesByMask, maskId)) {
     const ids = verticesByMask[maskId];
     if (!Array.isArray(ids)) throw Error("Multi-mask transform needs an array of vertex ids");
     return ids.map(checkId);

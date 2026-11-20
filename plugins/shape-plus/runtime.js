@@ -197,8 +197,9 @@ function installPathEditing(context, Layer, Content) {
   const publicPaths = Object.freeze({ activate: paths.activate });
   // Clicking a mask name in Properties starts editing that mask at once.
   const maskPanels = require("./mask-panels.js");
-  maskPanels.setPanelActivator((session, layer, maskId, focusPen, refresh) => {
-    if (!paths.activate("mask", layer, maskId)) {
+  maskPanels.setPanelActivator((session, layer, maskId, focusPen, refresh, additive = false) => {
+    maskOverlay.sessionFor(layer);
+    if (!paths.selectMask(layer, maskId, additive)) {
       session.s.selectItem(maskId);
       if (!isPerspectiveView(viewport) && typeof focusPen === "function") focusPen("select");
     }

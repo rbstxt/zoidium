@@ -466,6 +466,11 @@
       "source": "./plugins/shape-plus/path-timeline-model.js?v=44"
     },
     {
+      "id": "path-multi-mask",
+      "type": "text",
+      "source": "./plugins/shape-plus/path-multi-mask.js?v=44"
+    },
+    {
       "id": "path-transfer",
       "type": "text",
       "source": "./plugins/shape-plus/path-transfer.js?v=44"

@@ -4,13 +4,14 @@ const { clone, validate } = require("./model.js");
 const { createGesture, createPathOperationHost } = require("./editor-history.js");
 const nativeChannels = require("./path-native-channels.js");
 const animation = require("./path-animation.js");
+const multiMask = require("./path-multi-mask.js");
 const { topology, channels, applyTopology } = require("./editor-topology.js");
 const tree = require("./editor-tree-data.js");
 const g = require("./editor-geometry.js");
 const { primitivePath } = require("./primitives.js");
 const { planAdd } = require("./contents-ops.js");
 const { isLocked: isMaskLocked } = require("./mask-metadata.js");
-const { getMasks } = require("./mask-model.js");
+const { getMasks, coercePath: coerceMaskPath } = require("./mask-model.js");
 function replaceContents(layer, contents, Content) {
   validate(contents);
   // Load detached first, then publish the whole valid list in one notification.
@@ -84,6 +85,11 @@ function bindPathSession(s, controller, host) {
   // The controller stores vertex IDs. Handles keep their distinct selection
   // keys in the overlay while their parent vertex stays selected.
   s.applyPathSelection = ({ pathId, vertices }) => {
+    if (s.maskSelection) {
+      s.maskSelection.prune(host.listPathIds());
+      if (pathId && s.maskSelection.has(pathId)) s.maskSelection.setActive(pathId);
+      else if (pathId) s.maskSelection.click(pathId);
+    }
     const samePath = pathId === s.activeId;
     if (!samePath) {
       s.activeId = pathId;
@@ -127,7 +133,15 @@ function bindPathSession(s, controller, host) {
     };
   }
   s.reconcilePaths = () => {
-    if (!controller.disposed && controller.activeHost === host) controller.handlePathsChanged(host);
+    if (controller.disposed) return;
+    s.maskSelection?.prune(host.listPathIds());
+    if (controller.activeHost === host) controller.handlePathsChanged(host);
+  };
+  if (s.maskSelection) s.multiMaskVertices = () => {
+    const selected = s.maskSelection.getSelected();
+    return new Map(selected.map(id => [id, id === s.activeId
+      ? [...s.selection].map(selectionPart).filter(part => !part.side).map(part => part.id)
+      : controller.getSelection(host, id)]));
   };
 }
 
@@ -353,8 +367,10 @@ function createEditorModel(s) {
     s.preview();
     return s.active();
   };
-  s.treeAction = (action, ...args) =>
-    s.mutate(() => {
+  s.treeAction = (action, ...args) => {
+    if (s.maskSelection?.size() > 1 && ["forward", "backward"].includes(action))
+      return s.moveMasks(s.activeId, action === "forward" ? -1 : 1);
+    return s.mutate(() => {
       if (host && !host.allows(action)) throw Error("Layer masks do not support " + action);
       const contents = read();
       let selected;
@@ -390,6 +406,38 @@ function createEditorModel(s) {
       }
       s.selection.clear();
     }, action === "delete" ? [...s.treeSelection] : []);
+  };
+  s.moveMasks = (id, step) => {
+    const adapter = s.sharedPathHost;
+    if (!adapter) return false;
+    const order = adapter.listPathIds(), selected = s.maskSelection;
+    const moving = selected.has(id) ? selected.getSelected() : [id];
+    const wanted = new Set(moving), indexes = order.map((_, i) => i);
+    if (step > 0) indexes.reverse();
+    for (const i of indexes) {
+      const j = i + step;
+      if (j >= 0 && j < order.length && wanted.has(order[i]) && !wanted.has(order[j]))
+        [order[i], order[j]] = [order[j], order[i]];
+    }
+    return s.mutate(() => multiMask.reorderSelected({ host: adapter, selection: moving, idsInOrder: order }));
+  };
+  s.previewMaskTransform = (geometry, frame) => {
+    const adapter = s.sharedPathHost, byId = new Map(geometry.map(item => [item.id, item]));
+    const vertices = Object.fromEntries(geometry.map(item => [
+      item.id, item.changed.map(index => adapter.listVertexIds(item.id)[index]),
+    ]));
+    multiMask.transformSelected({
+      host: adapter, selection: s.maskSelection, verticesByMask: vertices,
+      apply(mask) {
+        let next = mask;
+        const values = g.values(byId.get(mask.id).vertices);
+        animation.edit({ data: mask, commit: data => { next = data; } }, frame, values, s.pathAdapter);
+        if (next !== mask) next.properties.path = coerceMaskPath(next.properties.path);
+        return next;
+      },
+    });
+    s.preview();
+  };
   // Text Animator items: one history step per add or feature toggle.
   s.addAnimator = (textId, propertyKey) =>
     s.mutate(() => {

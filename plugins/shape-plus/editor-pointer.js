@@ -36,6 +36,13 @@ function createPointer(s, canvas) {
       snapping: () => s.snap,
       showSnap(guide) { s.snapGuide = guide; s.dirty = true; },
       selection() {
+        if (s.tool === "select" && s.maskSelection?.size() > 1) {
+          return Object.fromEntries([...s.multiMaskVertices()].flatMap(([id, selected]) => {
+            if (!selected.length) return [];
+            const ids = s.sharedPathHost.listVertexIds(id), wanted = new Set(selected);
+            return [[id, ids.flatMap((vertexId, i) => wanted.has(vertexId) ? [i] : [])]];
+          }));
+        }
         const id = s.activeId;
         const ids = id && s.sharedPathHost?.listVertexIds(id);
         return ids ? { [id]: ids.flatMap((vertexId, i) => s.selection.has(selectionKey(vertexId)) ? [i] : []) } : {};
@@ -48,14 +55,19 @@ function createPointer(s, canvas) {
       commit: () => s.gesture.finish(),
       preview(edited) {
         const frame = s.localFrame();
-        const writes = edited.map(({ id, vertices }) => {
+        const writes = edited.map(item => {
+          const { id, vertices } = item;
           const property = s.find(id).properties.path;
-          return { property, values: g.values(vertices), current: property.get(frame) };
+          return { item, property, values: g.values(vertices), current: property.get(frame) };
         }).filter(({ values, current }) => values.some((value, i) => value !== current[i]));
         if (!writes.length) return true;
         if (!s.gesture.active && !s.gesture.begin()) return false;
-        for (const { property, values } of writes) s.setValue(property, values, frame);
-        s.pathHost?.persist();
+        if (s.tool === "select" && s.maskSelection?.size() > 1)
+          s.previewMaskTransform(writes.map(write => write.item), frame);
+        else {
+          for (const { property, values } of writes) s.setValue(property, values, frame);
+          s.pathHost?.persist();
+        }
         return true;
       },
     },

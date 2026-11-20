@@ -359,9 +359,16 @@ function createCanvas(s, canvas) {
   function pointBox() {
     const entry = active();
     if (!s.pathController || s.tool !== "select" || s.treeSelection.size !== 1 ||
-        entry?.item.kind !== "path" || !entry.enabled || s.pathLocked?.(entry.item.id) ||
-        !projection || !g.inverse(projected(entry))) return null;
-    const points = cssPoints(entry).filter((_v, i) => s.selection.has(selectionKey(entry.item.vertexIds[i])));
+        entry?.item.kind !== "path" || !projection) return null;
+    const selection = s.maskSelection?.size() > 1 ? s.multiMaskVertices() :
+      new Map([[entry.item.id, entry.item.vertexIds.filter(id => s.selection.has(selectionKey(id)))]]);
+    const points = entries().flatMap(candidate => {
+      const ids = selection.get(candidate.item.id);
+      if (!ids?.length || !candidate.enabled || s.pathLocked?.(candidate.item.id) ||
+          !g.inverse(projected(candidate))) return [];
+      const wanted = new Set(ids);
+      return cssPoints(candidate).filter((_v, i) => wanted.has(candidate.item.vertexIds[i]));
+    });
     if (points.length < 2) return null;
     const { min, max, center } = selectionBounds(points.map(v => v.point));
     return { kind: "group", screen: identity, pivot: center,
@@ -537,6 +544,23 @@ function createCanvas(s, canvas) {
     if (s.hover && !s.treeSelection.has(s.hover) && !s.pointer?.active)
       for (const e of outlines(s.hover)) strokeOutline(e, HOVER);
     let paint = null;
+    if (s.tool === "select" && s.maskSelection?.size() > 1) {
+      for (const [id, ids] of s.multiMaskVertices()) {
+        if (id === s.activeId) continue;
+        const entry = ensureScope().byId.get(id);
+        if (!entry?.enabled) continue;
+        strokeOutline(entry, ACCENT);
+        if (!ids.length) continue;
+        const points = cssPoints(entry), wanted = new Set(ids);
+        const { vertices } = feedback.pathInstructions({
+          vertices: points.map((v, i) => ({ ...v, id: entry.item.vertexIds[i] })),
+          closed: entry.path.closed, selectedIds: ids, prefs,
+        });
+        vertices.forEach((instruction, i) => {
+          if (wanted.has(entry.item.vertexIds[i])) drawVertex(points[i].point, instruction);
+        });
+      }
+    }
     for (const id of selected) {
       const item = s.find(id);
       if (!item) continue;

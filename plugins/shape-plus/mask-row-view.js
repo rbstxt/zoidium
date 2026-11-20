@@ -161,6 +161,7 @@
     const state = rawState && typeof rawState === "object" ? rawState : {};
     const keyframeState = KEYFRAME_STATES.includes(state.keyframeState) ? state.keyframeState : "off";
     const active = state.active === true;
+    const selected = active || state.selected === true;
     const editing = state.editing === true;
     const expanded = state.expanded !== false;
     const locked = mask.locked === true;
@@ -168,9 +169,9 @@
     const canMoveDown = state.canMoveDown !== false;
     const id = mask.id;
 
-    const root = make(document, "div", "mask-row-view" + (active ? " is-active" : ""));
+    const root = make(document, "div", "mask-row-view" + (active ? " is-active" : "") + (selected ? " is-selected" : ""));
     root.style.cssText = "padding:3px 0 3px 8px;border-top:1px solid var(--zui-border,#333);border-left:2px solid transparent" +
-      (active ? ";border-left-color:var(--zui-accent,#58a6ff);background:rgba(88,166,255,.08)" : "");
+      (selected ? ";border-left-color:var(--zui-accent,#58a6ff);background:rgba(88,166,255,.08)" : "");
     if (active) root.setAttribute("aria-current", "true");
     root.setAttribute("role", "group");
     root.setAttribute("aria-label", mask.name + (locked ? " (locked)" : ""));
@@ -201,10 +202,12 @@
     name.style.cssText = "font-size:11px;margin-right:2px;background:none;border:none;cursor:pointer;padding:0 2px" +
       (active ? ";color:var(--zui-accent,#58a6ff);font-weight:600" : ";color:var(--zui-text,#ddd)");
     name.setAttribute("aria-label", "Activate " + mask.name + " for editing");
+    name.setAttribute("aria-pressed", String(selected));
     name.title = "Activate " + mask.name + " for editing (click to edit its path in the preview)";
     name.addEventListener("click", event => {
       if (event && typeof event.stopPropagation === "function") event.stopPropagation();
-      call(callbacks, "onActivate", id);
+      if (event?.shiftKey) call(callbacks, "onActivate", id, true);
+      else call(callbacks, "onActivate", id);
     });
     if (typeof callbacks.onContextMenu === "function") {
       root.addEventListener("contextmenu", event => call(callbacks, "onContextMenu", id, event));

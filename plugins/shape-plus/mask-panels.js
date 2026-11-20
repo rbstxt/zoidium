@@ -97,10 +97,10 @@ function getPanelActivator() {
   return panelActivator || null;
 }
 
-function activateMask(session, layer, maskId, focusPen, refresh, override) {
+function activateMask(session, layer, maskId, focusPen, refresh, override, additive) {
   const fn = typeof override === "function" ? override
     : panelActivator || defaultActivate;
-  fn(session, layer, maskId, focusPen, refresh);
+  fn(session, layer, maskId, focusPen, refresh, additive);
 }
 
 function keyframeStateFor(mask, frame) {
@@ -137,8 +137,8 @@ function rowCallbacks(session, layer, focusPen, refresh, hooks) {
   const activateOverride = hooks && typeof hooks.onActivate === "function" ? hooks.onActivate : null;
   return {
     onContextMenu: hooks?.onContextMenu,
-    onActivate(id) {
-      activateMask(session, layer, id, focusPen, refresh, activateOverride);
+    onActivate(id, additive) {
+      activateMask(session, layer, id, focusPen, refresh, activateOverride, additive);
     },
     onToggleExpand(id) {
       if (collapsedIds.has(id)) collapsedIds.delete(id);
@@ -330,6 +330,11 @@ function rowCallbacks(session, layer, focusPen, refresh, hooks) {
       if (typeof refresh === "function") refresh();
     },
     onMove(id, direction) {
+      if (session.s.sharedPathHost && session.s.moveMasks) {
+        session.s.moveMasks(id, direction < 0 ? -1 : 1);
+        refresh?.();
+        return;
+      }
       const data = session.host.readLive?.() || clone(session.host.contents());
       const index = data.findIndex(mask => mask && mask.id === id);
       if (index < 0) {
@@ -359,13 +364,18 @@ function renderMasksSection(document, container, session, layer, focusPen, refre
     frame = session.s.localFrame();
   } catch (_error) { /* Detached session reads keyframes at frame 0. */ }
   masks.forEach((mask, index) => {
+    const selected = session.s.maskSelection?.has(mask.id);
+    const moving = new Set(selected ? session.s.maskSelection.getSelected() : [mask.id]);
+    const canMove = step => masks.some((item, i) => moving.has(item.id) &&
+      masks[i + step] && !moving.has(masks[i + step].id));
     const state = {
       active: session.s.activeId === mask.id,
+      selected,
       editing: session.s.activeId === mask.id,
       expanded: !collapsedIds.has(mask.id),
       keyframeState: keyframeStateFor(mask, frame),
-      canMoveUp: index > 0,
-      canMoveDown: index < masks.length - 1,
+      canMoveUp: moving.size > 1 ? canMove(-1) : index > 0,
+      canMoveDown: moving.size > 1 ? canMove(1) : index < masks.length - 1,
     };
     container.appendChild(renderMaskRow(document, mask, state, callbacks));
   });
@@ -396,11 +406,13 @@ function renderMasksSection(document, container, session, layer, focusPen, refre
 // active mask. Vertex selection changes must not replace focused controls.
 function watchPathSelection(session, refresh) {
   const state = session.s, previous = state.onPathSelection;
-  let activeId = state.activeId;
+  const signature = () => JSON.stringify([state.activeId, state.maskSelection?.getSelected()]);
+  let previousSelection = signature();
   function changed() {
     previous?.();
-    if (activeId === state.activeId) return;
-    activeId = state.activeId;
+    const selection = signature();
+    if (previousSelection === selection) return;
+    previousSelection = selection;
     refresh();
   }
   state.onPathSelection = changed;

@@ -18,6 +18,7 @@
 const { clone, validate } = require("./model.js");
 const { FIELD, validateMasks, ensureNames, coercePath } = require("./mask-model.js");
 const { createEditorModel } = require("./editor-model.js");
+const { createMultiMaskSelection } = require("./path-multi-mask.js");
 // Identity 2D matrix in the compiler convention ([a,b,c,d,e,f]).
 const IDENTITY_2D = [1, 0, 0, 1, 0, 0];
 
@@ -201,6 +202,7 @@ function createMaskSession({ PZ, editor, project, nativeLayer, Content, notify }
     PZ, editor, project, Content,
     layer: host.adapter,
     pathHost: host,
+    maskSelection: createMultiMaskSelection(),
     nextId: randomId,
     tool: "pen",
     snap: true,
