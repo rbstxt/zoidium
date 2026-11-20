@@ -208,6 +208,12 @@ each line describes one visible change.
 
 ### Changed
 
+- ZSMB and S_Glow are now named beta 1.1, so bug reports can name the exact
+  version. Effects saved under the old name are renamed when a project opens.
+- Material+ Bump Noise Scale goes up to 1024. Values above 64 repeat a seamless
+  noise tile at a higher frequency.
+- Magic Looks Haze shades the haze spillage toward the frame edges instead of
+  darkening the whole scene.
 - The documentation is reorganized by topic (workflow and export, animation,
   2D and text, 3D scenes, effects, shaders) with fewer, longer pages. Old links
   redirect to the new pages.
@@ -310,6 +316,18 @@ each line describes one visible change.
 
 ### Fixed
 
+- S_Glow no longer darkens particles or other partly transparent content when
+  it is on, even with glow Brightness 0.
+- S_Glow with Affect Alpha 0 no longer leaves bright fringes at transparent
+  edges, and Source Opacity then fades the whole result evenly.
+- S_Glow on an adjustment layer with Source Opacity 0 shows only the glow; the
+  original image no longer shows through underneath.
+- Inside a precomp, changing a Scene layer's values can be undone and redone
+  again, and the cursor no longer stays on the move icon after dragging a value.
+- A 3D Scene taken out of a precomp now draws its contents right away instead of
+  only after switching camera editing.
+- Preview no longer stops when a Repeater clones a Geometry+ object whose
+  geometry was released.
 - Dragging keyframes no longer throws an error and leaves undo stuck when
   the same keyframe is selected in two places in the timeline. The drag
   moves each key once, and one undo restores every key.
