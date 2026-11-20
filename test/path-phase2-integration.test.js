@@ -393,3 +393,38 @@ test("a singular parent rejects a Pen point and becomes editable after its scale
   assert.deepEqual(h.points()[0].point, [-10, 35]);
   assert.equal(h.editor.history.undoStack.length, 1);
 });
+
+test("Pen endpoint-continue reverses an idle open path and appends from the tail", t => {
+  const h = fixture(t, { contents: [path("p", [vertex([-60, 20]), vertex([0, 20]), vertex([60, 20])])] });
+  h.activate("p");
+  const before = h.points().map(entry => entry.point);
+  h.key("q");
+  assert.equal(h.controller.drawing, null);
+  h.click([60, 60]);
+  assert.deepEqual(h.points().map(entry => entry.point), [...before].reverse());
+  assert.deepEqual(Array.from(h.state().active().vertexIds), ["p-2", "p-1", "p-0"]);
+  assert.deepEqual(h.controller.getSelection(), ["p-0"]);
+  assert.ok(h.controller.drawing);
+  assert.deepEqual(h.controller.drawing.points.map(point => [...point]), [...before].reverse());
+  h.click([60, 100]);
+  const after = h.points();
+  assert.equal(after.length, 4);
+  assert.deepEqual(after.slice(0, 3).map(entry => entry.point), [...before].reverse());
+  assert.deepEqual(after[3].point, [-60, -20]);
+  assert.deepEqual([...h.controller.drawing.points.at(-1)], [-60, -20]);
+  assert.deepEqual(Array.from(h.state().active().vertexIds).slice(0, 3), ["p-2", "p-1", "p-0"]);
+});
+
+test("wheel zoom keeps the pixel under the cursor fixed", t => {
+  const h = fixture(t, { contents: [path("p", [vertex([-60, 20]), vertex([60, 20])])] });
+  h.activate("p");
+  const api = h.state().canvasApi;
+  const cursor = [100, 70];
+  const before = api.local(cursor);
+  assert.ok(before);
+  const scaleBefore = api.projection()[0];
+  const wheel = h.pointer("wheel", cursor, { deltaY: -Math.log(2) / 0.0012 });
+  assert.equal(wheel.defaultPrevented, true);
+  assert.ok(api.projection()[0] > scaleBefore);
+  approximate(api.local(cursor), before);
+});
