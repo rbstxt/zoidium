@@ -316,6 +316,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- Exports with many Shape+ layers use much less GPU memory: each layer's
+  supersampled raster is freed as soon as it has been drawn into the frame.
+  At 4K this saved about 380 MiB in a three-frame test, which lowers the chance
+  of a lost WebGL context on integrated GPUs. Output pixels are unchanged.
 - After the browser loses and restores the WebGL context (for example when a
   heavy export runs out of GPU memory), Shape+ layers draw again in the preview
   instead of staying blank. When an export stops because the context was lost,
