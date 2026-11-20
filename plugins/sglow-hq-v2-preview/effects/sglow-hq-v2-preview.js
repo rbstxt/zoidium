@@ -484,7 +484,10 @@ float simplex(vec3 v){
         float noise=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(0.06711056,0.00583715))))-0.5;
         result.rgb=max(vec3(0.0),result.rgb+vec3(noise*clamp(result.a,0.0,1.0)/255.0));
       }
-      if(uAdjustment>0.5)result.a=1.0;
+      // On adjustment layers, cover the backdrop only where it exists, so the
+      // original no longer shows through while transparent areas (including
+      // expanded-border padding) stay transparent.
+      if(uAdjustment>0.5)result.a=max(result.a,source.a);
       gl_FragColor=result;
     }`;
     
