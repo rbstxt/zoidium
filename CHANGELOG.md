@@ -7,6 +7,12 @@ each line describes one visible change.
 
 ### Added
 
+- Each effect has an eye button in its header that turns the effect off
+  without deleting it. A turned-off effect does nothing in preview or export,
+  including time effects, effect groups (and everything inside them), and
+  effects read by Layer Input. Its settings, keyframes, and Enabled value stay
+  as they are. The state is saved with the project and can be undone. Existing
+  projects load with every effect on.
 - Click the current time at the top left of the timeline to type a frame number
   or a timecode, then press Enter to jump there. Escape cancels. The value can be
   typed in any of the three time formats that right-click cycles through.
