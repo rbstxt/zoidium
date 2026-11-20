@@ -10,6 +10,9 @@ each line describes one visible change.
 
 ### Added
 
+- Click the current time at the top left of the timeline to type a frame number
+  or a timecode, then press Enter to jump there. Escape cancels. The value can be
+  typed in any of the three time formats that right-click cycles through.
 - Smart Motion Blur now has a keyframeable Enabled switch so you can turn
   it off without removing the effect. Existing projects load with it on.
 - Ctrl/Cmd+V pastes images, video, and audio from the clipboard into Project
