@@ -329,3 +329,23 @@ test("rendering and saving without edits leaves legacy data byte-identical", () 
   assert.equal(session.__test.history(), 0);
   assert.equal(session.__test.messages.length, 0);
 });
+
+test("path activation refreshes the mask highlight without refreshing for vertex changes", () => {
+  const session = makeSession([maskAm("m1", "Mask 1"), maskAm("m2", "Mask 2")], { activeId: "m1" });
+  let calls = 0, previous = 0;
+  session.s.onPathSelection = () => { previous++; };
+  const dispose = panels.watchPathSelection(session, () => { calls++; });
+  session.s.onPathSelection();
+  assert.equal(calls, 0);
+  session.s.activeId = "m2";
+  session.s.onPathSelection();
+  assert.equal(calls, 1);
+  session.s.onPathSelection();
+  assert.equal(calls, 1);
+  assert.equal(previous, 3);
+  dispose();
+  session.s.activeId = "m1";
+  session.s.onPathSelection();
+  assert.equal(calls, 1);
+  assert.equal(previous, 4);
+});
