@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=162",
       "bundle": "./plugins/core/bundle.json?v=162",
-      "integrity": "sha256-r3R0wVOAW+sJ2Q6bi2wV1YGlSPtErzN+CyRdJH3ZGcw="
+      "integrity": "sha256-7hOi7jbhknORMBVrksXNP2htRa98u42bcNSKQ/seZk0="
     },
     {
       "id": "easing-plus",
@@ -462,7 +462,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "19",
+      "version": "20",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -470,9 +470,9 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=19",
-      "bundle": "./plugins/layer-input/bundle.json?v=19",
-      "integrity": "sha256-ykSHyR9iDvcdKrQa5/Fo+PrDWQzdYsR/S7x3/U4LKI0="
+      "manifest": "./plugins/layer-input/manifest.json?v=20",
+      "bundle": "./plugins/layer-input/bundle.json?v=20",
+      "integrity": "sha256-mhlPk5gzCIzWKLAJZZNAqAByV8+UXLsMHYQtfsT8qvc="
     },
     {
       "id": "shape-plus",
@@ -557,7 +557,7 @@
       "description": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
       "manifest": "./plugins/sglow-hq-v2-preview/manifest.json?v=19",
       "bundle": "./plugins/sglow-hq-v2-preview/bundle.json?v=19",
-      "integrity": "sha256-UUC/qT43+qAyI5iUYRQ3txgQmBP5Anf2hP+4ckXG+CQ=",
+      "integrity": "sha256-knfkLsD4rSG5SkDWspie+nfhHLryQKrffca6vmG4SUs=",
       "zoidiumOnly": true
     }
   ]
