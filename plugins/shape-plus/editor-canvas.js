@@ -5,11 +5,25 @@ const { matrix, transform, identity } = require("./compiler.js");
 const { primitivePath } = require("./primitives.js");
 const controls = require("./editor-controls.js");
 const { displayMatrix } = require("./viewport-mapping.js");
-const { verticesToCubics } = require("./path.js");
+const { verticesToCubics, evaluate: evaluateCubic } = require("./path.js");
 const { find } = require("./editor-tree-data.js");
 const { PAINTS, paintScope } = require("./contents-ops.js");
 const pathProjection = require("./path-projection.js");
+const feedback = require("./path-feedback.js");
 const xf = require("./editor-transform.js");
+const PREFS_KEY = "zoidium.shape-plus.path-display";
+const prefsByWindow = new WeakMap();
+
+function displayPreferences(window) {
+  if (prefsByWindow.has(window)) return prefsByWindow.get(window);
+  let stored;
+  try { stored = JSON.parse(window?.localStorage?.getItem(PREFS_KEY) || "null"); }
+  catch (_error) { /* Use defaults when storage is unavailable. */ }
+  const prefs = feedback.normalizePrefs(stored).prefs;
+  if (window) prefsByWindow.set(window, prefs);
+  return prefs;
+}
+
 const ACCENT = "#58a6ff", HOVER = "rgba(88,166,255,.85)";
 // Only a group's own transform/enabled properties are read here. Calling
 // item.evaluate() on a group would evaluate its whole subtree first, while the
@@ -73,6 +87,20 @@ function scene(
 function createCanvas(s, canvas) {
   const context = canvas.getContext("2d"),
     view = { width: 1, height: 1 };
+  const window = canvas.ownerDocument.defaultView;
+  const prefs = displayPreferences(window);
+  function setDisplaySize(key, value) {
+    const next = feedback.normalizePrefs({ ...prefs, [key]: value });
+    if (next.errors.length) {
+      s.message(next.errors[0]);
+      return false;
+    }
+    Object.assign(prefs, next.prefs);
+    try { window.localStorage?.setItem(PREFS_KEY, JSON.stringify(prefs)); }
+    catch (_error) { /* Retain the preference in this window. */ }
+    s.dirty = true;
+    return true;
+  }
   let projection = null;
   // Operation-scoped scene snapshot. One read-only pointer event or one draw
   // shares a single scene build across hit, active lookup, local conversion,
@@ -277,19 +305,99 @@ function createCanvas(s, canvas) {
       } else square(h.point, "#fff");
     }
   }
-  function drawPath(e) {
+  function penCursor(target) {
+    const drawing = s.pathController?.drawing;
+    const path = drawing?.pathId === target?.pathId ? active()?.path : null;
+    const vertexCount = path?.vertices.length;
+    return feedback.resolvePenCursor({
+      target,
+      drawing: path ? { ...drawing, closed: path.closed, vertexCount, canClose: vertexCount > 1 } : null,
+    });
+  }
+  function hoverTarget(point) {
+    if (s.tool !== "pen") return pickPaths(point).target;
+    const hit = pickPaths(point, true).target;
+    if (hit) return hit;
+    const other = pickPaths(point).target;
+    return other?.isEndpoint && !other.pathClosed ? other : null;
+  }
+  function cursorFor(target) {
+    if (s.tool === "pen") {
+      if (target && s.pathLocked?.(target.pathId)) return { css: "not-allowed", badge: null };
+      if (target?.kind === "handle") return { css: "pointer", badge: null };
+      return penCursor(target);
+    }
+    return feedback.resolveSelectCursor({ target, marquee: !!s.marquee });
+  }
+  function circle(p, radius, color, fill = false) {
+    context.beginPath();
+    context.arc(...p, radius, 0, Math.PI * 2);
+    if (fill) {
+      context.fillStyle = color;
+      context.fill();
+    } else {
+      context.strokeStyle = color;
+      context.stroke();
+    }
+  }
+  function drawVertex(point, instruction) {
+    const { size, shape, color, outline, ring } = instruction;
+    const [x, y] = point;
+    const half = size / 2;
+    const rect = [x - half, y - half, size, size];
+    if (shape.startsWith("filled")) {
+      context.fillStyle = color;
+      context.fillRect(...rect);
+    }
+    context.lineWidth = 3;
+    context.strokeStyle = outline;
+    context.strokeRect(...rect);
+    context.lineWidth = 1;
+    context.strokeStyle = color;
+    context.strokeRect(...rect);
+    if (ring === "double" || instruction.badge === "o" || instruction.badge === "/") {
+      const inner = half + 3;
+      for (const radius of ring === "double" ? [inner, inner + 3] : [inner]) {
+        context.lineWidth = 2;
+        circle(point, radius, outline);
+        context.lineWidth = 1;
+        circle(point, radius, color);
+      }
+    }
+  }
+  function drawDirection(entry, instruction) {
+    if (!instruction) return;
+    const curve = shapeFor(entry, false).at(-1);
+    if (!curve) return;
+    const tip = evaluateCubic(curve, .7);
+    const tangent = g.sub(tip, evaluateCubic(curve, .6));
+    const length = Math.hypot(...tangent);
+    if (length < .1 || Math.hypot(...g.sub(instruction.to, tip)) < 10) return;
+    const [x, y] = tangent.map(value => value / length);
+    context.beginPath();
+    context.moveTo(tip[0] - 7 * x + 4 * y, tip[1] - 7 * y - 4 * x);
+    context.lineTo(...tip);
+    context.lineTo(tip[0] - 7 * x - 4 * y, tip[1] - 7 * y + 4 * x);
+    context.lineWidth = 1.5;
+    context.strokeStyle = instruction.color;
+    context.stroke();
+  }
+  function drawPath(e, hover, intent) {
     const points = cssPoints(e);
+    const selectedIds = [...s.selection].map(selectionPart).filter(part => !part.side).map(part => part.id);
+    const instructions = feedback.pathInstructions({
+      vertices: points.map((v, i) => ({ ...v, id: e.item.vertexIds[i] })),
+      closed: e.path.closed,
+      selectedIds,
+      hover: hover?.pathId === e.item.id ? { ...hover, intent } : null,
+      prefs,
+    });
+    drawDirection(e, instructions.direction);
     points.forEach((v, i) => {
-      const id = e.item.vertexIds[i];
       for (const side of ["in", "out"]) {
-        if (
-          !e.path.closed &&
-          (s.tool !== "pen" || s.penFinished) &&
-          ((side === "in" && i === 0) ||
-            (side === "out" && i === points.length - 1))
-        )
-          continue;
-        if (Math.hypot(...v[side]) < 1e-8) continue;
+        if (!showsHandle(e.path, i, side) || Math.hypot(...v[side]) < 1e-8) continue;
+        const selected = s.selection.has(selectionKey(e.item.vertexIds[i], side));
+        const { size, color, outline } = feedback.handleInstruction({ selected, prefs });
         const p = g.add(v.point, v[side]);
         context.beginPath();
         context.strokeStyle = ACCENT;
@@ -297,15 +405,37 @@ function createCanvas(s, canvas) {
         context.moveTo(...v.point);
         context.lineTo(...p);
         context.stroke();
-        context.beginPath();
-        context.arc(...p, 3.5, 0, Math.PI * 2);
-        context.fillStyle = s.selection.has(selectionKey(id, side)) ? ACCENT : "#fff";
-        context.fill();
-        context.strokeStyle = "#1b1b1b";
-        context.stroke();
+        if (selected) circle(p, size / 2, color, true);
+        context.lineWidth = 2.5;
+        circle(p, size / 2, outline);
+        context.lineWidth = 1;
+        circle(p, size / 2, color);
       }
-      square(v.point, s.selection.has(selectionKey(id)) ? ACCENT : "#fff", 4);
     });
+    instructions.vertices.forEach((instruction, i) => drawVertex(points[i].point, instruction));
+  }
+  function drawSegmentHighlight(hover) {
+    const entry = ensureScope().byId.get(hover.pathId);
+    if (!entry?.enabled) return;
+    const curve = shapeFor(entry, entry.path.closed)[hover.segmentIndex];
+    if (!curve) return;
+    context.beginPath();
+    context.moveTo(...curve[0]);
+    context.bezierCurveTo(...curve[1], ...curve[2], ...curve[3]);
+    context.lineWidth = 3;
+    context.strokeStyle = feedback.segmentInstruction({ highlighted: true }).color;
+    context.stroke();
+  }
+  function drawBadge(point, badge) {
+    if (!point || badge === null || badge === undefined) return;
+    const x = point[0] + (point[0] > view.width - 18 ? -15 : 11);
+    const y = point[1] + (point[1] < 15 ? 20 : -8);
+    context.font = "bold 13px sans-serif";
+    context.lineWidth = 3;
+    context.strokeStyle = "#1b1b1b";
+    context.strokeText(badge, x, y);
+    context.fillStyle = "#fff";
+    context.fillText(badge, x, y);
   }
   function draw() {
     if (!resize() || !view.width) return;
@@ -316,8 +446,14 @@ function createCanvas(s, canvas) {
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, view.width, view.height);
     const selected = [...s.treeSelection];
+    const hover = s.tool === "pen" && !s.pointer?.active && s.pointerPoint
+      ? hoverTarget(s.pointerPoint) : null;
+    const cursor = cursorFor(hover);
+    const intent = ({ "endpoint-close": "close", "endpoint-continue": "continue", "vertex-delete": "delete" })[cursor.state];
+    if (s.pointerPoint && s.tool === "pen") canvas.style.cursor = cursor.css;
     if (s.hover && !s.treeSelection.has(s.hover) && !s.pointer?.active)
       for (const e of outlines(s.hover)) strokeOutline(e, HOVER);
+    if (cursor.state === "segment-add") drawSegmentHighlight(hover);
     let paint = null;
     for (const id of selected) {
       const item = s.find(id);
@@ -332,7 +468,7 @@ function createCanvas(s, canvas) {
       for (const e of outlines(id)) strokeOutline(e, ACCENT);
       if (item.kind === "path" && id === s.activeId && selected.length === 1) {
         const e = active();
-        if (e?.enabled) drawPath(e);
+        if (e?.enabled) drawPath(e, hover, intent);
       }
     }
     if (selected.length === 1 && !(s.tool === "pen" && !s.penFinished)) {
@@ -342,7 +478,10 @@ function createCanvas(s, canvas) {
     // Pen in progress on a path that is not the selection's leaf.
     if (s.tool === "pen" && !s.penFinished && s.active()?.kind === "path" && selected.length !== 1) {
       const e = active();
-      if (e?.enabled) drawPath(e);
+      if (e?.enabled) drawPath(e, hover, intent);
+    }
+    if (intent === "continue" && hover.pathId !== s.activeId) {
+      drawVertex(hover.point, feedback.vertexInstruction({ intent, isFirst: hover.vertexIndex === 0, prefs }));
     }
     controls.draw(s, context, ACCENT);
     if (s.marquee) {
@@ -356,6 +495,7 @@ function createCanvas(s, canvas) {
     // In-place text editing draws only the caret and selection highlight on
     // top of the real render; see plugins/shape-plus/text-inline.js.
     s.drawTextEdit?.(context);
+    if (!s.pointer?.active) drawBadge(s.pointerPoint, cursor.badge);
     });
   }
   function snap(point, exclude = []) {
@@ -398,6 +538,11 @@ function createCanvas(s, canvas) {
     cssPoints,
     hit,
     pickPaths,
+    cursorFor,
+    penCursor,
+    hoverTarget,
+    displayPrefs: () => ({ ...prefs }),
+    setDisplaySize,
     itemAt,
     snap,
     outlines,

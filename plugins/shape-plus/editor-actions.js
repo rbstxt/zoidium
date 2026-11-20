@@ -4,6 +4,7 @@ const g = require("./editor-geometry.js");
 const { createMenu } = require("./editor-menu.js");
 const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
+const { PREFS_MIN_PX, PREFS_MAX_PX } = require("./path-feedback.js");
 const { isEditableTarget, isComposingEvent } = require("./path-input.js");
 function installActions(s, root, options = {}) {
   const shapes = options.shapes !== false;
@@ -12,6 +13,24 @@ function installActions(s, root, options = {}) {
   s.closeMenu = () => menu.close(false);
   const mac = /Mac|iPhone|iPad/.test(s.window.navigator?.platform || "");
   const key = (text) => (mac ? text.replace("Ctrl+Shift+", "\u21e7\u2318").replace("Ctrl+", "\u2318") : text);
+  const display = s.canvasApi;
+  const settings = s.context?.ui?.openWindow && {
+    label: "Path Display Settings…",
+    action: () => s.context.ui.openWindow({
+      id: "shape-plus/path-display", title: "Path Display Settings",
+      width: 300, height: 150, resizable: false,
+      mount(body) {
+        const prefs = display.displayPrefs();
+        for (const [key, label] of [["vertexSize", "Vertex size (px)"], ["handleSize", "Handle size (px)"]]) {
+          const control = s.context.ui.controls.number({
+            label, value: prefs[key], min: PREFS_MIN_PX, max: PREFS_MAX_PX, step: 1,
+            onChange: value => display.setDisplaySize(key, value),
+          });
+          body.appendChild(control.element);
+        }
+      },
+    }),
+  };
   // Right-click selects what is under the pointer first, like a click, then
   // shows one menu for that selection. Empty space offers new shapes there.
   s.openItemMenu = (x, y, point) => {
@@ -37,6 +56,7 @@ function installActions(s, root, options = {}) {
         );
       }
       entries.push({ label: "Pen", shortcut: "P", action: () => s.setTool?.("pen") });
+      if (settings) entries.push(settings);
       menu.open(x, y, entries, { title: shapes ? "Shape+" : "Mask", focusReturn: s.canvas });
       return;
     }
@@ -97,6 +117,7 @@ function installActions(s, root, options = {}) {
       { label: "Duplicate", shortcut: key("Ctrl+D"), action: () => s.treeAction("duplicate") },
       { label: "Delete", shortcut: "Del", action: () => s.treeAction("delete") },
     );
+    if (settings) entries.push({ separator: true }, settings);
     const name = item.properties.name?.get?.() || item.kind;
     menu.open(x, y, entries, { title: many ? s.treeSelection.size + " items" : name, focusReturn: s.canvas });
   };

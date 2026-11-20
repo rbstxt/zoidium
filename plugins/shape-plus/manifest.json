@@ -471,6 +471,11 @@
       "source": "./plugins/shape-plus/path-input.js?v=44"
     },
     {
+      "id": "path-feedback",
+      "type": "text",
+      "source": "./plugins/shape-plus/path-feedback.js?v=44"
+    },
+    {
       "id": "path-projection",
       "type": "text",
       "source": "./plugins/shape-plus/path-projection.js?v=44"

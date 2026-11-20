@@ -53,12 +53,21 @@ function createPointer(s, canvas) {
     const item = s.active();
     if (hit?.kind === "anchor") return clickEdit(() => {
       s.requireEditablePath?.(item.id);
-      if (hit.index === 0 && item.vertexIds.length > 1 && Number(item.properties.closed.get()) !== 1) {
+      const intent = api.penCursor(hit).state;
+      if (intent === "endpoint-close") {
         channels(clone(item));
         item.properties.closed.set(1);
         s.penFinished = true;
         s.pathController?.finishDrawing();
         s.preview();
+      } else if (intent === "endpoint-continue") {
+        // Continue from the hovered end. Reverse an idle open path when its
+        // first vertex is the chosen end, so append still uses the tail.
+        const id = item.vertexIds[hit.index];
+        if (hit.index === 0 && item.vertexIds.length > 1) s.topology({ kind: "reverse" });
+        s.penFinished = false;
+        s.selection = new Set([selectionKey(id)]);
+        s.pathController?.startDrawing({ points: s.pathPoints().map(v => v.point) });
       } else {
         s.topology({ kind: "delete", ids: [item.vertexIds[hit.index]] });
         s.selection.clear();
@@ -195,8 +204,10 @@ function createPointer(s, canvas) {
         (s.tool === "select" || !hit)) {
       const candidates = pathCandidates(start);
       const activated = s.pathInput.activateAt(start, candidates, s.sharedPathHost, frame);
-      if (activated && s.tool === "pen") return null;
-      if (activated) hit = api.hit(start);
+      if (activated) {
+        hit = api.hit(start);
+        if (s.tool === "pen" && api.penCursor(hit).state !== "endpoint-continue") return null;
+      }
     }
     const item = s.active(), locked = s.pathLocked?.(item?.id);
     if (s.pathInput && event.altKey && hit?.kind === "anchor") {
@@ -481,10 +492,13 @@ function createPointer(s, canvas) {
     if (pointer.active || !s.valid()) return;
     const p = point(event);
     s.pathInput?.trackPointer(p);
-    let cursor = "default",
+    s.pointerPoint = p;
+    const target = api.hoverTarget(p);
+    const controller = s.pathController;
+    if (controller && !controller.disposed) controller.setHover(target);
+    let cursor = api.cursorFor(target).css,
       id = null;
-    if (s.tool === "pen") cursor = "crosshair";
-    else {
+    if (s.tool !== "pen") {
       const handle = xf.handleAt(s, p);
       if (handle) cursor = xf.cursorFor(handle);
       else if (s.treeSelection.size === 1 && api.hit(p)) cursor = "pointer";
@@ -505,6 +519,8 @@ function createPointer(s, canvas) {
   };
   const leave = () => {
     s.pathInput?.notifyExternalSelection();
+    s.pointerPoint = null;
+    if (!s.pathController?.disposed) s.pathController?.clearHover();
     if (s.hover !== null) {
       s.hover = null;
       s.dirty = true;

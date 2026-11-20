@@ -128,8 +128,8 @@ function resolvePenCursor({ target = null, drawing = null } = {}) {
     const index = target.vertexIndex;
     if (drawing && drawing.closed !== true && Array.isArray(drawing.points)) {
       const first = 0;
-      const last = drawing.points.length - 1;
-      if (index === first) return penRecord("endpoint-close");
+      const last = (drawing.vertexCount ?? drawing.points.length) - 1;
+      if (index === first && drawing.canClose !== false) return penRecord("endpoint-close");
       if (index === last) return penRecord("endpoint-continue");
     }
     if (!drawing && target.isEndpoint === true && target.pathClosed === false) {
