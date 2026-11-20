@@ -3,13 +3,18 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "159",
+  "version": "160",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
   "phase": "pre-init",
   "description": "Hidden built-in extensions that always run before the editor starts. Not shown in the Plugins panel and never stored in projects.",
   "coreScripts": [
+    {
+      "id": "timeline-ruler-drag",
+      "source": "./plugins/core/timeline-ruler-drag.js",
+      "phase": "pre-init"
+    },
     {
       "id": "window-stylesheet-guard",
       "source": "./plugins/core/window-stylesheet-guard.js",
@@ -454,31 +459,31 @@
   "modules": [
     {
       "id": "single-graph-window",
-      "source": "./plugins/core/single-graph-window.js?v=159"
+      "source": "./plugins/core/single-graph-window.js?v=160"
     },
     {
       "id": "font-load",
-      "source": "./plugins/core/font-load.js?v=159"
+      "source": "./plugins/core/font-load.js?v=160"
     },
     {
       "id": "keyframe-row-reveal",
-      "source": "./plugins/core/keyframe-row-reveal.js?v=159"
+      "source": "./plugins/core/keyframe-row-reveal.js?v=160"
     },
     {
       "id": "video-texture-alpha",
-      "source": "./plugins/core/video-texture-alpha.js?v=159"
+      "source": "./plugins/core/video-texture-alpha.js?v=160"
     },
     {
       "id": "video-decode-hint",
-      "source": "./plugins/core/video-decode-hint.js?v=159"
+      "source": "./plugins/core/video-decode-hint.js?v=160"
     },
     {
       "id": "output-frame-cache",
-      "source": "./plugins/core/output-frame-cache.js?v=159"
+      "source": "./plugins/core/output-frame-cache.js?v=160"
     },
     {
       "id": "media-drop",
-      "source": "./plugins/core/media-drop.js?v=159"
+      "source": "./plugins/core/media-drop.js?v=160"
     }
   ]
 }

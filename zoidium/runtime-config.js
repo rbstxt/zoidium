@@ -30,6 +30,7 @@
       "./zoidium/debug-journal.js",
       "./zoidium/debug-crash.js",
       "./zoidium/debug-log.js",
+      "./plugins/core/timeline-ruler-drag.js",
       "./plugins/core/window-stylesheet-guard.js",
       "./plugins/core/project-media-fps.js",
       "./plugins/core/sequence-timing.js",
