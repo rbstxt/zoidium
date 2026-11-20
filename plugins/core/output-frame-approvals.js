@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "b394cf22e754029cce11cdce763a22a5430793977b94bab523f509edfb6afa57",
+  "fingerprint": "586e2e91fdbc82630a3b81d9b133c89bd3113819b2250e7d58d9d9efd0e4915a",
   "plugins": {
     "native-fx": {
       "version": "43",
@@ -72,7 +72,7 @@
       ]
     },
     "repeater": {
-      "version": "46",
+      "version": "47",
       "cases": [
         "Repeater",
         "Linear Repeater",
@@ -127,7 +127,7 @@
       ]
     },
     "expresstext-plus": {
-      "version": "7",
+      "version": "9",
       "cases": [
         "ExpressText+",
         "ExpressText+-full"
@@ -148,7 +148,7 @@
       ]
     },
     "camera-plus": {
-      "version": "25",
+      "version": "26",
       "cases": [
         "scene-camera-animation",
         "shared-camera-animation",
