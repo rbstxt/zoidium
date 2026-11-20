@@ -81,4 +81,45 @@ function create(PZ) {
   }
   return { sample, makeKey, certify };
 }
-module.exports = { create };
+// Mask validation requires grouped keys. Independent channel schedules cannot
+// be represented by that encoding and must be rejected, never approximated.
+function coercePath(path, encoding = "grouped") {
+  if (!path || path.expression || !["grouped", "objects"].includes(encoding)) throw Error("Invalid path encoding");
+  const result = copy(path);
+  if (encoding === "objects") {
+    if (result.objects) return result;
+    if (!Array.isArray(result.keyframes) || !result.keyframes.length || !Array.isArray(result.keyframes[0].value))
+      throw Error("Invalid grouped path");
+    const count = result.keyframes[0].value.length;
+    if (!count || result.keyframes.some(key => !Array.isArray(key.value) || key.value.length !== count)) throw Error("Invalid grouped path");
+    result.objects = Array.from({ length: count }, (_, i) => ({ animated: !!result.animated,
+      keyframes: result.keyframes.map(key => ({ ...copy(key), value: key.value[i] })) }));
+    delete result.animated; delete result.keyframes;
+    return result;
+  }
+  if (result.keyframes) return result;
+  const channels = result.objects;
+  if (!Array.isArray(channels) || !channels.length || channels.some(channel => !channel || channel.expression ||
+    !Array.isArray(channel.keyframes) || !channel.keyframes.length)) throw Error("Invalid path channels");
+  const structure = channel => {
+    const item = copy(channel);
+    item.keyframes.forEach(key => { delete key.value; });
+    return JSON.stringify(item);
+  };
+  if (!channels.every(channel => structure(channel) === structure(channels[0])))
+    throw Error("Cannot preserve independent channel keys in grouped mask storage");
+  if (Object.keys(channels[0]).some(key => key !== "animated" && key !== "keyframes"))
+    throw Error("Cannot preserve channel metadata in grouped mask storage");
+  // CM3's grouped loader copies only frame, value, and tween to children.
+  // Non-default curve handles or extra key metadata would disappear on load.
+  for (const key of channels[0].keyframes) {
+    if (Object.keys(key).some(name => !["frame", "value", "tween", "controlPoints", "continuousTangent"].includes(name)) ||
+        (key.controlPoints && JSON.stringify(key.controlPoints) !== "[[-10,0],[10,0]]") || key.continuousTangent === false)
+      throw Error("Cannot preserve key metadata in grouped mask storage");
+  }
+  result.animated = !!channels[0].animated;
+  result.keyframes = channels[0].keyframes.map((key, i) => ({ ...copy(key), value: channels.map(channel => channel.keyframes[i].value) }));
+  delete result.objects;
+  return result;
+}
+module.exports = { create, coercePath };

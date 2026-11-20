@@ -41,3 +41,11 @@ test("synchronization refuses subdivision of an eased segment", () => {
   next.keyframes.splice(1, 0, adapter.makeKey(original, 10, adapter.sample(original, 10)));
   assert.notEqual(adapter.certify({ phase: "synchronize", before: [original], after: [next] }), true);
 });
+test("grouped storage round trips compatible channels and rejects independent keys", () => {
+  const { coercePath } = require("../plugins/shape-plus/path-native-channels.js");
+  const path = fixture().properties.path;
+  assert.deepEqual(coercePath(coercePath(path), "objects"), path);
+  const mismatched = JSON.parse(JSON.stringify(path));
+  mismatched.objects[0].keyframes[1].frame = 10;
+  assert.throws(() => coercePath(mismatched), /independent/);
+});
