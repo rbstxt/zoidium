@@ -56,7 +56,7 @@ Node Material uses the surface defaults below, with **Bump Strength** `1` and **
 | **Texture** | Asset | image/* | None | Base-color image multiplied by Color. |
 | **Bump Strength** | Number | 0 to 2 | `0` | Strength of graph or procedural bump detail. |
 | **Bump Noise** | Choice | **off**, **on** | **off** | Uses noise instead of the graph Bump output. |
-| **Bump Noise Scale** | Number | 1 to 64 | `4` | Scale of the procedural bump pattern. |
+| **Bump Noise Scale** | Number | 1 to 1024 | `4` | Scale of the procedural bump pattern. Values above 64 repeat a seamless noise tile at a higher frequency. |
 | **Bump MIP Falloff** | Choice | **off**, **on** | **on** | Reduces distant bump detail. |
 | **Fresnel** | Choice | **off**, **on** | **off** | Enables view-angle color tint. |
 | **Fresnel Color** | RGB color | 0 to 1 | `[1, 1, 1]` | Color of the view-angle tint. |
