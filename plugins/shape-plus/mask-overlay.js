@@ -120,14 +120,19 @@ function mountMaskOverlay(session, viewport, context, tool) {
   };
 }
 
-function install(context, Content) {
+function install(context, Content, paths) {
   const editor = window.CM, PZ = window.PZ, viewport = editor.mainViewport;
   const transform = document.querySelector('button[title="layer transform controls (t)"]');
   const toolbar = transform?.closest(".toolbarpanel")?.pz_panel;
   if (!viewport || !toolbar) throw Error("Layer masks require the native viewport toolbar");
   function sessionFor(layer) {
-    return maskSessionFor(layer, () => createMaskSession({ PZ, editor, project: editor.project, nativeLayer: layer, Content,
+    const session = maskSessionFor(layer, () => createMaskSession({ PZ, editor, project: editor.project, nativeLayer: layer, Content,
       notify: text => context.ui.notify({ title: "Masks", message: text }) }));
+    if (paths) {
+      session.s.pathController = paths.controller;
+      session.s.sharedPathHost = paths.register("mask", layer, session.s);
+    }
+    return session;
   }
   // The overlay owns viewport pointer input only while mask editing is on:
   // "off" leaves drags to the native viewport (editing-camera orbit, the 2D

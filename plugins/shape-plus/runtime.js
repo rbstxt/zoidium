@@ -51,11 +51,13 @@ function install(context) {
   require("./mask-render.js").installMaskRender({ PZ, THREE, Content, onDispose: own });
   require("./mask-persist.js").installMaskPersistence(PZ, own);
   require("./native-ui.js").install(PZ, Layer, Content, own);
-  require("./editor.js").install(context, Layer, Content);
+  const paths = require("./path-hosts.js").createEditorPathRegistry(window.CM, window.CM.mainViewport);
+  own(() => paths.dispose());
+  require("./editor.js").install(context, Layer, Content, paths);
   // Layer masks on native Scene/Adjustment layers (mask-model.js,
   // mask-raster.js, mask-host.js, mask-render.js, mask-persist.js,
   // mask-overlay.js, mask-panels.js).
-  const maskOverlay = require("./mask-overlay.js").install(context, Content);
+  const maskOverlay = require("./mask-overlay.js").install(context, Content, paths);
   require("./mask-panels.js").installMaskPanels(context, Content, mode => maskOverlay.setMode(mode));
   require("./mask-api.js").installMaskApi({ PZ, THREE, Content, onDispose: own });
   require("./convert-native.js").install(context, Layer);
