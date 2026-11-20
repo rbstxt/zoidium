@@ -5,8 +5,7 @@
 // An optional 2D affine [a, b, c, d, e, f] (x' = a*x + c*y + e,
 // y' = b*x + d*y + f) bakes the layer transform into the rasterization so the
 // output is already in composition space and stays vector-sharp at any scale.
-// Unchanged content, target size and transform reuse the previous raster and
-// only repeat the resolve into the (shared) destination.
+// Unchanged content, target size and transform reuse the resolved preview raster.
 const paintShader = require("./paint-shader.js");
 function inverseAffine(t) {
   if (!Array.isArray(t) || t.length !== 6 || !t.every(Number.isFinite)) return null;
@@ -73,7 +72,8 @@ function createRenderer(THREE, sampleScale = "auto") {
     const t = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false });
     t.texture.generateMipmaps = false; targets.push(t); return t;
   }
-  let coverageTarget = null;
+  let coverageTarget = null, scratchReleased = false;
+  let resolvedTarget = null;
   let root = null, paintAllocations = new Set(), size = [0, 0], resolution = [1, 1], structureKey = null;
   // Full-frame planes that composite isolated child targets; they must stay
   // screen-aligned when a layer transform is baked into the camera.
@@ -81,13 +81,21 @@ function createRenderer(THREE, sampleScale = "auto") {
   // appliedTransform: undefined = unknown (force), null = identity, else the key.
   let contentVersion = 0, rasterKey = null, rasterRenderer = null, appliedTransform;
   let observedCanvas = null;
-  const invalidateRaster = () => { rasterKey = null; };
+  function releaseResolved() {
+    resolvedTarget?.dispose();
+    resolvedTarget = null; rasterKey = null; rasterRenderer = null;
+  }
+  function releaseScratch() {
+    if (scratchReleased) return;
+    for (const t of targets) t.dispose();
+    scratchReleased = true;
+  }
   function observeRenderer(renderer) {
     const canvas = renderer.domElement || renderer.context?.canvas || null;
     if (canvas === observedCanvas) return;
-    observedCanvas?.removeEventListener?.("webglcontextrestored", invalidateRaster);
+    observedCanvas?.removeEventListener?.("webglcontextrestored", releaseResolved);
     observedCanvas = canvas;
-    observedCanvas?.addEventListener?.("webglcontextrestored", invalidateRaster);
+    observedCanvas?.addEventListener?.("webglcontextrestored", releaseResolved);
   }
   function releaseTree() {
     for (const value of paintAllocations) {
@@ -96,8 +104,8 @@ function createRenderer(THREE, sampleScale = "auto") {
       else { value.dispose(); allocations.delete(value); }
     }
     paintAllocations.clear(); coverageGeometries.clear();
-    for (const t of targets) t.dispose();
-    targets.length = 0; coverageTarget = null; root = null; structureKey = null;
+    releaseScratch(); releaseResolved();
+    targets.length = 0; scratchReleased = false; coverageTarget = null; root = null; structureKey = null;
     planes.length = 0; rasterKey = null; appliedTransform = undefined; contentVersion++;
   }
   function build(commands) {
@@ -225,6 +233,12 @@ function createRenderer(THREE, sampleScale = "auto") {
       mesh.matrixAutoUpdate = !inverse; mesh.matrixWorldNeedsUpdate = true;
     }
   }
+  function resolve(renderer, texture, destination, scale, w, h) {
+    resolveMaterial.uniforms.image.value = texture;
+    resolveMaterial.uniforms.texel.value.set(1 / w, 1 / h);
+    resolveMaterial.uniforms.samples.value = scale;
+    renderer.render(resolveScene, camera, destination, true);
+  }
   const stats = { renders: 0, treeRenders: 0, skips: 0, width: 0, height: 0, supersample: sampleScale, transform: null };
   function render(renderer, destination, transform = null) {
     if (!root) return;
@@ -242,12 +256,19 @@ function createRenderer(THREE, sampleScale = "auto") {
       try { globalThis.ZOIDIUM_DEBUG_LOG?.record?.("export-gpu-target", { owner: "Shape+ raster", format: "RGBA8", width: w, height: h, count: targets.length, estimatedBytes: renderer.__zoidiumShapeTargetPeak }); }
       catch (_error) { /* Diagnostics must not interrupt export. */ }
     }
-    if (size[0] !== w || size[1] !== h) {
-      for (const t of targets) t.setSize(w, h);
-      size = [w, h]; stats.width = w; stats.height = h;
+    // Keep the original resolve for export and destinations whose framebuffer
+    // cannot round to the same RGBA8 values at the same pixel coordinates.
+    const { texture, viewport } = destination;
+    const cacheable = !renderer.__zoidiumExportRenderer && texture &&
+      texture.format === THREE.RGBAFormat && texture.type === THREE.UnsignedByteType &&
+      !destination.isWebGLRenderTargetCube && !destination.scissorTest &&
+      viewport.x === 0 && viewport.y === 0 && viewport.z === width && viewport.w === height &&
+      width <= destination.width && height <= destination.height;
+    if (resolvedTarget && (renderer !== rasterRenderer || resolvedTarget.width !== width || resolvedTarget.height !== height)) {
+      releaseResolved();
     }
     const key = JSON.stringify([contentVersion, w, h, inverse && transform]);
-    const cached = key === rasterKey && renderer === rasterRenderer;
+    const cached = cacheable && key === rasterKey;
     stats.transform = inverse ? transform.slice() : null;
     const clearColor = renderer.getClearColor().clone(), clearAlpha = renderer.getClearAlpha(), autoClear = renderer.autoClear;
     const previousTarget = renderer.getRenderTarget?.();
@@ -255,29 +276,40 @@ function createRenderer(THREE, sampleScale = "auto") {
       renderer.setClearColor(0, 0); renderer.autoClear = true;
       if (cached) stats.skips++;
       else {
-        rasterKey = null;
+        if (size[0] !== w || size[1] !== h) {
+          for (const t of targets) t.setSize(w, h);
+          size = [w, h]; stats.width = w; stats.height = h;
+        }
         shapeCamera.left = -resolution[0] / 2; shapeCamera.right = resolution[0] / 2;
         shapeCamera.top = resolution[1] / 2; shapeCamera.bottom = -resolution[1] / 2; shapeCamera.updateProjectionMatrix();
         applyTransform(inverse);
+        scratchReleased = false;
         renderTree(root, renderer);
-        rasterKey = key; rasterRenderer = renderer; stats.treeRenders++;
+        stats.treeRenders++;
+        if (cacheable) {
+          if (!resolvedTarget) {
+            resolvedTarget = new THREE.WebGLRenderTarget(width, height, {
+              minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat,
+              type: THREE.UnsignedByteType, depthBuffer: false, stencilBuffer: false,
+            });
+            resolvedTarget.texture.generateMipmaps = false;
+            rasterRenderer = renderer;
+          }
+          rasterKey = null;
+          resolve(renderer, root.target.texture, resolvedTarget, scale, w, h);
+          rasterKey = key;
+        } else resolve(renderer, root.target.texture, destination, scale, w, h);
       }
-      resolveMaterial.uniforms.image.value = root.target.texture;
-      resolveMaterial.uniforms.texel.value.set(1 / w, 1 / h);
-      resolveMaterial.uniforms.samples.value = scale;
-      renderer.render(resolveScene, camera, destination, true);
+      if (cacheable) resolve(renderer, resolvedTarget.texture, destination, 1, width, height);
       stats.renders++;
     } catch (error) {
+      releaseResolved();
       renderer.state?.reset();
       throw error;
-    } finally { renderer.setClearColor(clearColor, clearAlpha); renderer.autoClear = autoClear;
+    } finally {
+      renderer.setClearColor(clearColor, clearAlpha); renderer.autoClear = autoClear;
       if (renderer.setRenderTarget && previousTarget !== undefined) renderer.setRenderTarget(previousTarget);
-      // Export layers can accumulate many full-frame rasters. The resolve has
-      // already consumed these pixels; re-create them if the layer draws again.
-      if (renderer.__zoidiumExportRenderer) {
-        rasterKey = null;
-        for (const t of targets) t.dispose();
-      }
+      releaseScratch();
     }
   }
   function dispose() { observeRenderer({}); releaseTree(); for (const resource of allocations) resource.dispose(); allocations.clear(); warmMaterials.clear(); }

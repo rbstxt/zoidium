@@ -21,7 +21,7 @@ function host() {
   class Camera extends Object3D { updateProjectionMatrix() {} }
   class Vector { set(x, y) { this.x = x; this.y = y; } }
   const THREE = { Scene, Mesh, OrthographicCamera: Camera, ShaderMaterial: Material, BufferGeometry: Geometry, PlaneBufferGeometry: Geometry,
-    BufferAttribute: class {}, Color: class {}, Vector2: Vector, Matrix3: class { set() {} }, Matrix4, WebGLRenderTarget: Target };
+    RGBAFormat: 1023, UnsignedByteType: 1009, BufferAttribute: class {}, Color: class {}, Vector2: Vector, Matrix3: class { set() {} }, Matrix4, WebGLRenderTarget: Target };
   const renderer = { capabilities: { maxTextureSize: 16384 }, autoClear: false, getClearColor: () => ({ clone: () => ({}) }), getClearAlpha: () => 1, setClearColor() {},
     render(scene, camera, target) { draws.push({ scene, camera, target, cameraMatrix: camera.matrix.elements.slice(), auto: camera.matrixAutoUpdate }); } };
   return { THREE, renderer, resources, draws };
@@ -35,7 +35,7 @@ function view(e) {
 }
 const close = (actual, expected) => actual.forEach((value, i) => assert.ok(Math.abs(value - expected[i]) < 1e-9, `${actual} != ${expected}`));
 const paint = { kind: "paint", id: "fill", positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], color: [1, 0, 0], opacity: 1 };
-const destination = { viewport: { z: 640, w: 360 } };
+const destination = byteDestination(640, 360);
 const L = (() => { const t = .5, sx = 4, sy = 2; return [Math.cos(t) * sx, Math.sin(t) * sx, -Math.sin(t) * sy, Math.cos(t) * sy, 30, -20]; })();
 const mapL = p => [L[0] * p[0] + L[2] * p[1] + L[4], L[1] * p[0] + L[3] * p[1] + L[5]];
 
@@ -52,10 +52,10 @@ test("baked transform puts content at L and keeps isolation planes screen-aligne
   assert.equal(cameraMatrix[14], 10);
   const toView = view(cameraMatrix);
   for (const p of [[0, 0], [10, 5], [-120, 33]]) close(toView(p), mapL(p));
-  const plane = h.draws.at(-2).scene.children[0];
+  const plane = h.draws.at(-3).scene.children[0];
   assert.equal(plane.matrixAutoUpdate, false);
   for (const p of [[320, 180], [-320, -180], [7, 9]]) close(toView(apply(plane.matrix.elements, p)), p);
-  assert.ok(h.draws.slice(-3, -1).every(draw => draw.cameraMatrix.every((v, i) => v === cameraMatrix[i])), "child and parent use the same camera");
+  assert.ok(h.draws.slice(-4, -2).every(draw => draw.cameraMatrix.every((v, i) => v === cameraMatrix[i])), "child and parent use the same camera");
   engine.render(h.renderer, destination, null);
   assert.equal(engine.camera.matrixAutoUpdate, true);
   assert.equal(plane.matrixAutoUpdate, true);
@@ -63,26 +63,26 @@ test("baked transform puts content at L and keeps isolation planes screen-aligne
   engine.dispose();
 });
 
-test("unchanged content, size and transform skip the supersampled tree but always resolve", () => {
+test("unchanged content, size and transform copy the resolved raster", () => {
   const h = host(), engine = createRenderer(h.THREE);
   engine.setCommands([{ kind: "isolation", id: "iso", opacity: 1, commands: [paint] }], [640, 360]);
   const resolves = () => h.draws.filter(draw => !("disposals" in draw.target)).length;
   engine.render(h.renderer, destination);
-  assert.equal(h.draws.length, 3);
+  assert.equal(h.draws.length, 4);
   engine.render(h.renderer, destination);
   engine.render(h.renderer, destination);
-  assert.equal(h.draws.length, 5, "only the resolve repeats");
+  assert.equal(h.draws.length, 6, "only the resolved raster copy repeats");
   assert.equal(resolves(), 3);
   assert.deepEqual([engine.stats.renders, engine.stats.treeRenders, engine.stats.skips], [3, 1, 2]);
   engine.setCommands([{ kind: "isolation", id: "iso", opacity: .5, commands: [paint] }], [640, 360]);
   engine.render(h.renderer, destination);
   assert.equal(engine.stats.treeRenders, 2, "uniform-only edits re-render");
-  engine.render(h.renderer, { viewport: { z: 320, w: 180 } });
+  engine.render(h.renderer, byteDestination(320, 180));
   assert.equal(engine.stats.treeRenders, 3, "target resize re-renders");
-  engine.render(h.renderer, { viewport: { z: 320, w: 180 } }, L);
-  engine.render(h.renderer, { viewport: { z: 320, w: 180 } }, L);
+  engine.render(h.renderer, byteDestination(320, 180), L);
+  engine.render(h.renderer, byteDestination(320, 180), L);
   assert.equal(engine.stats.treeRenders, 4, "transform change re-renders once");
-  engine.render(h.renderer, { viewport: { z: 320, w: 180 } }, L.map((v, i) => i === 4 ? v + 1 : v));
+  engine.render(h.renderer, byteDestination(320, 180), L.map((v, i) => i === 4 ? v + 1 : v));
   assert.equal(engine.stats.treeRenders, 5);
   engine.setCommands([paint, paint], [640, 360]);
   engine.render(h.renderer, destination);
@@ -195,6 +195,51 @@ test("context restoration invalidates the cached raster and dispose removes its 
   assert.equal(otherCanvas.listeners, 1);
   engine.dispose();
   assert.equal(otherCanvas.listeners, 0);
+});
+
+function byteDestination(width, height) {
+  return {
+    viewport: { x: 0, y: 0, z: width, w: height },
+    width, height,
+    texture: { format: 1023, type: 1009 },
+  };
+}
+
+test("preview resolves into a 1x cache and releases every supersampled target", () => {
+  const h = host(), engine = createRenderer(h.THREE);
+  const output = byteDestination(640, 360);
+  engine.setCommands([{ kind: "isolation", opacity: .5, commands: [{ ...paint, coverage: paint.positions }] }], [640, 360]);
+  engine.render(h.renderer, output);
+  const targets = h.resources.filter(value => value instanceof h.THREE.WebGLRenderTarget);
+  const scratch = targets.filter(target => target.width === 2560);
+  const [resolved] = targets.filter(target => target.width === 640);
+  assert.equal(scratch.length, 3);
+  assert.ok(scratch.every(target => target.disposals === 1));
+  assert.equal(resolved.height, 360);
+  assert.equal(resolved.disposals, 0);
+  assert.deepEqual(h.draws.slice(-2).map(draw => draw.target), [resolved, output]);
+  engine.render(h.renderer, output);
+  assert.equal(engine.stats.skips, 1);
+  assert.equal(h.draws.at(-1).target, output);
+  assert.ok(scratch.every(target => target.disposals === 1));
+  engine.dispose();
+  assert.equal(resolved.disposals, 1);
+});
+
+test("preview destinations with a different format resolve directly and release the scratch", () => {
+  const h = host(), engine = createRenderer(h.THREE);
+  const output = byteDestination(640, 360);
+  output.texture.type = 1015;
+  engine.setCommands([paint], [640, 360]);
+  engine.render(h.renderer, output);
+  engine.render(h.renderer, output);
+  const targets = h.resources.filter(value => value instanceof h.THREE.WebGLRenderTarget);
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0].disposals, 2);
+  assert.equal(engine.stats.treeRenders, 2);
+  assert.equal(h.draws.length, 4);
+  assert.equal(h.draws.at(-1).target, output);
+  engine.dispose();
 });
 
 test("export releases supersampled targets after resolve and rerasterizes on reuse", () => {

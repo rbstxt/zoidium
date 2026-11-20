@@ -94,5 +94,6 @@ test("a failed mask frame restores target, clear state and recovers on the next 
   assert.throws(()=>engine.render(h.renderer,destination),/frame failure/);
   assert.equal(current,oldTarget);assert.equal(h.renderer.autoClear,false);assert.equal(resets,1);
   fail=false;assert.doesNotThrow(()=>engine.render(h.renderer,destination));assert.equal(current,oldTarget);
-  engine.dispose();assert.ok(h.resources.every(r=>r.disposals===1));
+  engine.dispose();
+  assert.ok(h.resources.every(r=>r.disposals===(r instanceof h.THREE.WebGLRenderTarget?2:1)));
 });
