@@ -4,7 +4,7 @@ description: ネイティブ 2D テキストと 3D テキストの文字単位�
 ---
 **Text+** (既定で有効) を使うと、ネイティブの 2D **Text** レイヤーや **3D Text** オブジェクトを文字単位でアニメーションさせ、選んだ 3D 文字だけに前面・側面マテリアルを割り当て、3D テキストの間隔やベベルを調整できます。
 
-Formula・Spline・Orbit・Repeater・Voronoi を含む 11 種類のエフェクターを積み重ねたい場合は、[ExpressText+](/docs/ja/2d-and-text/expresstext-plus/) を使ってください。Text+ コンテナーが 3D Text を所有している間は、ExpressText+ よりも Text+ が優先されます。
+Formula・Spline・Orbit・Repeater・Voronoi を含む 11 種類のエフェクターを積み重ねたい場合や、**3D Text** を文字ごとの別オブジェクトに分解したい場合は、[ExpressText+](/docs/ja/2d-and-text/expresstext-plus/) を使ってください。Text+ コンテナーが 3D Text を所有している間は、ExpressText+ よりも Text+ が優先されます。
 
 ## ネイティブ 2D Text レイヤーをアニメーションさせる
 

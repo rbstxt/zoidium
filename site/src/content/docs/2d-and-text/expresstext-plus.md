@@ -1,30 +1,58 @@
 ---
 title: ExpressText+
-description: Split 3D Text into tracked letters and stack Shake, Plain, Random, Formula, Delay, Spline, Orbit, Repeater, Twist, Wrap, and Voronoi effectors.
+description: Split 3D Text into tracked letters, stack 11 procedural effectors, or convert a 3D Text object into separate per-character objects.
 ---
-Use **ExpressText+** (enabled by default) to split a 3D Text object into individually tracked letters and drive them with a reorderable stack of 11 procedural effectors.
-If a [Text+](/docs/2d-and-text/text-plus/) container owns the same 3D Text object, ExpressText+ steps aside and leaves those letters to Text+.
+Use **ExpressText+** (enabled by default) to split a **3D Text** object into individually tracked letters and drive them with a reorderable stack of 11 procedural effectors.
+ExpressText+ also adds a **Split into letters** button to every **3D Text** row so you can convert text into separate per-character **3D Text** objects.
+If a [Text+](/docs/2d-and-text/text-plus/) container owns the same **3D Text** object, ExpressText+ steps aside and leaves those letters to Text+.
 
 ## Set up an ExpressText+ stack
 
 1. In a 3D Scene's **Objects** panel, add an **ExpressText+** container.
-2. Place one or more native **3D Text** objects inside the container.
+2. Place one or more native **3D Text** objects inside the container, either directly or inside plain **Group** objects.
 3. On the container's **Custom properties +** row, add one or more effector sections (**Shake**, **Plain**, **Random**, **Formula**, **Delay**, **Spline**, **Orbit**, **Repeater**, **Twist**, **Wrap**, or **Voronoi**).
-4. Drag section headers inside **Custom properties** to change evaluation order. Each drop is one undo step, and saved or duplicated containers keep the order. Changing order affects transform composition and `kind-N` letter selections.
+4. Drag section headers inside **Custom properties** to change evaluation order. Each drop is one **Undo** step, and saved or duplicated containers keep the order. Changing order affects transform composition and `kind-N` letter selections.
 
 Each section evaluates per letter per frame. A **Delay** section trails the whole upstream stack.
+When a container holds multiple **3D Text** objects, use the container's **Letters** setting to choose whether each text evaluates on its own or all texts share one continuous run.
+
+## Split a 3D Text into separate letters
+
+Use **Split into letters** on any **3D Text** row in the **Objects** panel to break the text into individual **3D Text** objects. This command works on standalone **3D Text** objects and on **3D Text** objects inside an **ExpressText+** container.
+
+1. Confirm that **ExpressText+** is enabled in **Plugins** and wait for the text font to finish loading.
+2. In a 3D Scene's **Objects** panel, click the **Split into letters** button on the **3D Text** row.
+
+The command replaces the **3D Text** object with a **Group** named `<text name> letters` at the same place in the hierarchy:
+
+- **Visible characters only:** The group contains one **3D Text** object per visible character at its original position. Spaces and other whitespace advance the layout without creating an object. If the text contains no visible characters, ExpressText+ shows a notification and leaves the text unchanged.
+- **Emoji and multi-line text:** Emoji and other surrogate pairs stay together as one letter object. Multi-line text keeps each line's original position, and line breaks create no object.
+- **Transforms and animation:** Position, rotation, and scale (including their keyframes and expressions) and rotation order move onto the **Group**. Each letter receives a static local offset with neutral rotation and scale, and keeps the original text settings such as size, spacing, alignment, and bevels.
+- **Material and font:** Each letter gets its own copy of the original material so you can edit letter materials independently. All letters share the original font.
+- **Undo and Redo:** One **Undo** restores the original **3D Text** object in its original slot, and **Redo** splits it again.
+- **Inside an ExpressText+ container:** The **Group** takes the original text's place in the hierarchy, so the container keeps animating the letters. Each split letter is now its own **3D Text** object. To number the split letters as one continuous run, set the container's **Letters** setting to **Across texts**.
 
 ## Container and shared section controls
 
-The container itself exposes **Rotation order** (**XYZ**, **XZY**, **YXZ**, **YZX**, **ZXY**, **ZYX**; default **XYZ**).
-A dash (`—`) means no declared minimum or maximum.
+The container's **ExpressText** category exposes two container-wide controls. A dash (`—`) means no declared minimum or maximum.
+
+| Control | Type | Range or options | Default | Effect on output |
+| --- | --- | --- | --- | --- |
+| **Rotation order** | Choice | **XYZ**, **XZY**, **YXZ**, **YZX**, **ZXY**, **ZYX** | **XYZ** | Shared Euler rotation order for the container's effector stack. |
+| **Letters** | Choice | **Per text**, **Across texts** | **Per text** | Chooses whether each **3D Text** evaluates as its own letter set or all texts form one continuous run. |
+
+The container's **Letters** setting controls how multiple **3D Text** objects under one container are numbered and evaluated:
+
+- **Per text:** Treats each **3D Text** under the container as its own set of letters. The result matches giving each text its own copy of the container with the same effectors. Letter numbering, section **Letters** selections, Formula `id`, `u`, and `count`, **Random** **Sorted** ranks, pivots and centers, fields, **Delay** trails, **Repeater** and **Voronoi** parts, and random draws all evaluate per text.
+- **Across texts:** Numbers letters continuously across every **3D Text** under the container in outliner order, with the first text's letters first. This matches the previous behavior from before the **Letters** setting existed.
+- **Existing projects:** New containers start on **Per text**. Projects saved before the **Letters** setting existed open on **Across texts** so their output stays unchanged.
 
 Every effector section shares these controls (except **Delay**, which replaces the stagger rows with channel toggles):
 
 | Control | Type | Range or options | Default | Effect on output |
 | --- | --- | --- | --- | --- |
 | **Enable** | Choice | **off**, **on** | **on** | Disables the section without deleting its rows. |
-| **Letters** | Text | Text | Empty | One-based letter numbers across all text in the container. Empty selects all. Accepts numbers, ranges (`2-6`), `+` separators, and `kind-N` tokens. |
+| **Letters** | Text | Text | Empty | One-based letter numbers, scoped per text or across texts by the container's **Letters** setting. Empty selects all. Accepts numbers, ranges (`2-6`), `+` separators, and `kind-N` tokens. |
 | **Strength** | Number | `0` to `100` (**Random Strength** is unbounded) | `100` | Scales section effect from off to full. |
 | **Delay** | Number | ≥ 0 | `0` | Per-letter time stagger in frames. |
 | **Delay order** | Choice | **Forward**, **Reverse**, **Center out**, **Random** | **Forward** | Order of the per-letter stagger. |
