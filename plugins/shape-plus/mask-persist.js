@@ -17,43 +17,54 @@ const clone = value => JSON.parse(JSON.stringify(value));
 
 function installMaskPersistence(PZ, onDispose) {
   if (!PZ?.layer?.prototype) throw Error("Layer masks need the native layer runtime");
-  const prototype = PZ.layer.prototype;
-  const originalLoad = prototype.load;
-  const originalToJSON = prototype.toJSON;
-  function loadWithMasks(data) {
-    const result = originalLoad.apply(this, arguments);
-    try {
-      const masks = data && typeof data === "object" ? data[FIELD] : undefined;
-      if (masks !== undefined) {
-        validateMasks(masks);
-        this[FIELD] = clone(masks);
+  const prototypes = [PZ.layer.prototype, PZ.layer.adjustment?.prototype, PZ.layer.scene?.prototype]
+    .filter((prototype, index, list) => prototype && list.indexOf(prototype) === index);
+  for (const prototype of prototypes) {
+    const hadOwnLoad = Object.hasOwn(prototype, "load");
+    const hadOwnToJSON = Object.hasOwn(prototype, "toJSON");
+    const originalLoad = prototype.load;
+    const originalToJSON = prototype.toJSON;
+    function loadWithMasks(data) {
+      const result = originalLoad.apply(this, arguments);
+      try {
+        const masks = data && typeof data === "object" ? data[FIELD] : undefined;
+        if (masks !== undefined) {
+          validateMasks(masks);
+          this[FIELD] = clone(masks);
+        }
+      } catch (_error) {
+        delete this[FIELD];
       }
-    } catch (_error) {
-      delete this[FIELD];
+      return result;
     }
-    return result;
-  }
-  function serializeMasks() {
-    const json = originalToJSON.apply(this, arguments);
-    try {
-      const masks = this[FIELD];
-      if (masks !== undefined && json && typeof json === "object" && !Array.isArray(json)) {
-        validateMasks(masks);
-        json[FIELD] = clone(masks);
+    function serializeMasks() {
+      const json = originalToJSON.apply(this, arguments);
+      try {
+        const masks = this[FIELD];
+        if (masks !== undefined && json && typeof json === "object" && !Array.isArray(json)) {
+          validateMasks(masks);
+          json[FIELD] = clone(masks);
+        }
+      } catch (_error) {
+        /* Corrupt live state never breaks saving; the field is dropped. */
       }
-    } catch (_error) {
-      /* Corrupt live state never breaks saving; the field is dropped. */
+      return json;
     }
-    return json;
+    prototype.load = loadWithMasks;
+    prototype.toJSON = serializeMasks;
+    onDispose(() => {
+      // Restore only what is still ours; a wrapper further out owns the chain
+      // then, and removing from the middle would corrupt it.
+      if (prototype.load === loadWithMasks) {
+        if (hadOwnLoad) prototype.load = originalLoad;
+        else delete prototype.load;
+      }
+      if (prototype.toJSON === serializeMasks) {
+        if (hadOwnToJSON) prototype.toJSON = originalToJSON;
+        else delete prototype.toJSON;
+      }
+    });
   }
-  prototype.load = loadWithMasks;
-  prototype.toJSON = serializeMasks;
-  onDispose(() => {
-    // Restore only what is still ours; a wrapper further out owns the chain
-    // then, and removing from the middle would corrupt it.
-    if (prototype.load === loadWithMasks) prototype.load = originalLoad;
-    if (prototype.toJSON === serializeMasks) prototype.toJSON = originalToJSON;
-  });
 }
 
 module.exports = { installMaskPersistence };
