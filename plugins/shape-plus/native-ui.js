@@ -213,6 +213,27 @@ function installPathControls(PZ, sessionFor, onDispose) {
   controls.createControls = create;
   onDispose(() => { if (controls.createControls === create) controls.createControls = original; });
 }
+function installPathConversion(PZ, Content, transfer, openMenu, onDispose) {
+  const proto = PZ.ui.edit.prototype, original = proto.generateListItem;
+  function generatePathItem(container, object) {
+    const row = original.apply(this, arguments);
+    if (!(object instanceof Content) || object.kind !== "path") return row;
+    const rename = row.oncontextmenu;
+    row.oncontextmenu = event => {
+      const layer = object.tryGetParentOfType(PZ.layer);
+      if (!layer) return rename?.(event);
+      event.preventDefault();
+      event.stopPropagation();
+      const { clientX: x, clientY: y } = event;
+      const items = [transfer.conversionCommand(layer, object.id, x, y)];
+      if (rename) items.unshift({ label: "Rename", action: () => rename({ currentTarget: row, preventDefault() {} }) });
+      openMenu({ document: row.ownerDocument, owner: row, x, y, items });
+    };
+    return row;
+  }
+  proto.generateListItem = generatePathItem;
+  onDispose(() => { if (proto.generateListItem === generatePathItem) proto.generateListItem = original; });
+}
 function installPathTimeline(PZ, editor, sessionFor, overlayFor, notify, onDispose) {
   if (!PZ.ui.timeline?.keyframes) return;
   const { install: installView } = require("./path-timeline-view.js");
@@ -277,4 +298,5 @@ function installPathTimeline(PZ, editor, sessionFor, overlayFor, notify, onDispo
   });
   return sync;
 }
-module.exports = { install, connectObjectsPanel, findObjectsPanel, createAddRouting, installPathControls, installPathTimeline };
+module.exports = { install, connectObjectsPanel, findObjectsPanel, createAddRouting,
+  installPathControls, installPathTimeline, installPathConversion };

@@ -58,11 +58,11 @@ function install(context) {
   require("./mask-render.js").installMaskRender({ PZ, THREE, Content, onDispose: own });
   require("./mask-persist.js").installMaskPersistence(PZ, own);
   require("./native-ui.js").install(PZ, Layer, Content, own);
-  const { maskOverlay } = installPathEditing(context, Layer, Content);
-  require("./mask-panels.js").installMaskPanels(context, Content, mode => maskOverlay.setMode(mode));
+  const { maskOverlay, transfer } = installPathEditing(context, Layer, Content);
+  require("./mask-panels.js").installMaskPanels(context, Content, mode => maskOverlay.setMode(mode), transfer);
   require("./mask-api.js").installMaskApi({ PZ, THREE, Content, onDispose: own });
   require("./convert-native.js").install(context, Layer);
-  require("./workflow.js").install(context, Layer, Content);
+  require("./workflow.js").install(context, Layer, Content, transfer);
 }
 function timelineTracks(editor, PZ, document) {
   for (const element of document.querySelectorAll(".editorpanel")) {
@@ -145,6 +145,12 @@ function installPathEditing(context, Layer, Content) {
     return state;
   }
   const nativeUi = require("./native-ui.js");
+  const transfer = require("./path-transfer.js").editorTransfer({
+    editor, viewport, sessionFor, nextId: () => "sp-" + window.crypto.randomUUID(),
+    notify: message => context.ui.notify({ title: "Path transfer", message }),
+    openMenu: options => context.ui.openMenu(options),
+  });
+  nativeUi.installPathConversion(PZ, Content, transfer, options => context.ui.openMenu(options), own);
   nativeUi.installPathControls(PZ, sessionFor, own);
   const refreshTimeline = nativeUi.installPathTimeline(PZ, editor, sessionFor, layer => {
     if (!layer) return null;
@@ -295,7 +301,7 @@ function installPathEditing(context, Layer, Content) {
   }
   viewport.el.addEventListener("pointerdown", canvasPress, true);
   own(() => viewport.el.removeEventListener("pointerdown", canvasPress, true));
-  return { paths, shapeOverlay, maskOverlay, sessionFor };
+  return { paths, shapeOverlay, maskOverlay, sessionFor, transfer };
 }
 
 module.exports = { install, gradientFacade, installPathEditing };

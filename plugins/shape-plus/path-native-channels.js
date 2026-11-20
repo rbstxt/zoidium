@@ -2,6 +2,7 @@
 // create(PZ) binds detached channel operations to CM3's property evaluator.
 // Expressions need an owning native property and cannot be evaluated here.
 const geometry = require("./editor-geometry.js");
+const { synchronizeKeys } = require("./path-topology.js");
 const copy = value => JSON.parse(JSON.stringify(value));
 function create(PZ) {
   function sample(channel, frame) {
@@ -101,7 +102,17 @@ function create(PZ) {
       }
     });
   }
-  return { sample, makeKey, certify, preview };
+  function validatePair(pair, matrix) {
+    const unchangedVectors = matrix[0] === 1 && matrix[1] === 0 && matrix[2] === 0 && matrix[3] === 1;
+    if (!unchangedVectors && pair.some(channel => !valid(channel)))
+      throw Error("Cannot preserve curve-controlled or unsupported interpolation in this affine mapping");
+  }
+  return {
+    sample, makeKey, certify, preview, validatePair,
+    preparePair: pair => synchronizeKeys(pair, { sample, makeKey }),
+    certifyPair: (before, after) => synchronize(before, after),
+    encodePath: channels => ({ objects: channels }),
+  };
 }
 // Mask validation requires grouped keys. Independent channel schedules cannot
 // be represented by that encoding and must be rejected, never approximated.

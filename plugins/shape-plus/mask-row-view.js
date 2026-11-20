@@ -206,6 +206,9 @@
       if (event && typeof event.stopPropagation === "function") event.stopPropagation();
       call(callbacks, "onActivate", id);
     });
+    if (typeof callbacks.onContextMenu === "function") {
+      root.addEventListener("contextmenu", event => call(callbacks, "onContextMenu", id, event));
+    }
     head.appendChild(name);
 
     const mode = make(document, "select", "mask-row-mode");

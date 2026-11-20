@@ -18,8 +18,8 @@ function certify(adapter, phase, before, after, operation, closed, beforeIds, af
   throw Error(typeof result === "string" ? result :
     "Cannot establish exact animation preservation for this topology change");
 }
-function prepare(item, adapter, operation) {
-  const before = animation.channels(item), list = copy(before);
+function synchronizeKeys(before, adapter) {
+  const list = copy(before);
   if (!list.length || typeof adapter?.sample !== "function" || typeof adapter?.makeKey !== "function")
     throw Error("Cannot establish exact animation preservation without a native adapter");
   for (const channel of list) {
@@ -43,6 +43,10 @@ function prepare(item, adapter, operation) {
     channel.keyframes.push(...additions[index].filter(Boolean));
     channel.keyframes.sort((a, b) => a.frame - b.frame);
   });
+  return list;
+}
+function prepare(item, adapter, operation) {
+  const before = animation.channels(item), list = synchronizeKeys(before, adapter);
   certify(adapter, "synchronize", before, list, operation, item.properties.closed, item.vertexIds, item.vertexIds);
   return list;
 }
@@ -118,4 +122,4 @@ function apply(host, operation, adapter) {
   host.commit(result);
   return true;
 }
-module.exports = { prepare, apply };
+module.exports = { prepare, apply, synchronizeKeys };

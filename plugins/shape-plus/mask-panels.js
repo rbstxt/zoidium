@@ -136,6 +136,7 @@ const collapsedIds = new Set();
 function rowCallbacks(session, layer, focusPen, refresh, hooks) {
   const activateOverride = hooks && typeof hooks.onActivate === "function" ? hooks.onActivate : null;
   return {
+    onContextMenu: hooks?.onContextMenu,
     onActivate(id) {
       activateMask(session, layer, id, focusPen, refresh, activateOverride);
     },
@@ -406,7 +407,7 @@ function watchPathSelection(session, refresh) {
   return () => { if (state.onPathSelection === changed) state.onPathSelection = previous; };
 }
 
-function installMaskPanels(context, Content, focusPen) {
+function installMaskPanels(context, Content, focusPen, transfer) {
   const PZ = window.PZ, editor = window.CM;
   if (!PZ?.ui?.edit?.prototype) throw Error("Layer masks require the native property panels");
   const prototype = PZ.ui.edit.prototype;
@@ -459,8 +460,17 @@ function installMaskPanels(context, Content, focusPen) {
           section.style.cssText = "padding:2px 0 4px 14px";
           row.appendChild(section);
         }
-        renderMasksSection(row.ownerDocument, section, session, object, focusPen, () => refreshLive());
-        cleanups.set(row, track(section, session, object));
+        const hooks = transfer && {
+          onContextMenu(id, event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const { clientX: x, clientY: y } = event;
+            context.ui.openMenu({ document: row.ownerDocument, owner: section, x, y,
+              items: [transfer.conversionCommand(object, id, x, y)] });
+          },
+        };
+        renderMasksSection(row.ownerDocument, section, session, object, focusPen, refreshLive, hooks);
+        cleanups.set(row, track(section, session, object, hooks));
       }
     } catch (_error) { /* Never break native rows. */ }
     return row;
