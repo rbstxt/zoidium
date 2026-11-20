@@ -450,6 +450,12 @@ const EMPTY = [];
 
 const CompLayer = Object.create(PZ.layer.composite.prototype);
 
+// Mark the composite objects list as runtime-only. The render copies in it are
+// rebuilt from composition data on every switch, so editing one would be lost
+// on save, and their parent track is not a child of the composition layer
+// (their address cannot resolve). CM3's object panels skip marked lists.
+const RENDER_COPIES = "__zoidiumPrecompRenderCopies";
+
 function adoptCompLayer(layer, json) {
   Object.setPrototypeOf(layer, CompLayer);
   layer.compId = json.compId;
@@ -458,6 +464,10 @@ function adoptCompLayer(layer, json) {
   layer.nestedAudio = null;
   layer.activeClips = [];
   layer.compTime = 0;
+  if (layer.objects) {
+    Object.defineProperty(layer.objects, RENDER_COPIES, { value: true, configurable: true });
+    layer.objects.visible = false;
+  }
 }
 
 function projectOf(layer) {
@@ -844,6 +854,7 @@ function activeName(editor) {
 module.exports = {
   setEditor,
   sessionOf: sessionOf,
+  renderCopiesFlag: RENDER_COPIES,
   timingState: timingState,
   restoreTimingState: restoreTimingState,
   notifyListeners: notifyListeners,

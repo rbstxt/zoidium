@@ -25,6 +25,7 @@ const openComp = engine.openComp;
 const analyzeVideo = engine.analyzeVideo;
 const activeProjectJSON = engine.activeProjectJSON;
 const adoptCompLayer = engine.adoptCompLayer;
+const RENDER_COPIES = engine.renderCopiesFlag;
 // Engine-level messages surface through the shared toast channel (the same
 // one ZoidiumUI.notify uses) instead of blocking engine alerts, so the
 // editor and desktop builds behave the same.
@@ -83,6 +84,21 @@ function install(editor) {
         return out;
       };
     }));
+    // CM3's Objects panel maps a selected clip to clip.object.objects directly,
+    // bypassing childFilter. Hide the composition layer's runtime-only list
+    // there so its disposable render copies cannot be selected or edited.
+    const EditPanel = PZ.ui && PZ.ui.edit && PZ.ui.edit.prototype;
+    if (EditPanel && typeof EditPanel.generateObjectList === "function") {
+      restores.push(patch(EditPanel, "generateObjectList", function (original) {
+        return function (row, list) {
+          if (list && list[RENDER_COPIES]) {
+            if (row && row.style) row.style.display = "none";
+            return undefined;
+          }
+          return original.apply(this, arguments);
+        };
+      }));
+    }
     restores.push(patch(PZ.schedule, "analyzeSequence", function (original) {
       return function (seq) {
         try {

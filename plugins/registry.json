@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "162",
+      "version": "163",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=162",
-      "bundle": "./plugins/core/bundle.json?v=162",
-      "integrity": "sha256-dfqxhPuNf6Cfk4SO5sIHUsTyO3Hiim6AeAgzs6AT7Qo="
+      "manifest": "./plugins/core/manifest.json?v=163",
+      "bundle": "./plugins/core/bundle.json?v=163",
+      "integrity": "sha256-JB0wg3qNnjev5HOcEJszBb34RDAnIbQwrFJMWEo0yb4="
     },
     {
       "id": "easing-plus",
@@ -119,16 +119,16 @@
       "category": "utilities",
       "name": "Precomp+",
       "author": "DaviFX",
-      "version": "22",
+      "version": "23",
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Pre-compose and nested compositions",
       "color": "#4f9db6",
       "description": "Pre-compose selected video clips into compositions, manage them in a Compositions window, and render them nested in Main.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/precomp-plus/manifest.json?v=22",
-      "bundle": "./plugins/precomp-plus/bundle.json?v=22",
-      "integrity": "sha256-iB3PtFVrqLJ3ElsVJWVhZWq/0gOFvU3ugqN38MIZg78="
+      "manifest": "./plugins/precomp-plus/manifest.json?v=23",
+      "bundle": "./plugins/precomp-plus/bundle.json?v=23",
+      "integrity": "sha256-kGoamMZaQrB82QmpB2JzDa2zeEANTXfoxvrhc2iM6nQ="
     },
     {
       "id": "gif-support",
