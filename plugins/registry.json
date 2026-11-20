@@ -550,14 +550,14 @@
       "category": "adjustment",
       "name": "S_Glow (beta 1.0)",
       "author": "MOUSEIIIIII",
-      "version": "19",
+      "version": "20",
       "itemCount": 1,
       "format": "native effect",
       "tagline": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
       "description": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
-      "manifest": "./plugins/sglow-hq-v2-preview/manifest.json?v=19",
-      "bundle": "./plugins/sglow-hq-v2-preview/bundle.json?v=19",
-      "integrity": "sha256-knfkLsD4rSG5SkDWspie+nfhHLryQKrffca6vmG4SUs=",
+      "manifest": "./plugins/sglow-hq-v2-preview/manifest.json?v=20",
+      "bundle": "./plugins/sglow-hq-v2-preview/bundle.json?v=20",
+      "integrity": "sha256-Mr+hG5qYKFCP/sxWvcf3IeT91UUfkcKyDUIlCGwA+7k=",
       "zoidiumOnly": true
     }
   ]

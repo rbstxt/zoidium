@@ -3,7 +3,7 @@
   "id": "sglow-hq-v2-preview",
   "name": "S_Glow (beta 1.0)",
   "author": "Zoidium",
-  "version": "19",
+  "version": "20",
   "kind": "native-fx",
   "description": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
   "nativeEffects": [
@@ -11,19 +11,19 @@
       "id": "sglow-hq-v2-preview",
       "name": "S_Glow (beta 1.0)",
       "description": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
-      "source": "./plugins/sglow-hq-v2-preview/effects/sglow-hq-v2-preview.js?v=19"
+      "source": "./plugins/sglow-hq-v2-preview/effects/sglow-hq-v2-preview.js?v=20"
     }
   ],
   "resources": [
     {
       "id": "sglow-hq-v2-preview-shader",
       "type": "text",
-      "source": "./plugins/sglow-hq-v2-preview/shaders/sglow-hq-v2-preview.glsl?v=19"
+      "source": "./plugins/sglow-hq-v2-preview/shaders/sglow-hq-v2-preview.glsl?v=20"
     },
     {
       "id": "sglow-support",
       "type": "text",
-      "source": "./plugins/sglow-hq-v2-preview/support.js?v=19"
+      "source": "./plugins/sglow-hq-v2-preview/support.js?v=20"
     }
   ]
 }
