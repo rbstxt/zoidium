@@ -38,3 +38,18 @@ test("serialized groups filter bypassed children without hiding active child exp
   child.zoidiumBypassed = false;
   assert.throws(() => policy.assertLayer(layer), /LOCAL_DEPENDENCY_UNAVAILABLE/);
 });
+
+test("active groups check active children but ignore bypassed expressive children", () => {
+  const Policy = require("../zoidium/community-resource-policy.js");
+  const PZ = { zoidium: { effectBypass: { bypassed: effect => effect.zoidiumBypassed === true } } };
+  const policy = Policy.create({ PZ });
+  const child = { zoidiumBypassed: true, pass: {}, toJSON() { return { type: 1,
+    zoidiumBypassed: this.zoidiumBypassed, properties: { expression: "unsupported" } }; } };
+  const group = { objects: [child], toJSON() { return { type: 0, objects: this.objects.map(x => x.toJSON()) }; } };
+  const layer = { effects: [group], objects: [], toJSON() { return { type: 4, effects: [group.toJSON()] }; } };
+  assert.doesNotThrow(() => policy.assertEffect(group));
+  assert.doesNotThrow(() => policy.assertLayer(layer));
+  child.zoidiumBypassed = false;
+  assert.throws(() => policy.assertEffect(group), /LOCAL_DEPENDENCY_UNAVAILABLE/);
+  assert.throws(() => policy.assertLayer(layer), /LOCAL_DEPENDENCY_UNAVAILABLE/);
+});

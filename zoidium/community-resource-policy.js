@@ -18,6 +18,7 @@
       const data = object.toJSON?.();
       if (!data) unavailable("content has no audited saved representation");
       const groups = new WeakSet();
+      if (data.type === 0) groups.add(data);
       const json = JSON.stringify(data, function (key, value) {
         if (Array.isArray(value) && (key === "effects" || key === "objects" && groups.has(this))) {
           const active = value.filter(effect => effect?.zoidiumBypassed !== true);
@@ -40,6 +41,10 @@
       if (PZ.zoidium?.effectBypass?.bypassed(effect)) return;
       if (effect?._community && !effect._communityOpaque) return;
       const data = serialized(effect);
+      if (data.type === 0) {
+        for (const child of effect.objects || []) assertEffect(child);
+        return;
+      }
       if (!effects.has(data.type)) unavailable("the effect input path is unsupported");
       if (data.type === 1) {
         if (effect.customProperties?.length || data.customProperties?.length) unavailable("shader resource inputs are unsupported");
