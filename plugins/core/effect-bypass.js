@@ -131,7 +131,7 @@
     button.type = "button";
     const target = { editor: this.editor, effect: object, list: this.list };
     buttons.set(button, target);
-    button.style.color = "#ccc";
+    button.style.color = "inherit";
     button.style.touchAction = "none";
     button.onpointerdown = event => beginDrag(event, target);
     button.onclick = event => {
