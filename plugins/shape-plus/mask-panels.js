@@ -307,7 +307,7 @@ function rowCallbacks(session, layer, focusPen, refresh, hooks) {
     },
     onDuplicate(id) {
       session.s.mutate(() => {
-        const current = clone(session.host.contents());
+        const current = session.host.readLive?.() || clone(session.host.contents());
         const { masks, id: copyId } = metadata.duplicate(current, id, session.s.nextId);
         session.host.write(masks);
         try {
@@ -363,7 +363,7 @@ function renderMasksSection(document, container, session, layer, focusPen, refre
   try {
     frame = session.s.localFrame();
   } catch (_error) { /* Detached session reads keyframes at frame 0. */ }
-  masks.forEach((mask, index) => {
+  const rows = masks.map((mask, index) => {
     const selected = session.s.maskSelection?.has(mask.id);
     const moving = new Set(selected ? session.s.maskSelection.getSelected() : [mask.id]);
     const canMove = step => masks.some((item, i) => moving.has(item.id) &&
@@ -377,8 +377,18 @@ function renderMasksSection(document, container, session, layer, focusPen, refre
       canMoveUp: moving.size > 1 ? canMove(-1) : index > 0,
       canMoveDown: moving.size > 1 ? canMove(1) : index < masks.length - 1,
     };
-    container.appendChild(renderMaskRow(document, mask, state, callbacks));
+    return container.appendChild(renderMaskRow(document, mask, state, callbacks));
   });
+  container.pz_updatePathKeys = () => {
+    const nextFrame = session.s.localFrame();
+    if (frame === nextFrame) return;
+    frame = nextFrame;
+    masks.forEach((mask, i) => {
+      const status = session.s.pathKeyState?.(mask.id);
+      rows[i].pz_updatePathKeys(status ? { hollow: "off", outlined: "armed", filled: "keyed" }[status] :
+        keyframeStateFor(mask, frame));
+    });
+  };
   const add = document.createElement("button");
   add.className = "actionbutton";
   add.textContent = "+ Add mask";
@@ -432,6 +442,15 @@ function installMaskPanels(context, Content, focusPen, transfer) {
   // Live sections re-render their contents on project changes without
   // disturbing the surrounding native panel.
   const live = new Set(), watched = new Map();
+  let request = null;
+  function updateKeys() {
+    request = null;
+    for (const entry of live) {
+      if (!entry.container.isConnected || !entry.session.s.valid()) entry.dispose();
+      else entry.container.pz_updatePathKeys();
+    }
+    if (live.size) request = window.requestAnimationFrame(updateKeys);
+  }
   function refreshLive() {
     for (const entry of live) {
       if (!entry.container.isConnected) { entry.dispose(); continue; }
@@ -456,6 +475,7 @@ function installMaskPanels(context, Content, focusPen, transfer) {
       if (remove) container.remove();
     };
     live.add(entry);
+    if (request === null) request = window.requestAnimationFrame(updateKeys);
     return entry.dispose;
   }
   const cleanups = new WeakMap();
@@ -493,11 +513,17 @@ function installMaskPanels(context, Content, focusPen, transfer) {
   }
   prototype.generateListItem = maskListItem;
   prototype.unloadListItem = maskUnloadListItem;
+  let changedEvent;
   const rewatch = () => {
-    try { editor.project?.ui?.onChanged?.watch?.(refreshLive); } catch (_error) { /* ignore */ }
+    changedEvent?.unwatch(refreshLive);
+    changedEvent = editor.project?.ui?.onChanged;
+    changedEvent?.watch(refreshLive);
   };
   rewatch();
-  const projectChanged = () => rewatch();
+  const projectChanged = () => {
+    for (const entry of live) if (entry.session.s.project !== editor.project) entry.dispose();
+    rewatch();
+  };
   editor.onProjectChanged.watch(projectChanged);
   context.lifecycle.onDispose(() => {
     if (prototype.generateListItem === maskListItem) prototype.generateListItem = original;
@@ -507,7 +533,8 @@ function installMaskPanels(context, Content, focusPen, transfer) {
   });
   context.lifecycle.onDispose(() => {
     for (const entry of [...live]) entry.dispose();
-    try { editor.project?.ui?.onChanged?.unwatch?.(refreshLive); } catch (_error) { /* ignore */ }
+    if (request !== null) window.cancelAnimationFrame(request);
+    changedEvent?.unwatch(refreshLive);
     try { editor.onProjectChanged.unwatch(projectChanged); } catch (_error) { /* ignore */ }
   });
   return { sessionFor };

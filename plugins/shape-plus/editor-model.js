@@ -89,6 +89,10 @@ function bindPathSession(s, controller, host) {
       s.maskSelection.prune(host.listPathIds());
       if (pathId && s.maskSelection.has(pathId)) s.maskSelection.setActive(pathId);
       else if (pathId) s.maskSelection.click(pathId);
+      else if (s.activeId && !host.hasPath(s.activeId) && s.maskSelection.getActive()) {
+        controller.activate(host, s.maskSelection.getActive());
+        return;
+      }
     }
     const samePath = pathId === s.activeId;
     if (!samePath) {
@@ -255,11 +259,11 @@ function createEditorModel(s) {
     s.canvasApi?.invalidateScene?.();
   };
   s.pathAdapter = nativeChannels.create(PZ);
-  s.pathFor = (id, { preview = false } = {}) => createPathOperationHost({
+  s.pathFor = (id, { preview = false, join = false } = {}) => createPathOperationHost({
     read: () => {
       if (!s.valid()) return null;
-      const item = host?.readLive ? host.readLive().find(item => item.id === id) : s.find(id);
-      return item?.kind === "path" ? clone(item) : null;
+      const item = host?.readLiveItem ? host.readLiveItem(id) : clone(s.find(id));
+      return item?.kind === "path" ? item : null;
     },
     write: next => {
       if (preview) s.pathAdapter.preview(s.find(id).properties.path, next.properties.path.objects);
@@ -269,12 +273,13 @@ function createEditorModel(s) {
     assertEditable: () => s.requireEditablePath(id),
     gesture: s.gesture,
     playback: editor.playback,
-    preview,
+    preview, join,
   });
   s.topology = (operation, id = s.activeId) => {
     s.requireEditablePath(id);
-    const target = s.pathFor(id), data = target.data;
+    const target = s.pathFor(id, { join: true }), data = target.data;
     if (!data) return false;
+    if (operation.kind === "first" && data.vertexIds[0] === operation.id) return false;
     if (applyTopology(target, data, operation, s.pathAdapter)) return true;
     data.vertexModes = data.vertexModes || {};
     s.replaceItem(id, topology(data, operation));
@@ -517,13 +522,14 @@ function createEditorModel(s) {
     return false;
   }
   s.pathKeyState = (id = s.activeId) => {
-    try {
-      const data = s.pathFor(id).data;
-      return data ? animation.diamond(data, s.localFrame()) : "hollow";
-    } catch (_error) { return "hollow"; }
+    const path = s.find(id)?.properties.path, axes = path?.objects;
+    if (path?.expression || !axes?.some(axis => axis.animated)) return "hollow";
+    const frame = s.localFrame();
+    return axes.some(axis => axis.keyframes?.some(key => key.frame === frame)) ? "filled" : "outlined";
   };
   s.setPathAnimation = (id = s.activeId) => pathAnimationCommand(id, (target, frame) =>
-    animation.setEnabled(target, animation.diamond(target.data, frame) === "hollow", frame, s.pathAdapter));
+    animation.setEnabled(target, animation.diamond(target.data, frame) === "hollow", frame,
+      s.pathAdapter, { nativeStopwatch: true }));
   s.togglePathKey = (id = s.activeId) => pathAnimationCommand(id, (target, frame) => {
     const status = animation.diamond(target.data, frame);
     if (status === "hollow") return animation.setEnabled(target, true, frame, s.pathAdapter);

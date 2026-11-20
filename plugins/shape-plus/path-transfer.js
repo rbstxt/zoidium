@@ -70,11 +70,12 @@ function transformPair(x, y, m, translate, adapter) {
   // Mixing channels with distinct key metadata can change interpolation.
   // A native adapter may synchronize and certify the pair before transfer.
   let pair = [x, y];
-  if ((c !== 0 || b !== 0) && keyShape(x) !== keyShape(y)) {
+  const sameShape = adapter?.samePairShape || ((x, y) => keyShape(x) === keyShape(y));
+  if ((c !== 0 || b !== 0) && !sameShape(x, y)) {
     if (typeof adapter?.preparePair !== "function")
       throw Error("Cannot preserve animation across this affine mapping");
     pair = adapter.preparePair(clone(pair), m.slice());
-    if (!Array.isArray(pair) || pair.length !== 2 || keyShape(pair[0]) !== keyShape(pair[1]) ||
+    if (!Array.isArray(pair) || pair.length !== 2 || !sameShape(pair[0], pair[1]) ||
         adapter.certifyPair?.(clone([x, y]), clone(pair), m.slice()) !== true)
       throw Error("Cannot preserve animation across this affine mapping");
   }
@@ -162,12 +163,11 @@ function convert(options) {
   return execute({ ...options, envelope: copyPath(item) });
 }
 
-function editorTransfer({ editor, viewport, sessionFor, nextId, notify, openMenu }) {
+function editorTransfer({ PZ, editor, viewport, sessionFor, nextId, notify, openMenu }) {
   const { createGesture } = require("./editor-history.js");
   const { replaceContents, writePathRecords } = require("./editor-model.js");
   const tree = require("./editor-tree-data.js");
-  const { getMasks, ensureNames } = require("./mask-model.js");
-  const { coercePath } = require("./path-native-channels.js");
+  const { getMasks, ensureNames, coercePath } = require("./mask-model.js");
   const { isPerspectiveView } = require("./path-projection.js");
   const { matrix, identity } = require("./compiler.js");
   const { inverse, multiply } = require("./editor-geometry.js");
@@ -186,6 +186,8 @@ function editorTransfer({ editor, viewport, sessionFor, nextId, notify, openMenu
     return groups.map(group => group.id);
   }
   function space(state, groups) {
+    if (state.pathClip()?.tryGetParentOfType(PZ.sequence) !== editor.sequence)
+      throw Error("Path transfer requires a layer in the current sequence");
     const frame = state.localFrame(), p = state.layer.properties;
     const read = (props, names) => Object.fromEntries(names.map(name => [name, props[name]?.get(frame)]));
     let world = matrix(read(p, ["position", "scale", "rotation"]));

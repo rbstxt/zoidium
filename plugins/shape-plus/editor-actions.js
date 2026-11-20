@@ -18,6 +18,7 @@ function createPathKeyControls(document, target) {
     control.textContent = text;
     control.title = label;
     control.setAttribute("aria-label", label);
+    control.setAttribute("data-zoidium-path-control", "");
     control.addEventListener("click", event => {
       event.stopPropagation();
       const { state, id } = target();

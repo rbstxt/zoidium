@@ -146,7 +146,7 @@ function installPathEditing(context, Layer, Content) {
   }
   const nativeUi = require("./native-ui.js");
   const transfer = require("./path-transfer.js").editorTransfer({
-    editor, viewport, sessionFor, nextId: () => "sp-" + window.crypto.randomUUID(),
+    PZ, editor, viewport, sessionFor, nextId: () => "sp-" + window.crypto.randomUUID(),
     notify: message => context.ui.notify({ title: "Path transfer", message }),
     openMenu: options => context.ui.openMenu(options),
   });

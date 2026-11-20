@@ -250,8 +250,21 @@ function installPathTimeline(PZ, editor, sessionFor, overlayFor, notify, onDispo
         const rows = [];
         const visit = items => {
           for (const item of items || []) {
-            if (item.kind === "path") rows.push({ id: item.id, kind,
-              name: item.properties.name.get(), locked: state.pathLocked(item.id), host: state.pathFor(item.id) });
+            if (item.kind === "path") {
+              const host = state.pathFor(item.id), seek = host.seek;
+              host.seek = frame => {
+                state.pointer?.commit();
+                state.finishNudge?.();
+                if (state.pathController && state.sharedPathHost &&
+                    (state.pathController.activeHost !== state.sharedPathHost ||
+                      state.pathController.activePathId !== item.id)) {
+                  state.pathInput?.notifyExternalSelection();
+                  state.pathController.activate(state.sharedPathHost, item.id);
+                }
+                seek(frame);
+              };
+              rows.push({ id: item.id, kind, name: item.properties.name.get(), locked: state.pathLocked(item.id), host });
+            }
             else if (item.contents) visit(item.contents);
           }
         };

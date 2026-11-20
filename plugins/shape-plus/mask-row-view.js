@@ -243,12 +243,25 @@
       describeKeyframe(keyframeState, mask.name), () => call(callbacks, "onKeyframeToggle", id));
     key.disabled = locked;
     head.appendChild(key);
+    let animation = null;
     if (typeof callbacks.onAnimationToggle === "function") {
-      const animation = headerButton(document, "mask-row-animation", "⏱", keyframeState !== "off",
+      animation = headerButton(document, "mask-row-animation", "⏱", keyframeState !== "off",
         "Toggle animation for " + mask.name, () => call(callbacks, "onAnimationToggle", id));
       animation.disabled = locked;
       head.appendChild(animation);
     }
+    root.pz_updatePathKeys = next => {
+      key.textContent = keyframeGlyph(next);
+      key.title = describeKeyframe(next, mask.name);
+      key.setAttribute("aria-label", key.title);
+      key.setAttribute("aria-pressed", String(next === "keyed"));
+      styleButton(key, next !== "off");
+      if (animation) {
+        animation.setAttribute("aria-pressed", String(next !== "off"));
+        styleButton(animation, next !== "off");
+      }
+    };
+    root.pz_updatePathKeys(keyframeState);
 
     const edit = headerButton(document, "mask-row-edit", "Edit", editing,
       "Edit " + mask.name + " path points in the preview", () => call(callbacks, "onToggleEdit", id));

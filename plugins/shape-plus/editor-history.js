@@ -75,13 +75,13 @@ function createGesture(history, read, write, notify = () => {}, currentProject =
   };
 }
 
-function createPathOperationHost({ read, write, assertEditable, gesture, playback, preview = false }) {
+function createPathOperationHost({ read, write, assertEditable, gesture, playback, preview = false, join = false }) {
   return {
     get data() { return read(); },
     commit(next) {
       assertEditable();
       if (!read()) throw Error("Path is unavailable");
-      if (preview || gesture.active) write(next);
+      if (preview || join && gesture.active) write(next);
       else if (!gesture.run(() => write(next))) throw Error("Finish the current edit before changing path keys");
     },
     seek(frame) {

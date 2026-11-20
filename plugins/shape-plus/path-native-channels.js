@@ -4,6 +4,12 @@
 const geometry = require("./editor-geometry.js");
 const { synchronizeKeys } = require("./path-topology.js");
 const copy = value => JSON.parse(JSON.stringify(value));
+function ordered(value) {
+  if (Array.isArray(value)) return value.map(ordered);
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])]));
+  return value;
+}
 function create(PZ) {
   function sample(channel, frame) {
     if (channel.expression) throw Error("Expression-driven paths cannot be sampled");
@@ -25,8 +31,13 @@ function create(PZ) {
   }
   function shape(channel) {
     const result = copy(channel);
-    result.keyframes.forEach(key => { delete key.value; });
-    return JSON.stringify(result);
+    result.keyframes.forEach(key => {
+      delete key.value;
+      // Native load supplies these defaults for grouped keys.
+      if (JSON.stringify(key.controlPoints) === "[[-10,0],[10,0]]") delete key.controlPoints;
+      if (key.continuousTangent === true) delete key.continuousTangent;
+    });
+    return JSON.stringify(ordered(result));
   }
   function valid(channel) {
     return channel && !channel.expression && Array.isArray(channel.keyframes) && channel.keyframes.length &&
@@ -107,8 +118,18 @@ function create(PZ) {
     if (!unchangedVectors && pair.some(channel => !valid(channel)))
       throw Error("Cannot preserve curve-controlled or unsupported interpolation in this affine mapping");
   }
+  function stopwatch(list, enabled, frame) {
+    return list.map(channel => {
+      if (!!channel.animated === enabled) return channel;
+      const keyframes = enabled ? channel.keyframes : [copy(new PZ.keyframe(sample(channel, frame), 0, 1))];
+      if (enabled && keyframes.length === 1) keyframes[0].frame = frame;
+      return { ...channel, animated: enabled, keyframes };
+    });
+  }
   return {
-    sample, makeKey, certify, preview, validatePair,
+    sample, makeKey, certify, preview, validatePair, stopwatch,
+    staticReadsKeyframes: typeof PZ.property.create === "function",
+    samePairShape: (x, y) => shape(x) === shape(y),
     preparePair: pair => synchronizeKeys(pair, { sample, makeKey }),
     certifyPair: (before, after) => synchronize(before, after),
     encodePath: channels => ({ objects: channels }),

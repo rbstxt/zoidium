@@ -77,8 +77,8 @@ function install(PZ) {
       start: "keyframeDragStart", move: "keyframeDrag", update: "keyframeDragUpdate", end: "keyframeDragEnd",
     })) {
       const drag = panel.keyframe_drag;
-      if (drag[slot] !== originals.get(method)) continue;
-      drag[slot] = wrappers.get(method);
+      if (drag[slot] === originals.get(method)) drag[slot] = wrappers.get(method);
+      if (drag[slot] !== wrappers.get(method)) continue;
       restoreInstance.push(() => { if (drag[slot] === wrappers.get(method)) drag[slot] = originals.get(method); });
     }
     const originalKeydown = panel.el.onkeydown;

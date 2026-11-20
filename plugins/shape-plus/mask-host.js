@@ -77,24 +77,29 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
     }
     return state.items;
   }
+  function editedItem(item, saved) {
+    const current = clone(item), baseline = state.baseline.get(item.id);
+    if (!baseline || !saved) return current;
+    // Native properties add defaults during load and serialization. Keep the
+    // saved representation of fields that the overlay has not edited.
+    const data = clone(saved);
+    const merge = (target, before, after) => {
+      for (const key of Object.keys(after)) {
+        if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) target[key] = after[key];
+      }
+    };
+    const { properties, ...fields } = current;
+    merge(data, baseline, fields);
+    merge(data.properties, baseline.properties, properties);
+    return data;
+  }
   function readLive() {
     const items = sync(), stored = new Map(readField(nativeLayer).map(item => [item.id, item]));
-    return items.map(item => {
-      const current = clone(item), baseline = state.baseline.get(item.id), saved = stored.get(item.id);
-      if (!baseline || !saved) return current;
-      // Native properties add defaults during load and serialization. Keep the
-      // saved representation of fields that the overlay has not edited.
-      const data = clone(saved);
-      const merge = (target, before, after) => {
-        for (const key of Object.keys(after)) {
-          if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) target[key] = after[key];
-        }
-      };
-      const { properties, ...fields } = current;
-      merge(data, baseline, fields);
-      merge(data.properties, baseline.properties, properties);
-      return data;
-    });
+    return items.map(item => editedItem(item, stored.get(item.id)));
+  }
+  function readLiveItem(id) {
+    const item = sync().find(candidate => candidate.id === id);
+    return item && editedItem(item, readField(nativeLayer).find(candidate => candidate.id === id));
   }
   function owns(target) {
     return !!target && target === nativeLayer;
@@ -113,6 +118,7 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
   // present-but-invalid parameters still fail validation below.
   function normalize(data) {
     if (!Array.isArray(data)) throw Error("Layer masks must be an array");
+    const saved = new Map(readField(nativeLayer).map(item => [item.id, item]));
     const flat = [];
     for (const entry of data) {
       if (entry && entry.kind === "group" && Array.isArray(entry.contents) && entry.contents.length === 1 &&
@@ -128,7 +134,8 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
       if (item.feather === undefined) item.feather = 0;
       if (item.opacity === undefined) item.opacity = 1;
       if (item.invert === undefined) item.invert = 0;
-      if (item.properties && typeof item.properties === "object")
+      if (item.properties && JSON.stringify(item.properties.path) !==
+          JSON.stringify(saved.get(item.id)?.properties?.path))
         item.properties.path = coercePath(item.properties.path);
     }
     return ensureNames(flat);
@@ -158,6 +165,7 @@ function createMaskHost({ nativeLayer, Content, editor, project }) {
     adapter,
     contents: sync,
     readLive,
+    readLiveItem,
     owns,
     valid,
     write,

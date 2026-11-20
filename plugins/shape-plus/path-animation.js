@@ -72,7 +72,7 @@ function edit(host, frame, values, adapter) {
     list.forEach((channel, index) => {
       if (values[index] !== before[index]) {
         channel.keyframes.find((entry) => entry.frame === frame).value = values[index];
-        if (!channel.animated) channel.keyframes[0].value = values[index];
+        if (!channel.animated && !adapter.staticReadsKeyframes) channel.keyframes[0].value = values[index];
       }
     });
   } else {
@@ -81,9 +81,13 @@ function edit(host, frame, values, adapter) {
   publish(host, list);
   return true;
 }
-function setEnabled(host, value, frame, adapter) {
+function setEnabled(host, value, frame, adapter, { nativeStopwatch = false } = {}) {
   const list = channels(host.data), target = !!value;
   if (list.every((channel) => !!channel.animated === target)) return false;
+  if (nativeStopwatch && adapter.stopwatch) {
+    publish(host, adapter.stopwatch(list, target, frame));
+    return true;
+  }
   if (target) insert(list, frame, samples(list, frame, adapter), adapter);
   list.forEach((channel) => { channel.animated = target; });
   publish(host, list);
