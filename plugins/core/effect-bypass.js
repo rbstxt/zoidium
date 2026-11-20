@@ -79,7 +79,8 @@
       const button = row.querySelector(".zoidium-effect-bypass");
       if (!button) continue;
       const off = row.pz_object.zoidiumBypassed === true;
-      button.textContent = off ? "◉̸" : "◉";
+      button.textContent = "◉";
+      button.style.textDecoration = off ? "line-through" : "none";
       button.title = off ? "Enable effect" : "Bypass effect";
       button.setAttribute("aria-label", button.title);
       button.setAttribute("aria-pressed", String(!off));

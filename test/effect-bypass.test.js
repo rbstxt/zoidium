@@ -34,6 +34,8 @@ test("state round trips, old effects stay active, and group bypass covers childr
   child.parent = { parent: group }; group.objects.push(child);
   group.load({}); child.load({});
   assert.equal(api.bypassed(child), false);
+  const inner = E.create("group"); inner.parent = { parent: group };
+  child.parent = { parent: inner }; inner.objects.push(child);
   group.zoidiumBypassed = true;
   assert.equal(api.bypassed(child), true);
   child.prepare(); assert.equal(child.prepared, 0);
@@ -45,6 +47,7 @@ test("state round trips, old effects stay active, and group bypass covers childr
 
 test("toggle creates one reversible history operation and invalidates edits", () => {
   const w = setup(), effect = w.PZ.effect.create("test"), api = w.PZ.zoidium.effectBypass;
+  effect.enabled = false; effect.pass = { enabled: true };
   let signal = 0, command;
   w.ZoidiumEditSignals = { touch() { signal++; } };
   const history = { operation: null, startOperation() { this.operation = []; },
@@ -57,6 +60,7 @@ test("toggle creates one reversible history operation and invalidates edits", ()
   command.fn(command.data);
   assert.equal(effect.zoidiumBypassed, true);
   assert.equal(signal, 3);
+  assert.equal(effect.enabled, false); assert.equal(effect.pass.enabled, true);
 });
 
 test("compositor skips bypassed effects and groups", () => {
