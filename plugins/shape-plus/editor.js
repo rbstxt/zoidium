@@ -21,7 +21,7 @@ function editableClip(editor, viewport, Layer, PZ) {
   if (!inverse(matrix({ position: p.position.get(local), scale: p.scale.get(local), rotation: p.rotation.get(local) }))) return null;
   return clip;
 }
-function mountOverlay(context, layer, Content, viewport, panels, tool) {
+function mountOverlay(context, layer, Content, viewport, panels, tool, paths) {
   const canvas = document.createElement("canvas"), editor = window.CM, PZ = window.PZ;
   canvas.className = "shape-plus-overlay";
   canvas.setAttribute("aria-label", "Shape+ selection");
@@ -47,6 +47,10 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
     if (row) panels.top.renameClick({ currentTarget: row, preventDefault() {} });
   };
   createEditorModel(s);
+  if (paths) {
+    s.pathController = paths.controller;
+    s.sharedPathHost = paths.register("shape", layer, s);
+  }
   function syncSelection() {
     const selected = [...s.treeSelection].map(s.find).filter(Boolean);
     const top = panels.top;
@@ -115,7 +119,7 @@ function mountOverlay(context, layer, Content, viewport, panels, tool) {
     },
   };
 }
-function install(context, Layer, Content) {
+function install(context, Layer, Content, paths) {
   const editor = window.CM, PZ = window.PZ, viewport = editor.mainViewport;
   const panels = findObjectsPanel(PZ, editor, document);
   const transform = document.querySelector('button[title="layer transform controls (t)"]');
@@ -124,9 +128,9 @@ function install(context, Layer, Content) {
   let view = null, tool = "select", enabled = true, disposed = false, hiddenWidget = null;
   const commands = [], buttons = [];
   function setTool(next) {
-    if (next === "select") enabled = !enabled || tool !== "select";
-    else enabled = true;
+    enabled = true;
     tool = next;
+    if (paths && paths.controller.tool !== next) paths.controller.setTool(next);
     view?.tool(next);
     tick(false);
   }
@@ -181,7 +185,7 @@ function install(context, Layer, Content) {
     const visible = enabled && !!layer;
     if (view && (!visible || view.state.layer !== layer || !view.state.valid())) { view.dispose(); view = null; }
     if (visible && !view) {
-      view = mountOverlay(context, layer, Content, viewport, panels, tool);
+      view = mountOverlay(context, layer, Content, viewport, panels, tool, paths);
       view.state.setTool = setTool;
       view.select(panels.top.selection);
     }

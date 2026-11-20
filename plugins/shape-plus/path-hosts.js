@@ -56,6 +56,7 @@ const {
   MAX_NAME_LENGTH,
 } = require("./mask-metadata.js");
 const { createMask, validateMasks, ensureNames } = require("./mask-model.js");
+const { createPathController } = require("./path-controller.js");
 
 const HOST_KINDS = ["mask", "shape"];
 const MINT_ATTEMPTS = 1024;
@@ -483,10 +484,62 @@ function applyCreation(request, options = {}) {
   throw Error("Unknown path creation kind " + request.kind);
 }
 
+// The runtime owns this registry. A project change discards both the
+// controller and the adapters, including adapters for closed overlays.
+function createEditorPathRegistry(editor, viewport) {
+  let controller = createPathController({ project: editor.project, viewport });
+  let hosts = new WeakMap(), nextHostId = 0;
+  function register(kind, layer, session) {
+    let entry = hosts.get(layer);
+    if (entry && entry.kind === kind) return entry.host;
+    const read = () => {
+      if (kind === "mask") return session.pathHost.readHistory(layer) || [];
+      const paths = [];
+      const visit = items => items.forEach(item => {
+        if (item.kind === "path") paths.push(item);
+        if (Array.isArray(item.contents)) visit(item.contents);
+      });
+      visit(session.read() || []);
+      return paths;
+    };
+    const store = {
+      read,
+      write(data) {
+        if (kind !== "mask") throw Error("Shape+ path snapshots require a contents transaction");
+        session.pathHost.writeHistory(layer, data);
+      },
+      nextId: session.nextId,
+    };
+    const options = { id: "editor-path-host-" + (++nextHostId), store, controller };
+    const host = kind === "mask" ? createMaskPathHost(options) : createShapePathHost(options);
+    hosts.set(layer, { kind, host, session });
+    return host;
+  }
+  function changed() {
+    controller.dispose();
+    hosts = new WeakMap();
+    controller = createPathController({ project: editor.project, viewport });
+  }
+  editor.onProjectChanged.watch(changed);
+  return {
+    get controller() { return controller; },
+    register,
+    activate(kind, layer, pathId) {
+      const entry = hosts.get(layer);
+      if (!entry || entry.kind !== kind || !entry.host.hasPath(pathId)) return false;
+      controller.activate(entry.host, pathId);
+      entry.session.selectItem(pathId);
+      return true;
+    },
+    dispose() { editor.onProjectChanged.unwatch(changed); controller.dispose(); hosts = new WeakMap(); },
+  };
+}
+
 module.exports = {
   HOST_KINDS,
   createMaskPathHost,
   createShapePathHost,
   requestCreation,
   applyCreation,
+  createEditorPathRegistry,
 };
