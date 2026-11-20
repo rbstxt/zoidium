@@ -168,13 +168,12 @@ function duplicate(masks, id, nextId) {
   if (typeof nextId !== "function") throw Error("Layer mask duplicate needs an id generator");
   const result = clone(masks);
   const source = result[findIndex(result, id)];
-  const takenMasks = new Set(result.map(mask => mask?.id));
-  const takenVertices = new Set(result.flatMap(mask => Array.isArray(mask?.vertexIds) ? mask.vertexIds : []));
+  const taken = new Set(result.flatMap(mask => [mask?.id, ...(Array.isArray(mask?.vertexIds) ? mask.vertexIds : [])]));
   const fresh = () => {
     for (let attempt = 0; attempt < 1024; attempt++) {
       const candidate = nextId();
-      if (typeof candidate === "string" && candidate && !takenMasks.has(candidate)) {
-        takenMasks.add(candidate);
+      if (typeof candidate === "string" && candidate && !taken.has(candidate)) {
+        taken.add(candidate);
         return candidate;
       }
     }
@@ -183,8 +182,8 @@ function duplicate(masks, id, nextId) {
   const freshVertex = () => {
     for (let attempt = 0; attempt < 1024; attempt++) {
       const candidate = nextId();
-      if (typeof candidate === "string" && candidate && !takenVertices.has(candidate)) {
-        takenVertices.add(candidate);
+      if (typeof candidate === "string" && candidate && !taken.has(candidate)) {
+        taken.add(candidate);
         return candidate;
       }
     }

@@ -181,6 +181,11 @@ function createPathInput(options = {}) {
     const key = (event?.key || "").toLowerCase();
     if (isComposingEvent(event)) return result(event, "ignore", false, { reason: "composing" });
     if (isEditableTarget(event?.target)) return result(event, "ignore", false, { reason: "typing" });
+    if (context.viewportFocused !== true &&
+        !(context.viewportFocused !== false && controller.ownsFocus?.("path"))) {
+      if (key === "delete" || key === "backspace") return result(event, "defer-to-panel", false, { reason: "focus-elsewhere" });
+      return result(event, "ignore", false, { reason: "focus-elsewhere" });
+    }
     if (key === "control" || key === "meta") return pressModifier(event);
     if (key === "alt") {
       state.altHeld = true;
@@ -197,9 +202,6 @@ function createPathInput(options = {}) {
     // system or native menus.
     if (event?.altKey) {
       return result(event, "defer-to-native", false, { reason: "alt-shortcut", key });
-    }
-    if (context.viewportFocused === false) {
-      return result(event, "ignore", false, { reason: "focus-elsewhere" });
     }
     if (key === "q" || key === "p") {
       // `Q` selects Pen without cycling; `P` stays a Pen alias.
@@ -257,7 +259,9 @@ function createPathInput(options = {}) {
   function activateAt(point, candidateIds, host) {
     const id = chooseCandidate(state.cycle, point, candidateIds);
     if (id === null) return null;
-    controller.activate(host || controller.activeHost, id);
+    const target = host || controller.activeHost;
+    if (!target) return null;
+    controller.activate(target, id);
     return id;
   }
 

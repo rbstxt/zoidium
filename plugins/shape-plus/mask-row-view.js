@@ -26,10 +26,8 @@
 //   Every callback is optional; missing ones are ignored.
 //
 // Numeric ranges: feather 0..500 px and opacity 0..100% mirror mask-model.js
-// validation. Expansion is clamped to EXPANSION_MIN..EXPANSION_MAX (layer px);
-// the bounds are view-level guards only — P1.8 measures the supported render
-// range and the integration package owns the final authority. Out-of-range or
-// non-numeric edits restore the field and commit nothing.
+// validation. Expansion accepts -128 to 128 layer pixels. Invalid edits
+// restore the field and commit nothing.
 (function (root) {
   const MODES = ["add", "subtract", "intersect"];
   const MODE_LABELS = { add: "Add", subtract: "Subtract", intersect: "Intersect" };
@@ -39,7 +37,7 @@
   const LIMITS = {
     featherMin: 0, featherMax: 500,
     opacityMin: 0, opacityMax: 100,
-    expansionMin: -100, expansionMax: 100,
+    expansionMin: -128, expansionMax: 128,
   };
   const DEFAULTS = {
     name: "Mask",
@@ -143,6 +141,9 @@
       const raw = event?.target?.value ?? input.value;
       const next = Number(raw);
       if (!Number.isFinite(next) || next < min || next > max) {
+        input.setCustomValidity?.("Enter a number from " + min + " to " + max + ".");
+        input.reportValidity?.();
+        input.setCustomValidity?.("");
         input.value = String(value);
         return;
       }
@@ -326,7 +327,7 @@
     body.appendChild(nameWrap);
 
     const lock = headerButton(document, "mask-row-lock", locked ? "🔒" : "🔓", locked,
-      (locked ? "Unlock " : "Lock ") + mask.name + " (locking blocks geometry, keyframe and delete edits)",
+      (locked ? "Unlock " : "Lock ") + mask.name + " (locking blocks geometry, keys, properties and deletion; reordering remains allowed)",
       () => call(callbacks, "onToggleLock", id));
     lock.disabled = false;
     body.appendChild(lock);
@@ -338,11 +339,11 @@
 
     const up = headerButton(document, "mask-row-up", "▲", false,
       "Move " + mask.name + " earlier in combine order", () => call(callbacks, "onMove", id, -1));
-    up.disabled = locked || !canMoveUp;
+    up.disabled = !canMoveUp;
     body.appendChild(up);
     const down = headerButton(document, "mask-row-down", "▼", false,
       "Move " + mask.name + " later in combine order", () => call(callbacks, "onMove", id, 1));
-    down.disabled = locked || !canMoveDown;
+    down.disabled = !canMoveDown;
     body.appendChild(down);
 
     return root;

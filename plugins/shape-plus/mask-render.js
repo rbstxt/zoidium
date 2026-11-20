@@ -69,7 +69,7 @@ function evaluateMasks(Content, masks, frame) {
     } catch (error) {
       throw Error("Layer mask item: " + error.message);
     }
-    evaluated.push({ ...geometry, mode: data.mode || "add", feather: data.feather || 0, opacity: data.opacity === undefined ? 1 : data.opacity, invert: !!data.invert,
+    evaluated.push({ ...geometry, mode: data.mode || "add", feather: data.feather || 0, expansion: data.expansion, opacity: data.opacity === undefined ? 1 : data.opacity, invert: !!data.invert,
       enabled: geometry.enabled && data.enabled !== false && data.enabled !== 0 });
   }
   return evaluated;
@@ -203,7 +203,13 @@ function installMaskRender({ PZ, THREE, Content, onDispose }) {
       return;
     }
     const size = coverageSize(resolution);
-    const scaled = scaleEvaluated(evaluated, size.scale);
+    let scaled;
+    try {
+      scaled = scaleEvaluated(evaluated, size.scale);
+    } catch (error) {
+      warnOnce(layer, error.message);
+      return;
+    }
     const signature = signatureOf(scaled, size.width, size.height);
     const runtime = runtimeFor(compositor);
     let coverage = null;

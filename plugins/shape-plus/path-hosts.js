@@ -7,7 +7,7 @@
 //   for prune-on-undo; `listVertexIds` filters vertex reads; `syncSelection`
 //   mirrors activation and selection; `isLocked` is never called by the
 //   controller (locked paths select exactly like unlocked ones).
-// - `mask-metadata.js`: `isLocked`, `assertEditable`, `ensureNames`,
+// - `mask-metadata.js`: `isLocked`, `assertEditable`,
 //   `nextOutlineColor`, `validateMetadataCollection`; adapters call
 //   `ensureMetadata`-style tolerant readers and `assertEditable` before
 //   geometry, topology, keyframe, or delete writes.
@@ -222,9 +222,12 @@ function createMaskPathHost({ id, store, mirror = null, controller = null } = {}
     const at = checkPoint(point);
     const before = current();
     validateMasks(before);
-    const taken = new Set(before.map(mask => mask.id));
+    const taken = new Set(before.flatMap(mask => [mask.id, ...mask.vertexIds]));
     const freshId = mintId(store.nextId, taken);
     const item = createMask(freshId, "Path", at);
+    let vertexId = "v1", suffix = 1;
+    while (taken.has(vertexId)) vertexId = "v" + (++suffix);
+    item.vertexIds = [vertexId];
     item.outlineColor = nextOutlineColor(before);
     item.locked = false;
     item.expansion = 0;
@@ -363,7 +366,7 @@ function createShapePathHost({ id, store, mirror = null, controller = null, isLo
     const vertices = checkShapeTopology(vertexIds);
     const before = current();
     checkShapeRecords(before);
-    const taken = new Set(before.map(record => record.id));
+    const taken = new Set(before.flatMap(record => [record.id, ...(record.vertexIds || [])]).concat(vertices));
     const freshId = mintId(store.nextId, taken);
     const record = { ...clone(fields), id: freshId, kind: "path", vertexIds: vertices };
     const next = [...before, record];
