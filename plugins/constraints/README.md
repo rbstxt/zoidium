@@ -46,7 +46,7 @@ It does not update another scene's materials, renderer, or live object poses. Ge
 
 The native Delete command records a hidden local-pose fallback through the native property history API before removing a target.
 Missing links show **(Missing target)** and use that pose. A missing imported link without a fallback uses the authored pose.
-See the [Follow reference](../../site/src/content/docs/reference/constraints.md) for timing, spaces, and limits.
+See the [Follow reference](../../site/src/content/docs/3d/constraints.md) for timing, spaces, and limits.
 
 ## Evaluation
 

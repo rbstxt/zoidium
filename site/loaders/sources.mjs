@@ -14,6 +14,7 @@ export const featureIds = [
 ];
 const routes = new Map(developerDocs.map(id => [`docs/${id}.md`, `development/${id}/`]));
 for (const id of featureIds) routes.set(`plugins/${id}/README.md`, `features/${id}/`);
+routes.set('site/src/content/docs/3d/constraints.md', '3d/constraints/');
 
 // Resolve repository-relative Markdown links without modifying their canonical sources.
 // locale is "root" for English or "ja" for Japanese; routes gain a ja/ prefix.
