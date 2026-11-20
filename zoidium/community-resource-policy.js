@@ -27,6 +27,7 @@
     }
     function assertEffect(effect) {
       check();
+      if (PZ.zoidium?.effectBypass?.bypassed(effect)) return;
       if (effect?._community && !effect._communityOpaque) return;
       const data = serialized(effect);
       if (!effects.has(data.type)) unavailable("the effect input path is unsupported");
@@ -82,6 +83,7 @@
       }
     }
     async function prepareEffect(effect, frame, context) {
+      if (PZ.zoidium?.effectBypass?.bypassed(effect)) { check(); return; }
       assertEffect(effect);
       // Audited native effects already own resident passes. Their ordinary
       // prepare hooks are unnecessary and can contain lazy asset acquisition.
