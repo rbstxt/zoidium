@@ -165,6 +165,29 @@
 
   var PROJECT_ENTRY = "project";
   var META_ENTRY = "meta";
+  var openedShapeProjects = new WeakMap();
+
+  // A Shape+ version change can update the requirements descriptor while
+  // leaving the authored project identical. Keep the validated document bytes
+  // in that case, including field order. Saves after edits use current data.
+  function comparableShapeDocument(document) {
+    for (var plugin of Array.isArray(document?.plugins) ? document.plugins : []) {
+      if (plugin?.id === "shape-plus") delete plugin.version;
+    }
+    return JSON.stringify(document, function (_key, value) {
+      if (!isPlainObject(value)) return value;
+      return Object.fromEntries(Object.keys(value).sort().map(function (key) { return [key, value[key]]; }));
+    });
+  }
+  async function preserveUnchangedShapeDocument(archive, project) {
+    var original = openedShapeProjects.get(project);
+    if (!original) return;
+    var projectEntry = archive.peekFile(PROJECT_ENTRY);
+    var metaEntry = archive.peekFile(META_ENTRY);
+    if (!projectEntry || !metaEntry || original.meta !== await decodeEntryText(metaEntry.data)) return;
+    var current = await readJsonEntry(archive, PROJECT_ENTRY, "save", "The project data");
+    if (comparableShapeDocument(current) === original.comparable) projectEntry.data = original.data;
+  }
 
   // Reads an archive entry without removing it. CM3's getFile() splices the
   // entry out of the archive, so the validator must never use it.
@@ -392,6 +415,7 @@
       await serializeProject(archive, editor.project);
       // Runtime-only media thumbnails must never reach a saved file.
       await sanitizeProjectArchive(archive);
+      await preserveUnchangedShapeDocument(archive, sourceProject);
       // Refuse to continue with a missing, empty, or "undefined" project entry.
       // Nothing has been written to disk or to a restore point at this point.
       var projectName = getProjectName(editor);
@@ -845,10 +869,18 @@
           dispatch("zoidium:notification", { title: "Opened readable parts", message: error.message.replace(" Nothing was replaced.", "") + " Reattach the unavailable assets before saving. The source file and previous restore points are unchanged." });
         }
         var metadata = decodeArchiveMetadata(archive);
+        var originalDocument = metadata?.version === 1 && metadata.integrity?.project
+          ? archive.peekFile(PROJECT_ENTRY)?.data : null;
+        var originalMeta = originalDocument && archive.peekFile(META_ENTRY)?.data;
         progress.update("Saving a restore point before replacing the current project.");
         var expected = await backupBeforeReplace(editor, "opening another project");
         progress.update("Loading project objects, plugins, and clip resources.");
         var project = await editor.loadProject(archive);
+        if (originalMeta && project._zoidiumProjectPlugins?.some(plugin => plugin.id === "shape-plus")) {
+          var originalText = await decodeEntryText(originalDocument);
+          openedShapeProjects.set(project, { data: originalDocument, meta: await decodeEntryText(originalMeta),
+            comparable: comparableShapeDocument(JSON.parse(originalText)) });
+        }
         assertProjectUnchanged(editor, expected);
         editor.project = project;
         editor._zoidiumSaveFileHandle = null;
