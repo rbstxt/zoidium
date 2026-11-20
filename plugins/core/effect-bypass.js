@@ -81,12 +81,13 @@
     exchange(drag.editor, { address: target.effect.getAddress(), value: drag.value });
   }
   function endDrag(event) {
-    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (!drag || event.type !== "blur" && event.pointerId !== drag.pointerId) return;
     const current = drag;
     drag = null;
     current.document.removeEventListener("pointermove", moveDrag, true);
     current.document.removeEventListener("pointerup", endDrag, true);
     current.document.removeEventListener("pointercancel", endDrag, true);
+    current.document.defaultView?.removeEventListener?.("blur", endDrag);
     current.editor.history.finishOperation();
   }
   function moveDrag(event) {
@@ -106,6 +107,8 @@
     document.addEventListener("pointermove", moveDrag, true);
     document.addEventListener("pointerup", endDrag, true);
     document.addEventListener("pointercancel", endDrag, true);
+    // Losing the window mid-drag (no pointerup) still closes the undo step.
+    document.defaultView?.addEventListener?.("blur", endDrag);
   }
   api.refresh = function () {
     for (const ref of rows) {

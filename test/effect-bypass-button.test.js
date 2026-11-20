@@ -19,6 +19,10 @@ function setup() {
     removeEventListener(type) { delete listeners[type]; },
     elementFromPoint() { return this.target; },
     dispatch(type, event) { listeners[type]?.(event); },
+    defaultView: {
+      addEventListener(type, fn) { listeners["window:" + type] = fn; },
+      removeEventListener(type) { delete listeners["window:" + type]; },
+    },
   };
   class Effect {
     constructor() { this.parent = null; }
@@ -118,4 +122,10 @@ test("drag sets three eyes in one undo operation, and click toggles one", () => 
   w.document.dispatch("pointercancel", touch);
   assert.deepEqual(effects.map(effect => effect.zoidiumBypassed), [true, true, true]);
   assert.equal(history.operation, null);
+  // Losing the window without a pointerup still closes the undo step.
+  eyes[1].onpointerdown({ ...event, pointerId: 3, currentTarget: eyes[1] });
+  assert.notEqual(history.operation, null);
+  w.document.dispatch("window:blur", { type: "blur" });
+  assert.equal(history.operation, null);
+  assert.equal(effects[1].zoidiumBypassed, false);
 });
