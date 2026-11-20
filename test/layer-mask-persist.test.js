@@ -74,3 +74,38 @@ test("adjustment overrides load and save without calling the base layer", () => 
   cleanup.forEach(fn => fn());
   assert.equal(layer.toJSON()[FIELD], undefined);
 });
+
+test("native left trim shifts both mask key encodings with the clip history", () => {
+  function Tracks() {}
+  const native = Tracks.prototype.moveClip = function (edit) {
+    this.observed = this.timeline.sequence.videoTracks[0].clips[0].object[FIELD];
+    return { ...edit, offset: -edit.offset };
+  };
+  const layer = { [FIELD]: [mask(), mask("m2")] };
+  const grouped = layer[FIELD][0].properties.path;
+  grouped.animated = true;
+  grouped.keyframes.push({ ...grouped.keyframes[0], frame: 40, tween: 3 });
+  layer[FIELD][1].properties.path = {
+    objects: grouped.keyframes[0].value.map(value => ({ animated: true,
+      keyframes: [{ frame: 2, value, tween: 1 }, { frame: 34, value, tween: 3 }] })),
+  };
+  layer[FIELD][1].locked = true;
+  const before = JSON.parse(JSON.stringify(layer[FIELD]));
+  const tracks = new Tracks();
+  tracks.timeline = { sequence: { videoTracks: [{ clips: [{ object: layer }] }] } };
+  const cleanup = [];
+  installMaskPersistence({ layer: { prototype: {} }, ui: { timeline: { tracks: Tracks } } }, fn => cleanup.push(fn));
+
+  const undo = tracks.moveClip({ type: 0, oldTrackIdx: 0, oldIdx: 0, offset: -5 });
+  assert.equal(tracks.observed, layer[FIELD]);
+  assert.deepEqual(tracks.observed[0].properties.path.keyframes.map(key => key.frame), [-5, 35]);
+  assert.deepEqual(tracks.observed[1].properties.path.objects[0].keyframes.map(key => key.frame), [-3, 29]);
+  assert.equal(tracks.observed[1].properties.path.objects[0].keyframes[1].tween, 3);
+  assert.equal(tracks.observed[1].locked, true);
+  const redo = tracks.moveClip(undo);
+  assert.deepEqual(layer[FIELD], before);
+  tracks.moveClip(redo);
+  assert.deepEqual(layer[FIELD][0].properties.path.keyframes.map(key => key.frame), [-5, 35]);
+  cleanup.reverse().forEach(fn => fn());
+  assert.equal(Tracks.prototype.moveClip, native);
+});

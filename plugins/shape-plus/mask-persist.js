@@ -15,6 +15,38 @@
 const { FIELD, validateMasks } = require("./mask-model.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 
+function installMaskClipTrim(PZ, onDispose) {
+  const tracks = PZ.ui?.timeline?.tracks?.prototype;
+  const moveClip = tracks?.moveClip;
+  if (typeof moveClip !== "function") return;
+  function moveClipWithMasks(edit) {
+    const { type, oldTrackIdx, oldIdx, offset } = edit;
+    const layer = type === 0 && this.timeline.sequence.videoTracks[oldTrackIdx]?.clips[oldIdx]?.object;
+    const current = layer?.[FIELD];
+    if (!current?.length || !Number.isFinite(offset) || offset === 0)
+      return moveClip.apply(this, arguments);
+
+    // CM3 shifts native property keyframes on a left trim. Mask paths live
+    // outside that property tree, so shift their local frames in the same
+    // command, before CM3 notifies the timeline. Its inverse also runs here.
+    const next = clone(current);
+    for (const mask of next) {
+      const path = mask.properties.path;
+      for (const channel of path.objects || [path])
+        for (const key of channel.keyframes) key.frame += offset;
+    }
+    layer[FIELD] = next;
+    try {
+      return moveClip.apply(this, arguments);
+    } catch (error) {
+      layer[FIELD] = current;
+      throw error;
+    }
+  }
+  tracks.moveClip = moveClipWithMasks;
+  onDispose(() => { if (tracks.moveClip === moveClipWithMasks) tracks.moveClip = moveClip; });
+}
+
 function installMaskPersistence(PZ, onDispose) {
   if (!PZ?.layer?.prototype) throw Error("Layer masks need the native layer runtime");
   const prototypes = [PZ.layer.prototype, PZ.layer.adjustment?.prototype, PZ.layer.scene?.prototype]
@@ -65,6 +97,7 @@ function installMaskPersistence(PZ, onDispose) {
       }
     });
   }
+  installMaskClipTrim(PZ, onDispose);
 }
 
 module.exports = { installMaskPersistence };
