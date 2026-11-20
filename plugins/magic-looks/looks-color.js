@@ -572,17 +572,16 @@ var Looks = Looks || {};
     var hr = 1 + hz.softness * 14;
     var glow = tapAvg(cx.sample, uv, res, boxOffsets(hr, false));
     var hazed = [glow[0] * hzt[0] + 0.02, glow[1] * hzt[1] + 0.02, glow[2] * hzt[2] + 0.02];
-    var r = gMix(c, hazed, clamp(hz.spillage, 0, 1));
+    var hbox = Math.max(Math.abs(uv[0] - 0.5), Math.abs(uv[1] - 0.5)) * 2;
+    var hout = gSmooth(hz.matteBoxSize, hz.matteBoxSize + 0.08, hbox);
+    // The matte box shades the haze spillage itself. It never multiplies the
+    // scene, so entering from zero spillage cannot darken unhazed pixels.
+    var spill = clamp(hz.spillage, 0, 1) * (1 - hout * hz.matteBoxShade * 0.85);
+    var r = gMix(c, hazed, spill);
     if (hz.reflection && hz.reflectionExposure) {
       var hs = tapAvg(cx.sample, uv, res, lineOffsets(hz.reach * res[0] * 0.04, 0, 7));
       var k = hz.reflectionExposure * 0.15;
       r = [r[0] + hs[0] * hzt[0] * k, r[1] + hs[1] * hzt[1] * k, r[2] + hs[2] * hzt[2] * k];
-    }
-    var hbox = Math.max(Math.abs(uv[0] - 0.5), Math.abs(uv[1] - 0.5)) * 2;
-    var hout = gSmooth(hz.matteBoxSize, hz.matteBoxSize + 0.08, hbox);
-    if (hz.spillage > 0) {
-      var shade = 1 - hout * hz.matteBoxShade * 0.85;
-      r = [r[0] * shade, r[1] * shade, r[2] * shade];
     }
     return gExposure(r, hz.exposure);
   };

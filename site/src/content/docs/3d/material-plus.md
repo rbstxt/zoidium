@@ -85,7 +85,7 @@ A dash (`—`) means no declared minimum or maximum.
 | **Texture** | Asset | `image/*` | None | Base-color image multiplied by **Color**. |
 | **Bump Strength** | Number | `0` to `2` | `0` | Graph or procedural bump strength. |
 | **Bump Noise** | Choice | **off**, **on** | **off** | Uses procedural noise instead of graph Bump output. |
-| **Bump Noise Scale** | Number | `1` to `64` | `4` | Procedural bump pattern scale. |
+| **Bump Noise Scale** | Number | `1` to `1024` | `4` | Procedural bump pattern scale. Values above 64 repeat a seamless noise tile at a higher frequency. |
 | **Bump MIP Falloff** | Choice | **off**, **on** | **on** | Reduces bump detail at distance. |
 | **Fresnel** | Choice | **off**, **on** | **off** | Enables view-angle rim tint. |
 | **Fresnel Color** | RGB color | `0` to `1` | `[1, 1, 1]` | Rim tint color. |

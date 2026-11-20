@@ -312,7 +312,7 @@ The effect-level **Enabled** choice is **off** or **on**, default **on**. Off by
 | **1 Reflection Exposure** | Number | -5 to 5 | `0` | Exposure of the reflected flare in stops. |
 | **1 Reflection** | Choice | **off**, **on** | **on** | — |
 | **1 Matte Box Size** | Number | 0 to 1 | `0.5` | Size of the matte-box region. |
-| **1 Matte Box Shade** | Number | 0 to 1 | `0.75` | Shading of the matte-box region. |
+| **1 Matte Box Shade** | Number | 0 to 1 | `0.75` | Shading of the haze spillage toward the frame edges. |
 | **1 Tint Color R** | Number | 0 to 4 | `1` | — |
 | **1 Tint Color G** | Number | 0 to 4 | `1` | — |
 | **1 Tint Color B** | Number | 0 to 4 | `1` | — |

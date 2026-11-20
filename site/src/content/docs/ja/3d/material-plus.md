@@ -85,7 +85,7 @@ description: 補正済み UV を備えた PBR+、Node Material、Matcap、UV Cus
 | **Texture** | アセット | `image/*` | なし | **Color** と乗算するベースカラー画像。 |
 | **Bump Strength** | 数値 | `0` ～ `2` | `0` | グラフまたはノイズのバンプ強度。 |
 | **Bump Noise** | 選択肢 | **off**, **on** | **off** | グラフの Bump 出力の代わりにプロシージャルノイズを使用。 |
-| **Bump Noise Scale** | 数値 | `1` ～ `64` | `4` | プロシージャルバンプの模様サイズ。 |
+| **Bump Noise Scale** | 数値 | `1` ～ `1024` | `4` | プロシージャルバンプの模様サイズ。64 を超える値では、継ぎ目のないノイズタイルを高周波で繰り返します。 |
 | **Bump MIP Falloff** | 選択肢 | **off**, **on** | **on** | 遠距離のバンプ細部を減衰。 |
 | **Fresnel** | 選択肢 | **off**, **on** | **off** | 視線角度に応じた輪郭色付けを有効化。 |
 | **Fresnel Color** | RGB カラー | `0` ～ `1` | `[1, 1, 1]` | 輪郭の色。 |

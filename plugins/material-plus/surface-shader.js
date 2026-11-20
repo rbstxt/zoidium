@@ -159,6 +159,45 @@ const PZ_FRESNEL_CODE = [
     "#endif",
 ].join("\n");
 
+const PZ_BUMP_PARS_FRAGMENT = [
+    "#ifndef PZ_BUMP_NOISE_TILE",
+    "#define PZ_BUMP_NOISE_TILE 0",
+    "#endif",
+    "#ifdef USE_BUMPMAP",
+    "uniform sampler2D bumpMap;",
+    "uniform float bumpScale;",
+    "uniform float uPzBumpNoiseTile;",
+    "vec2 pzBumpUv() {",
+    "#if PZ_BUMP_NOISE_TILE",
+    // Tiled bump noise keeps the 64-cell seamless canvas and repeats it on
+    // the same UVs the surface already uses.
+    "    return vUv * uPzBumpNoiseTile;",
+    "#else",
+    "    return vUv;",
+    "#endif",
+    "}",
+    "vec2 dHdxy_fwd() {",
+    "    vec2 pzHuv = pzBumpUv();",
+    "    vec2 dSTdx = dFdx( pzHuv );",
+    "    vec2 dSTdy = dFdy( pzHuv );",
+    "    float Hll = bumpScale * texture2D( bumpMap, pzHuv ).x;",
+    "    float dBx = bumpScale * texture2D( bumpMap, pzHuv + dSTdx ).x - Hll;",
+    "    float dBy = bumpScale * texture2D( bumpMap, pzHuv + dSTdy ).x - Hll;",
+    "    return vec2( dBx, dBy );",
+    "}",
+    "vec3 perturbNormalArb( vec3 surf_pos, vec3 surf_norm, vec2 dHdxy ) {",
+    "    vec3 vSigmaX = vec3( dFdx( surf_pos.x ), dFdx( surf_pos.y ), dFdx( surf_pos.z ) );",
+    "    vec3 vSigmaY = vec3( dFdy( surf_pos.x ), dFdy( surf_pos.y ), dFdy( surf_pos.z ) );",
+    "    vec3 vN = surf_norm;",
+    "    vec3 R1 = cross( vSigmaY, vN );",
+    "    vec3 R2 = cross( vN, vSigmaX );",
+    "    float fDet = dot( vSigmaX, R1 );",
+    "    vec3 vGrad = sign( fDet ) * ( dHdxy.x * R1 + dHdxy.y * R2 );",
+    "    return normalize( abs( fDet ) * surf_norm - vGrad );",
+    "}",
+    "#endif",
+].join("\n");
+
 const PZ_LIGHTING_CODE = [
     "#include <lights_fragment_end>",
     "#if PZ_AO",
@@ -168,7 +207,11 @@ const PZ_LIGHTING_CODE = [
     "pzAO = texture2D( uPzAOMap, vPzUv ).r;",
     "pzAOHas = true;",
     "#elif defined( USE_BUMPMAP )",
+    "#if PZ_BUMP_NOISE_TILE",
+    "pzAO = texture2D( bumpMap, vPzUv * uPzBumpNoiseTile ).r;",
+    "#else",
     "pzAO = texture2D( bumpMap, vPzUv ).r;",
+    "#endif",
     "pzAOHas = true;",
     "#endif",
     "if ( pzAOHas ) {",
@@ -266,6 +309,80 @@ function pzNoiseCanvas(size, cells, seed) {
     return canvas;
 }
 
+// Seamless variant of pzNoiseCanvas: the lattice edge wraps onto its first
+// row and column, so the tile can repeat without seams. Up to 64 cells the
+// output matches pzNoiseCanvas inside each cell; only the last cell of the
+// right and bottom edges changes, which is what removes the seam. Scales
+// above 64 reuse this tile at a higher sampling frequency instead of
+// allocating a lattice larger than the canvas can resolve.
+function pzNoiseTileCanvas(size, cells, seed) {
+    var canvas = null;
+    if (typeof document !== "undefined") {
+        canvas = document.createElement("canvas");
+    } else if (typeof OffscreenCanvas !== "undefined") {
+        canvas = new OffscreenCanvas(size, size);
+    }
+    if (!canvas) return null;
+    canvas.width = size;
+    canvas.height = size;
+    var context = canvas.getContext("2d");
+    if (!context || !context.createImageData) return null;
+    var image = context.createImageData(size, size);
+    var data = image.data;
+    var random = pzRandom(seed);
+    var octaves = 3;
+    var frequency = Math.max(2, Math.round(cells));
+    var amplitude = 1;
+    var total = 0;
+    var values = new Float32Array(size * size);
+    for (var o = 0; o < octaves; o++) {
+        var step = frequency + 1;
+        var lattice = new Float32Array(step * step);
+        for (var i = 0; i < lattice.length; i++) {
+            lattice[i] = random();
+        }
+        // Wrap the extra edge row and column onto the first one. Interior
+        // samples are unchanged from pzNoiseCanvas for the same seed.
+        for (var k = 0; k < frequency; k++) {
+            lattice[frequency + k * step] = lattice[k * step];
+            lattice[k + frequency * step] = lattice[k];
+        }
+        lattice[frequency + frequency * step] = lattice[0];
+        for (var y = 0; y < size; y++) {
+            var gy = (y / size) * frequency;
+            var y0 = Math.min(gy | 0, frequency - 1);
+            var fy = gy - y0;
+            var sy = fy * fy * (3 - 2 * fy);
+            for (var x = 0; x < size; x++) {
+                var gx = (x / size) * frequency;
+                var x0 = Math.min(gx | 0, frequency - 1);
+                var fx = gx - x0;
+                var sx = fx * fx * (3 - 2 * fx);
+                var i00 = x0 + y0 * step;
+                var i10 = i00 + 1;
+                var i01 = i00 + step;
+                var i11 = i01 + 1;
+                var top = lattice[i00] + (lattice[i10] - lattice[i00]) * sx;
+                var bottom = lattice[i01] + (lattice[i11] - lattice[i01]) * sx;
+                values[x + y * size] += (top + (bottom - top) * sy) * amplitude;
+            }
+        }
+        total += amplitude;
+        amplitude *= 0.5;
+        frequency *= 2;
+    }
+    for (var p = 0; p < size * size; p++) {
+        var gray = Math.round((values[p] / total) * 255);
+        var index = p * 4;
+        data[index] = gray;
+        data[index + 1] = gray;
+        data[index + 2] = gray;
+        data[index + 3] = 255;
+    }
+    context.putImageData(image, 0, 0);
+    return canvas;
+}
+
 function pzParseStopColor(value) {
     var color = { r: 0, g: 0, b: 0, a: 1 };
     if (typeof value === "string" && value.indexOf("(") >= 0) {
@@ -335,7 +452,8 @@ function pzDrawGradient(data, stops, interpolation) {
     return {
   WRAP_VALUES, PZ_RAMP_SOURCE, PZ_RAMP_INTERPOLATION, PZ_VERTEX_HEADER,
   PZ_UV_PROJECTION_CODE, PZ_FRAGMENT_HEADER, PZ_MAP_CODE,
-  PZ_PHYSICAL_CODE, PZ_FRESNEL_CODE, PZ_LIGHTING_CODE, pzRandom,
-  pzNoiseCanvas, pzParseStopColor, pzSampleStops, pzDrawGradient,
+  PZ_PHYSICAL_CODE, PZ_FRESNEL_CODE, PZ_LIGHTING_CODE, PZ_BUMP_PARS_FRAGMENT,
+  pzRandom, pzNoiseCanvas, pzNoiseTileCanvas, pzParseStopColor,
+  pzSampleStops, pzDrawGradient,
  };
 };

@@ -229,16 +229,16 @@
       "category": "scene",
       "name": "Material+",
       "author": "Zoidium",
-      "version": "41",
+      "version": "42",
       "itemCount": 5,
       "format": "3D materials",
       "tagline": "Node, PBR+, Matcap & Image+ materials",
       "color": "#b36bca",
       "description": "Adds procedural Node Materials with a node editor, PBR+ with ramps, Fresnel, cel shading and projection, Image+ with opacity, Matcap, and corrected-UV materials for 3D objects.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/material-plus/manifest.json?v=41",
-      "bundle": "./plugins/material-plus/bundle.json?v=41",
-      "integrity": "sha256-7h5CO+C3eTBRH7Dch5p4dkGUeZYdkA35F/2inNMEUjw="
+      "manifest": "./plugins/material-plus/manifest.json?v=42",
+      "bundle": "./plugins/material-plus/bundle.json?v=42",
+      "integrity": "sha256-buhTh/xHvzsF+YFrXtAyjnEiERSfEbymQMIriAKR2jg="
     },
     {
       "id": "text-plus",
@@ -446,16 +446,16 @@
       "category": "adjustment",
       "name": "Magic Looks",
       "author": "DaviFX",
-      "version": "25",
+      "version": "26",
       "itemCount": 29,
       "format": "setup",
       "tagline": "Looks-style color grading",
       "color": "#f7941d",
       "description": "Magic Bullet Looks-style color grading: 29 color, light and lens tools in a reorderable chain with look presets and a floating setup window.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/magic-looks/manifest.json?v=25",
-      "bundle": "./plugins/magic-looks/bundle.json?v=25",
-      "integrity": "sha256-GhR/ObL70t5UB+RARy+kpno2RxXIAZ5+JnU1fqCy1pk="
+      "manifest": "./plugins/magic-looks/manifest.json?v=26",
+      "bundle": "./plugins/magic-looks/bundle.json?v=26",
+      "integrity": "sha256-YKbZPgtls86C0TvKbMp6G4muR7JDUyf09upq3sO5jeE="
     },
     {
       "id": "layer-input",
