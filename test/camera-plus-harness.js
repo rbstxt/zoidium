@@ -342,6 +342,28 @@ function createPZ(THREE) {
   PZ.object3d.propertyDefinitions = {};
   PZ.object3d.eulerOrders = [{ name: "XYZ", value: "XYZ" }, { name: "ZXY", value: "ZXY" }];
 
+  // Nested group (type 5). CM3 pushes each child before loading it, so a child
+  // can find its owning Scene through the parent chain during load.
+  PZ.object3d.group = class FakeGroup extends PZ.object3d {
+    constructor() {
+      super();
+      this.type = 5;
+      this.objects = new FakeObjectList(this);
+      this.children = [this.properties, this.objects];
+    }
+    load(data) {
+      this.properties.load(data && data.properties);
+      for (const saved of data.objects || []) {
+        const object = PZ.object3d.create(saved.type);
+        object.parent = this.objects;
+        this.objects.push(object);
+        object.load(saved);
+      }
+    }
+    update() {}
+    unload() {}
+  };
+
   // Vanilla CM3 camera (type 6). Plugins never replace it.
   PZ.object3d.camera = class VanillaCamera extends PZ.object3d {
     constructor() {
@@ -571,7 +593,11 @@ function createContext(overrides = {}) {
   const project = createProject();
   const editor = createEditor(project);
   const registry = createObject3DRegistry();
-  PZ.object3d.create = (type) => registry.isRegistered(type) ? registry.instantiate(type) : new PZ.object3d.camera();
+  PZ.object3d.create = (type) => {
+    if (registry.isRegistered(type)) return registry.instantiate(type);
+    if (type === 5) return new PZ.object3d.group();
+    return new PZ.object3d.camera();
+  };
   const apis = { propertyControls: createPropertyControls(),
     layers: { registerType(spec) {
       const original = PZ.layer.create;
