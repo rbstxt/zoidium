@@ -221,6 +221,12 @@ each line describes one visible change.
 
 ### Fixed
 
+- Dragging keyframes no longer throws an error and leaves undo stuck when
+  the same keyframe is selected in two places in the timeline. The drag
+  moves each key once, and one undo restores every key.
+- Dragging the playhead along the timeline ruler follows the pointer when
+  the page is scrolled sideways or the interface is zoomed. Before, the
+  playhead landed away from the pointer.
 - Native particles and Trapcode Form, Particular, and Plexus keep the same
   particle size relative to the picture in every preview size, in
   fullscreen, at every preview quality, and in exports. Before, the size
