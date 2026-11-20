@@ -11,6 +11,11 @@
   "description": "Hidden built-in extensions that always run before the editor starts. Not shown in the Plugins panel and never stored in projects.",
   "coreScripts": [
     {
+      "id": "timeline-keyframe-drag",
+      "source": "./plugins/core/timeline-keyframe-drag.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "timeline-ruler-drag",
       "source": "./plugins/core/timeline-ruler-drag.js",
       "phase": "pre-init"
