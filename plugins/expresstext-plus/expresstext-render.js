@@ -2,7 +2,7 @@
 
 // ExpressText+ Split-letter rendering and world transforms.
 
-const { MAX_ANCESTOR_DEPTH, PZ_EULER_ORDERS, REPEATER_MAX_COPIES, state } = require("./expresstext-constants.js");
+const { MAX_ANCESTOR_DEPTH, PZ_EULER_ORDERS, REPEATER_MAX_COPIES, LETTERS_SCOPE_PER_TEXT, state } = require("./expresstext-constants.js");
 const { isLetterSelected, numberValue, vector3 } = require("./expresstext-select.js");
 const { hashLattice } = require("./expresstext-random.js");
 const { applyFieldWeight, letterContext, readProp, readVector } = require("./expresstext-eval.js");
@@ -10,7 +10,7 @@ const { rotateEulerXYZ, worldBaseOf } = require("./expresstext-effectors.js");
 const { splitVoronoiCells, voronoiChunkPose } = require("./expresstext-voronoi.js");
 const { evaluateStack, plainListsAt } = require("./expresstext-delay.js");
 const { EFFECTOR_PIVOT_KEYS, rawArray, stackLayersFor } = require("./expresstext-sections.js");
-const { collectExpressObjects, copyMeshState, createLetterShapes, expressContainerOf, finiteBox, getAncestorObject, getExpressCenterOffset, getExpressLayout, getExpressProperties, getExpressTextCenter, propertyValue, repeaterCopyOffset, repeaterCopyOpacity, repeaterSpecsFor } = require("./expresstext-layout.js");
+const { collectExpressObjects, copyMeshState, createLetterShapes, expressContainerOf, finiteBox, getAncestorObject, getExpressCenterOffset, getExpressLayout, getExpressProperties, getExpressTextCenter, lettersScopeOf, propertyValue, repeaterCopyOffset, repeaterCopyOpacity, repeaterSpecsFor } = require("./expresstext-layout.js");
 
 function getSplitState(textObject) {
   let splitState = state.splitStates.get(textObject);
@@ -599,6 +599,7 @@ function containerLetterRun(container, selfText, selfEntries, frame) {
       bases: [],
       extent: null,
       selfStart: 0,
+      selfCount: 0,
       selfWorld: fallbackWorld,
     };
   }
@@ -653,7 +654,42 @@ function containerLetterRun(container, selfText, selfEntries, frame) {
     if (b[0] > hi) hi = b[0];
   }
   if (hi > lo) extent = { lo, hi };
-  return { total, order, starts, counts, bases, extent, selfStart: starts[selfAt], selfWorld };
+  return { total, order, starts, counts, bases, extent, selfStart: starts[selfAt], selfCount: counts[selfAt], selfWorld };
+}
+
+// Letter run for one text under a container, honoring the container's
+// Letters scope. Across texts is the historical connected run above.
+// Per text narrows it to this text alone — the same numbering,
+// selections, id/u/count, ranks, centers and draws the text would get
+// alone under a copy of the container — while placement still composes
+// through any Group wrappers around the text.
+function letterRunFor(container, selfText, selfEntries, frame) {
+  const run = containerLetterRun(container, selfText, selfEntries, frame);
+  if (lettersScopeOf(container, frame) !== LETTERS_SCOPE_PER_TEXT) return run;
+  const total = run.selfCount;
+  const order = [];
+  for (let i = 0; i < total; i += 1) order.push(i);
+  const bases = run.bases.slice(run.selfStart, run.selfStart + total);
+  let extent = null;
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const b of bases) {
+    if (!Array.isArray(b) || !isFinite(b[0])) continue;
+    if (b[0] < lo) lo = b[0];
+    if (b[0] > hi) hi = b[0];
+  }
+  if (hi > lo) extent = { lo, hi };
+  return {
+    total,
+    order,
+    starts: [0],
+    counts: [total],
+    bases,
+    extent,
+    selfStart: 0,
+    selfCount: total,
+    selfWorld: run.selfWorld,
+  };
 }
 
 // Prepare geometry for every Text before evaluating the connected run. Native
@@ -723,10 +759,10 @@ function updateExpressRendering(textObject, splitState, layers, frame) {
     if (text === textObject) repeaters = prepared;
   }
   if (!repeaters) return;
-  // Connected letter run: continuous numbering across every text under
-  // this container, so selections, id/u/count, ranks and centers span
-  // texts. Single texts resolve to their own local numbering exactly.
-  const run = containerLetterRun(container, textObject, splitState.entries, frame);
+  // Letter run for this text: continuous across every text under the
+  // container, or this text alone when the container scopes letters per
+  // text. Single texts resolve to their own local numbering exactly.
+  const run = letterRunFor(container, textObject, splitState.entries, frame);
   // The split root is a sibling of the native mesh. Its actual parent
   // already applies every Group transform, so copy only the native local pose.
   try {
@@ -889,4 +925,4 @@ function syncExpressRendering(textObject, frame) {
   }
 }
 
-module.exports = { retainNativeGeometry, EXTRUDE_OPTION_KEYS, applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, expressSignature, geometryTriangleArrays, getSplitState, layoutLetterCount, ownTransformOf, restoreExpressRendering, setChunkAttribute, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering };
+module.exports = { retainNativeGeometry, EXTRUDE_OPTION_KEYS, applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, expressSignature, geometryTriangleArrays, getSplitState, layoutLetterCount, letterRunFor, ownTransformOf, restoreExpressRendering, setChunkAttribute, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering };

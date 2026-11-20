@@ -20,6 +20,14 @@ const REPEATER_MAX_COPIES = 64;
 const TWIST_AXIS_LABELS = ["X", "Y", "Z"];
 const WRAP_DIRECTION_LABELS = ["X", "Y", "Z"];
 const DELAY_ORDER_LABELS = ["Forward", "Reverse", "Center out", "Random"];
+const LETTERS_SCOPE_LABELS = ["Per text", "Across texts"];
+// Container letter scope: per-text evaluates every text as if alone under a
+// copy of the container; across-texts keeps the historical connected run.
+const LETTERS_SCOPE_PER_TEXT = 0;
+const LETTERS_SCOPE_ACROSS_TEXTS = 1;
+// Saved marker version for the scope default (see the container load hook:
+// projects saved before the marker keep the historical across run).
+const LETTERS_VERSION = 1;
 const PIVOT_LABELS = ["Character", "Text"];
 const PZ_EULER_ORDERS = new Set(["XYZ", "XZY", "YXZ", "YZX", "ZXY", "ZYX"]);
 
@@ -77,4 +85,4 @@ function untrackExpressInstance(instance) {
 
 /* ------------------------------------------------------------------ numbers */
 
-module.exports = { DEGREES_TO_RADIANS, DELAY_MODE_LABELS, DELAY_ORDER_LABELS, EXPRESS_TEXT_NAME, EXPRESS_TEXT_TYPE, FIELD_LABELS, MAX_ANCESTOR_DEPTH, PIVOT_LABELS, PZ_EULER_ORDERS, RANDOM_MODE_LABELS, RANDOM_SPACE_LABELS, REPEATER_MAX_COPIES, REPEATER_MODE_LABELS, SCHEMA_VERSION, SPLINE_MODE_LABELS, SPLINE_PATH_LABELS, SPLINE_PLANE_LABELS, SPLINE_TRANSFORM_LABELS, TWIST_AXIS_LABELS, WRAP_DIRECTION_LABELS, state, trackExpressInstance, untrackExpressInstance };
+module.exports = { DEGREES_TO_RADIANS, DELAY_MODE_LABELS, DELAY_ORDER_LABELS, EXPRESS_TEXT_NAME, EXPRESS_TEXT_TYPE, FIELD_LABELS, LETTERS_SCOPE_ACROSS_TEXTS, LETTERS_SCOPE_LABELS, LETTERS_SCOPE_PER_TEXT, LETTERS_VERSION, MAX_ANCESTOR_DEPTH, PIVOT_LABELS, PZ_EULER_ORDERS, RANDOM_MODE_LABELS, RANDOM_SPACE_LABELS, REPEATER_MAX_COPIES, REPEATER_MODE_LABELS, SCHEMA_VERSION, SPLINE_MODE_LABELS, SPLINE_PATH_LABELS, SPLINE_PLANE_LABELS, SPLINE_TRANSFORM_LABELS, TWIST_AXIS_LABELS, WRAP_DIRECTION_LABELS, state, trackExpressInstance, untrackExpressInstance };

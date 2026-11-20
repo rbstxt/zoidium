@@ -263,7 +263,7 @@
       "category": "scene",
       "name": "ExpressText+",
       "author": "DaviFX",
-      "version": "7",
+      "version": "9",
       "defaultEnabled": true,
       "itemCount": 11,
       "format": "3D text containers",
@@ -271,9 +271,9 @@
       "color": "#b2704f",
       "description": "Tracks separate 3D text letters and drives them with Shake, Plain, Random, Formula, Delay, Spline, Orbit, Repeater, Twist, Wrap and Voronoi effectors.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/expresstext-plus/manifest.json?v=7",
-      "bundle": "./plugins/expresstext-plus/bundle.json?v=7",
-      "integrity": "sha256-uX6tLOJ+d5XcTk1ByTLVguxZEpq8HBe/FIa3JQUWBsY="
+      "manifest": "./plugins/expresstext-plus/manifest.json?v=9",
+      "bundle": "./plugins/expresstext-plus/bundle.json?v=9",
+      "integrity": "sha256-N3UI641AkNeNt9gswzBuiRGQ9CijN7IrkrBPoGCk2mo="
     },
     {
       "id": "particles-plus",

@@ -14,6 +14,23 @@ or colors. Each pick appends that effector's controls inline; delete its
 rows to remove it. Everything rides the stock panel, stock undo and stock
 save/load.
 
+## Split into letters
+
+Any 3D Text row carries a **Split into letters** button (the change icon,
+next to the stock buttons, the same way Shape+ offers "Convert to Shape+").
+It replaces the text with a Group named `<text name> letters` at the same
+spot in the hierarchy, holding one 3D Text per visible character placed
+exactly where each letter was — same font, size, bevel, material and other
+settings. Whitespace produces no object but still advances; each line keeps
+its own position. The whole command is one history operation: one undo
+restores the original Text exactly, redo brings the split back. Keyframes
+and expressions on the original's position/rotation/scale move onto the
+Group (so the word keeps animating as one); letters get static local
+offsets. Each letter gets a copy of the material and shares the original font. Under
+an ExpressText+ container the Group takes the original's place, so the
+container keeps tracking the letters (each letter becomes its own text —
+see Letters scope below for how Per text counts them).
+
 ## Effectors
 
 - **Shake** — sinusoidal XYZ position/rotation/scale with Amount
@@ -105,11 +122,15 @@ save/load.
 Every XYZ effector has independent position, rotation (degrees) and
 scale plus a Character/Text pivot. Ancestor effectors evaluate
 outermost first; Delay layers trail every effector of the stack; the
-container owns tracking plus the shared rotation order. Letters number
-continuously across every text under one container (first text's letters
-first) — texts may sit directly under the container or inside Groups —
-so selections, id/u/count, ranks and centers span texts; each text keeps
-its own placement, composed through any Group wrappers.
+container owns tracking plus the shared rotation order. The container's
+Letters scope picks whether every text under it is its own letter set
+(Per text: numbering, selections, id/u/count, ranks, centers and the
+Random draws resolve inside each text, exactly as if each text sat
+alone under a copy of the container) or all texts form one continuous
+run (Across texts: first text's letters first). Texts may sit directly
+under the container or inside Groups; each text keeps its own
+placement, composed through any Group wrappers. New containers default
+to Per text; projects saved before the scope keep Across texts.
 
 ## Bouncing text, the C4D way
 

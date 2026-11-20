@@ -2,7 +2,7 @@
 
 // ExpressText+ Text layout, tracking and repeater specs.
 
-const { MAX_ANCESTOR_DEPTH, REPEATER_MAX_COPIES, state } = require("./expresstext-constants.js");
+const { LETTERS_SCOPE_ACROSS_TEXTS, LETTERS_SCOPE_PER_TEXT, MAX_ANCESTOR_DEPTH, REPEATER_MAX_COPIES, state } = require("./expresstext-constants.js");
 const { numberValue, vector3 } = require("./expresstext-select.js");
 const { hashLattice } = require("./expresstext-random.js");
 const { readProp, readVector } = require("./expresstext-eval.js");
@@ -188,6 +188,26 @@ function getExpressProperties(container) {
   return container.expressProperties || container.properties || {};
 }
 
+// Letter scope for a container: Per text evaluates every text as if alone
+// under a copy of the container (own numbering, selections, id/u/count,
+// ranks, centers and draws); Across texts keeps the historical connected
+// run spanning all texts. Only an explicit Per-text row reads as per text:
+// missing rows predate the setting and any unrecognized value fails closed
+// to Across texts, so old scenes and scope-unaware harnesses keep rendering;
+// new containers always carry the row defaulting to Per text.
+function lettersScopeOf(container, frame) {
+  try {
+    const props = getExpressProperties(container);
+    const mode = readProp(props, "lettersMode", frame, LETTERS_SCOPE_ACROSS_TEXTS);
+    return Math.round(numberValue(mode, LETTERS_SCOPE_ACROSS_TEXTS)) ===
+      LETTERS_SCOPE_PER_TEXT
+      ? LETTERS_SCOPE_PER_TEXT
+      : LETTERS_SCOPE_ACROSS_TEXTS;
+  } catch (_scope) {
+    return LETTERS_SCOPE_ACROSS_TEXTS;
+  }
+}
+
 function finiteBox(geometry) {
   if (!geometry || typeof geometry.computeBoundingBox !== "function") return null;
   geometry.computeBoundingBox();
@@ -329,4 +349,4 @@ function createLetterShapes(THREE, font, character, size) {
   return path.toShapes();
 }
 
-module.exports = { collectExpressObjects, copyMeshState, createLetterShapes, expressContainerOf, expressStackOf, finiteBox, getAncestorObject, getExpressCenterOffset, getExpressLayout, getExpressProperties, getExpressTextCenter, propertyValue, repeaterCopyOffset, repeaterCopyOpacity, repeaterSpecsFor };
+module.exports = { collectExpressObjects, copyMeshState, createLetterShapes, expressContainerOf, expressStackOf, finiteBox, getAncestorObject, getExpressCenterOffset, getExpressLayout, getExpressProperties, getExpressTextCenter, lettersScopeOf, propertyValue, repeaterCopyOffset, repeaterCopyOpacity, repeaterSpecsFor };
