@@ -10,6 +10,7 @@ const canvasModule = require("../plugins/shape-plus/editor-canvas.js");
 const { scene, createCanvas } = canvasModule;
 const { matrix, identity, transform } = require("../plugins/shape-plus/compiler.js");
 const { find } = require("../plugins/shape-plus/editor-tree-data.js");
+const { selectionKey } = require("../plugins/shape-plus/editor-selection.js");
 const g = require("../plugins/shape-plus/editor-geometry.js");
 const { pickPaths } = require("../plugins/shape-plus/path-projection.js");
 
@@ -516,21 +517,29 @@ test("drawn handle positions match the old walk", () => {
   const { s, api, layer, ctx } = host(frameState);
   s.treeSelection = new Set(["path"]);
   s.activeId = "path";
-  api.scoped(() => api.draw());
-  const squares = ctx.calls.filter(([name]) => name === "fillRect").map(([, ...args]) => args);
-  const knobs = ctx.calls.filter(([name]) => name === "arc").map(([, ...args]) => args);
   const refEntry = oldScene(layer.contents, 15).find((e) => e.item.id === "path");
+  s.selection.add(selectionKey(refEntry.item.vertexIds[1]));
+  api.scoped(() => api.draw());
+  const drawn = method => ctx.calls.filter(([name]) => name === method).map(([, ...args]) => args);
   const css = refCss(api.projection(), refEntry);
   const expectedSquares = css.map((v) => [v.point[0] - 4, v.point[1] - 4, 8, 8]);
-  const expectedKnobs = [];
+  const expectedArcs = [];
   css.forEach((v, i) => {
     for (const side of ["in", "out"]) {
       if ((side === "in" && i === 0) || (side === "out" && i === css.length - 1)) continue;
       if (Math.hypot(...v[side]) < 1e-8) continue;
       const p = [v.point[0] + v[side][0], v.point[1] + v[side][1]];
-      expectedKnobs.push([p[0], p[1], 3.5, 0, Math.PI * 2]);
+      const knob = [p[0], p[1], 3, 0, Math.PI * 2];
+      expectedArcs.push(knob, knob);
     }
   });
-  assert.deepEqual(squares, expectedSquares, "anchor squares");
-  assert.deepEqual(knobs, expectedKnobs, "handle knobs");
+  // The overlay draws a border and outline for every marker. Only a selected
+  // anchor is filled, and the first anchor also has two outlined rings.
+  for (const radius of [7, 10]) {
+    const ring = [...css[0].point, radius, 0, Math.PI * 2];
+    expectedArcs.push(ring, ring);
+  }
+  assert.deepEqual(drawn("strokeRect"), expectedSquares.flatMap(square => [square, square]), "anchor outlines");
+  assert.deepEqual(drawn("fillRect"), [expectedSquares[1]], "selected anchor fill");
+  assert.deepEqual(drawn("arc"), expectedArcs, "handle knobs and first-anchor rings");
 });
