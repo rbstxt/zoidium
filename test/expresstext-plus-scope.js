@@ -134,6 +134,41 @@ test("per-text selections, id and count resolve inside each text", () => {
   );
 });
 
+test("voronoi selections resolve per text like the alone run", () => {
+  // Voronoi shatter has no observable geometry in this harness (chunk
+  // meshes need real triangle data), so pin the scope-sensitive input:
+  // letter selection against the run. "1" picks the first letter of each
+  // text per text, but only the run's first letter across texts.
+  const tAB = mkText("AB");
+  const tCD = mkText("CD");
+  const container = {
+    objects: [tAB, tCD],
+    expressProperties: T.staticProps({ rotationOrder: "XYZ", lettersMode: 0 }),
+  };
+  const voronoi = T.staticProps({
+    voronoiEnable: 1,
+    voronoiLetters: "1",
+    voronoiStrength: 100,
+    voronoiDelay: 0,
+    voronoiDelayOrder: 0,
+    voronoiSeed: 1,
+    voronoiField: 0,
+  });
+  const runCD = T.letterRunFor(container, tCD, ENTRIES_AB, 0);
+  assert.equal(runCD.total, 2, "second text counts itself per text");
+  const list = { order: runCD.order, total: runCD.total };
+  const ctx = T.letterContext(voronoi, "voronoi", 0, 0, list, []);
+  assert.ok(T.isLetterSelected(ctx.selected, 0), "first letter of the second text selected per text");
+  const acrossContainer = { objects: [tAB, tCD] };
+  const acrossRun = T.letterRunFor(acrossContainer, tCD, ENTRIES_AB, 0);
+  const acrossList = { order: acrossRun.order, total: acrossRun.total };
+  const acrossCtx = T.letterContext(voronoi, "voronoi", 0, acrossRun.selfStart, acrossList, []);
+  assert.ok(
+    !T.isLetterSelected(acrossCtx.selected, acrossRun.selfStart),
+    "across numbering leaves the same letter unselected"
+  );
+});
+
 function sections() {
   return [
     fakeSection("Plain", {
@@ -142,6 +177,29 @@ function sections() {
       plainStrength: 100,
       plainPosition: [10, 0, 0],
       plainRotation: [0, 0, 1],
+      plainScale: [1, 1, 1],
+      plainDelay: 0,
+      plainDelayOrder: 0,
+      plainField: 0,
+    }),
+    fakeSection("Plain", {
+      plainEnable: 1,
+      plainLetters: "1",
+      plainStrength: 100,
+      plainPosition: [0, 0, 0],
+      plainRotation: [0, 0, 20],
+      plainScale: [1, 1, 1],
+      plainPivot: 1,
+      plainDelay: 0,
+      plainDelayOrder: 0,
+      plainField: 0,
+    }),
+    fakeSection("Plain", {
+      plainEnable: 1,
+      plainLetters: "plain-1",
+      plainStrength: 100,
+      plainPosition: [0, 4, 0],
+      plainRotation: [0, 0, 0],
       plainScale: [1, 1, 1],
       plainDelay: 0,
       plainDelayOrder: 0,
@@ -170,6 +228,29 @@ function sections() {
       randomDelayOrder: 0,
       randomField: 0,
     }),
+    fakeSection("Random", {
+      randomEnable: 1,
+      randomLetters: "",
+      randomStrength: 100,
+      randomMode: 4,
+      randomMinimum: 0,
+      randomMaximum: 100,
+      randomSynchronized: 0,
+      randomIndexed: 1,
+      randomSeed: 11,
+      randomSpace: 0,
+      randomAnimationSpeed: 0,
+      randomNoiseScale: 100,
+      randomPositionMin: [-3, -3, -3],
+      randomPositionMax: [3, 3, 3],
+      randomRotationMin: [0, 0, 0],
+      randomRotationMax: [0, 0, 0],
+      randomScaleMin: [1, 1, 1],
+      randomScaleMax: [1, 1, 1],
+      randomDelay: 0,
+      randomDelayOrder: 0,
+      randomField: 0,
+    }),
     fakeSection("Formula", {
       formulaEnable: 1,
       formulaLetters: "",
@@ -185,6 +266,22 @@ function sections() {
       formulaDelay: 0,
       formulaDelayOrder: 0,
       formulaField: 0,
+    }),
+    fakeSection("Repeater", {
+      repeaterEnable: 1,
+      repeaterLetters: "",
+      repeaterStrength: 100,
+      repeaterMode: 1,
+      repeaterCopies: 2,
+      repeaterOffset: [10, 0, 0],
+      repeaterRangeMin: [-4, -4, 0],
+      repeaterRangeMax: [4, 4, 0],
+      repeaterSeed: 3,
+      repeaterLag: 2,
+      repeaterFade: 50,
+      repeaterDelay: 0,
+      repeaterDelayOrder: 0,
+      repeaterField: 0,
     }),
     fakeSection("Delay", {
       delayEnable: 1,
@@ -273,6 +370,11 @@ function posesOf(textObject, frames) {
           p: [anchor.position.x, anchor.position.y, anchor.position.z],
           r: anchor.rotation.args.slice(),
           s: anchor.scale.args.slice(),
+          v: entry.mesh ? !!entry.mesh.visible : null,
+          copies: (entry.copies || []).map((copy) => ({
+            p: [copy.node.position.x, copy.node.position.y, copy.node.position.z],
+            v: !!copy.node.visible,
+          })),
         };
       })
     );
@@ -281,6 +383,10 @@ function posesOf(textObject, frames) {
 }
 
 test("per-text renders exactly like each text alone in its own container", () => {
+  // Pins every scope-sensitive path at once: the shared stack carries
+  // Plain selections, a Text-pivot rotation, a kind-N token selection,
+  // indexed and Sorted Random draws, a Formula over id/count, a Random
+  // Repeater (letter-indexed copy offsets) and a Delay trail.
   activateRecording();
   try {
     const frames = [0, 5];

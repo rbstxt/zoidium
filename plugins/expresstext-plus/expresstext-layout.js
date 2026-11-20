@@ -191,17 +191,18 @@ function getExpressProperties(container) {
 // Letter scope for a container: Per text evaluates every text as if alone
 // under a copy of the container (own numbering, selections, id/u/count,
 // ranks, centers and draws); Across texts keeps the historical connected
-// run spanning all texts. Missing rows predate the setting and read as
-// Across texts, so old scenes and scope-unaware harnesses keep rendering;
+// run spanning all texts. Only an explicit Per-text row reads as per text:
+// missing rows predate the setting and any unrecognized value fails closed
+// to Across texts, so old scenes and scope-unaware harnesses keep rendering;
 // new containers always carry the row defaulting to Per text.
 function lettersScopeOf(container, frame) {
   try {
     const props = getExpressProperties(container);
     const mode = readProp(props, "lettersMode", frame, LETTERS_SCOPE_ACROSS_TEXTS);
     return Math.round(numberValue(mode, LETTERS_SCOPE_ACROSS_TEXTS)) ===
-      LETTERS_SCOPE_ACROSS_TEXTS
-      ? LETTERS_SCOPE_ACROSS_TEXTS
-      : LETTERS_SCOPE_PER_TEXT;
+      LETTERS_SCOPE_PER_TEXT
+      ? LETTERS_SCOPE_PER_TEXT
+      : LETTERS_SCOPE_ACROSS_TEXTS;
   } catch (_scope) {
     return LETTERS_SCOPE_ACROSS_TEXTS;
   }

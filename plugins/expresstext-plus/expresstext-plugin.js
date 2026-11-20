@@ -45,33 +45,62 @@ function defaultExpressData(data, fallbackName) {
 //
 // New containers render per text. Projects saved before the scope setting
 // carry no marker and move to across texts, so they render exactly as
-// before. The marker stamps on every load, so later saves keep the scope
-// they show; fresh containers (empty or missing saved settings) keep the
-// per-text default. All scans stay tolerant of the host saver's shape.
+// before. The marker stamps on every load (and at construction, so a new
+// container serializes with it even when load never ran); later saves keep
+// the scope they show. Fresh containers (empty or missing saved settings,
+// and no saved or live content) keep the per-text default. All scans stay
+// tolerant of the host saver's shape.
 function rawCarriesLettersVersion(raw) {
   try {
-    if (!raw || typeof raw !== "object") return false;
-    const scan = (value, depth) => {
-      if (!value || typeof value !== "object" || depth > 2) return false;
-      for (const key of Object.keys(value)) {
-        if (key === "lettersVersion" || key === "lettersMode") return true;
-        if (scan(value[key], depth + 1)) return true;
-      }
-      return false;
-    };
-    return scan(raw, 0);
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+    return (
+      Object.prototype.hasOwnProperty.call(raw, "lettersVersion") ||
+      Object.prototype.hasOwnProperty.call(raw, "lettersMode")
+    );
   } catch (_scan) {}
   return false;
 }
 
 function rawLooksPreScope(raw) {
   try {
-    if (!raw || typeof raw !== "object") return false;
-    if (Array.isArray(raw)) return raw.length > 0;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
     return Object.keys(raw).length > 0;
   } catch (_raw) {
     return false;
   }
+}
+
+// Saved or live content arriving with the container: texts/children in the
+// saved data, non-empty saved effector sections, or live children already
+// on the instance. Marker-less saves with content predate the scope
+// setting (the saver omits clean defaults, so a genuine old save can
+// carry empty settings); marker-less saves without content are fresh
+// containers with nothing to differ either way.
+function rawHasEntries(value) {
+  try {
+    if (!value) return false;
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === "object") return Object.keys(value).length > 0;
+  } catch (_entries) {}
+  return false;
+}
+
+function containerArrivesWithContent(container, data) {
+  try {
+    if (data && typeof data === "object") {
+      if (rawHasEntries(data.objects)) return true;
+      if (rawHasEntries(data.customProperties)) return true;
+    }
+  } catch (_saved) {}
+  try {
+    if (container && typeof container === "object") {
+      const objects = container.objects;
+      if (objects && typeof objects.length === "number" && objects.length > 0) return true;
+      const customs = container.customProperties;
+      if (customs && typeof customs.length === "number" && customs.length > 0) return true;
+    }
+  } catch (_live) {}
+  return false;
 }
 
 function migrateLettersScope(container, data) {
@@ -79,7 +108,10 @@ function migrateLettersScope(container, data) {
     const rows = container && container.expressProperties;
     if (!rows) return;
     const raw = data && data.expressProperties;
-    if (!rawCarriesLettersVersion(raw) && rawLooksPreScope(raw)) {
+    if (
+      !rawCarriesLettersVersion(raw) &&
+      (rawLooksPreScope(raw) || containerArrivesWithContent(container, data))
+    ) {
       const mode = rows.lettersMode;
       if (mode && typeof mode.set === "function") {
         mode.set(LETTERS_SCOPE_ACROSS_TEXTS, 0);
@@ -249,6 +281,18 @@ function createExpressObjectClass(PZ, definition) {
         "ExpressText",
         propertyDefinitions
       );
+      // New containers always save with the scope marker, even when load
+      // never ran: without it a freshly constructed container serializes
+      // marker-less and a later reopen would mistake it for a pre-scope
+      // project. Effectors never carry the scope rows.
+      try {
+        if (!definition.kind) {
+          const stamped = this.expressProperties && this.expressProperties.lettersVersion;
+          if (stamped && typeof stamped.set === "function") {
+            stamped.set(LETTERS_VERSION, 0);
+          }
+        }
+      } catch (_stamp) {}
       this.type = definition.type;
       // The base group constructor installs its own bound load (with
       // migration handling) which shadows prototype overrides, so hook the
@@ -595,6 +639,8 @@ module.exports = {
     migrateLettersScope,
     rawCarriesLettersVersion,
     rawLooksPreScope,
+    rawHasEntries,
+    containerArrivesWithContent,
     DELAY_ORDER_LABELS,
     numberValue,
     vector3,
