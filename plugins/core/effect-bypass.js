@@ -114,8 +114,7 @@
       const button = row.querySelector(".zoidium-effect-bypass");
       if (!button) continue;
       const off = row.pz_object.zoidiumBypassed === true;
-      button.textContent = "◉";
-      button.style.textDecoration = off ? "line-through" : "none";
+      button.lastChild.style.display = off ? "block" : "none";
       button.title = off ? "Enable effect" : "Bypass effect";
       button.setAttribute("aria-label", button.title);
       button.setAttribute("aria-pressed", String(!off));
@@ -132,6 +131,23 @@
     const target = { editor: this.editor, effect: object, list: this.list };
     buttons.set(button, target);
     button.style.color = "inherit";
+    const svg = row.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 17 17");
+    svg.setAttribute("aria-hidden", "true");
+    svg.style.cssText = "display:block;width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5";
+    const eye = row.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
+    eye.setAttribute("d", "M1 8.5C3 5.5 5.5 4 8.5 4S14 5.5 16 8.5C14 11.5 11.5 13 8.5 13S3 11.5 1 8.5Z M10.5 8.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z");
+    svg.appendChild(eye);
+    button.appendChild(svg);
+    const strike = row.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
+    strike.setAttribute("viewBox", "0 0 17 17");
+    strike.setAttribute("aria-hidden", "true");
+    strike.style.cssText = "position:absolute;inset:2px;width:17px;height:17px;stroke:currentColor;stroke-width:2;pointer-events:none";
+    const line = row.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
+    line.setAttribute("d", "M2 15L15 2");
+    strike.appendChild(line);
+    button.appendChild(strike);
+    button.style.position = "relative";
     button.style.touchAction = "none";
     button.onpointerdown = event => beginDrag(event, target);
     button.onclick = event => {
