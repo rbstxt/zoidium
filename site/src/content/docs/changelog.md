@@ -232,6 +232,9 @@ each line describes one visible change.
 
 ### Changed
 
+- The effect eye button now sits in the same rightmost column on every effect
+  row and matches the other header buttons. Press an eye and drag up or down
+  across other effects to set them all the same way; the drag is one undo step.
 - ZSMB and S_Glow are now named beta 1.1, so bug reports can name the exact
   version. Effects saved under the old name are renamed when a project opens.
 - Material+ Bump Noise Scale goes up to 1024. Values above 64 repeat a seamless
@@ -340,6 +343,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- ZSMB no longer renders black at 1/2 quality and below on 3D Scenes that use a
+  shared Camera+ layer, including after reopening a saved project or switching
+  preview quality.
 - Trimming the start of a clip with masks keeps the mask animation aligned
   with the clip's content.
 - A stationary click on a timeline clip no longer nudges it.
