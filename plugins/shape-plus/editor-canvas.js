@@ -10,6 +10,7 @@ const { find } = require("./editor-tree-data.js");
 const { PAINTS, paintScope } = require("./contents-ops.js");
 const pathProjection = require("./path-projection.js");
 const feedback = require("./path-feedback.js");
+const { selectionBounds, snapPoint, constrainMoveDelta } = require("./path-transform.js");
 const xf = require("./editor-transform.js");
 const PREFS_KEY = "zoidium.shape-plus.path-display";
 const prefsByWindow = new WeakMap();
@@ -101,7 +102,9 @@ function createCanvas(s, canvas) {
     s.dirty = true;
     return true;
   }
-  let projection = null;
+  const navigation = { x: 0, y: 0, scale: 1 };
+  let projection = null, nativeCanvasStyle = null;
+  let frameRect = null;
   // Operation-scoped scene snapshot. One read-only pointer event or one draw
   // shares a single scene build across hit, active lookup, local conversion,
   // snap and selection bounds. CSS vertices and cubics are cached per entry inside the snapshot. The scope is
@@ -230,7 +233,12 @@ function createCanvas(s, canvas) {
     if (closed) context.closePath();
   }
   function resize() {
-    const rect = s.viewport.canvas.getBoundingClientRect();
+    const nativeRect = s.viewport.canvas.getBoundingClientRect();
+    const { x, y, scale } = navigation;
+    const rect = { left: nativeRect.left - x, top: nativeRect.top - y,
+      width: nativeRect.width / scale, height: nativeRect.height / scale };
+    frameRect = { left: x, top: y, right: x + nativeRect.width, bottom: y + nativeRect.height };
+    if (nativeCanvasStyle) clipPreview(rect);
     const parent = s.viewport.el.getBoundingClientRect();
     const dpr = canvas.ownerDocument.defaultView.devicePixelRatio || 1;
     Object.assign(canvas.style, {
@@ -248,12 +256,49 @@ function createCanvas(s, canvas) {
     // transform consumes (layer masks use top-left, y-down mask space while
     // the layer matrix expects centered, y-up input). The host supplies the
     // extra matrix; layers without one project exactly as before.
-    projection = base ? pathProjection.composeMapping(s.layer.layerSpaceMatrix, base) : null;
+    const localToFrame = base ? pathProjection.composeMapping(s.layer.layerSpaceMatrix, base) : null;
+    projection = localToFrame ? pathProjection.composeMapping(localToFrame, [scale, 0, 0, scale, x, y]) : null;
     if (!projection) {
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.clearRect(0, 0, canvas.width, canvas.height);
     }
     return !!projection;
+  }
+  // CM3 has camera controls in perspective view. In the composited view
+  // only the canvas presentation moves. The overlay stays in CSS pixels.
+  function clipPreview(rect) {
+    const inset = [ -frameRect.top, frameRect.right - rect.width,
+      frameRect.bottom - rect.height, -frameRect.left ];
+    s.viewport.canvas.style.clipPath = `inset(${inset.map(value => Math.max(0, value) / navigation.scale + "px").join(" ")})`;
+  }
+  function navigate() {
+    const style = s.viewport.canvas.style;
+    nativeCanvasStyle ??= { transform: style.transform || "", transformOrigin: style.transformOrigin || "", clipPath: style.clipPath || "" };
+    style.transformOrigin = "0 0";
+    style.transform = `translate(${navigation.x}px, ${navigation.y}px) scale(${navigation.scale})`;
+    resize();
+    s.pathInput?.notifyExternalSelection();
+  }
+  function panBy(dx, dy) {
+    navigation.x += dx;
+    navigation.y += dy;
+    navigate();
+  }
+  function zoomAt(point, factor) {
+    const scale = Math.min(16, Math.max(.25, navigation.scale * factor));
+    const ratio = scale / navigation.scale;
+    navigation.x = point[0] + (navigation.x - point[0]) * ratio;
+    navigation.y = point[1] + (navigation.y - point[1]) * ratio;
+    navigation.scale = scale;
+    navigate();
+  }
+  function guides() {
+    if (!frameRect) return [];
+    const { left, right, top, bottom } = frameRect;
+    return [
+      { axis: "x", value: left }, { axis: "x", value: right },
+      { axis: "y", value: top }, { axis: "y", value: bottom },
+    ].filter(({ axis, value }) => value >= 0 && value <= (axis === "x" ? view.width : view.height));
   }
   // Outlines of every drawn leaf under an item (the item itself for a leaf).
   function outlines(id) {
@@ -290,6 +335,7 @@ function createCanvas(s, canvas) {
     context.strokeStyle = ACCENT;
     context.stroke();
     for (const h of xf.handles(b)) {
+      if (b.pivot && !h.rotate && (!h.sx || !h.sy)) continue;
       if (h.rotate) {
         context.beginPath();
         context.moveTo(...h.from);
@@ -304,6 +350,38 @@ function createCanvas(s, canvas) {
         context.stroke();
       } else square(h.point, "#fff");
     }
+  }
+  function pointBox() {
+    const entry = active();
+    if (!s.pathController || s.tool !== "select" || s.treeSelection.size !== 1 ||
+        entry?.item.kind !== "path" || !entry.enabled || s.pathLocked?.(entry.item.id) ||
+        !projection || !g.inverse(projected(entry))) return null;
+    const points = cssPoints(entry).filter((_v, i) => s.selection.has(selectionKey(entry.item.vertexIds[i])));
+    if (points.length < 2) return null;
+    const { min, max, center } = selectionBounds(points.map(v => v.point));
+    return { kind: "group", screen: identity, pivot: center,
+      min: min.map(value => value - 12), max: max.map(value => value + 12) };
+  }
+  function pointBoxHandle(point, box) {
+    const handle = xf.handles(box).reverse().find(h => (h.rotate || h.sx && h.sy) &&
+      Math.hypot(...g.sub(h.point, point)) <= 8);
+    return handle ? { ...handle, box } : null;
+  }
+  function drawSnapGuide(guide) {
+    if (!guide) return;
+    context.lineWidth = 1;
+    context.strokeStyle = "#6ee7db";
+    context.setLineDash([4, 3]);
+    if (guide.point) circle(guide.point, 9, "#6ee7db");
+    else {
+      context.beginPath();
+      for (const { axis, value } of guide.lines) {
+        if (axis === "x") { context.moveTo(value, 0); context.lineTo(value, view.height); }
+        else { context.moveTo(0, value); context.lineTo(view.width, value); }
+      }
+      context.stroke();
+    }
+    context.setLineDash([]);
   }
   function penCursor(target) {
     const drawing = s.pathController?.drawing;
@@ -450,7 +528,7 @@ function createCanvas(s, canvas) {
       ? hoverTarget(s.pointerPoint) : null;
     const cursor = cursorFor(hover);
     const intent = ({ "endpoint-close": "close", "endpoint-continue": "continue", "vertex-delete": "delete" })[cursor.state];
-    if (s.pointerPoint && s.tool === "pen") canvas.style.cursor = cursor.css;
+    if (s.pointerPoint && s.tool === "pen" && !s.pointer?.navigationCursor?.()) canvas.style.cursor = cursor.css;
     if (s.hover && !s.treeSelection.has(s.hover) && !s.pointer?.active)
       for (const e of outlines(s.hover)) strokeOutline(e, HOVER);
     if (cursor.state === "segment-add") drawSegmentHighlight(hover);
@@ -472,8 +550,12 @@ function createCanvas(s, canvas) {
       }
     }
     if (selected.length === 1 && !(s.tool === "pen" && !s.penFinished)) {
-      const b = xf.selectedBox(s);
-      if (b && b.kind !== "path") drawBox(b);
+      const pointSelection = pointBox();
+      if (pointSelection) drawBox(pointSelection);
+      else if (active()?.item.kind !== "path") {
+        const b = xf.selectedBox(s);
+        if (b && b.kind !== "path") drawBox(b);
+      }
     }
     // Pen in progress on a path that is not the selection's leaf.
     if (s.tool === "pen" && !s.penFinished && s.active()?.kind === "path" && selected.length !== 1) {
@@ -495,32 +577,30 @@ function createCanvas(s, canvas) {
     // In-place text editing draws only the caret and selection highlight on
     // top of the real render; see plugins/shape-plus/text-inline.js.
     s.drawTextEdit?.(context);
-    if (!s.pointer?.active) drawBadge(s.pointerPoint, cursor.badge);
+    drawSnapGuide(s.snapGuide);
+    if (!s.pointer?.active && !s.pointer?.navigationCursor?.()) drawBadge(s.pointerPoint, cursor.badge);
     });
   }
-  function snap(point, exclude = []) {
-    if (!s.snap) return point;
-    const entry = active(),
-      world = transform(point, projected(entry)),
-      excluded = new Set(exclude);
-    let closest = null,
-      distance = 8;
-    for (const other of entries().filter((e) => e.enabled))
-      other.path.vertices.forEach((v, i) => {
-        if (
-          other.item.id === s.activeId &&
-          excluded.has(other.item.vertexIds[i])
-        )
-          return;
-        const p = transform(v.point, projected(other)),
-          d = Math.hypot(...g.sub(world, p));
-        if (d < distance) {
-          closest = p;
-          distance = d;
-        }
-      });
-    if (closest) return local(closest, entry);
-    return point;
+  function snap(point, exclude = [], origin = null, shift = false) {
+    const entry = active();
+    const mapping = projected(entry);
+    if (!mapping) return point;
+    const screenOrigin = origin && transform(origin, mapping);
+    let world = transform(point, mapping);
+    if (shift && screenOrigin) world = g.add(screenOrigin, constrainMoveDelta(g.sub(world, screenOrigin), { shift }));
+    const excluded = new Set(exclude);
+    const vertices = entries().filter(e => e.enabled && g.inverse(projected(e)))
+      .flatMap(e => cssPoints(e).filter((_v, i) => !excluded.has(e.item.vertexIds?.[i])).map(v => v.point));
+    const result = s.snap ? snapPoint(world, { vertices, guides: guides(), origin: screenOrigin }) : { point: world };
+    s.snapGuide = result.guide || null;
+    return local(result.point, entry) || point;
+  }
+  function gesturePaths() {
+    if (!projection) return [];
+    return entries().filter(entry => entry.enabled && entry.item.kind === "path").map(entry => ({
+      ...pickRecord(entry), locked: !!s.pathLocked?.(entry.item.id),
+      vertices: entry.path.vertices.map((vertex, i) => ({ ...vertex, id: entry.item.vertexIds[i] })),
+    }));
   }
   const observer = new ResizeObserver(resize);
   observer.observe(canvas);
@@ -545,9 +625,18 @@ function createCanvas(s, canvas) {
     setDisplaySize,
     itemAt,
     snap,
+    pointBox,
+    pointBoxHandle,
+    gesturePaths,
+    guides,
+    panBy,
+    zoomAt,
     outlines,
     projection: () => projection,
-    dispose: () => observer.disconnect(),
+    dispose() {
+      observer.disconnect();
+      if (nativeCanvasStyle) Object.assign(s.viewport.canvas.style, nativeCanvasStyle);
+    },
   };
 }
 module.exports = { scene, createCanvas };

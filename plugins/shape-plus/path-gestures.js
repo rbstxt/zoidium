@@ -49,7 +49,7 @@
 // Interruptions (`pointercancel`, lost capture, blur) keep the preview and
 // commit it; only an explicit cancel (Escape, frame change) restores the
 // snapshot. A release with no movement commits nothing.
-const { pickPaths, projectVertices } = require("./path-projection.js");
+const { pickPaths, projectVertices, screenToLocal } = require("./path-projection.js");
 const { freeTransform } = require("./path-transform.js");
 const {
   resolvePenCursor,
@@ -123,6 +123,7 @@ function createPathGestures(options = {}) {
   }
 
   function pickAt(point) {
+    if (store.pick) return store.pick(point);
     const paths = currentPaths();
     const projection = typeof store.projection === "function" ? store.projection() : null;
     return pickPaths(
@@ -152,53 +153,106 @@ function createPathGestures(options = {}) {
     tell(result.message || "The points cannot be transformed here, so nothing changed.");
   }
 
-  function applyTransformMove(gesture, start, current, shiftKey) {
-    const still = Math.hypot(current[0] - start[0], current[1] - start[1]) < 1e-9;
-    if (still) return { applied: false, snapped: false, result: null };
-    const paths = currentPaths();
-    const selection = typeof store.selection === "function" ? store.selection() : {};
+  function startTransform(kind, pointerId, start, transform = {}, extra = {}, deferredSelection = null) {
+    const paths = currentPaths().map(path => ({ ...path, vertices: path.vertices.slice() }));
+    const selection = deferredSelection ? { [extra.pathId]: extra.vertexIndices } : store.selection?.() ?? {};
+    const projection = typeof store.projection === "function" ? store.projection() : null;
+    const snapshot = snapshotPaths();
+    controller.beginGesture({ kind, pointerId, start, ...extra });
+    state.active = { kind, pointerId, start, transform, paths, selection, projection, snapshot, deferredSelection, dirty: false };
+  }
+
+  function transformFor(active, delta, shiftKey) {
+    const { mode = "move", pivot, handle, origin = active.start } = active.transform;
+    const gesture = {
+      mode, pivot, handle, origin, modifiers: { shift: !!shiftKey },
+      snap: store.snapping?.() === false ? false : { guides: guides(), origin },
+    };
+    if (mode === "move") return { ...gesture, delta };
+    const offset = [handle[0] - pivot[0], handle[1] - pivot[1]];
+    const next = [offset[0] + delta[0], offset[1] + delta[1]];
+    if (mode === "rotate") {
+      const angle = Math.atan2(next[1], next[0]) - Math.atan2(offset[1], offset[0]);
+      return { ...gesture, angle: Math.atan2(Math.sin(angle), Math.cos(angle)) };
+    }
+    return { ...gesture, sx: next[0] / offset[0], sy: next[1] / offset[1] };
+  }
+
+  function resetPreview(active) {
+    if (active.dirty && store.resetPreview) {
+      store.resetPreview();
+      active.dirty = false;
+    }
+  }
+
+  function applyTransformMove(active, current, shiftKey) {
+    const start = active.start;
+    const delta = [current[0] - start[0], current[1] - start[1]];
+    if (Math.hypot(...delta) < (options.minDragDistance || 1e-9)) {
+      resetPreview(active);
+      store.showSnap?.(null);
+      return { applied: false, snapped: false };
+    }
+    const projection = store.projection?.();
+    const currentPathsById = new Map(currentPaths().map(path => [path.id, path]));
+    for (const id of Object.keys(active.selection)) {
+      const path = currentPathsById.get(id);
+      if (!path || path.locked) {
+        store.showSnap?.(null);
+        return { applied: false, snapped: false };
+      }
+      const check = screenToLocal(current, { matrix: path.matrix, projection });
+      if (!check.ok) {
+        tell(check.message);
+        store.showSnap?.(null);
+        return { applied: false, snapped: false };
+      }
+    }
     const result = freeTransform({
-      paths: paths.map((path) => ({
-        id: path.id,
-        matrix: path.matrix === undefined ? null : path.matrix,
-        locked: !!path.locked,
-        vertices: path.vertices || [],
-      })),
-      selection,
-      projection: typeof store.projection === "function" ? store.projection() : null,
-      gesture: {
-        mode: "move",
-        delta: [current[0] - start[0], current[1] - start[1]],
-        origin: copyPoint(start),
-        modifiers: { shift: !!shiftKey },
-        snap: { guides: guides(), origin: copyPoint(start) },
-      },
+      paths: active.paths,
+      selection: active.selection,
+      projection: active.projection,
+      gesture: transformFor(active, delta, shiftKey),
     });
     if (!result.ok) {
       reportFailure(result);
-      return { applied: false, snapped: false, result };
+      store.showSnap?.(null);
+      return { applied: false, snapped: false };
     }
     if (result.failures.length) tell(result.failures[0].message);
-    if (typeof store.preview === "function") store.preview(result.paths);
-    return { applied: true, snapped: !!(result.snap && result.snap.snapped), result };
+    store.showSnap?.(result.snap?.guide || null);
+    const changed = result.paths.some(path => {
+      const source = pathById(active.paths, path.id);
+      return path.changed.some(index => ["point", "in", "out"].some(key =>
+        path.vertices[index][key].some((value, i) => Math.abs(value - source.vertices[index][key][i]) > 1e-9)));
+    });
+    if (!changed) resetPreview(active);
+    if (changed && active.deferredSelection) {
+      onSelect?.(active.deferredSelection);
+      active.deferredSelection = null;
+    }
+    const applied = changed && store.preview?.(result.paths, result) !== false;
+    return { applied, snapped: !!result.snap?.snapped };
   }
 
   function finishGesture(commit, event) {
     const active = state.active;
     if (!active) return { action: "ignore", releaseCapture: false };
     state.active = null;
+    store.showSnap?.(null);
     const pointerId = active.pointerId;
     if (active.kind === "pan") {
       try {
-        if (active.priorTool !== undefined) controller.setTool(active.priorTool);
+        if (active.priorTool !== undefined && controller.tool !== active.priorTool)
+          controller.setTool(active.priorTool, { preserveDrawing: true });
       } catch (_error) {
         // Restoring the tool must not break pointer release.
       }
-      controller.endGesture(false);
+      if (!controller.disposed) controller.endGesture(false);
       return { action: "end-pan", releaseCapture: true, pointerId };
     }
     if (active.kind === "marquee") {
-      controller.endGesture(false);
+      if (!controller.disposed) controller.endGesture(false);
       if (commit) emitMarqueeSelection(active);
       return { action: commit ? "select-marquee" : "end-marquee", releaseCapture: true, pointerId };
     }
@@ -207,13 +261,13 @@ function createPathGestures(options = {}) {
       if (active.snapshot !== null && typeof store.restore === "function") {
         store.restore(active.snapshot);
       }
-      controller.endGesture(true);
+      if (!controller.disposed) controller.endGesture(true);
       return { action: "cancel", releaseCapture: true, pointerId };
     }
     if (active.dirty && typeof store.commit === "function") {
       store.commit(active.kind === "segment" ? "drag-segment" : "transform-points");
     }
-    controller.endGesture(false);
+    if (!controller.disposed) controller.endGesture(false);
     return { action: active.dirty ? "commit" : "end", committed: !!active.dirty, releaseCapture: true, pointerId };
   }
 
@@ -223,7 +277,7 @@ function createPathGestures(options = {}) {
 
   function emitMarqueeSelection(active) {
     if (!onSelect) return;
-    const paths = currentPaths();
+    const paths = store.marqueePaths?.() ?? currentPaths();
     const projection = typeof store.projection === "function" ? store.projection() : null;
     const entries = [];
     for (const path of paths) {
@@ -264,7 +318,7 @@ function createPathGestures(options = {}) {
 
   // Primary pointer press in CSS pixels. Returns a descriptor; `capture`
   // tells `bind` (or the P2.7 caller) whether to hold pointer capture.
-  function press(point, event = {}) {
+  function press(point, event = {}, request = {}) {
     if (!isFinitePoint(point)) throw Error("Path gestures need a finite pointer point");
     if (event.isPrimary === false) return { action: "ignore", reason: "secondary-pointer", capture: false };
     if (state.active) return { action: "ignore", reason: "gesture-active", capture: false };
@@ -288,8 +342,12 @@ function createPathGestures(options = {}) {
       return { action: "ignore", reason: "pen-tool", capture: false };
     }
 
-    const { target, candidates } = pickAt(screen);
-    void candidates;
+    if (request.transform && !request.target) {
+      const kind = request.transform.mode;
+      startTransform(kind, pointerId, screen, request.transform, { pathId: request.pathId });
+      return { action: kind, capture: true, pointerId };
+    }
+    const target = request.target === undefined ? pickAt(screen).target : request.target;
     if (!target) {
       if (controller.tool !== "select") return { action: "ignore", reason: "empty-press", capture: false };
       controller.beginGesture({ kind: "marquee", pointerId, start: screen });
@@ -315,8 +373,8 @@ function createPathGestures(options = {}) {
       if (path.locked) {
         if (onSelect) {
           onSelect(
-            shiftKey
-              ? { type: "click", pathId: target.pathId, vertexIndex: target.vertexIndex, toggle: true }
+            shiftKey || options.selectLockedPoints
+              ? { type: "click", pathId: target.pathId, vertexIndex: target.vertexIndex, toggle: shiftKey }
               : { type: "activate", pathId: target.pathId },
           );
         }
@@ -333,17 +391,9 @@ function createPathGestures(options = {}) {
         onSelect({ type: "click", pathId: target.pathId, vertexIndex: target.vertexIndex, toggle: false });
         activated = true;
       }
-      const snapshot = snapshotPaths();
-      const altBreak = !!(input && typeof input.isAltHeld === "function" && input.isAltHeld());
-      controller.beginGesture({
-        kind: "move",
-        pointerId,
-        pathId: target.pathId,
-        vertexIndex: target.vertexIndex,
-        start: screen,
-        altBreak,
+      startTransform("move", pointerId, screen, request.transform, {
+        pathId: target.pathId, vertexIndex: target.vertexIndex,
       });
-      state.active = { kind: "move", pointerId, start: screen, snapshot, dirty: false, activated };
       return { action: "move", capture: true, pointerId, activated };
     }
 
@@ -355,19 +405,11 @@ function createPathGestures(options = {}) {
       }
       const endpoints = segmentEndpoints({ vertices: path.vertices || [], closed: !!path.closed }, target.segmentIndex);
       if (!endpoints) return { action: "ignore", reason: "degenerate-segment", capture: false };
-      if (onSelect) {
-        onSelect({ type: "segment", pathId: target.pathId, vertexIndices: endpoints, segmentIndex: target.segmentIndex });
-      }
-      const snapshot = snapshotPaths();
-      controller.beginGesture({
-        kind: "segment",
-        pointerId,
-        pathId: target.pathId,
-        segmentIndex: target.segmentIndex,
-        vertexIndices: endpoints,
-        start: screen,
-      });
-      state.active = { kind: "segment", pointerId, start: screen, snapshot, dirty: false };
+      const selection = { pathId: target.pathId, vertexIndices: endpoints, segmentIndex: target.segmentIndex };
+      const payload = { type: "segment", ...selection };
+      if (!options.deferSegmentSelection) onSelect?.(payload);
+      startTransform("segment", pointerId, screen, request.transform, selection,
+        options.deferSegmentSelection ? payload : null);
       return { action: "segment", capture: true, pointerId, vertexIndices: endpoints };
     }
 
@@ -390,12 +432,13 @@ function createPathGestures(options = {}) {
     }
     if (active.kind === "marquee") {
       active.current = screen;
+      if (options.previewMarquee) emitMarqueeSelection(active);
       return { action: "marquee", rect: { start: copyPoint(active.start), end: copyPoint(screen) } };
     }
-    const outcome = applyTransformMove(active, active.start, screen, event.shiftKey);
+    const outcome = applyTransformMove(active, screen, event.shiftKey);
     if (outcome.applied) active.dirty = true;
     return {
-      action: active.kind === "segment" ? "segment" : "move",
+      action: active.kind,
       applied: outcome.applied,
       snapped: outcome.snapped,
     };
@@ -408,8 +451,8 @@ function createPathGestures(options = {}) {
       return { action: "ignore", reason: "secondary-pointer", releaseCapture: false };
     }
     if (active.kind === "marquee" && isFinitePoint(point)) active.current = copyPoint(point);
-    if ((active.kind === "move" || active.kind === "segment") && isFinitePoint(point)) {
-      const outcome = applyTransformMove(active, active.start, copyPoint(point), event.shiftKey);
+    if (active.kind !== "pan" && active.kind !== "marquee" && isFinitePoint(point)) {
+      const outcome = applyTransformMove(active, copyPoint(point), event.shiftKey);
       if (outcome.applied) active.dirty = true;
     }
     return finishGesture(true);
@@ -450,7 +493,7 @@ function createPathGestures(options = {}) {
     if (active.snapshot !== null && active.snapshot !== undefined && typeof store.restore === "function") {
       store.restore(active.snapshot);
     }
-    controller.endGesture(true);
+    if (!controller.disposed) controller.endGesture(true);
     tell("The frame changed, so the in-progress edit was cancelled.");
     return { action: "cancel-frame", releaseCapture: true, pointerId: active.pointerId };
   }

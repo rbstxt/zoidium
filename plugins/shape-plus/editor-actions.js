@@ -4,6 +4,7 @@ const g = require("./editor-geometry.js");
 const { createMenu } = require("./editor-menu.js");
 const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
+const { setStaticFirstVertex } = require("./path-hosts.js");
 const { PREFS_MIN_PX, PREFS_MAX_PX } = require("./path-feedback.js");
 const { isEditableTarget, isComposingEvent } = require("./path-input.js");
 function installActions(s, root, options = {}) {
@@ -33,7 +34,7 @@ function installActions(s, root, options = {}) {
   };
   // Right-click selects what is under the pointer first, like a click, then
   // shows one menu for that selection. Empty space offers new shapes there.
-  s.openItemMenu = (x, y, point) => {
+  s.openItemMenu = (x, y, point, vertex) => {
     const item = s.active(),
       many = s.treeSelection.size > 1,
       path = !many && item?.kind === "path",
@@ -60,6 +61,11 @@ function installActions(s, root, options = {}) {
       menu.open(x, y, entries, { title: shapes ? "Shape+" : "Mask", focusReturn: s.canvas });
       return;
     }
+    if (vertex) entries.push({
+      label: "Set First Vertex",
+      disabled: vertex.locked,
+      action: () => setStaticFirstVertex(s, vertex.pathId, vertex.vertexId),
+    }, { separator: true });
     if (path)
       entries.push(
         { label: Number(item.properties.closed.get()) === 1 ? "Open Path" : "Close Path", action: s.closePath },
@@ -298,12 +304,15 @@ function installActions(s, root, options = {}) {
     s.pointer.commit();
     const r = s.canvas.getBoundingClientRect(),
       point = [event.clientX - r.left, event.clientY - r.top];
-    const entry = s.canvasApi.itemAt(point);
-    if (entry) {
+    const vertex = s.pointer.contextTarget?.(point);
+    const entry = vertex ? null : s.canvasApi.itemAt(point);
+    if (vertex && vertex.pathId !== s.activeId) {
+      s.pathController.activate(s.sharedPathHost, vertex.pathId);
+    } else if (entry) {
       const target = pickTarget(s.layer.contents, entry.item.id, s.treeSelection);
       if (!s.treeSelection.has(target)) s.selectItem(target);
-    } else if (s.tool === "select" && !s.selection.size) s.clearSelection();
-    s.openItemMenu(event.clientX, event.clientY, point);
+    } else if (!vertex && s.tool === "select" && !s.selection.size) s.clearSelection();
+    s.openItemMenu(event.clientX, event.clientY, point, vertex);
   }
   const keyRoot = s.canvas;
   keyRoot.addEventListener("keydown", keydown, true);
@@ -393,16 +402,27 @@ function installPathShortcuts({ paths, viewport, document, window, session, rout
       selectedAnchors: s && activeHere ? [...s.selection].filter(key => !selectionPart(key).side).length : 0,
       locked: activeHere && host.isLocked(controller.activePathId),
     });
+    if (result.action === "defer-to-viewport" && within(viewport.el, document.activeElement) &&
+        within(viewport.el, event.target) && s?.pointer.setSpaceHeld?.(true)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
     apply(result, s);
     return result;
   }
   const down = event => dispatch(event);
-  const up = event => apply(paths.input.handleKeyUp(event), session());
+  const up = event => {
+    const s = session();
+    if (event.code === "Space" || event.key === " " || event.key === "Spacebar") s?.pointer.setSpaceHeld?.(false);
+    apply(paths.input.handleKeyUp(event), s);
+  };
   const blur = () => {
     paths.controller.releaseFocus();
-    session()?.pointer.commit();
-    session()?.finishNudge();
-    apply(paths.input.handleBlur(), session());
+    const s = session();
+    s?.pointer.commit();
+    s?.pointer.setSpaceHeld?.(false);
+    s?.finishNudge();
+    apply(paths.input.handleBlur(), s);
   };
   const windowBlur = () => { composing = false; blur(); };
   const focusin = event => {
@@ -412,7 +432,10 @@ function installPathShortcuts({ paths, viewport, document, window, session, rout
   const focusout = event => {
     if (isScope(event.target) && !focusOptions(event.relatedTarget).viewportFocused) blur();
   };
-  const compositionStart = () => { composing = true; };
+  const compositionStart = () => {
+    composing = true;
+    session()?.pointer.setSpaceHeld?.(false);
+  };
   const compositionEnd = () => { composing = false; };
   const viewportPress = event => {
     if ((event.target === viewport.canvas || event.target === viewport.el) && !isEditableTarget(event.target)) {

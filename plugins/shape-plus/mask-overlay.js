@@ -10,7 +10,7 @@ const { createCanvas } = require("./editor-canvas.js");
 const { createPointer } = require("./editor-pointer.js");
 const { installActions } = require("./editor-actions.js");
 const { matrix } = require("./compiler.js");
-const { isPerspectiveView } = require("./path-projection.js");
+const { isPerspectiveView, PERSPECTIVE_EDIT_MESSAGE } = require("./path-projection.js");
 const { inverse } = require("./editor-geometry.js");
 const { icon } = require("./editor-icons.js");
 const { createMaskSession, maskSessionFor } = require("./mask-host.js");
@@ -137,6 +137,10 @@ function install(context, Content, paths) {
   let view = null, mode = "off", modeLayer = null, disposed = false;
   function setMode(next) {
     if (!MODES.includes(next)) throw Error(`Unknown mask mode ${next}`);
+    if (next !== "off" && isPerspectiveView(viewport)) {
+      context.ui.notify({ title: "Masks", message: PERSPECTIVE_EDIT_MESSAGE });
+      return;
+    }
     if (next !== "off") modeLayer = maskClip(editor, viewport, PZ)?.layer || null;
     mode = next;
     if (mode !== "off" && paths && paths.controller.tool !== mode) paths.controller.setTool(mode);

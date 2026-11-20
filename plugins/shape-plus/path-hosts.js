@@ -47,6 +47,38 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+// Static Set First Vertex keeps each six-channel block and its metadata
+// together. Open contours can change their first vertex only by reversing.
+function setStaticFirstVertex(s, pathId, vertexId) {
+  const item = s.find(pathId);
+  if (item?.kind !== "path") return false;
+  const data = clone(item), path = data.properties.path, ids = data.vertexIds;
+  const index = ids.indexOf(vertexId);
+  if (index < 0) return false;
+  const channels = path.objects || [path];
+  if (path.expression || channels.some(channel => channel.expression)) {
+    s.message("Expression-driven paths cannot be edited.");
+    return false;
+  }
+  if (path.animated || channels.some(channel => channel.animated || channel.keyframes?.length > 1)) {
+    s.message("Set First Vertex on an animated path will be available in a later update.");
+    return false;
+  }
+  if (index === 0) return false;
+  const closed = Number(item.properties.closed.get(s.localFrame())) === 1;
+  if (!closed && index !== ids.length - 1) {
+    s.message("Choose an endpoint to set the first vertex of an open path.");
+    return false;
+  }
+  const order = closed ? [...ids.slice(index), ...ids.slice(0, index)] : ids.slice().reverse();
+  const offsets = closed ? [0, 1, 2, 3, 4, 5] : [0, 1, 4, 5, 2, 3];
+  const reorder = values => order.flatMap(id => offsets.map(offset => values[ids.indexOf(id) * 6 + offset]));
+  data.vertexIds = order;
+  if (path.objects) path.objects = reorder(path.objects);
+  else for (const key of path.keyframes) key.value = reorder(key.value);
+  return s.mutate(() => s.replaceItem(pathId, data), [pathId]);
+}
+
 // Key-order-insensitive equality for lock diffing: caller-built snapshots
 // may order keys differently from stored ones without changing meaning.
 function stableStringify(value) {
@@ -599,4 +631,5 @@ module.exports = {
   requestCreation,
   applyCreation,
   createEditorPathRegistry,
+  setStaticFirstVertex,
 };

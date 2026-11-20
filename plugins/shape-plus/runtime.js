@@ -172,7 +172,7 @@ function installPathEditing(context, Layer, Content) {
   maskPanels.setPanelActivator((session, layer, maskId, focusPen, refresh) => {
     if (!paths.activate("mask", layer, maskId)) {
       session.s.selectItem(maskId);
-      if (typeof focusPen === "function") focusPen("select");
+      if (!isPerspectiveView(viewport) && typeof focusPen === "function") focusPen("select");
     }
     if (typeof refresh === "function") refresh();
   });

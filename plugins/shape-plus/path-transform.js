@@ -519,9 +519,11 @@ function freeTransform(input = {}) {
     let finalAngle = angle;
     let shifted = [0, 0];
     if (handle && radius > 1e-12) {
-      const implied = [pivot[0] + Math.cos(angle) * radius, pivot[1] + Math.sin(angle) * radius];
+      const initialAngle = Math.atan2(handle[1] - pivot[1], handle[0] - pivot[0]);
+      const direction = initialAngle + angle;
+      const implied = [pivot[0] + Math.cos(direction) * radius, pivot[1] + Math.sin(direction) * radius];
       snap = runSnap(implied);
-      finalAngle = Math.atan2(snap.point[1] - pivot[1], snap.point[0] - pivot[0]);
+      if (snap.snapped) finalAngle = Math.atan2(snap.point[1] - pivot[1], snap.point[0] - pivot[0]) - initialAngle;
     } else {
       const turned = rotatePoints(
         selected.map((item) => item.anchor),
@@ -580,8 +582,8 @@ function freeTransform(input = {}) {
       next[item.vertexIndex] = {
         ...source,
         point: [anchor.local[0], anchor.local[1]],
-        in: [knobIn.local[0] - anchor.local[0], knobIn.local[1] - anchor.local[1]],
-        out: [knobOut.local[0] - anchor.local[0], knobOut.local[1] - anchor.local[1]],
+        in: mode === "move" ? copyPoint(source.in || [0, 0]) : [knobIn.local[0] - anchor.local[0], knobIn.local[1] - anchor.local[1]],
+        out: mode === "move" ? copyPoint(source.out || [0, 0]) : [knobOut.local[0] - anchor.local[0], knobOut.local[1] - anchor.local[1]],
       };
     }
     if (failed) {

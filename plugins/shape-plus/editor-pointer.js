@@ -9,6 +9,7 @@ const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
 const { transform } = require("./compiler.js");
 const { startMarquee, applyMarquee, pointsInRect } = require("./path-selection.js");
+const { createPathGestures } = require("./path-gestures.js");
 const { requestCreation } = require("./path-hosts.js");
 function createPointer(s, canvas) {
   const api = s.canvasApi;
@@ -20,6 +21,111 @@ function createPointer(s, canvas) {
     if (!s.gesture.active && !s.gesture.begin()) return false;
     work();
     return true;
+  }
+  let marqueeHandles = [];
+  const gestures = s.pathController && createPathGestures({
+    controller: s.pathController, input: s.pathInput, viewport: api,
+    minDragDistance: 2, selectLockedPoints: true, previewMarquee: true, deferSegmentSelection: true,
+    onMessage: s.message,
+    store: {
+      paths: api.gesturePaths,
+      pick: q => api.pickPaths(q),
+      projection: api.projection,
+      guides: api.guides,
+      marqueePaths: () => api.gesturePaths().filter(path => path.id === s.activeId),
+      snapping: () => s.snap,
+      showSnap(guide) { s.snapGuide = guide; s.dirty = true; },
+      selection() {
+        const id = s.activeId;
+        const ids = id && s.sharedPathHost?.listVertexIds(id);
+        return ids ? { [id]: ids.flatMap((vertexId, i) => s.selection.has(selectionKey(vertexId)) ? [i] : []) } : {};
+      },
+      // The native transaction owns the full snapshot, including channel
+      // keys and layer mask fields. Start it only on the first real write.
+      snapshot: () => s.gesture,
+      restore: gesture => gesture.finish(true),
+      resetPreview: () => s.gesture.finish(true),
+      commit: () => s.gesture.finish(),
+      preview(edited) {
+        const frame = s.localFrame();
+        const writes = edited.map(({ id, vertices }) => {
+          const property = s.find(id).properties.path;
+          return { property, values: g.values(vertices), current: property.get(frame) };
+        }).filter(({ values, current }) => values.some((value, i) => value !== current[i]));
+        if (!writes.length) return true;
+        if (!s.gesture.active && !s.gesture.begin()) return false;
+        for (const { property, values } of writes) s.setValue(property, values, frame);
+        s.pathHost?.persist();
+        return true;
+      },
+    },
+    onSelect({ type, pathId, vertexIndex, vertexIndices, selection, toggle }) {
+      const id = pathId || s.activeId;
+      const ids = s.sharedPathHost.listVertexIds(id);
+      const keys = (indices) => indices.map(index => selectionKey(ids[index]));
+      if (type === "click") {
+        const key = selectionKey(ids[vertexIndex]);
+        if (!toggle) s.selection = new Set([key]);
+        else if (s.selection.has(key)) s.selection.delete(key);
+        else s.selection.add(key);
+      } else if (type === "segment") s.selection = new Set(keys(vertexIndices));
+      else if (type === "marquee") s.selection = new Set([...marqueeHandles, ...keys(selection[id] || [])]);
+      s.refresh();
+    },
+  });
+  function navigationCursor() {
+    const cursor = gestures?.cursorFor();
+    return cursor?.tool === "navigate" ? cursor : null;
+  }
+  function updateCursor() {
+    const navigation = navigationCursor();
+    if (navigation) canvas.style.cursor = navigation.css;
+    else if (s.pointerPoint) api.scoped(() => updateHover(s.pointerPoint));
+    else canvas.style.cursor = api.cursorFor(null).css;
+  }
+  function managedPress(event, start, request = {}) {
+    const before = new Set(s.selection);
+    const result = gestures.press(start, event, request);
+    if (!result.capture) return null;
+    const marquee = result.action === "marquee";
+    if (marquee) {
+      marqueeHandles = event.shiftKey ? [...before].filter(key => selectionPart(key).side) : [];
+      s.marquee = { start, end: start };
+      if (!event.shiftKey) { s.selection.clear(); s.refresh(); }
+    }
+    if (result.cursor) canvas.style.cursor = result.cursor.css;
+    return {
+      managed: true, frame: s.localFrame(), target: request.pathId ?? request.target?.pathId,
+      move(e) {
+        s.pointerPoint = point(e);
+        s.pathInput?.trackPointer(s.pointerPoint);
+        const moved = api.scoped(() => gestures.move(s.pointerPoint, e));
+        if (moved.rect) { s.marquee = moved.rect; s.dirty = true; }
+      },
+      end(e) {
+        try {
+          const screen = e?.type === "pointerup" ? point(e) : undefined;
+          api.scoped(() => gestures.release(screen, e));
+        } catch (error) {
+          gestures.cancel();
+          s.gesture.finish(true);
+          s.message(error.message);
+        } finally {
+          s.marquee = null;
+          marqueeHandles = [];
+          s.refresh(true);
+          updateCursor();
+        }
+      },
+      cancel() {
+        gestures.cancel();
+        s.marquee = null;
+        marqueeHandles = [];
+        if (marquee) s.selection = before;
+        s.refresh(true);
+        updateCursor();
+      },
+    };
   }
   function capturePenState() {
     return { activeId: s.activeId, treeSelection: new Set(s.treeSelection), selection: new Set(s.selection),
@@ -95,12 +201,7 @@ function createPointer(s, canvas) {
           s.gesture.finish(true);
           return null;
         }
-        local = api.snap(local);
-        if (event.shiftKey)
-          local = g.add(
-            s.pathPoints().at(-1).point,
-            g.constrain(g.sub(local, s.pathPoints().at(-1).point)),
-          );
+        local = api.snap(local, [], s.pathPoints().at(-1).point, event.shiftKey);
         s.topology({ kind: "append", id: s.nextId(), point: local });
       } else {
         local = api.local(start, { matrix: s.insertionMatrix(true) });
@@ -185,8 +286,10 @@ function createPointer(s, canvas) {
     // An arrow-key nudge still holding the history transaction ends first, so
     // this press starts its own transaction instead of joining or losing it.
     s.finishNudge?.();
-    if (!s.valid()) return null;
+    if (!s.valid() || !api.projection()) return null;
     const start = point(event);
+    s.pointerPoint = start;
+    if (gestures?.spaceHeld) return managedPress(event, start);
     if (event.button !== 0) return null;
     s.editor.playback.speed = 0;
     // A text caret session owns presses first: inside the edited text it
@@ -216,8 +319,22 @@ function createPointer(s, canvas) {
     }
     if (s.tool === "pen" && hit?.kind !== "handle" && (!locked || !hit))
       return pen(event, start, hit);
+    const box = gestures && !event.shiftKey ? api.pointBox() : null;
+    const pointHandle = box && api.pointBoxHandle(start, box);
+    if (pointHandle && (!hit || hit.kind === "segment")) {
+      const mode = pointHandle.rotate ? "rotate" : "scale";
+      const { point: handle } = pointHandle;
+      return managedPress(event, start, { pathId: item.id, transform: { mode, pivot: box.pivot, handle, origin: handle } });
+    }
     const boxHandle = s.tool === "select" ? xf.handleAt(s, start) : null;
     if (boxHandle) return xf.boxGesture(s, boxHandle, start, point);
+    const hasHandleSelection = s.selection.size && [...s.selection].some(key => selectionPart(key).side);
+    if (gestures && s.tool === "select" &&
+        (hit?.kind === "segment" || hit?.kind === "anchor" && !hasHandleSelection)) {
+      return managedPress(event, start, { target: hit, transform: { mode: "move", origin: hit.point } });
+    }
+    if (box && !hit && start.every((v, i) => v >= box.min[i] && v <= box.max[i]))
+      return managedPress(event, start, { pathId: item.id, transform: { mode: "move" } });
     if (hit?.kind === "segment" && locked) return null;
     if (s.tool === "select" && hit?.kind === "segment") {
       const origin = s.pathPoints(), startLocal = api.local(start);
@@ -348,6 +465,7 @@ function createPointer(s, canvas) {
     if (!event.shiftKey && insideSelection(start)) return movableGesture(start, point);
     // Empty space: a marquee. With a path open for editing it selects
     // anchors; otherwise it selects whole top-level items.
+    if (editing && gestures) return managedPress(event, start, { target: null, pathId: item.id });
     const beforeAnchors = new Set(s.selection),
       beforeItems = event.shiftKey ? new Set(s.treeSelection) : new Set(),
       pathEntry = editing ? api.active() : null;
@@ -410,12 +528,13 @@ function createPointer(s, canvas) {
   function begin(event) {
     const gesture = api.scoped(() => beginInner(event));
     const controller = s.pathController;
-    if (!gesture || !controller) return gesture;
+    if (!gesture || !controller || gesture.managed) return gesture;
     controller.beginGesture({ kind: "pointer", pathId: gesture.target });
     return {
       ...gesture,
       move(e) {
-        s.pathInput?.trackPointer(point(e));
+        s.pointerPoint = point(e);
+        s.pathInput?.trackPointer(s.pointerPoint);
         if (gesture.target && s.pathLocked?.(gesture.target) && !s.marquee) {
           pointer.commit();
           return;
@@ -423,10 +542,12 @@ function createPointer(s, canvas) {
         gesture.move?.(e);
       },
       end(e) {
+        s.snapGuide = null;
         if (!controller.disposed) controller.endGesture();
         gesture.end?.(e);
       },
       cancel(e) {
+        s.snapGuide = null;
         if (!controller.disposed) controller.endGesture(true);
         gesture.cancel?.(e);
       },
@@ -487,19 +608,16 @@ function createPointer(s, canvas) {
   };
   // Hover feedback: outline what a click would select and show the cursor
   // for the handle, anchor or shape under the pointer.
-  const hover = (event) => {
-    return api.scoped(() => {
-    if (pointer.active || !s.valid()) return;
-    const p = point(event);
-    s.pathInput?.trackPointer(p);
-    s.pointerPoint = p;
+  function updateHover(p) {
+    const navigation = navigationCursor();
+    if (navigation) { canvas.style.cursor = navigation.css; return; }
     const target = api.hoverTarget(p);
     const controller = s.pathController;
     if (controller && !controller.disposed) controller.setHover(target);
-    let cursor = api.cursorFor(target).css,
-      id = null;
+    let cursor = api.cursorFor(target).css, id = null;
     if (s.tool !== "pen") {
-      const handle = xf.handleAt(s, p);
+      const box = api.pointBox();
+      const handle = api.pointBoxHandle(p, box) || xf.handleAt(s, p);
       if (handle) cursor = xf.cursorFor(handle);
       else if (s.treeSelection.size === 1 && api.hit(p)) cursor = "pointer";
       else {
@@ -507,16 +625,30 @@ function createPointer(s, canvas) {
         if (entry) {
           id = pickTarget(s.layer.contents, entry.item.id, s.treeSelection);
           cursor = "move";
-        } else if (insideSelection(p)) cursor = "move";
+        } else if (insideSelection(p) || box && p.every((v, i) => v >= box.min[i] && v <= box.max[i])) cursor = "move";
       }
     }
     if (canvas.style.cursor !== cursor) canvas.style.cursor = cursor;
-    if (s.hover !== id) {
-      s.hover = id;
-      s.dirty = true;
-    }
-    });
-  };
+    if (s.hover !== id) { s.hover = id; s.dirty = true; }
+  }
+  const hover = (event) => api.scoped(() => {
+    if (pointer.active || !s.valid()) return;
+    const p = point(event);
+    s.pathInput?.trackPointer(p);
+    s.pointerPoint = p;
+    updateHover(p);
+  });
+  function wheel(event) {
+    if (!gestures || !s.valid() || !api.projection() || !Number.isFinite(event.deltaY)) return;
+    if (gestures.active?.kind === "pan") { event.preventDefault(); event.stopPropagation(); return; }
+    pointer.commit();
+    s.finishNudge?.();
+    event.preventDefault();
+    event.stopPropagation();
+    s.pointerPoint = point(event);
+    gestures.wheel(s.pointerPoint, event.deltaY, event);
+    updateCursor();
+  }
   const leave = () => {
     s.pathInput?.notifyExternalSelection();
     s.pointerPoint = null;
@@ -529,15 +661,28 @@ function createPointer(s, canvas) {
   canvas.addEventListener("pointermove", hover);
   canvas.addEventListener("pointerleave", leave);
   canvas.addEventListener("dblclick", double);
+  canvas.addEventListener("wheel", wheel, { passive: false });
   return {
     get active() {
       return pointer.active;
     },
     cancel: () => pointer.cancel(),
+    navigationCursor,
+    setSpaceHeld(held) {
+      if (!gestures) return false;
+      if (gestures.spaceHeld === held && (held || gestures.active?.kind !== "pan")) return true;
+      if (!held && gestures.active?.kind === "pan") pointer.commit();
+      else if (held && pointer.active && gestures.active?.kind !== "pan") pointer.commit();
+      gestures.setSpaceHeld(held);
+      updateCursor();
+      return true;
+    },
+    contextTarget(p) { return api.scoped(() => gestures?.requestContextMenu(p)); },
     commit: () => pointer.commit(),
     dispose() {
       pointer.dispose();
       canvas.removeEventListener("dblclick", double);
+      canvas.removeEventListener("wheel", wheel);
       canvas.removeEventListener("pointermove", hover);
       canvas.removeEventListener("pointerleave", leave);
     },

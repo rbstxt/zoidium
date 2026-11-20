@@ -471,6 +471,16 @@
       "source": "./plugins/shape-plus/path-input.js?v=44"
     },
     {
+      "id": "path-gestures",
+      "type": "text",
+      "source": "./plugins/shape-plus/path-gestures.js?v=44"
+    },
+    {
+      "id": "path-transform",
+      "type": "text",
+      "source": "./plugins/shape-plus/path-transform.js?v=44"
+    },
+    {
       "id": "path-feedback",
       "type": "text",
       "source": "./plugins/shape-plus/path-feedback.js?v=44"

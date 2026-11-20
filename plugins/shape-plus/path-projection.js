@@ -204,7 +204,7 @@ function pickPaths(paths, screen, options = {}) {
         }
       });
     }
-    verticesToCubics(projected, !!path.closed).forEach((cubic, segmentIndex) => {
+    if (!hitPath) verticesToCubics(projected, !!path.closed).forEach((cubic, segmentIndex) => {
       const hull = hullOf(cubic);
       if (
         screen[0] < hull.minX - radius ||
