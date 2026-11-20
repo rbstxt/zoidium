@@ -16,6 +16,7 @@
 // overlay and the coverage raster.
 const { flattenPath, lengthTable } = require("./path.js");
 const { primitivePath } = require("./primitives.js");
+const { coercePath: groupChannels } = require("./path-native-channels.js");
 
 // Own data property on the native Scene/Adjustment layer object. Never read
 // or written by CM3 itself; the manager's field preservation merges the live
@@ -69,46 +70,24 @@ function createMask(id, name, point) {
   };
 }
 
-// Accepts the native { animated, keyframes } group encoding and the
-// split-channel { objects } encoding emitted by detached test doubles (the
-// shared PZ stub serializes groups per channel). Returns the native
-// encoding. In the browser the native property serializer already emits the
-// native encoding, so this is a no-op there.
-function coercePath(path, channels) {
-  if (!path || typeof path !== "object" || Array.isArray(path))
-    throw Error("Layer mask needs a path");
-  if (Array.isArray(path.keyframes)) return path;
-  const objects = path.objects;
-  if (!Array.isArray(objects) || objects.length !== channels ||
-      !objects.every(channel => channel && typeof channel === "object"))
+// Keep grouped mask storage when CM3 can load it without losing data.
+function coercePath(path) {
+  if (!path?.objects) return path;
+  try { return groupChannels(path); }
+  catch (_error) { return path; }
+}
+
+function validatePathKeys(keys, validValue, valueError, uniqueFrames = false) {
+  if (!Array.isArray(keys) || !keys.length)
     throw Error("Layer mask path needs at least one keyframe");
-  const frames = [...new Set(objects.flatMap(channel =>
-    Array.isArray(channel.keyframes) ? channel.keyframes.map(key => key?.frame) : []))]
-    .filter(frame => typeof frame === "number" && Number.isFinite(frame))
-    .sort((a, b) => a - b);
-  if (!frames.length) throw Error("Layer mask path needs at least one keyframe");
-  const at = (channel, frame) => {
-    const keys = (channel.keyframes || []).slice().sort((a, b) => a.frame - b.frame);
-    let previous = keys[0];
-    for (const next of keys.slice(1)) {
-      if (frame > next.frame) {
-        previous = next;
-        continue;
-      }
-      if (next.tween === 0) return previous.value;
-      const span = next.frame - previous.frame || 1;
-      return previous.value + (next.value - previous.value) * ((frame - previous.frame) / span);
-    }
-    return previous.value;
-  };
-  return {
-    animated: objects.some(channel => !!channel.animated),
-    keyframes: frames.map(frame => ({
-      frame,
-      value: objects.map(channel => at(channel, frame)),
-      tween: 1,
-    })),
-  };
+  const frames = new Set();
+  for (const key of keys) {
+    if (!key || typeof key !== "object") throw Error("Layer mask keyframe must be an object");
+    if (!isFiniteNumber(key.frame) || uniqueFrames && frames.has(key.frame))
+      throw Error("Layer mask keyframe needs a finite, unique frame");
+    if (!validValue(key.value)) throw Error(valueError);
+    frames.add(key.frame);
+  }
 }
 
 function validateMasks(masks) {
@@ -147,14 +126,18 @@ function validateMasks(masks) {
       throw Error("Layer mask closed must be off or on");
     const path = properties.path;
     if (!path || typeof path !== "object") throw Error("Layer mask needs a path");
-    if (!Array.isArray(path.keyframes) || !path.keyframes.length)
-      throw Error("Layer mask path needs at least one keyframe");
     const channels = vertexIds.length * 6;
-    for (const key of path.keyframes) {
-      if (!key || typeof key !== "object") throw Error("Layer mask keyframe must be an object");
-      if (!isFiniteNumber(key.frame)) throw Error("Layer mask keyframe needs a finite frame");
-      if (!Array.isArray(key.value) || key.value.length !== channels || !key.value.every(isFiniteNumber))
-        throw Error("Layer mask keyframe value must hold 6 finite numbers per vertex");
+    if (path.objects !== undefined && path.keyframes === undefined) {
+      if (path.expression || !Array.isArray(path.objects) || path.objects.length !== channels)
+        throw Error("Layer mask path needs 6 channels per vertex");
+      for (const channel of path.objects) {
+        if (!channel || channel.expression) throw Error("Invalid layer mask channel");
+        validatePathKeys(channel.keyframes, isFiniteNumber, "Layer mask channel value must be finite", true);
+      }
+    } else {
+      validatePathKeys(path.keyframes, value => Array.isArray(value) &&
+        value.length === channels && value.every(isFiniteNumber),
+      "Layer mask keyframe value must hold 6 finite numbers per vertex");
     }
   }
   return masks;

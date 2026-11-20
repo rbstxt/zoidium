@@ -1,7 +1,8 @@
 "use strict";
 const { selectionKey, selectionPart } = require("./editor-selection.js");
 const { clone, validate } = require("./model.js");
-const { createGesture } = require("./editor-history.js");
+const { createGesture, createPathOperationHost } = require("./editor-history.js");
+const nativeChannels = require("./path-native-channels.js");
 const { topology, channels } = require("./editor-topology.js");
 const tree = require("./editor-tree-data.js");
 const g = require("./editor-geometry.js");
@@ -151,7 +152,7 @@ function createEditorModel(s) {
     const target = resolve();
     if (host) {
       if (history) return host.readHistory(target);
-      return target && host.owns(target) ? clone(liveContents()) : null;
+      return target && host.owns(target) ? (host.readLive?.() || clone(liveContents())) : null;
     }
     if (!history && target !== layer) return null;
     return target && target.type === layer.type ? clone(target.contents) : null;
@@ -176,16 +177,16 @@ function createEditorModel(s) {
   s.requireEditablePath = id => {
     if (s.pathLocked(id)) throw Error(host ? "Layer mask is locked" : "Shape+ path is locked");
   };
-  s.localFrame = () => {
-    let clip = null;
+  s.pathClip = () => {
     try {
-      clip = layer.tryGetParentOfType(PZ.clip);
+      return layer.tryGetParentOfType(PZ.clip);
     } catch (_error) {
-      /* Detached target closes below. */
+      return null;
     }
-    return (
-      editor.playback.currentFrame - (clip?.start || 0) + (clip?.offset || 0)
-    );
+  };
+  s.localFrame = () => {
+    const clip = s.pathClip();
+    return editor.playback.currentFrame - (clip?.start || 0) + (clip?.offset || 0);
   };
   s.gesture = createGesture(editor.history, read, write, () => {
     // Property drags and nudges mutate the live items without a write; the
@@ -238,6 +239,23 @@ function createEditorModel(s) {
     layer.contentsState?.invalidate();
     s.canvasApi?.invalidateScene?.();
   };
+  s.pathAdapter = nativeChannels.create(PZ);
+  s.pathFor = (id, { preview = false } = {}) => createPathOperationHost({
+    read: () => {
+      if (!s.valid()) return null;
+      const item = host?.readLive ? host.readLive().find(item => item.id === id) : s.find(id);
+      return item?.kind === "path" ? clone(item) : null;
+    },
+    write: next => {
+      if (preview) s.find(id).properties.path.load(clone(next.properties.path));
+      else s.replaceItem(id, next);
+      s.preview();
+    },
+    assertEditable: () => s.requireEditablePath(id),
+    gesture: s.gesture,
+    playback: editor.playback,
+    preview,
+  });
   s.topology = (operation) => {
     const item = s.active();
     if (item?.kind !== "path") return;
