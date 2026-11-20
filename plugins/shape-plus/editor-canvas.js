@@ -10,6 +10,7 @@ const { find } = require("./editor-tree-data.js");
 const { PAINTS, paintScope } = require("./contents-ops.js");
 const pathProjection = require("./path-projection.js");
 const feedback = require("./path-feedback.js");
+const { outlineColorOf } = require("./mask-metadata.js");
 const { selectionBounds, snapPoint, constrainMoveDelta } = require("./path-transform.js");
 const xf = require("./editor-transform.js");
 const PREFS_KEY = "zoidium.shape-plus.path-display";
@@ -320,7 +321,8 @@ function createCanvas(s, canvas) {
     context.strokeStyle = "rgba(0,0,0,.55)";
     context.stroke();
     context.lineWidth = width;
-    context.strokeStyle = color;
+    context.strokeStyle = s.pathHost && e.item.extra?.outlineColor
+      ? outlineColorOf(e.item.extra) : color;
     context.stroke();
     context.setLineDash([]);
   }

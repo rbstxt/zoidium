@@ -428,3 +428,13 @@ test("wheel zoom keeps the pixel under the cursor fixed", t => {
   assert.ok(api.projection()[0] > scaleBefore);
   approximate(api.local(cursor), before);
 });
+
+test("the mask overlay draws the saved outline colour", t => {
+  const item = mask("p", [vertex([60, 60]), vertex([170, 60])]);
+  item.outlineColor = "#f20bc8";
+  const h = fixture(t, { masks: [item] });
+  assert.equal(h.activate("p"), true);
+  h.calls.length = 0;
+  h.frame();
+  assert.ok(h.calls.some(call => call.method === "stroke" && call.color === item.outlineColor));
+});
