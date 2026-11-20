@@ -20,7 +20,7 @@ function installMaskClipTrim(PZ, onDispose) {
   const moveClip = tracks?.moveClip;
   if (typeof moveClip !== "function") return;
   function moveClipWithMasks(edit) {
-    const { type, oldTrackIdx, oldIdx, offset } = edit;
+    const { type, oldTrackIdx, oldIdx, offset } = edit || {};
     const layer = type === 0 && this.timeline.sequence.videoTracks[oldTrackIdx]?.clips[oldIdx]?.object;
     const current = layer?.[FIELD];
     if (!current?.length || !Number.isFinite(offset) || offset === 0)

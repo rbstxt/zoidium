@@ -75,6 +75,16 @@ test("adjustment overrides load and save without calling the base layer", () => 
   assert.equal(layer.toJSON()[FIELD], undefined);
 });
 
+test("nullish clip edits reach the native method", () => {
+  class Tracks {
+    moveClip() { return "native fallback"; }
+  }
+  installMaskPersistence({ layer: { prototype: {} }, ui: { timeline: { tracks: Tracks } } }, () => {});
+  const tracks = new Tracks();
+  assert.equal(tracks.moveClip(null), "native fallback");
+  assert.equal(tracks.moveClip(), "native fallback");
+});
+
 test("native left trim shifts both mask key encodings with the clip history", () => {
   function Tracks() {}
   const native = Tracks.prototype.moveClip = function (edit) {
