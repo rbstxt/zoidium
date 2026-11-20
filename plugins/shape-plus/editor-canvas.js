@@ -107,9 +107,8 @@ function createCanvas(s, canvas) {
   let frameRect = null;
   // Operation-scoped scene snapshot. One read-only pointer event or one draw
   // shares a single scene build across hit, active lookup, local conversion,
-  // snap and selection bounds. CSS vertices and cubics are cached per entry inside the snapshot. The scope is
-  // synchronous only: it never spans frames, and any mutation invalidates it
-  // so later reads see fresh data.
+  // snap and selection bounds. Each entry caches its CSS vertices and cubics
+  // until the event ends or a mutation invalidates the scope.
   let scope = null;
   function ensureScope() {
     if (!scope)
@@ -183,12 +182,18 @@ function createCanvas(s, canvas) {
     return path.closed || (s.tool === "pen" && !s.penFinished) ||
       !(side === "in" && index === 0 || side === "out" && index === path.vertices.length - 1);
   }
+  function anchorPriority(path, index) {
+    if (s.tool !== "pen" || path.closed) return 0;
+    const last = path.vertices.length - 1;
+    if (index === 0 && last > 0 && s.pathController?.drawing?.pathId === path.id) return -2;
+    return index === 0 || index === last ? -1 : 0;
+  }
   function pickPaths(point, activeOnly = false) {
     if (!projection) return { target: null, candidates: [] };
     const list = activeOnly ? [active()] : entries();
     const paths = list.filter(e => e?.enabled && e.item.kind === "path").map(pickRecord);
     const result = pathProjection.pickPaths(paths, point, {
-      projection,
+      projection, anchorPriority,
       handleFilter: (path, index, side) => path.id === s.activeId && showsHandle(path, index, side),
     });
     const hit = result.target;
@@ -531,7 +536,6 @@ function createCanvas(s, canvas) {
     if (s.pointerPoint && s.tool === "pen" && !s.pointer?.navigationCursor?.()) canvas.style.cursor = cursor.css;
     if (s.hover && !s.treeSelection.has(s.hover) && !s.pointer?.active)
       for (const e of outlines(s.hover)) strokeOutline(e, HOVER);
-    if (cursor.state === "segment-add") drawSegmentHighlight(hover);
     let paint = null;
     for (const id of selected) {
       const item = s.find(id);
@@ -562,6 +566,7 @@ function createCanvas(s, canvas) {
       const e = active();
       if (e?.enabled) drawPath(e, hover, intent);
     }
+    if (cursor.state === "segment-add") drawSegmentHighlight(hover);
     if (intent === "continue" && hover.pathId !== s.activeId) {
       drawVertex(hover.point, feedback.vertexInstruction({ intent, isFirst: hover.vertexIndex === 0, prefs }));
     }

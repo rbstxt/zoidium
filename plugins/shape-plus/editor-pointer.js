@@ -88,6 +88,7 @@ function createPointer(s, canvas) {
     const result = gestures.press(start, event, request);
     if (!result.capture) return null;
     const marquee = result.action === "marquee";
+    const frame = s.localFrame();
     if (marquee) {
       marqueeHandles = event.shiftKey ? [...before].filter(key => selectionPart(key).side) : [];
       s.marquee = { start, end: start };
@@ -95,7 +96,7 @@ function createPointer(s, canvas) {
     }
     if (result.cursor) canvas.style.cursor = result.cursor.css;
     return {
-      managed: true, frame: s.localFrame(), target: request.pathId ?? request.target?.pathId,
+      managed: true, frame, target: request.pathId ?? request.target?.pathId,
       move(e) {
         s.pointerPoint = point(e);
         s.pathInput?.trackPointer(s.pointerPoint);
@@ -104,8 +105,12 @@ function createPointer(s, canvas) {
       },
       end(e) {
         try {
-          const screen = e?.type === "pointerup" ? point(e) : undefined;
-          api.scoped(() => gestures.release(screen, e));
+          if (!marquee && result.action !== "pan" && s.valid() && frame !== s.localFrame()) {
+            gestures.notifyFrameChanged();
+          } else {
+            const screen = e?.type === "pointerup" ? point(e) : undefined;
+            api.scoped(() => gestures.release(screen, e));
+          }
         } catch (error) {
           gestures.cancel();
           s.gesture.finish(true);
@@ -159,7 +164,9 @@ function createPointer(s, canvas) {
     const item = s.active();
     if (hit?.kind === "anchor") return clickEdit(() => {
       s.requireEditablePath?.(item.id);
-      const intent = api.penCursor(hit).state;
+      const intent = s.pathController ? api.penCursor(hit).state :
+        (hit.index === 0 && item.vertexIds.length > 1 && Number(item.properties.closed.get()) !== 1
+          ? "endpoint-close" : "vertex-delete");
       if (intent === "endpoint-close") {
         channels(clone(item));
         item.properties.closed.set(1);
@@ -286,7 +293,7 @@ function createPointer(s, canvas) {
     // An arrow-key nudge still holding the history transaction ends first, so
     // this press starts its own transaction instead of joining or losing it.
     s.finishNudge?.();
-    if (!s.valid() || !api.projection()) return null;
+    if (!s.valid() || gestures && !api.projection()) return null;
     const start = point(event);
     s.pointerPoint = start;
     if (gestures?.spaceHeld) return managedPress(event, start);
@@ -328,9 +335,11 @@ function createPointer(s, canvas) {
     }
     const boxHandle = s.tool === "select" ? xf.handleAt(s, start) : null;
     if (boxHandle) return xf.boxGesture(s, boxHandle, start, point);
-    const hasHandleSelection = s.selection.size && [...s.selection].some(key => selectionPart(key).side);
+    const movesExtraHandles = hit?.kind === "anchor" && !event.shiftKey &&
+      s.selection.has(selectionKey(item.vertexIds[hit.index])) &&
+      [...s.selection].some(key => selectionPart(key).side);
     if (gestures && s.tool === "select" &&
-        (hit?.kind === "segment" || hit?.kind === "anchor" && !hasHandleSelection)) {
+        (hit?.kind === "segment" || hit?.kind === "anchor" && !movesExtraHandles)) {
       return managedPress(event, start, { target: hit, transform: { mode: "move", origin: hit.point } });
     }
     if (box && !hit && start.every((v, i) => v >= box.min[i] && v <= box.max[i]))

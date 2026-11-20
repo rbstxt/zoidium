@@ -158,8 +158,9 @@ function hullOf(cubic) {
 
 // Pick the best target at a screen point across paths given in draw order,
 // frontmost first. `handlePathIds` (null means every path) limits which
-// paths contribute handle/anchor hits; every projectable path contributes
-// segment hits. Paths whose full mapping is singular cannot be projected
+// paths contribute handle/anchor hits. handleFilter hides individual knobs.
+// anchorPriority can order equally ranked anchors on one path. Every
+// projectable path contributes segment hits. Paths whose full mapping is singular cannot be projected
 // and are skipped. Returns `{ target, candidates }`: `target` is the best
 // `{ kind, pathId, distance, ... }` hit or null, ordered by handle, anchor,
 // segment, then frontmost path; `candidates` are the hit path IDs ordered
@@ -199,7 +200,8 @@ function pickPaths(paths, screen, options = {}) {
       projected.forEach((v, vertexIndex) => {
         const distance = Math.hypot(v.point[0] - screen[0], v.point[1] - screen[1]);
         if (distance <= radius) {
-          hits.push({ kind: "anchor", rank: 1, order, pathId: path.id, vertexIndex, distance, point: v.point.slice() });
+          const priority = options.anchorPriority?.(path, vertexIndex) ?? 0;
+          hits.push({ kind: "anchor", rank: 1, order, priority, pathId: path.id, vertexIndex, distance, point: v.point.slice() });
           hitPath = true;
         }
       });
@@ -221,9 +223,10 @@ function pickPaths(paths, screen, options = {}) {
     });
     if (hitPath) candidateIds.push(path.id);
   });
-  hits.sort((a, b) => a.rank - b.rank || a.order - b.order || a.distance - b.distance);
+  hits.sort((a, b) => a.rank - b.rank || a.order - b.order ||
+    (a.priority ?? 0) - (b.priority ?? 0) || a.distance - b.distance);
   const target = hits.length
-    ? (({ rank, order, ...rest }) => rest)(hits[0])
+    ? (({ rank, order, priority, ...rest }) => rest)(hits[0])
     : null;
   return { target, candidates: candidateIds };
 }

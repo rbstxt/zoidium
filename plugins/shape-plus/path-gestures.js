@@ -9,12 +9,12 @@
 // Consumed contracts (all already merged on `feat/mask-overhaul`):
 // - P1.1 `path-controller.js`: owns tool, active path, drawing, and the
 //   opaque gesture record. Transform/pan gestures register through
-//   `beginGesture`/`endGesture`; Space-pan restores the prior tool with
-//   `setTool`; Escape cancellation ends with `endGesture(true)`.
+//   `beginGesture`/`endGesture`; Space-pan keeps the current tool selected.
+//   Escape cancellation ends with `endGesture(true)`.
 // - P1.5 `path-input.js`: the optional `input` instance supplies
 //   `isTemporarySelect` (Ctrl/Cmd point selection while held in Pen),
-//   `isAltHeld` (handle-break intent tagged on the gesture for P2.7), and
 //   `notifyFrameChanged` (overlap-cycle reset when playback moves).
+//   The overlay owns direct handle editing and its Alt modifier.
 //   `isEditableTarget` guards the Space/Escape keys bound by `bind`.
 // - P2.1 `path-projection.js`: `pickPaths` finds the anchor/handle/segment
 //   under the pointer for gesture routing and context-menu requests;
@@ -179,10 +179,11 @@ function createPathGestures(options = {}) {
   }
 
   function resetPreview(active) {
-    if (active.dirty && store.resetPreview) {
-      store.resetPreview();
-      active.dirty = false;
-    }
+    if (!active.dirty) return;
+    if (store.resetPreview) store.resetPreview();
+    else if (active.snapshot !== null && store.restore) store.restore(active.snapshot);
+    else return;
+    active.dirty = false;
   }
 
   function applyTransformMove(active, current, shiftKey) {
@@ -197,10 +198,11 @@ function createPathGestures(options = {}) {
     const currentPathsById = new Map(currentPaths().map(path => [path.id, path]));
     for (const id of Object.keys(active.selection)) {
       const path = currentPathsById.get(id);
-      if (!path || path.locked) {
+      if (!path) {
         store.showSnap?.(null);
         return { applied: false, snapped: false };
       }
+      if (path.locked) continue;
       const check = screenToLocal(current, { matrix: path.matrix, projection });
       if (!check.ok) {
         tell(check.message);
@@ -209,7 +211,7 @@ function createPathGestures(options = {}) {
       }
     }
     const result = freeTransform({
-      paths: active.paths,
+      paths: active.paths.map(path => ({ ...path, locked: currentPathsById.get(path.id)?.locked ?? path.locked })),
       selection: active.selection,
       projection: active.projection,
       gesture: transformFor(active, delta, shiftKey),
@@ -235,20 +237,14 @@ function createPathGestures(options = {}) {
     return { applied, snapped: !!result.snap?.snapped };
   }
 
-  function finishGesture(commit, event) {
+  function finishGesture(commit) {
     const active = state.active;
     if (!active) return { action: "ignore", releaseCapture: false };
     state.active = null;
     store.showSnap?.(null);
     const pointerId = active.pointerId;
     if (active.kind === "pan") {
-      try {
-        if (active.priorTool !== undefined && controller.tool !== active.priorTool)
-          controller.setTool(active.priorTool, { preserveDrawing: true });
-      } catch (_error) {
-        // Restoring the tool must not break pointer release.
-      }
-      if (!controller.disposed) controller.endGesture(false);
+      if (!controller.disposed) controller.endGesture(!commit);
       return { action: "end-pan", releaseCapture: true, pointerId };
     }
     if (active.kind === "marquee") {
@@ -334,7 +330,7 @@ function createPathGestures(options = {}) {
       }
       const priorTool = controller.tool;
       controller.beginGesture({ kind: "pan", pointerId, start: screen, priorTool });
-      state.active = { kind: "pan", pointerId, start: screen, last: screen, priorTool };
+      state.active = { kind: "pan", pointerId, start: screen, last: screen };
       return { action: "pan", capture: true, pointerId, cursor: navigationCursor({ panning: true }) };
     }
 
