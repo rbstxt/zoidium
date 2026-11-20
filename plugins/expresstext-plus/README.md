@@ -105,11 +105,15 @@ save/load.
 Every XYZ effector has independent position, rotation (degrees) and
 scale plus a Character/Text pivot. Ancestor effectors evaluate
 outermost first; Delay layers trail every effector of the stack; the
-container owns tracking plus the shared rotation order. Letters number
-continuously across every text under one container (first text's letters
-first) — texts may sit directly under the container or inside Groups —
-so selections, id/u/count, ranks and centers span texts; each text keeps
-its own placement, composed through any Group wrappers.
+container owns tracking plus the shared rotation order. The container's
+Letters scope picks whether every text under it is its own letter set
+(Per text: numbering, selections, id/u/count, ranks, centers and the
+Random draws resolve inside each text, exactly as if each text sat
+alone under a copy of the container) or all texts form one continuous
+run (Across texts: first text's letters first). Texts may sit directly
+under the container or inside Groups; each text keeps its own
+placement, composed through any Group wrappers. New containers default
+to Per text; projects saved before the scope keep Across texts.
 
 ## Bouncing text, the C4D way
 

@@ -11,11 +11,14 @@ test("property schema carries the container plus eleven effectors", () => {
     property: { type: { NUMBER: 1, OPTION: 2, TEXT: 3, VECTOR3: 5, LIST: 6 } },
     object3d: { eulerOrders: "XYZ;XZY;YXZ;YZX;ZXY;ZYX" },
   };
-  // The container owns tracking only: rotation order plus the stock
-  // Custom properties row (whose + dialog is scoped to effectors).
+  // The container owns tracking only: rotation order, the Letters scope
+  // (plus its saved marker) and the stock Custom properties row (whose +
+  // dialog is scoped to effectors).
   const container = T.createContainerPropertyDefinitions(PZ);
-  assert.deepEqual(Object.keys(container), ["rotationOrder"]);
+  assert.deepEqual(Object.keys(container), ["rotationOrder", "lettersMode", "lettersVersion"]);
   assert.equal(container.rotationOrder.value, "XYZ", "container owns the rotation order");
+  assert.equal(container.lettersMode.value, 0, "new containers default to per text");
+  assert.equal(container.lettersMode.items, "Per text;Across texts", "letter scope choices");
   const builders = {
     shake: T.createShakePropertyDefinitions,
     plain: T.createPlainPropertyDefinitions,

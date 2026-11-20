@@ -12,3 +12,4 @@ require("./expresstext-plus-effectors-b.js");
 require("./expresstext-plus-stack.js");
 require("./expresstext-plus-render-a.js");
 require("./expresstext-plus-render-b.js");
+require("./expresstext-plus-scope.js");

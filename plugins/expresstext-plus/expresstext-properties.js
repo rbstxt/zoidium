@@ -2,7 +2,7 @@
 
 // ExpressText+ Property schema: container plus eleven effector sections.
 
-const { DEGREES_TO_RADIANS, DELAY_MODE_LABELS, DELAY_ORDER_LABELS, FIELD_LABELS, PIVOT_LABELS, RANDOM_MODE_LABELS, RANDOM_SPACE_LABELS, REPEATER_MAX_COPIES, REPEATER_MODE_LABELS, SPLINE_MODE_LABELS, SPLINE_PATH_LABELS, SPLINE_PLANE_LABELS, SPLINE_TRANSFORM_LABELS, TWIST_AXIS_LABELS, WRAP_DIRECTION_LABELS, state } = require("./expresstext-constants.js");
+const { DEGREES_TO_RADIANS, DELAY_MODE_LABELS, DELAY_ORDER_LABELS, FIELD_LABELS, LETTERS_SCOPE_LABELS, LETTERS_VERSION, PIVOT_LABELS, RANDOM_MODE_LABELS, RANDOM_SPACE_LABELS, REPEATER_MAX_COPIES, REPEATER_MODE_LABELS, SPLINE_MODE_LABELS, SPLINE_PATH_LABELS, SPLINE_PLANE_LABELS, SPLINE_TRANSFORM_LABELS, TWIST_AXIS_LABELS, WRAP_DIRECTION_LABELS, state } = require("./expresstext-constants.js");
 
 /* ------------------------------------------------------- property schema */
 
@@ -235,6 +235,26 @@ function createContainerPropertyDefinitions(PZ) {
       type: PZ.property.type.LIST,
       value: "XYZ",
       items: PZ.object3d.eulerOrders,
+    },
+    // Letter scope: Per text evaluates every text as if alone under a copy
+    // of the container (own numbering, selections, ranks, centers, draws);
+    // Across texts keeps the historical connected run spanning all texts.
+    // New containers default to Per text; the load hook moves pre-marker
+    // projects to Across texts so they render identically.
+    lettersMode: {
+      name: "Letters",
+      type: PZ.property.type.OPTION,
+      items: LETTERS_SCOPE_LABELS.join(";"),
+      value: 0,
+    },
+    // Saved marker for the scope default (same pattern as effect preset
+    // versions): stamped on every load, so its presence means the project
+    // was saved with the scope setting. Never shown in the panel.
+    lettersVersion: {
+      visible: false,
+      name: "Letters version",
+      type: PZ.property.type.NUMBER,
+      value: LETTERS_VERSION,
     },
   };
 }

@@ -2,7 +2,7 @@
 
 // ExpressText+ container class, text patches and activation.
 const { clearDelayCache } = require("./expresstext-delay-cache.js");
-const { DELAY_MODE_LABELS, DELAY_ORDER_LABELS, EXPRESS_TEXT_NAME, EXPRESS_TEXT_TYPE, FIELD_LABELS, RANDOM_MODE_LABELS, RANDOM_SPACE_LABELS, REPEATER_MAX_COPIES, REPEATER_MODE_LABELS, SCHEMA_VERSION, SPLINE_MODE_LABELS, SPLINE_PATH_LABELS, SPLINE_PLANE_LABELS, SPLINE_TRANSFORM_LABELS, TWIST_AXIS_LABELS, WRAP_DIRECTION_LABELS, state, trackExpressInstance, untrackExpressInstance } = require("./expresstext-constants.js");
+const { DELAY_MODE_LABELS, DELAY_ORDER_LABELS, EXPRESS_TEXT_NAME, EXPRESS_TEXT_TYPE, FIELD_LABELS, LETTERS_SCOPE_ACROSS_TEXTS, LETTERS_SCOPE_LABELS, LETTERS_SCOPE_PER_TEXT, LETTERS_VERSION, RANDOM_MODE_LABELS, RANDOM_SPACE_LABELS, REPEATER_MAX_COPIES, REPEATER_MODE_LABELS, SCHEMA_VERSION, SPLINE_MODE_LABELS, SPLINE_PATH_LABELS, SPLINE_PLANE_LABELS, SPLINE_TRANSFORM_LABELS, TWIST_AXIS_LABELS, WRAP_DIRECTION_LABELS, state, trackExpressInstance, untrackExpressInstance } = require("./expresstext-constants.js");
 const { fieldWeight, isLetterSelected, numberValue, parseLetterSelection, resolveSelection, selectedList, splitSelectionTokens, strengthWeight, vector3 } = require("./expresstext-select.js");
 const { compileFormula, parseFormula, tokenizeFormula } = require("./expresstext-formula.js");
 const { delayRank, fractalNoise3, hashLattice, hashSeed, seededRandom, shakeValue, shuffledStrata, valueNoise3 } = require("./expresstext-random.js");
@@ -13,8 +13,8 @@ const { DELAY_BLEND_CATCH, DELAY_EVEN_SPAN, DELAY_SIM_WINDOW, DELAY_SPRING_DAMP,
 const { EFFECTOR_PIVOT_KEYS, customSections, customsChildren, groupReader, kindOfGroup, kindOfKey, rawArray, reattachCustomDefinitions, sectionGroupOf, stackLayersFor } = require("./expresstext-sections.js");
 const { EFFECTOR_KINDS, EFFECTOR_NAMES, EFFECTOR_ORDER, EFFECTOR_TYPES, createContainerPropertyDefinitions, createDelayPropertyDefinitions, createFormulaPropertyDefinitions, createOrbitPropertyDefinitions, createPlainPropertyDefinitions, createRandomPropertyDefinitions, createRepeaterPropertyDefinitions, createShakePropertyDefinitions, createSplinePropertyDefinitions, createTwistPropertyDefinitions, createVoronoiPropertyDefinitions, createWrapPropertyDefinitions, customPropertyClass, effectorEntryDefs, newEffectorInstance, registerEffectorEntries, unregisterEffectorEntries, withPrefix } = require("./expresstext-properties.js");
 const { installSectionRow, markSections, recoverSectionValues, uninstallSectionRow, watchSections } = require("./expresstext-section-values.js");
-const { collectExpressObjects, expressContainerOf, expressStackOf, getAncestorObject, getExpressCenterOffset, getExpressLayout, getExpressTextCenter, repeaterCopyOffset, repeaterCopyOpacity, repeaterSpecsFor } = require("./expresstext-layout.js");
-const { applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, geometryTriangleArrays, getSplitState, layoutLetterCount, ownTransformOf, restoreExpressRendering, retainNativeGeometry, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering } = require("./expresstext-render.js");
+const { collectExpressObjects, expressContainerOf, expressStackOf, getAncestorObject, getExpressCenterOffset, getExpressLayout, getExpressTextCenter, lettersScopeOf, repeaterCopyOffset, repeaterCopyOpacity, repeaterSpecsFor } = require("./expresstext-layout.js");
+const { applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, geometryTriangleArrays, getSplitState, layoutLetterCount, letterRunFor, ownTransformOf, restoreExpressRendering, retainNativeGeometry, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering } = require("./expresstext-render.js");
 
 /* ------------------------------------------------- container + patching */
 
@@ -38,6 +38,57 @@ function defaultExpressData(data, fallbackName) {
     objects: input.objects || [],
     expressProperties: input.expressProperties || {},
   };
+}
+
+// Letters scope migration (container only; effectors never carry scope).
+//
+// New containers render per text. Projects saved before the scope setting
+// carry no marker and move to across texts, so they render exactly as
+// before. The marker stamps on every load, so later saves keep the scope
+// they show; fresh containers (empty or missing saved settings) keep the
+// per-text default. All scans stay tolerant of the host saver's shape.
+function rawCarriesLettersVersion(raw) {
+  try {
+    if (!raw || typeof raw !== "object") return false;
+    const scan = (value, depth) => {
+      if (!value || typeof value !== "object" || depth > 2) return false;
+      for (const key of Object.keys(value)) {
+        if (key === "lettersVersion" || key === "lettersMode") return true;
+        if (scan(value[key], depth + 1)) return true;
+      }
+      return false;
+    };
+    return scan(raw, 0);
+  } catch (_scan) {}
+  return false;
+}
+
+function rawLooksPreScope(raw) {
+  try {
+    if (!raw || typeof raw !== "object") return false;
+    if (Array.isArray(raw)) return raw.length > 0;
+    return Object.keys(raw).length > 0;
+  } catch (_raw) {
+    return false;
+  }
+}
+
+function migrateLettersScope(container, data) {
+  try {
+    const rows = container && container.expressProperties;
+    if (!rows) return;
+    const raw = data && data.expressProperties;
+    if (!rawCarriesLettersVersion(raw) && rawLooksPreScope(raw)) {
+      const mode = rows.lettersMode;
+      if (mode && typeof mode.set === "function") {
+        mode.set(LETTERS_SCOPE_ACROSS_TEXTS, 0);
+      }
+    }
+    const version = rows.lettersVersion;
+    if (version && typeof version.set === "function") {
+      version.set(LETTERS_VERSION, 0);
+    }
+  } catch (_scope) {}
 }
 
 const EXPRESS_SHAKE_TYPE = "zoidium:expresstext-plus/shake";
@@ -260,6 +311,11 @@ function createExpressObjectClass(PZ, definition) {
               self.expressProperties.load(data.expressProperties);
             }
           } catch (_props) {}
+          // Letters scope default (containers only): pre-marker projects
+          // move to across texts; the marker stamps for future saves.
+          try {
+            if (!definition.kind) migrateLettersScope(self, data);
+          } catch (_migrate) {}
           if (self.threeObj) self.threeObj.__zoidiumExpressOwner = self;
           return out;
         };
@@ -487,6 +543,10 @@ module.exports = {
     EXPRESS_DELAY_TYPE,
     SCHEMA_VERSION,
     FIELD_LABELS,
+    LETTERS_SCOPE_ACROSS_TEXTS,
+    LETTERS_SCOPE_LABELS,
+    LETTERS_SCOPE_PER_TEXT,
+    LETTERS_VERSION,
     DELAY_MODE_LABELS,
     RANDOM_MODE_LABELS,
     RANDOM_SPACE_LABELS,
@@ -514,6 +574,11 @@ module.exports = {
     localBaseOf,
     layoutLetterCount,
     containerLetterRun,
+    letterRunFor,
+    lettersScopeOf,
+    migrateLettersScope,
+    rawCarriesLettersVersion,
+    rawLooksPreScope,
     DELAY_ORDER_LABELS,
     numberValue,
     vector3,
