@@ -357,14 +357,22 @@
     // CM3 runs a final drag update even on a click. The scroll position can
     // change during selection, so an unmoved pointer can map to another track.
     const presses = new WeakMap();
+    const pointerEvent = event => event?.touches?.[0] ?? event ?? {};
     prototype.clipDragStart = function (event) {
+      presses.delete(this);
       const result = clipDragStart.apply(this, arguments);
-      if (result !== false) presses.set(this, [event.pageX, event.pageY]);
+      const { pageX, pageY } = pointerEvent(event);
+      if (result !== false && Number.isFinite(pageX) && Number.isFinite(pageY)) {
+        presses.set(this, [pageX, pageY]);
+      }
       return result;
     };
     prototype.clipDrag = function (event) {
       const press = presses.get(this);
-      if (press && (press[0] !== event.pageX || press[1] !== event.pageY)) presses.delete(this);
+      if (press) {
+        const { pageX, pageY } = pointerEvent(event);
+        if (press[0] !== pageX || press[1] !== pageY) presses.delete(this);
+      }
       return clipDrag.apply(this, arguments);
     };
     prototype.clipDragUpdate = function () {
