@@ -92,6 +92,9 @@ let panelActivator = null;
 function setPanelActivator(fn) {
   panelActivator = typeof fn === "function" ? fn : null;
 }
+function getPanelActivator() {
+  return panelActivator || null;
+}
 
 function activateMask(session, layer, maskId, focusPen, refresh, override) {
   const fn = typeof override === "function" ? override
@@ -492,4 +495,4 @@ function installMaskPanels(context, Content, focusPen) {
   return { sessionFor };
 }
 
-module.exports = { installMaskPanels, renderMasksSection, isMaskable, setPanelActivator, rowCallbacks, keyframeStateFor };
+module.exports = { installMaskPanels, renderMasksSection, isMaskable, setPanelActivator, getPanelActivator, rowCallbacks, keyframeStateFor };
