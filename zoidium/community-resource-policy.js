@@ -17,7 +17,17 @@
     function serialized(object) {
       const data = object.toJSON?.();
       if (!data) unavailable("content has no audited saved representation");
-      const json = JSON.stringify(data);
+      const groups = new WeakSet();
+      const json = JSON.stringify(data, function (key, value) {
+        if (Array.isArray(value) && (key === "effects" || key === "objects" && groups.has(this))) {
+          const active = value.filter(effect => effect?.zoidiumBypassed !== true);
+          for (const effect of active) {
+            if (effect && typeof effect === "object" && effect.type === 0) groups.add(effect);
+          }
+          return active;
+        }
+        return value;
+      });
       if (/"(?:expression|_zoidiumLayerInput|_zoidiumSourceTrack)":|"track:/.test(json)) unavailable("expressions and layer inputs are unsupported");
       return data;
     }
