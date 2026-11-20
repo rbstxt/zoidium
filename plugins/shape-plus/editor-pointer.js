@@ -8,6 +8,7 @@ const { createPointerMachine } = require("./editor-pointer-machine.js");
 const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
 const { transform } = require("./compiler.js");
+const { startMarquee, applyMarquee } = require("./path-selection.js");
 function createPointer(s, canvas) {
   const api = s.canvasApi;
   const point = (event) => {
@@ -283,10 +284,10 @@ function createPointer(s, canvas) {
     // Empty space: a marquee. With a path open for editing it selects
     // anchors; otherwise it selects whole top-level items.
     const editing = item?.kind === "path" && s.treeSelection.size === 1;
-    let moved = false;
-    const beforeAnchors = event.shiftKey ? new Set(s.selection) : new Set(),
+    const beforeAnchors = new Set(s.selection),
       beforeItems = event.shiftKey ? new Set(s.treeSelection) : new Set(),
       pathEntry = editing ? api.active() : null;
+    const marquee = startMarquee(beforeAnchors);
     if (!event.shiftKey) {
       s.selection.clear();
       if (!editing) {
@@ -304,15 +305,13 @@ function createPointer(s, canvas) {
       return api.scoped(() => {
         const end = point(e);
         s.marquee = { start, end };
-        moved = moved || Math.hypot(...g.sub(end, start)) >= 3;
         const lo = [Math.min(start[0], end[0]), Math.min(start[1], end[1])],
           hi = [Math.max(start[0], end[0]), Math.max(start[1], end[1])];
         const inside = (p) => p[0] >= lo[0] && p[0] <= hi[0] && p[1] >= lo[1] && p[1] <= hi[1];
         if (pathEntry) {
-          s.selection = new Set(beforeAnchors);
-          api.cssPoints(pathEntry).forEach((v, i) => {
-            if (inside(v.point)) s.selection.add(selectionKey(pathEntry.item.vertexIds[i]));
-          });
+          const picked = api.cssPoints(pathEntry).flatMap((v, i) =>
+            inside(v.point) ? [selectionKey(pathEntry.item.vertexIds[i])] : []);
+          s.selection = applyMarquee(marquee, picked, event.shiftKey);
         } else if (Math.hypot(...g.sub(end, start)) >= 3) {
           const picked = new Set(beforeItems);
           for (const top of s.layer.contents) {
@@ -331,8 +330,6 @@ function createPointer(s, canvas) {
       },
       end() {
         s.marquee = null;
-        // A plain click on empty space deselects everything, like AE.
-        if (editing && !moved && !event.shiftKey) s.clearSelection?.();
         s.refresh();
       },
       cancel() {
