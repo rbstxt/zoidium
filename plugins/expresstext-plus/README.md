@@ -14,6 +14,23 @@ or colors. Each pick appends that effector's controls inline; delete its
 rows to remove it. Everything rides the stock panel, stock undo and stock
 save/load.
 
+## Split into letters
+
+Any 3D Text row carries a **Split into letters** button (the change icon,
+next to the stock buttons, the same way Shape+ offers "Convert to Shape+").
+It replaces the text with a Group named `<text name> letters` at the same
+spot in the hierarchy, holding one 3D Text per visible character placed
+exactly where each letter was — same font, size, bevel, material and other
+settings. Whitespace produces no object but still advances; each line keeps
+its own position. The whole command is one history operation: one undo
+restores the original Text exactly, redo brings the split back. Keyframes
+and expressions on the original's position/rotation/scale move onto the
+Group (so the word keeps animating as one); letters get static local
+offsets. Material and font are shared with the original, not cloned. Under
+an ExpressText+ container the Group takes the original's place, so the
+container keeps tracking the letters (each letter becomes its own text —
+see Letters scope below for how Per text counts them).
+
 ## Effectors
 
 - **Shake** — sinusoidal XYZ position/rotation/scale with Amount

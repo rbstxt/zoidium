@@ -14,6 +14,7 @@ const { EFFECTOR_PIVOT_KEYS, customSections, customsChildren, groupReader, kindO
 const { EFFECTOR_KINDS, EFFECTOR_NAMES, EFFECTOR_ORDER, EFFECTOR_TYPES, createContainerPropertyDefinitions, createDelayPropertyDefinitions, createFormulaPropertyDefinitions, createOrbitPropertyDefinitions, createPlainPropertyDefinitions, createRandomPropertyDefinitions, createRepeaterPropertyDefinitions, createShakePropertyDefinitions, createSplinePropertyDefinitions, createTwistPropertyDefinitions, createVoronoiPropertyDefinitions, createWrapPropertyDefinitions, customPropertyClass, effectorEntryDefs, newEffectorInstance, registerEffectorEntries, unregisterEffectorEntries, withPrefix } = require("./expresstext-properties.js");
 const { installSectionRow, markSections, recoverSectionValues, uninstallSectionRow, watchSections } = require("./expresstext-section-values.js");
 const { collectExpressObjects, expressContainerOf, expressStackOf, getAncestorObject, getExpressCenterOffset, getExpressLayout, getExpressTextCenter, lettersScopeOf, repeaterCopyOffset, repeaterCopyOpacity, repeaterSpecsFor } = require("./expresstext-layout.js");
+const { installSplitCommand, runSplitTextIntoLetters, shouldOfferSplit, splitLetterPlacements, splitLetterUnits } = require("./expresstext-split.js");
 const { applyLetterTransform, buildExpressRendering, containerLetterRun, containerTexts, disposeExpressRendering, eulerParts, geometryTriangleArrays, getSplitState, layoutLetterCount, letterRunFor, ownTransformOf, restoreExpressRendering, retainNativeGeometry, sourceExtrudeOptions, syncExpressRendering, textWorldOf, throughParent, updateExpressRendering } = require("./expresstext-render.js");
 
 /* ------------------------------------------------- container + patching */
@@ -107,6 +108,7 @@ const { installFieldGuides } = require("./expresstext-field-guides.js");
 let disposeFieldGuides = null;
 const { installEditorRows } = require("./expresstext-editor-rows.js");
 let disposeEditorRows = null;
+let disposeSplitCommand = null;
 
 function getExpressDefinitions() {
   return [
@@ -485,6 +487,16 @@ function activate(context) {
   // the customs row keeps the stock five and everything else works.
   disposeEditorRows = installEditorRows(PZ);
   disposeFieldGuides = installFieldGuides(PZ, THREE, state.editor);
+  disposeSplitCommand = installSplitCommand({
+    PZ,
+    notify: (notice) => {
+      try {
+        const ui = context && context.ui;
+        if (ui && typeof ui.notify === "function") ui.notify(notice);
+        else console.error("[ExpressText+]", notice && notice.message);
+      } catch (_notify) {}
+    },
+  });
   registerEffectorEntries(PZ);
   installSectionRow(PZ, (context && context.apis) || globalThis.ZoidiumPluginApis);
   try {
@@ -495,6 +507,10 @@ function activate(context) {
 }
 
 function deactivate() {
+  try {
+    if (typeof disposeSplitCommand === "function") disposeSplitCommand();
+  } catch (_split) {}
+  disposeSplitCommand = null;
   disposeEditorRows?.();
   disposeEditorRows = null;
   disposeFieldGuides?.();
@@ -656,6 +672,11 @@ module.exports = {
     collectExpressObjects,
     expressContainerOf,
     expressStackOf,
+    installSplitCommand,
+    runSplitTextIntoLetters,
+    shouldOfferSplit,
+    splitLetterPlacements,
+    splitLetterUnits,
     customPropertyClass,
     effectorEntryDefs,
     registerEffectorEntries,
