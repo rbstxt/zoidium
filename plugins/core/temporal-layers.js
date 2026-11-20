@@ -207,7 +207,7 @@
     for (let index = start; index < Math.min(end, effects.length); index += 1) {
       const effect = effects[index];
       const descriptor = effect?._zoidiumTemporal;
-      if (PZ.zoidium?.effectBypass?.bypassed(effect)) continue;
+      if (typeof PZ !== "undefined" && PZ.zoidium?.effectBypass?.bypassed(effect)) continue;
       if (!descriptor || typeof descriptor.getOperator !== "function") continue;
       try {
         const operator = descriptor.getOperator(effect, controlFrame);
