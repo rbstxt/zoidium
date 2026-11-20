@@ -49,3 +49,38 @@ test("grouped storage round trips compatible channels and rejects independent ke
   mismatched.objects[0].keyframes[1].frame = 10;
   assert.throws(() => coercePath(mismatched), /independent/);
 });
+const animation = require("../plugins/shape-plus/path-animation.js");
+const geometry = require("../plugins/shape-plus/editor-geometry.js");
+const curve = require("../plugins/shape-plus/path.js");
+const transfer = require("../plugins/shape-plus/path-transfer.js");
+const valuesAt = (item, frame) => animation.channels(item).map(c => adapter.sample(c, frame));
+const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
+test("native values preserve split curves, deletion, reversal, and affine transfer between keys", () => {
+  for (const tween of [1, 4, 7]) {
+    const initial = fixture(tween), h = { data: initial, commit(value) { this.data = value; } };
+    topology.apply(h, { kind: "insert", index: 0, t: 0.4, id: "c" }, adapter);
+    const inserted = h.data;
+    for (let frame = 0; frame <= 20; frame += 0.5) {
+      const originalCurve = curve.verticesToCubics(geometry.vertices(valuesAt(initial, frame)), false)[0];
+      const splitCurves = curve.verticesToCubics(geometry.vertices(valuesAt(inserted, frame)), false);
+      for (const t of [0, 0.2, 0.4, 0.7, 1]) {
+        const result = t <= 0.4 ? curve.evaluate(splitCurves[0], t / 0.4) : curve.evaluate(splitCurves[1], (t - 0.4) / 0.6);
+        curve.evaluate(originalCurve, t).forEach((v, i) => close(v, result[i]));
+      }
+    }
+    topology.apply(h, { kind: "delete", ids: ["c"] }, adapter);
+    const deleted = h.data;
+    topology.apply(h, { kind: "first", id: "b" }, adapter);
+    const reversed = h.data;
+    let next = 0;
+    const pasted = transfer.materialize(transfer.copyPath(deleted), [2, 1, -1, 3, 5, 7], () => `new${++next}`, [], adapter);
+    for (let frame = 0; frame <= 20; frame += 0.5) {
+      const a = valuesAt(deleted, frame), b = valuesAt(reversed, frame), c = valuesAt(pasted, frame);
+      [6, 7, 10, 11, 8, 9, 0, 1, 4, 5, 2, 3].forEach((index, i) => close(a[index], b[i]));
+      for (let i = 0; i < a.length; i += 2) {
+        close(c[i], 2 * a[i] - a[i + 1] + (i % 6 === 0 ? 5 : 0));
+        close(c[i + 1], a[i] + 3 * a[i + 1] + (i % 6 === 0 ? 7 : 0));
+      }
+    }
+  }
+});
