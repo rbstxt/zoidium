@@ -242,6 +242,39 @@ test("preview destinations with a different format resolve directly and release 
   engine.dispose();
 });
 
+test("preview cache evicts the least recently used raster within each renderer budget", () => {
+  const h = host(), output = byteDestination(3840, 2160);
+  const layers = Array.from({ length: 10 }, () => {
+    const engine = createRenderer(h.THREE);
+    engine.setCommands([paint], [3840, 2160]);
+    return engine;
+  });
+  const resolved = () => h.resources.filter(value => value instanceof h.THREE.WebGLRenderTarget && value.width === 3840);
+  const draw = (index, renderer = h.renderer) => layers[index].render(renderer, output);
+  for (let i = 0; i < 8; i++) draw(i);
+  draw(0); // Refresh the oldest entry before filling beyond 256 MiB.
+  draw(8);
+  assert.deepEqual(resolved().map(target => target.disposals), [0, 1, 0, 0, 0, 0, 0, 0, 0]);
+  draw(0);
+  assert.equal(layers[0].stats.skips, 2);
+  draw(1);
+  assert.equal(layers[1].stats.treeRenders, 2);
+  assert.equal(resolved().filter(target => target.disposals === 0).length, 8);
+
+  layers[1].dispose();
+  const other = { ...h.renderer };
+  draw(0, other);
+  assert.equal(resolved().filter(target => target.disposals === 0).length, 7);
+  draw(2);
+  assert.equal(resolved().filter(target => target.disposals === 0).length, 8);
+  draw(9);
+  assert.equal(resolved().filter(target => target.disposals === 0).length, 9,
+    "the second renderer has its own budget and disposal returns space to the first");
+  assert.equal(layers[0].stats.treeRenders, 2);
+  layers.forEach(layer => layer.dispose());
+  assert.ok(resolved().every(target => target.disposals === 1));
+});
+
 test("export releases supersampled targets after resolve and rerasterizes on reuse", () => {
   const h = host(), engine = createRenderer(h.THREE);
   engine.setCommands([{ kind: "isolation", id: "iso", opacity: 1, commands: [paint] }], [640, 360]);

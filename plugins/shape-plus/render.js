@@ -7,6 +7,18 @@
 // output is already in composition space and stays vector-sharp at any scale.
 // Unchanged content, target size and transform reuse the resolved preview raster.
 const paintShader = require("./paint-shader.js");
+// Eight RGBA8 rasters at 4K fit in 256 MiB. Leave the rest of the renderer's
+// memory for the compositor, other layers, and the current Shape+ scratch.
+const previewRasterBudget = 256 * 1024 * 1024;
+const previewRasterCaches = new WeakMap();
+function getRasterCache(renderer) {
+  let cache = previewRasterCaches.get(renderer);
+  if (!cache) {
+    cache = { entries: new Map(), bytes: 0 };
+    previewRasterCaches.set(renderer, cache);
+  }
+  return cache;
+}
 function inverseAffine(t) {
   if (!Array.isArray(t) || t.length !== 6 || !t.every(Number.isFinite)) return null;
   const [a, b, c, d, e, f] = t, det = a * d - b * c;
@@ -82,8 +94,32 @@ function createRenderer(THREE, sampleScale = "auto") {
   let contentVersion = 0, rasterKey = null, rasterRenderer = null, appliedTransform;
   let observedCanvas = null;
   function releaseResolved() {
-    resolvedTarget?.dispose();
+    if (resolvedTarget) {
+      const cache = getRasterCache(rasterRenderer);
+      cache.bytes -= cache.entries.get(releaseResolved);
+      cache.entries.delete(releaseResolved);
+      resolvedTarget.dispose();
+    }
     resolvedTarget = null; rasterKey = null; rasterRenderer = null;
+  }
+  function useResolvedTarget(renderer, width, height) {
+    const cache = getRasterCache(renderer);
+    const bytes = width * height * 4;
+    if (resolvedTarget) cache.entries.delete(releaseResolved);
+    else {
+      while (cache.bytes + bytes > previewRasterBudget) {
+        const evict = cache.entries.keys().next().value;
+        evict();
+      }
+      resolvedTarget = new THREE.WebGLRenderTarget(width, height, {
+        minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat,
+        type: THREE.UnsignedByteType, depthBuffer: false, stencilBuffer: false,
+      });
+      resolvedTarget.texture.generateMipmaps = false;
+      rasterRenderer = renderer;
+      cache.bytes += bytes;
+    }
+    cache.entries.set(releaseResolved, bytes);
   }
   function releaseScratch() {
     if (scratchReleased) return;
@@ -263,7 +299,7 @@ function createRenderer(THREE, sampleScale = "auto") {
       texture.format === THREE.RGBAFormat && texture.type === THREE.UnsignedByteType &&
       !destination.isWebGLRenderTargetCube && !destination.scissorTest &&
       viewport.x === 0 && viewport.y === 0 && viewport.z === width && viewport.w === height &&
-      width <= destination.width && height <= destination.height;
+      width <= destination.width && height <= destination.height && width * height * 4 <= previewRasterBudget;
     if (resolvedTarget && (renderer !== rasterRenderer || resolvedTarget.width !== width || resolvedTarget.height !== height)) {
       releaseResolved();
     }
@@ -274,6 +310,7 @@ function createRenderer(THREE, sampleScale = "auto") {
     const previousTarget = renderer.getRenderTarget?.();
     try {
       renderer.setClearColor(0, 0); renderer.autoClear = true;
+      if (cacheable) useResolvedTarget(renderer, width, height);
       if (cached) stats.skips++;
       else {
         if (size[0] !== w || size[1] !== h) {
@@ -287,14 +324,6 @@ function createRenderer(THREE, sampleScale = "auto") {
         renderTree(root, renderer);
         stats.treeRenders++;
         if (cacheable) {
-          if (!resolvedTarget) {
-            resolvedTarget = new THREE.WebGLRenderTarget(width, height, {
-              minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, format: THREE.RGBAFormat,
-              type: THREE.UnsignedByteType, depthBuffer: false, stencilBuffer: false,
-            });
-            resolvedTarget.texture.generateMipmaps = false;
-            rasterRenderer = renderer;
-          }
           rasterKey = null;
           resolve(renderer, root.target.texture, resolvedTarget, scale, w, h);
           rasterKey = key;
