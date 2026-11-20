@@ -58,6 +58,11 @@ One **Undo** restores all trimmed clips together.
 
 - Dragging a clip outside the current selection trims only that clip.
 - Each trim handle is at least `8` px wide. Short clips keep at least one third of their width in the middle for moving.
+- Trimming the left edge of a masked **Scene** or **Adjustment** clip shifts its clip-local mask keyframes together with the clip start so they stay at the same project frames.
+
+## Path and mask keyframe rows
+
+When a single **Scene**, **Adjustment**, or **Shape+** clip is selected, the timeline keyframes panel shows logical path rows (**Masks > `<mask name>` > Mask Path** and **Shape+ > `<path name>` > Path**). Click a diamond to move the playhead, `Shift`-click to select multiple diamonds on a row, drag to retime them in one **Undo** step, or press `Delete` to remove selected keys. For full path and mask editing details, see [Shape+ and layer masks](/docs/2d-and-text/shape-plus/).
 
 ## Linked timeline clips
 
