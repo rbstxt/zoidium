@@ -347,6 +347,33 @@
     return true;
   }
 
+  function installClipDragPatch(PZ) {
+    const prototype = PZ?.ui?.timeline?.tracks?.prototype;
+    const marker = "__zoidiumStationaryClipDragPatch";
+    if (!prototype || prototype[marker]) return false;
+    const { clipDragStart, clipDrag, clipDragUpdate } = prototype;
+    if ([clipDragStart, clipDrag, clipDragUpdate].some(method => typeof method !== "function")) return false;
+
+    // CM3 runs a final drag update even on a click. The scroll position can
+    // change during selection, so an unmoved pointer can map to another track.
+    const presses = new WeakMap();
+    prototype.clipDragStart = function (event) {
+      const result = clipDragStart.apply(this, arguments);
+      if (result !== false) presses.set(this, [event.pageX, event.pageY]);
+      return result;
+    };
+    prototype.clipDrag = function (event) {
+      const press = presses.get(this);
+      if (press && (press[0] !== event.pageX || press[1] !== event.pageY)) presses.delete(this);
+      return clipDrag.apply(this, arguments);
+    };
+    prototype.clipDragUpdate = function () {
+      if (!presses.has(this)) return clipDragUpdate.apply(this, arguments);
+    };
+    prototype[marker] = true;
+    return true;
+  }
+
   if (typeof module === "object" && module.exports) {
     module.exports = {
       PATCH_MARKER,
@@ -369,6 +396,7 @@
       applyTrimDelta,
       updateMultiTrim,
       installTrimPatch,
+      installClipDragPatch,
     };
     return;
   }
@@ -380,4 +408,5 @@
     scope.ZOIDIUM_LAYOUT,
   );
   installTrimPatch(scope.PZ);
+  installClipDragPatch(scope.PZ);
 })(typeof window !== "undefined" ? window : null);

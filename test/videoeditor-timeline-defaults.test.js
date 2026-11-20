@@ -12,6 +12,7 @@ const {
   FRAME_TIME_FORMAT,
   applyTimelineDefaults,
   installTimelineDefaults,
+  installClipDragPatch,
 } = require("../plugins/core/videoeditor-timeline-defaults");
 
 const projectRoot = path.resolve(__dirname, "..");
@@ -23,6 +24,29 @@ const patchSource = fs.readFileSync(
 // Video Editor 2 builds its timeline with `new PZ.ui.timeline(VE)` and assigns
 // `zoom = .012` afterwards, so the fixture mirrors that order.
 const VIDEOEDITOR_ZOOM = 0.012;
+
+test("a clip click leaves the native drag update idle until the pointer moves", () => {
+  class Tracks {
+    clipDragStart() {}
+    clipDrag() {}
+    clipDragUpdate() { this.updates++; }
+  }
+  const PZ = { ui: { timeline: { tracks: Tracks } } };
+  assert.equal(installClipDragPatch(PZ), true);
+  assert.equal(installClipDragPatch(PZ), false);
+  const drag = Object.assign(new Tracks(), { updates: 0 });
+  const press = { pageX: 790, pageY: 740 };
+  drag.clipDragStart(press);
+  drag.clipDrag(press);
+  drag.clipDragUpdate();
+  assert.equal(drag.updates, 0);
+  drag.clipDrag({ ...press, pageY: 755 });
+  drag.clipDragUpdate();
+  assert.equal(drag.updates, 1);
+  drag.clipDrag(press);
+  drag.clipDragUpdate();
+  assert.equal(drag.updates, 2);
+});
 
 function createLayout() {
   const records = { timelines: [], calls: 0, statics: null };
