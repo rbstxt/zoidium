@@ -322,23 +322,33 @@ target.updateMipFalloff = function () {
 };
 
 target.updateBumpMap = function () {
+    var noiseOn = Number(this.properties.bumpNoise.get()) === 1;
+    if (noiseOn) {
+        var scale = Number(this.properties.bumpNoiseScale.get());
+        if (!isFinite(scale)) scale = 4;
+        if (scale > BUMP_NOISE_TILE_CELLS && this.pzNoiseTexture && this.pzNoiseTile > 1) {
+            this.pzNoiseTile = Math.min(scale, BUMP_NOISE_SCALE_MAX) / BUMP_NOISE_TILE_CELLS;
+            this.pzUniforms.uPzBumpNoiseTile.value = this.pzNoiseTile;
+            return;
+        }
+    }
     if (this.pzNoiseTexture) {
         this.pzNoiseTexture.dispose();
         this.pzNoiseTexture = null;
     }
     this.pzNoiseTile = 1;
-    if (Number(this.properties.bumpNoise.get()) === 1) {
-        var scale = Number(this.properties.bumpNoiseScale.get());
-        if (!isFinite(scale)) scale = 4;
+    if (noiseOn) {
+        var nextScale = Number(this.properties.bumpNoiseScale.get());
+        if (!isFinite(nextScale)) nextScale = 4;
         var canvas;
-        if (scale > BUMP_NOISE_TILE_CELLS) {
+        if (nextScale > BUMP_NOISE_TILE_CELLS) {
             // Above the canvas Nyquist limit, keep the 64-cell seamless tile
             // and repeat it through the shader UV scale. Memory and build
             // time stay constant while the visible frequency grows.
-            this.pzNoiseTile = Math.min(scale, BUMP_NOISE_SCALE_MAX) / BUMP_NOISE_TILE_CELLS;
+            this.pzNoiseTile = Math.min(nextScale, BUMP_NOISE_SCALE_MAX) / BUMP_NOISE_TILE_CELLS;
             canvas = pzNoiseTileCanvas(256, BUMP_NOISE_TILE_CELLS, 7);
         } else {
-            canvas = pzNoiseCanvas(256, scale, 7);
+            canvas = pzNoiseCanvas(256, nextScale, 7);
         }
         if (canvas) {
             this.pzNoiseTexture = new THREE.CanvasTexture(canvas);

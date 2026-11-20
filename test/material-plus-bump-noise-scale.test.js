@@ -269,3 +269,24 @@ test("the material shader installs the tiled bump chunk", () => {
     for (const dispose of h.dispose.reverse()) dispose();
   }
 });
+
+test("tiled bump noise reuses the GPU texture above 64 and keeps RepeatWrapping when wrap changes", async () => {
+  const { h, material } = await prepare(128);
+  const THREE = h.context.window.THREE;
+  try {
+    const initialTexture = material.pzNoiseTexture;
+    assert.ok(initialTexture);
+    assert.equal(material.pzUniforms.uPzBumpNoiseTile.value, 2);
+
+    material.properties.bumpNoiseScale.set(256);
+    assert.equal(material.pzNoiseTexture, initialTexture, "changing scale within >64 reuses the tile texture");
+    assert.equal(material.pzUniforms.uPzBumpNoiseTile.value, 4);
+
+    material.properties.wrap.set(0);
+    assert.equal(material.pzNoiseTexture.wrapS, THREE.RepeatWrapping);
+    assert.equal(material.pzNoiseTexture.wrapT, THREE.RepeatWrapping);
+  } finally {
+    material.unload();
+    for (const dispose of h.dispose.reverse()) dispose();
+  }
+});
