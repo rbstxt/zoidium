@@ -314,7 +314,7 @@ function installActions(s, root, options = {}) {
 const PATH_CONTROL = "[data-zoidium-path-control], .zoidium-masks button, .mask-row-name, .mask-row-edit";
 const GRAPH = ".g2-editor, .g2-host";
 
-function installPathShortcuts({ paths, viewport, document, window, session, routeTool }) {
+function installPathShortcuts({ paths, viewport, document, window, session, routeTool, suspendPen }) {
   let composing = false;
   const within = (root, target) => !!target && root.contains(target);
   const isScope = target => within(viewport.el, target) || !!target?.closest?.(PATH_CONTROL);
@@ -347,6 +347,9 @@ function installPathShortcuts({ paths, viewport, document, window, session, rout
       case "blocked-locked":
         s?.message(result.message);
         break;
+      case "defer-to-native":
+        if (result.reason === "native-command" && result.key === "t") suspendPen?.();
+        break;
     }
   }
   function dispatch(event, button = false) {
@@ -357,9 +360,9 @@ function installPathShortcuts({ paths, viewport, document, window, session, rout
     const selected = viewport.objects?.length === 1 ? viewport.objects[0] : null;
     const host = s?.sharedPathHost || paths.hostForLayer(selected?.object || selected);
     const activeHere = !!host && controller.activeHost === host && host.hasPath(controller.activePathId);
-    if (options.viewportFocused && !composing && !isComposingEvent(event) && s)
-      controller.claimFocus();
-    else controller.releaseFocus();
+    if (options.viewportFocused && !composing && !isComposingEvent(event) && s) {
+      if (!controller.ownsFocus()) controller.claimFocus();
+    } else if (controller.ownsFocus()) controller.releaseFocus();
     const result = paths.input.handleKeyDown(event, {
       ...options,
       activeHere: activeHere || !!s && !!controller.gesture,
@@ -378,6 +381,10 @@ function installPathShortcuts({ paths, viewport, document, window, session, rout
     apply(paths.input.handleBlur(), session());
   };
   const windowBlur = () => { composing = false; blur(); };
+  const focusin = event => {
+    const controller = paths.controller;
+    if (session() && focusOptions(event.target).viewportFocused && !composing && !controller.ownsFocus()) controller.claimFocus();
+  };
   const focusout = event => {
     if (isScope(event.target) && !focusOptions(event.relatedTarget).viewportFocused) blur();
   };
@@ -393,6 +400,7 @@ function installPathShortcuts({ paths, viewport, document, window, session, rout
   viewport.el.addEventListener("pointerdown", viewportPress, true);
   document.addEventListener("keydown", down, true);
   document.addEventListener("keyup", up, true);
+  document.addEventListener("focusin", focusin, true);
   document.addEventListener("focusout", focusout, true);
   document.addEventListener("compositionstart", compositionStart, true);
   document.addEventListener("compositionend", compositionEnd, true);
@@ -414,6 +422,7 @@ function installPathShortcuts({ paths, viewport, document, window, session, rout
       if (!hadTabIndex) viewport.el.removeAttribute("tabindex");
       document.removeEventListener("keydown", down, true);
       document.removeEventListener("keyup", up, true);
+      document.removeEventListener("focusin", focusin, true);
       document.removeEventListener("focusout", focusout, true);
       document.removeEventListener("compositionstart", compositionStart, true);
       document.removeEventListener("compositionend", compositionEnd, true);

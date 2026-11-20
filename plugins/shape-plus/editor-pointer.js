@@ -21,20 +21,31 @@ function createPointer(s, canvas) {
     work();
     return true;
   }
+  function capturePenState() {
+    return { activeId: s.activeId, treeSelection: new Set(s.treeSelection), selection: new Set(s.selection),
+      penFinished: s.penFinished, drawing: s.pathController?.drawing };
+  }
+  function restorePenState({ drawing, ...before }) {
+    Object.assign(s, before);
+    s.refresh(true);
+    const controller = s.pathController;
+    if (!controller || controller.disposed) return;
+    if (drawing && drawing.pathId === controller.activePathId) controller.startDrawing(drawing);
+    else controller.cancelDrawing();
+  }
   // Click topology edits retain the same capture/rollback boundary as drags.
   // Commit at pointerup, so Escape or lost capture can undo a close or split.
   function clickEdit(work) {
     if (!s.gesture.begin()) return null;
-    const finished = s.penFinished, drawing = s.pathController?.drawing;
+    const before = capturePenState();
     try { work(); s.refresh(true); }
-    catch (error) { s.gesture.finish(true); s.message(error.message); return null; }
+    catch (error) { s.gesture.finish(true); restorePenState(before); s.message(error.message); return null; }
     return {
       frame: s.localFrame(), target: s.activeId,
       end() { s.gesture.finish(); s.refresh(true); },
       cancel() {
-        s.penFinished = finished; s.gesture.finish(true);
-        if (drawing && drawing.pathId === s.pathController?.activePathId) s.pathController.startDrawing(drawing);
-        s.selection.clear(); s.refresh(true);
+        s.gesture.finish(true);
+        restorePenState(before);
       },
     };
   }
@@ -60,7 +71,8 @@ function createPointer(s, canvas) {
       s.selection = new Set([selectionKey(id)]);
     });
     if (!s.gesture.begin()) return null;
-    const drawing = s.pathController?.drawing;
+    const before = capturePenState();
+    const { drawing } = before;
     try {
       let local;
       if (
@@ -137,14 +149,12 @@ function createPointer(s, canvas) {
         },
         cancel() {
           s.gesture.finish(true);
-          if (drawing && drawing.pathId === s.pathController?.activePathId) s.pathController.startDrawing(drawing);
-          else s.pathController?.cancelDrawing();
-          s.selection.clear();
-          s.refresh(true);
+          restorePenState(before);
         },
       };
     } catch (error) {
       s.gesture.finish(true);
+      restorePenState(before);
       s.message(error.message);
       return null;
     }

@@ -6,7 +6,7 @@ const { createMapping } = require("./viewport-mapping.js");
 const { find } = require("./editor-tree-data.js");
 const { getMasks } = require("./mask-model.js");
 const { planAdd } = require("./contents-ops.js");
-const { requestCreation } = require("./path-hosts.js");
+const { createEditorPathRegistry } = require("./path-hosts.js");
 const DEFAULT_CLIP_LENGTH = 180;
 function gradientFacade(property, frame) {
   return new Proxy(property, { get(target, key) {
@@ -120,7 +120,7 @@ function createShapeClip(editor, tracks, point, nextId) {
 function installPathEditing(context, Layer, Content) {
   const editor = window.CM, viewport = editor.mainViewport, PZ = window.PZ;
   const own = cleanup => context.lifecycle.onDispose(cleanup);
-  const paths = require("./path-hosts.js").createEditorPathRegistry(window.CM, window.CM.mainViewport);
+  const paths = createEditorPathRegistry(editor, viewport);
   own(() => paths.dispose());
   const shapeEditor = require("./editor.js");
   const shapeOverlay = shapeEditor.install(context, Layer, Content, paths);
@@ -181,6 +181,13 @@ function installPathEditing(context, Layer, Content) {
       shapeOverlay.setTool(tool);
     }
   }
+  function suspendPen() {
+    if (paths.controller.tool === "pen") paths.controller.setTool("select");
+  }
+  const transformControl = document.querySelector('button[title="layer transform controls (t)"]');
+  transformControl?.addEventListener("click", suspendPen);
+  own(() => transformControl?.removeEventListener("click", suspendPen));
+
   paths.shortcuts = require("./editor-actions.js").installPathShortcuts({
     paths, viewport, document, window,
     session: () => {
@@ -190,7 +197,7 @@ function installPathEditing(context, Layer, Content) {
       if (mask && maskOverlay.state?.pathHost.owns(mask)) return maskOverlay.state;
       return null;
     },
-    routeTool,
+    routeTool, suspendPen,
   });
   own(() => paths.shortcuts.dispose());
 
@@ -221,8 +228,6 @@ function installPathEditing(context, Layer, Content) {
     // A compatible selection with an unavailable projection stays on its
     // host. It must not silently add a layer to a different coordinate space.
     if (layer instanceof Layer || maskEditor.maskableLayer(PZ, layer)) return;
-    const request = requestCreation();
-    if (request.kind !== "new-shape-layer") return;
     const mapping = createMapping(viewport.canvas.getBoundingClientRect(), editor.sequence.properties.resolution.get(), {
       position: [0, 0, 0], scale: [1, 1, 1], rotation: 0,
     });

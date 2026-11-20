@@ -83,7 +83,7 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, paths) {
   s.pointer = createPointer(s, canvas);
   const actions = installActions(s, canvas);
   const textEditor = require("./text-inline.js").install(s);
-  let disposed = false;
+  let disposed = false, lastFrame;
   // Tool switches, native selection and teardown end an edit in progress but
   // keep it: what the preview shows is what history records. Only undo
   // (editor-actions.js) or an error roll a gesture back; in-place text
@@ -94,11 +94,14 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, paths) {
   function update() {
     if (disposed) return;
     s.canvasApi.resize();
+    const frame = s.localFrame();
+    if (lastFrame !== undefined && lastFrame !== frame) s.pathInput?.notifyFrameChanged();
+    lastFrame = frame;
     // Gestures capture their frame and inverse transforms when they start,
     // so layout or projection changes mid-drag cannot corrupt them. A frame
     // change (playback) or a removed target ends the drag where it is.
     const gesture = s.pointer.active;
-    if (gesture && (gesture.frame !== s.localFrame() || (gesture.target != null && !s.find(gesture.target)))) settle();
+    if (gesture && (gesture.frame !== frame || (gesture.target != null && !s.find(gesture.target)))) settle();
     actions.check(); textEditor.check();
     s.canvasApi.draw();
   }

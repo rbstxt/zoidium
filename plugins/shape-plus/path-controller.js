@@ -325,11 +325,10 @@ function createPathController(options = {}) {
   // Undo/reload replaced the live collection: drop selections for paths the
   // host no longer lists and deactivate when the active path is gone. Other
   // hosts are untouched.
-  function handlePathsChanged(host) {
+  function handlePathsChanged(host, live = host && livePathIds(host)) {
     assertUsable();
     if (!host) return;
     const idOfHost = hostIdOf(host);
-    const live = livePathIds(host);
     if (live !== null) {
       const keep = new Set(live);
       for (const key of [...state.selections.keys()]) {

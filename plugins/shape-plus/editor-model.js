@@ -204,10 +204,11 @@ function createEditorModel(s) {
     // change notifications belong to finishOperation, once per gesture.
     s.dirty = true;
   };
-  s.mutate = (work) => {
+  s.mutate = (work, pathIds = []) => {
     s.pointer?.cancel();
     s.finishNudge?.();
     try {
+      for (const id of pathIds) s.requireEditablePath(id);
       return s.gesture.run(() => {
         work();
         validate(read());
@@ -339,10 +340,7 @@ function createEditorModel(s) {
         selected = tree.ungroup(contents, s.activeId);
       else if (action === "duplicate")
         selected = tree.duplicate(contents, [...s.treeSelection], s.nextId);
-      else if (action === "delete") {
-        for (const id of s.treeSelection) s.requireEditablePath(id);
-        tree.remove(contents, [...s.treeSelection]);
-      }
+      else if (action === "delete") tree.remove(contents, [...s.treeSelection]);
       else if (action === "forward" || action === "backward") {
         // Earlier contents draw on top, so forward moves toward index 0.
         const step = action === "forward" ? -1 : 1;
@@ -366,7 +364,7 @@ function createEditorModel(s) {
         s.treeSelection = new Set(selected);
       }
       s.selection.clear();
-    });
+    }, action === "delete" ? [...s.treeSelection] : []);
   // Text Animator items: one history step per add or feature toggle.
   s.addAnimator = (textId, propertyKey) =>
     s.mutate(() => {
@@ -434,11 +432,11 @@ function createEditorModel(s) {
       s.activeId = ids[0] || null; s.treeSelection = new Set(ids); s.selection.clear(); s.refresh();
     } catch (error) { s.message(error.message); }
   };
+  const mutatePath = work => s.mutate(work, [s.activeId]);
   s.keyframe = () =>
-    s.mutate(() => {
+    mutatePath(() => {
       const item = s.active();
       if (item?.kind !== "path") return;
-      s.requireEditablePath(item.id);
       const path = item.properties.path;
       channels(clone(item));
       const frame = s.localFrame(),
@@ -463,10 +461,9 @@ function createEditorModel(s) {
       }
     });
   s.setMode = (mode) =>
-    s.mutate(() => {
+    mutatePath(() => {
       const item = s.active();
       if (item?.kind !== "path") return;
-      s.requireEditablePath(item.id);
       let points = s.pathPoints();
       for (const key of s.selection) {
         const index = item.vertexIds.indexOf(selectionPart(key).id);
@@ -477,7 +474,7 @@ function createEditorModel(s) {
       s.setPoints(points);
     });
   s.deleteAnchors = () =>
-    s.mutate(() => {
+    mutatePath(() => {
       const ids = [...s.selection]
         .map(selectionPart)
         .filter((part) => !part.side)
@@ -486,16 +483,15 @@ function createEditorModel(s) {
       s.selection.clear();
     });
   s.closePath = () =>
-    s.mutate(() => {
+    mutatePath(() => {
       const item = s.active();
       if (item?.kind === "path") {
-        s.requireEditablePath(item.id);
         channels(clone(item));
         item.properties.closed.set(Number(item.properties.closed.get()) === 1 ? 0 : 1);
         s.preview();
       }
     });
-  s.reverse = () => s.mutate(() => s.topology({ kind: "reverse" }));
+  s.reverse = () => mutatePath(() => s.topology({ kind: "reverse" }));
   return s;
 }
 module.exports = { bindPathSession, createEditorModel, replaceContents, writePathRecords };

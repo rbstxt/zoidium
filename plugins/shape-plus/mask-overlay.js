@@ -83,13 +83,16 @@ function mountMaskOverlay(session, viewport, context, tool) {
     s.penFinished = false;
     s.refresh();
   };
-  let disposed = false;
+  let disposed = false, lastFrame;
   function update() {
     if (disposed) return;
     s.canvasApi.resize();
+    const frame = s.localFrame();
+    if (lastFrame !== undefined && lastFrame !== frame) s.pathInput?.notifyFrameChanged();
+    lastFrame = frame;
     s.reconcilePaths?.();
     const gesture = s.pointer.active;
-    if (gesture && (gesture.frame !== s.localFrame() || (gesture.target != null && !s.find(gesture.target)))) {
+    if (gesture && (gesture.frame !== frame || (gesture.target != null && !s.find(gesture.target)))) {
       s.pointer.commit();
       s.finishNudge?.();
       s.gesture.finish();
@@ -187,10 +190,10 @@ function install(context, Content, paths) {
     if (disposed) return;
     const found = maskClip(editor, viewport, PZ);
     const layer = found?.layer || null;
-    // A different selection starts with mask editing off.
+    // Follow Pen when a compatible layer becomes editable.
     if (layer !== modeLayer) {
       modeLayer = layer;
-      if (mode !== "off") mode = "off";
+      mode = layer && paths?.controller.tool === "pen" ? "pen" : "off";
     }
     const active = !!found && mode !== "off";
     if (view && (!active || !view.state.pathHost.owns(layer) || !view.state.valid())) { view.dispose(); view = null; }

@@ -14,23 +14,10 @@
 // - `mask-model.js`: `createMask`, `validateMasks`, `ensureNames` for the
 //   mask collection encoding (`zoidiumMasks` field, combine order).
 //
-// Store seam (both adapters; the integration package P1.7 wires the real
-// backends, tests use in-memory fakes):
-// - `store.read()` returns an array of path JSON (mask collection or Shape+
-//   path records); null/undefined reads as an empty collection.
-// - `store.write(array)` persists it. The adapter always passes a fresh
-//   clone, so implementations may keep the reference.
-// - `store.nextId()` mints candidate ids; the adapter retries past
-//   collisions, so generators may be random or sequential.
-//
-// P1.7 wiring sketches (not done here; this module stays native-free):
-// - Mask: `read: () => host.readHistory(layer) || []`,
-//   `write: data => host.writeHistory(layer, data)`,
-//   `nextId: session.nextId`, `mirror: session`, where `host` is a real
-//   `mask-host.js` host and `session` its `createMaskSession` state.
-// - Shape+: `read`/`write` over the layer contents' path records (walk
-//   groups in draw order), `nextId` from the content model, `mirror` from
-//   the editor session, `isLocked` from the layer lock when one exists.
+// Store contract: read() returns serializable path records, write(array)
+// persists replacements, and nextId() supplies candidate IDs. The mask
+// overlay also reads live paths during a pointer transaction. The Shape+
+// store writes path nodes back to their parent contents lists.
 //
 // Lock policy: a locked mask/Shape+ path stays visible and selectable.
 // `writeSnapshot` rejects any change to a locked entry (mask entries may
@@ -38,16 +25,9 @@
 // `deletePath` rejects locked ids; `restoreSnapshot` writes verbatim with
 // no lock check because it is the undo/project-load path, not an edit.
 //
-// Creation routing (design: first click on a selected Scene/Adjustment
-// layer creates a mask; on a Shape+ layer a Shape+ path; with no compatible
-// selected layer -- including an incompatible selection -- one history
-// operation creates a Shape+ layer and path): `requestCreation` picks the
-// request from the available adapters, `applyCreation` performs it inside
-// at most one history operation and activates the new path.
-//
-// Deferred to later packages: evaluated geometry and screen projection
-// (P2.1 reads host matrices), timeline operations (P3.x bridge), and the
-// overlay/panel wiring (P1.7).
+// requestCreation chooses the host for the first Pen click. The editor
+// uses its geometry transaction for mounted hosts and native timeline
+// history for a new clip. applyCreation also supports standalone stores.
 const {
   isLocked: isMaskLocked,
   assertEditable,
@@ -151,7 +131,7 @@ function createMaskPathHost({ id, store, mirror = null, controller = null } = {}
   }
 
   function notify() {
-    if (controller && typeof controller.handlePathsChanged === "function")
+    if (!controller?.disposed && typeof controller?.handlePathsChanged === "function")
       controller.handlePathsChanged(api);
   }
 
@@ -307,7 +287,7 @@ function createShapePathHost({ id, store, mirror = null, controller = null, isLo
   }
 
   function notify() {
-    if (controller && typeof controller.handlePathsChanged === "function")
+    if (!controller?.disposed && typeof controller?.handlePathsChanged === "function")
       controller.handlePathsChanged(api);
   }
 
@@ -501,7 +481,7 @@ function createEditorPathRegistry(editor, viewport) {
     input = createPathInput({ controller });
   }
   reset();
-  let hosts = new WeakMap(), nextHostId = 0;
+  let hosts = new WeakMap(), layers = new WeakMap(), nextHostId = 0;
   function register(kind, layer, session) {
     let entry = hosts.get(layer);
     if (!entry || entry.kind !== kind) {
@@ -542,6 +522,7 @@ function createEditorPathRegistry(editor, viewport) {
       const options = { id: "editor-path-host-" + (++nextHostId), store, controller };
       entry.host = kind === "mask" ? createMaskPathHost(options) : createShapePathHost(options);
       hosts.set(layer, entry);
+      layers.set(entry.host, layer);
     }
     if (entry.session !== session || session.sharedPathHost !== entry.host) {
       entry.session = session;
@@ -558,9 +539,24 @@ function createEditorPathRegistry(editor, viewport) {
     const entry = hosts.get(layer);
     if (entry?.session === session) entry.session = null;
   }
+  function reconcileActive() {
+    const host = controller.activeHost, layer = layers.get(host);
+    if (!layer?.getAddress) return;
+    let attached = false;
+    try { attached = controller.project.addressLookup(layer.getAddress()) === layer; }
+    catch (_error) { /* The clip was removed or replaced. */ }
+    if (attached) controller.handlePathsChanged(host);
+    else controller.handlePathsChanged(host, []);
+  }
+  let projectEvents = editor.project?.ui?.onChanged;
+  projectEvents?.watch(reconcileActive);
   function changed() {
+    projectEvents?.unwatch(reconcileActive);
     hosts = new WeakMap();
+    layers = new WeakMap();
     reset();
+    projectEvents = editor.project?.ui?.onChanged;
+    projectEvents?.watch(reconcileActive);
   }
   editor.onProjectChanged.watch(changed);
   return {
@@ -575,7 +571,11 @@ function createEditorPathRegistry(editor, viewport) {
           typeof pathId !== "string" || !pathId) return false;
       if (mount && !mount(kind, layer, pathId)) return false;
       const entry = hosts.get(layer);
-      if (!entry || entry.kind !== kind || !entry.host.hasPath(pathId)) return false;
+      if (!entry || entry.kind !== kind) return false;
+      entry.session?.pointer?.commit();
+      entry.session?.finishNudge?.();
+      entry.session?.finishTextEdit?.();
+      if (!entry.host.hasPath(pathId)) return false;
       input.notifyExternalSelection();
       controller.activate(entry.host, pathId);
       entry.session?.canvas?.focus({ preventScroll: true });
@@ -583,8 +583,10 @@ function createEditorPathRegistry(editor, viewport) {
     },
     dispose() {
       editor.onProjectChanged.unwatch(changed);
+      projectEvents?.unwatch(reconcileActive);
       controller.dispose();
       hosts = new WeakMap();
+      layers = new WeakMap();
       mount = null;
     },
   };
