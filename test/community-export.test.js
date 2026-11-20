@@ -149,3 +149,12 @@ test("a bypassed effect group excludes its community children from export requir
   h.data.media[0].closed.effects[0].zoidiumBypassed = false;
   assert.throws(() => h.api.check(h.project, h.exporter()), /Community effect export is unavailable/);
 });
+
+test("nested groups preserve bypass state through object properties", () => {
+  const h = host();
+  h.payload.zoidiumBypassed = true;
+  h.data.media = [{ effects: [{ type: 0, wrapper: { type: 0, objects: [h.payload] } }] }];
+  assert.doesNotThrow(() => h.api.check(h.project, h.exporter()));
+  h.payload.zoidiumBypassed = false;
+  assert.throws(() => h.api.check(h.project, h.exporter()), /Community effect export is unavailable/);
+});

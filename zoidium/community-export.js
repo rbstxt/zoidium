@@ -14,7 +14,7 @@
       if (Array.isArray(child)) {
         const effectChildren = key === "effects" || effect && value.type === 0 && key === "objects";
         for (const item of child) activeRecords(item, found, effectChildren);
-      } else activeRecords(child, found);
+      } else activeRecords(child, found, effect && value.type === 0);
     }
     return found;
   }
