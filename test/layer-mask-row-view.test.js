@@ -228,10 +228,13 @@ test("locked masks keep selection but block mutation controls", () => {
   for (const selector of [".mask-row-mode", ".mask-row-invert", ".mask-row-enable",
     ".mask-row-key", ".mask-row-edit", ".mask-row-delete", ".mask-row-feather",
     ".mask-row-opacity", ".mask-row-expansion", ".mask-row-color",
-    ".mask-row-name-input", ".mask-row-duplicate",
-    ".mask-row-up", ".mask-row-down"]) {
+    ".mask-row-name-input", ".mask-row-duplicate"]) {
     assert.equal(byClass(selector).disabled, true, selector + " is disabled while locked");
   }
+  // Reordering stays available on locked masks: order is a collection
+  // property, not an edit to the locked mask itself.
+  assert.equal(byClass(".mask-row-up").disabled, false, ".mask-row-up stays enabled while locked");
+  assert.equal(byClass(".mask-row-down").disabled, false, ".mask-row-down stays enabled while locked");
   // The lock toggle itself stays enabled so the mask can be unlocked.
   assert.equal(byClass(".mask-row-lock").disabled, false);
   assert.equal(byClass(".mask-row-lock").getAttribute("aria-pressed"), "true");
