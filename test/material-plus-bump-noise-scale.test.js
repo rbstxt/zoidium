@@ -242,3 +242,30 @@ test("the shader repeats the bump noise UV only on the tiled path", () => {
     for (const dispose of h.dispose.reverse()) dispose();
   }
 });
+
+test("the material shader installs the tiled bump chunk", () => {
+  const h = harness();
+  const THREE = h.context.window.THREE;
+  const donor = {};
+  require("../plugins/material-plus/surface-material.js")(donor, {
+    THREE, ...require("../plugins/material-plus/surface-shader.js")(THREE, h.context.document),
+  });
+  try {
+    donor.load({ surfaceOnly: true });
+    const shader = {
+      uniforms: {},
+      vertexShader: "void main() {\n#include <uv_pars_vertex>\n#include <begin_vertex>\n}",
+      fragmentShader: "#include <bumpmap_pars_fragment>\n#include <lights_physical_pars_fragment>\nvoid main() {\n#include <normal_fragment_maps>\n}",
+    };
+    donor.threeObj.onBeforeCompile(shader);
+    assert.ok(!shader.fragmentShader.includes("#include <bumpmap_pars_fragment>"), "native chunk was replaced");
+    assert.ok(shader.fragmentShader.includes("uniform float uPzBumpNoiseTile;"));
+    assert.ok(shader.fragmentShader.includes("vec2 pzBumpUv()"));
+    assert.ok(shader.fragmentShader.includes("vec2 pzHuv = pzBumpUv();"), "offsets use the resolved UV");
+    assert.equal(shader.uniforms.uPzBumpNoiseTile, donor.pzUniforms.uPzBumpNoiseTile);
+  } finally {
+    donor.pzRampTexture.dispose();
+    donor.threeObj.dispose();
+    for (const dispose of h.dispose.reverse()) dispose();
+  }
+});
