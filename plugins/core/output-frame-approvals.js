@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "5412bdd3e1941bf0417fca5a940d30ae91f506551afe7003af0a1c2301e4d7e1",
+  "fingerprint": "352c178e86b29520e89b69e348bffb1a26f2314db88d686f29a70b44456f4bbb",
   "plugins": {
     "native-fx": {
       "version": "43",
