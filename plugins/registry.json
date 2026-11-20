@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "161",
+      "version": "162",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=161",
-      "bundle": "./plugins/core/bundle.json?v=161",
-      "integrity": "sha256-wNU58PI/EGgB2rRKYdPYfN4G2IYmFG32S6Vsjvn5as4="
+      "manifest": "./plugins/core/manifest.json?v=162",
+      "bundle": "./plugins/core/bundle.json?v=162",
+      "integrity": "sha256-r3R0wVOAW+sJ2Q6bi2wV1YGlSPtErzN+CyRdJH3ZGcw="
     },
     {
       "id": "easing-plus",
@@ -550,14 +550,14 @@
       "category": "adjustment",
       "name": "S_Glow (beta 1.0)",
       "author": "MOUSEIIIIII",
-      "version": "18",
+      "version": "19",
       "itemCount": 1,
       "format": "native effect",
       "tagline": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
       "description": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
-      "manifest": "./plugins/sglow-hq-v2-preview/manifest.json?v=18",
-      "bundle": "./plugins/sglow-hq-v2-preview/bundle.json?v=18",
-      "integrity": "sha256-o1yLZfS6MhKujgayXESHJzDL2BsH8XkLIRxYUL2AUrU=",
+      "manifest": "./plugins/sglow-hq-v2-preview/manifest.json?v=19",
+      "bundle": "./plugins/sglow-hq-v2-preview/bundle.json?v=19",
+      "integrity": "sha256-UUC/qT43+qAyI5iUYRQ3txgQmBP5Anf2hP+4ckXG+CQ=",
       "zoidiumOnly": true
     }
   ]
