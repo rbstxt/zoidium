@@ -19,6 +19,110 @@ function replaceContents(layer, contents, Content) {
   layer.contents.splice(0, layer.contents.length, ...nodes);
   layer.signature = null; layer.contentsState?.invalidate();
 }
+// Replace only path nodes. Keep their parent lists, transforms, paints,
+// and unrelated live properties intact. Remember slots for snapshot undo.
+function writePathRecords(layer, Content, records, slots, groupId) {
+  const contents = clone(layer.contents);
+  const incoming = new Map(records.map(record => [record.id, record]));
+  const changes = [];
+  function visit(list, parentId = null) {
+    for (let index = list.length - 1; index >= 0; index--) {
+      const item = list[index];
+      if (item.kind !== "path") {
+        if (item.contents) visit(item.contents, item.id);
+        continue;
+      }
+      const next = incoming.get(item.id);
+      incoming.delete(item.id);
+      if (next && JSON.stringify(next) === JSON.stringify(item)) continue;
+      changes.push({ id: item.id, next });
+      if (next) list[index] = next;
+      else {
+        slots.set(item.id, { parentId, index });
+        list.splice(index, 1);
+      }
+    }
+  }
+  visit(contents);
+  const additions = [...incoming.values()].map(next => {
+    const { parentId, index } = slots.get(next.id) || { parentId: groupId, index: Infinity };
+    return { next, parentId, index };
+  }).sort((a, b) => a.index - b.index);
+  for (const { next, parentId, index } of additions) {
+    const list = tree.find(contents, parentId)?.item.contents || contents;
+    list.splice(Math.min(index, list.length), 0, next);
+  }
+  validate(contents);
+  const load = next => {
+    if (!next) return null;
+    const item = new Content(next.kind, next);
+    item.load(next);
+    return item;
+  };
+  const replacements = changes.map(({ id, next }) => ({ id, item: load(next) }));
+  const inserts = additions.map(event => ({ ...event, item: load(event.next) }));
+  for (const { id, item } of replacements) {
+    const entry = tree.find(layer.contents, id);
+    entry.item.unload();
+    entry.list.splice(entry.index, 1, ...(item ? [item] : []));
+  }
+  for (const { item, parentId, index } of inserts) {
+    const list = tree.find(layer.contents, parentId)?.item.contents || layer.contents;
+    list.splice(Math.min(index, list.length), 0, item);
+  }
+  layer.signature = null;
+  layer.contentsState?.invalidate();
+}
+
+function bindPathSession(s, controller, host) {
+  s.pathController = controller;
+  s.sharedPathHost = host;
+  // The controller stores vertex IDs. Handles keep their distinct selection
+  // keys in the overlay while their parent vertex stays selected.
+  s.applyPathSelection = ({ pathId, vertices }) => {
+    const samePath = pathId === s.activeId;
+    if (!samePath) {
+      s.activeId = pathId;
+      s.treeSelection = new Set(pathId ? [pathId] : []);
+      s.penFinished = false;
+    }
+    const wanted = new Set(vertices);
+    const keys = samePath ? [...s.selection].filter(key => wanted.has(selectionPart(key).id)) : [];
+    for (const key of keys) wanted.delete(selectionPart(key).id);
+    for (const id of wanted) keys.push(selectionKey(id));
+    s.selection = new Set(keys);
+    s.dirty = true;
+    s.onPathSelection?.();
+  };
+  s.syncPathSelection = () => {
+    if (controller.disposed) return;
+    const id = s.activeId;
+    if (id && s.treeSelection.size === 1 && host.hasPath(id)) {
+      const vertices = [...new Set([...s.selection].map(key => selectionPart(key).id))];
+      if (controller.activeHost !== host || controller.activePathId !== id) {
+        s.pathInput?.notifyExternalSelection();
+        controller.activate(host, id);
+        if (!vertices.length) return;
+      }
+      controller.setSelection(host, id, vertices);
+    } else if (controller.activeHost === host) {
+      // Preserve Shape+ group/primitive selection when leaving a path.
+      controller.deactivate({ mirror: false });
+      s.pathInput?.notifyExternalSelection();
+    }
+  };
+  if (!s.pathRefresh) {
+    s.pathRefresh = s.refresh;
+    s.refresh = function(...args) {
+      s.syncPathSelection?.();
+      return s.pathRefresh?.apply(this, args);
+    };
+  }
+  s.reconcilePaths = () => {
+    if (!controller.disposed && controller.activeHost === host) controller.handlePathsChanged(host);
+  };
+}
+
 // A path host lets the same pen, pointer, transform and action modules edit
 // something that is not a Shape+ layer. The default host is the layer's own
 // contents; a host supplies { contents(), owns(target), valid(), write(data),
@@ -76,7 +180,8 @@ function createEditorModel(s) {
     // Property drags and nudges mutate the live items without a write; the
     // host persists the settled state so the layer field (rendering, saving,
     // the preview-cache key) never lags the editor.
-    host?.persist?.();
+    if (s.valid()) host?.persist?.();
+    s.reconcilePaths?.();
     s.refresh?.(true);
   }, () => editor.project);
   s.preview = () => {
@@ -370,4 +475,4 @@ function createEditorModel(s) {
   s.reverse = () => s.mutate(() => s.topology({ kind: "reverse" }));
   return s;
 }
-module.exports = { createEditorModel, replaceContents };
+module.exports = { bindPathSession, createEditorModel, replaceContents, writePathRecords };

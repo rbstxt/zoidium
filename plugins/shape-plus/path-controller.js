@@ -65,13 +65,13 @@ function createPathController(options = {}) {
     if (state.disposed) throw Error("Path controller is disposed");
   }
 
-  function notify(kind) {
+  function notify(kind, previousHost = null) {
     if (state.onChange) state.onChange(kind, snapshot());
-    const host = state.activeHost;
+    const host = state.activeHost || previousHost;
     if (host && typeof host.syncSelection === "function" &&
         (kind === "activate" || kind === "selection" || kind === "deactivate")) {
       host.syncSelection({
-        hostId: state.activeHostId,
+        hostId: host.id,
         pathId: state.activePathId,
         vertices: getSelection(),
       });
@@ -126,8 +126,10 @@ function createPathController(options = {}) {
     for (const vertexId of vertexIds) {
       if (typeof vertexId !== "string" || !vertexId) throw Error("Vertex ids must be short strings");
     }
-    const filtered = filterLiveVertices(resolved.host, resolved.pathId, vertexIds.slice());
-    state.selections.set(keyFor(id, resolved.pathId), new Set(filtered));
+    const filtered = new Set(filterLiveVertices(resolved.host, resolved.pathId, vertexIds));
+    const key = keyFor(id, resolved.pathId), before = state.selections.get(key);
+    if (before?.size === filtered.size && [...filtered].every(vertex => before.has(vertex))) return [...filtered];
+    state.selections.set(key, filtered);
     notify("selection");
     return getSelection(resolved.host, resolved.pathId);
   }
@@ -189,16 +191,17 @@ function createPathController(options = {}) {
     return state.tool;
   }
 
-  function activate(host, id) {
+  function activate(host, id, { mirror = true } = {}) {
     assertUsable();
     if (host === null || host === undefined || id === null || id === undefined) {
+      const previousHost = state.activeHost;
       state.activeHost = null;
       state.activeHostId = null;
       state.activePathId = null;
       cancelDrawingSilent();
       endGestureSilent();
       state.hover = null;
-      notify("deactivate");
+      notify("deactivate", mirror ? previousHost : null);
       return null;
     }
     if (typeof id !== "string" || !id) throw Error("Path id must be a short string");
@@ -219,8 +222,8 @@ function createPathController(options = {}) {
     return { hostId: idOfHost, pathId: id };
   }
 
-  function deactivate() {
-    return activate(null, null);
+  function deactivate(options) {
+    return activate(null, null, options);
   }
 
   function startDrawing(options = {}) {
@@ -335,13 +338,14 @@ function createPathController(options = {}) {
       }
       if (state.activeHostId === idOfHost &&
           (state.activePathId === null || !keep.has(state.activePathId))) {
+        const previousHost = state.activeHost;
         state.activeHost = null;
         state.activeHostId = null;
         state.activePathId = null;
         cancelDrawingSilent();
         endGestureSilent();
         state.hover = null;
-        notify("deactivate");
+        notify("deactivate", previousHost);
         return;
       }
       notify("selection");
@@ -361,13 +365,14 @@ function createPathController(options = {}) {
     const idOfHost = hostIdOf(host);
     state.selections.delete(keyFor(idOfHost, pathId));
     if (state.activeHostId === idOfHost && state.activePathId === pathId) {
+      const previousHost = state.activeHost;
       state.activeHost = null;
       state.activeHostId = null;
       state.activePathId = null;
       cancelDrawingSilent();
       endGestureSilent();
       state.hover = null;
-      notify("deactivate");
+      notify("deactivate", previousHost);
       return;
     }
     notify("selection");

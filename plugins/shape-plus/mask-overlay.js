@@ -91,6 +91,7 @@ function mountMaskOverlay(session, viewport, context, tool) {
   function update() {
     if (disposed) return;
     s.canvasApi.resize();
+    s.reconcilePaths?.();
     const gesture = s.pointer.active;
     if (gesture && (gesture.frame !== s.localFrame() || (gesture.target != null && !s.find(gesture.target)))) {
       s.pointer.commit();
@@ -128,10 +129,7 @@ function install(context, Content, paths) {
   function sessionFor(layer) {
     const session = maskSessionFor(layer, () => createMaskSession({ PZ, editor, project: editor.project, nativeLayer: layer, Content,
       notify: text => context.ui.notify({ title: "Masks", message: text }) }));
-    if (paths) {
-      session.s.pathController = paths.controller;
-      session.s.sharedPathHost = paths.register("mask", layer, session.s);
-    }
+    paths?.register("mask", layer, session.s);
     return session;
   }
   // The overlay owns viewport pointer input only while mask editing is on:

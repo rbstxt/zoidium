@@ -55,8 +55,9 @@ const {
   validateMetadataCollection,
   MAX_NAME_LENGTH,
 } = require("./mask-metadata.js");
-const { createMask, validateMasks, ensureNames } = require("./mask-model.js");
+const { createMask, validateMasks, ensureNames, getMasks } = require("./mask-model.js");
 const { createPathController } = require("./path-controller.js");
+const { bindPathSession, writePathRecords } = require("./editor-model.js");
 
 const HOST_KINDS = ["mask", "shape"];
 const MINT_ATTEMPTS = 1024;
@@ -153,16 +154,18 @@ function createMaskPathHost({ id, store, mirror = null, controller = null } = {}
       controller.handlePathsChanged(api);
   }
 
+  const live = () => store.live?.() || readRecords(store);
+
   function hasPath(pathId) {
-    return readRecords(store).some(mask => mask?.id === pathId);
+    return live().some(mask => mask?.id === pathId);
   }
 
   function listPathIds() {
-    return readRecords(store).map(mask => mask.id);
+    return live().map(mask => mask.id);
   }
 
   function listVertexIds(pathId) {
-    const mask = readRecords(store).find(entry => entry?.id === pathId);
+    const mask = live().find(entry => entry?.id === pathId);
     return Array.isArray(mask?.vertexIds) ? mask.vertexIds.slice() : [];
   }
 
@@ -177,7 +180,8 @@ function createMaskPathHost({ id, store, mirror = null, controller = null } = {}
     const pathId = snapshot.pathId === undefined ? null : snapshot.pathId;
     const vertices = Array.isArray(snapshot.vertices) ? snapshot.vertices : [];
     if (pathId !== null && !hasPath(pathId)) throw Error("Unknown path " + pathId);
-    mirrorSelection(mirror, id, pathId, vertices);
+    if (store.syncSelection) store.syncSelection({ hostId: id, pathId, vertices });
+    else mirrorSelection(mirror, id, pathId, vertices);
     return { hostId: id, pathId, vertices: vertices.slice() };
   }
 
@@ -330,7 +334,8 @@ function createShapePathHost({ id, store, mirror = null, controller = null, isLo
     const pathId = snapshot.pathId === undefined ? null : snapshot.pathId;
     const vertices = Array.isArray(snapshot.vertices) ? snapshot.vertices : [];
     if (pathId !== null && !hasPath(pathId)) throw Error("Unknown path " + pathId);
-    mirrorSelection(mirror, id, pathId, vertices);
+    if (store.syncSelection) store.syncSelection({ hostId: id, pathId, vertices });
+    else mirrorSelection(mirror, id, pathId, vertices);
     return { hostId: id, pathId, vertices: vertices.slice() };
   }
 
@@ -491,29 +496,52 @@ function createEditorPathRegistry(editor, viewport) {
   let hosts = new WeakMap(), nextHostId = 0;
   function register(kind, layer, session) {
     let entry = hosts.get(layer);
-    if (entry && entry.kind === kind) return entry.host;
-    const read = () => {
-      if (kind === "mask") return session.pathHost.readHistory(layer) || [];
-      const paths = [];
-      const visit = items => items.forEach(item => {
-        if (item.kind === "path") paths.push(item);
-        if (Array.isArray(item.contents)) visit(item.contents);
-      });
-      visit(session.read() || []);
-      return paths;
-    };
-    const store = {
-      read,
-      write(data) {
-        if (kind !== "mask") throw Error("Shape+ path snapshots require a contents transaction");
-        session.pathHost.writeHistory(layer, data);
-      },
-      nextId: session.nextId,
-    };
-    const options = { id: "editor-path-host-" + (++nextHostId), store, controller };
-    const host = kind === "mask" ? createMaskPathHost(options) : createShapePathHost(options);
-    hosts.set(layer, { kind, host, session });
-    return host;
+    if (!entry || entry.kind !== kind) {
+      entry = { kind, session, maskHost: session.pathHost };
+      const slots = new Map(), Content = session.Content;
+      const read = () => {
+        if (kind === "mask") return getMasks(layer);
+        const paths = [];
+        const visit = items => items.forEach(item => {
+          if (item.kind === "path") paths.push(item);
+          if (Array.isArray(item.contents)) visit(item.contents);
+        });
+        visit(layer.contents || entry.session?.read() || []);
+        return paths;
+      };
+      const store = {
+        read,
+        write(data) {
+          if (kind === "mask") entry.maskHost.writeHistory(layer, data);
+          else {
+            const active = entry.session?.active?.();
+            writePathRecords(layer, Content, data, slots, active?.kind === "group" ? active.id : null);
+            entry.session?.preview?.();
+          }
+        },
+        nextId: session.nextId,
+        syncSelection(snapshot) {
+          const target = entry.session;
+          if (target?.applyPathSelection) target.applyPathSelection(snapshot);
+          else if (snapshot.pathId !== null) target?.selectItem(snapshot.pathId);
+        },
+      };
+      if (kind === "mask") store.live = () => entry.maskHost.contents();
+      const options = { id: "editor-path-host-" + (++nextHostId), store, controller };
+      entry.host = kind === "mask" ? createMaskPathHost(options) : createShapePathHost(options);
+      hosts.set(layer, entry);
+    }
+    if (entry.session !== session || session.sharedPathHost !== entry.host) {
+      entry.session = session;
+      if (kind === "mask") entry.maskHost = session.pathHost;
+      if (session.selection instanceof Set) bindPathSession(session, controller, entry.host);
+      if (controller.activeHost === entry.host) controller.handlePathsChanged(entry.host);
+    }
+    return entry.host;
+  }
+  function unregister(layer, session) {
+    const entry = hosts.get(layer);
+    if (entry?.session === session) entry.session = null;
   }
   function changed() {
     controller.dispose();
@@ -524,11 +552,11 @@ function createEditorPathRegistry(editor, viewport) {
   return {
     get controller() { return controller; },
     register,
+    unregister,
     activate(kind, layer, pathId) {
       const entry = hosts.get(layer);
       if (!entry || entry.kind !== kind || !entry.host.hasPath(pathId)) return false;
       controller.activate(entry.host, pathId);
-      entry.session.selectItem(pathId);
       return true;
     },
     dispose() { editor.onProjectChanged.unwatch(changed); controller.dispose(); hosts = new WeakMap(); },

@@ -47,10 +47,6 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, paths) {
     if (row) panels.top.renameClick({ currentTarget: row, preventDefault() {} });
   };
   createEditorModel(s);
-  if (paths) {
-    s.pathController = paths.controller;
-    s.sharedPathHost = paths.register("shape", layer, s);
-  }
   function syncSelection() {
     const selected = [...s.treeSelection].map(s.find).filter(Boolean);
     const top = panels.top;
@@ -60,12 +56,15 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, paths) {
       top.selection.splice(0, top.selection.length, ...selected);
   }
   s.refresh = () => { s.dirty = true; syncSelection(); };
+  s.onPathSelection = syncSelection;
+  paths?.register("shape", layer, s);
   s.selectItem = (id, extend = false) => {
     s.finishTextEdit?.();
     s.pointer?.commit(); s.finishNudge?.();
     if (!extend) s.treeSelection.clear();
     s.treeSelection.add(id); s.activeId = id;
-    s.selection.clear(); s.penFinished = false; s.refresh();
+    if (s.pathController?.activeHost !== s.sharedPathHost || s.pathController?.activePathId !== id) s.selection.clear();
+    s.penFinished = false; s.refresh();
   };
   s.clearSelection = () => {
     s.finishTextEdit?.();
@@ -90,7 +89,7 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, paths) {
   // (editor-actions.js) or an error roll a gesture back; in-place text
   // editing commits on Escape instead (see text-inline.js).
   function settle() { textEditor.finish(); s.pointer.commit(); s.finishNudge(); s.gesture.finish(); }
-  const changed = () => { if (!disposed && s.valid()) s.refresh(); };
+  const changed = () => { if (!disposed && s.valid()) { s.reconcilePaths?.(); s.refresh(); } };
   s.project.ui.onChanged.watch(changed);
   function update() {
     if (disposed) return;
@@ -109,12 +108,13 @@ function mountOverlay(context, layer, Content, viewport, panels, tool, paths) {
     select(items) {
       const ids = items.filter(item => item instanceof Content).map(item => item.id);
       if (ids[0] === s.activeId && ids.length === s.treeSelection.size && ids.every(id => s.treeSelection.has(id))) return;
-      settle(); s.activeId = ids[0] || null; s.treeSelection = new Set(ids); s.selection.clear(); s.penFinished = false;
+      settle(); s.activeId = ids[0] || null; s.treeSelection = new Set(ids); s.selection.clear(); s.penFinished = false; s.refresh();
     },
     dispose() {
       if (disposed) return;
       settle(); actions.dispose(); s.pointer.dispose(); s.canvasApi.dispose();
       s.project.ui.onChanged.unwatch(changed);
+      paths?.unregister(layer, s);
       disposed = true; canvas.remove();
     },
   };
@@ -187,7 +187,7 @@ function install(context, Layer, Content, paths) {
     if (visible && !view) {
       view = mountOverlay(context, layer, Content, viewport, panels, tool, paths);
       view.state.setTool = setTool;
-      view.select(panels.top.selection);
+      if (!view.state.activeId) view.select(panels.top.selection);
     }
     if (view) {
       if (hiddenWidget === null) {
