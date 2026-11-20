@@ -128,9 +128,9 @@ function install(context, Layer, Content, paths) {
   let view = null, tool = "select", enabled = true, disposed = false, hiddenWidget = null;
   const commands = [], buttons = [];
   function setTool(next) {
-    if (next === "select") enabled = !enabled || tool !== "select";
-    else enabled = true;
+    enabled = true;
     tool = next;
+    if (paths && paths.controller.tool !== next) paths.controller.setTool(next);
     view?.tool(next);
     tick(false);
   }

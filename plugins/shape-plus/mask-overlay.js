@@ -136,18 +136,18 @@ function install(context, Content, paths) {
   }
   // The overlay owns viewport pointer input only while mask editing is on:
   // "off" leaves drags to the native viewport (editing-camera orbit, the 2D
-  // transform widget); "pen" draws; "select" reshapes. Q cycles
-  // off → pen → select → off. M stays the native marker toggle.
+  // transform widget); "pen" draws; "select" reshapes. M stays native.
   const MODES = ["off", "pen", "select"];
   let view = null, mode = "off", modeLayer = null, disposed = false;
   function setMode(next) {
     if (!MODES.includes(next)) throw Error(`Unknown mask mode ${next}`);
     mode = next;
+    if (mode !== "off" && paths && paths.controller.tool !== mode) paths.controller.setTool(mode);
     if (mode === "off") { view?.dispose(); view = null; }
     else view?.tool(mode);
     tick(false);
   }
-  const command = { title: "Mask pen (q)", key: "q", fn: () => setMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]) };
+  const command = { title: "Mask pen (q)", key: "q", fn: () => setMode("pen") };
   const button = document.createElement("button");
   button.title = "Mask pen (q)";
   button.setAttribute("aria-label", "Mask pen (q)");
@@ -209,7 +209,7 @@ function install(context, Content, paths) {
     } else restoreWidget();
     button.disabled = !found;
     const on = !!found && mode !== "off";
-    button.title = on ? `Mask ${mode === "pen" ? "pen" : "point editing"} (q: next)` : "Mask pen (q)";
+    button.title = on ? `Mask ${mode === "pen" ? "pen" : "point editing"} (q)` : "Mask pen (q)";
     button.setAttribute("aria-pressed", String(on));
     image.style.fill = on ? "var(--zui-toggle-on)" : "var(--zui-toggle-off)";
     image.style.color = on ? "var(--zui-toggle-on)" : "var(--zui-toggle-off)";

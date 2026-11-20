@@ -4,6 +4,7 @@ const g = require("./editor-geometry.js");
 const { createMenu } = require("./editor-menu.js");
 const xf = require("./editor-transform.js");
 const { pickTarget, parentOf } = require("./editor-pick.js");
+const { createPathInput } = require("./path-input.js");
 function installActions(s, root, options = {}) {
   const shapes = options.shapes !== false;
   let nudge = null;
@@ -108,10 +109,22 @@ function installActions(s, root, options = {}) {
   s.finishNudge = finishNudge;
   const typing = (target) =>
     !!target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
+  const pathInput = s.pathController && createPathInput({ controller: s.pathController });
   function keydown(event) {
     if (event.isComposing || event.keyCode === 229 || typing(event.target)) return;
     const key = event.key.toLowerCase(),
       command = event.metaKey || event.ctrlKey;
+    if (pathInput && ["q", "p", "v", "control", "meta", "alt"].includes(key)) {
+      const controller = s.pathController, host = s.sharedPathHost;
+      if (s.active()?.kind === "path" && host?.hasPath(s.activeId) &&
+          (controller.activeHost !== host || controller.activePathId !== s.activeId))
+        controller.activate(host, s.activeId);
+      const result = pathInput.handleKeyDown(event, { viewportFocused: s.document.activeElement === s.canvas });
+      if (["select-pen", "select-points", "temporary-select"].includes(result.action)) {
+        s.setTool?.(controller.tool);
+        return;
+      }
+    }
     const consume = () => {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -134,7 +147,6 @@ function installActions(s, root, options = {}) {
       }
       if (s.tool === "pen" && !s.penFinished) {
         s.penFinished = true;
-        s.selection.clear();
         s.refresh();
         consume();
         return;
@@ -181,7 +193,6 @@ function installActions(s, root, options = {}) {
       s.pointer.commit();
       finishNudge();
       s.penFinished = true;
-      s.selection.clear();
       s.refresh();
       return;
     }
@@ -246,6 +257,10 @@ function installActions(s, root, options = {}) {
     }
   }
   function keyup(event) {
+    if (pathInput) {
+      const result = pathInput.handleKeyUp(event);
+      if (result.action === "restore-tool") s.setTool?.(s.pathController.tool);
+    }
     if (event.code === "Space") {
       s.space = false;
       if (!event.isComposing && event.keyCode !== 229 && !typing(event.target)) {
@@ -257,6 +272,7 @@ function installActions(s, root, options = {}) {
   }
   // Losing focus ends a nudge but keeps it; only Escape and undo roll back.
   function blur() {
+    if (pathInput?.handleBlur().action === "restore-tool") s.setTool?.(s.pathController.tool);
     s.space = false;
     finishNudge();
     s.closeMenu();
