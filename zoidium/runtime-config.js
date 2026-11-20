@@ -45,6 +45,8 @@
       "./plugins/core/property-history.js",
       "./plugins/core/video-seek-policy.js",
       "./plugins/core/edit-signals.js",
+      "./plugins/core/effect-bypass.js",
+      "./plugins/core/effect-bypass-render.js",
       "./plugins/core/temporal-math.js",
       "./plugins/core/temporal-layers.js",
       "./plugins/core/temporal-capture.js",

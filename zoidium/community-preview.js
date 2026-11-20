@@ -14,7 +14,8 @@
             this.__zoidiumPlayerPlusPaused && !this.__zoidiumPlayerPlusRenderOnce) return original.apply(this, arguments);
         const project = this.editor?.project, sequence = this.compositor?._sequence;
         if (!project || sequence !== project.sequence) return original.apply(this, arguments);
-        const effects = getEffects().filter(e => e.parentProject === project && !e._communityOpaque);
+        const effects = getEffects().filter(e => e.parentProject === project && !e._communityOpaque &&
+          !PZ.zoidium?.effectBypass?.bypassed(e));
         if (!effects.length) return original.apply(this, arguments);
         if (pending.has(this)) return;
         const frame = this.editor.playback.currentFrame, view = this, args = arguments;

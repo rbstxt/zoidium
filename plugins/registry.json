@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "162",
+      "version": "163",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=162",
-      "bundle": "./plugins/core/bundle.json?v=162",
-      "integrity": "sha256-YgRt/FePGvHqOxEoIxU5VhYfuAVcw3RNu4Gys3F6E18="
+      "manifest": "./plugins/core/manifest.json?v=163",
+      "bundle": "./plugins/core/bundle.json?v=163",
+      "integrity": "sha256-+fxVeUorJ6iF3DuGIF1nI+lv4nyB+meqpPjDpK5+k0o="
     },
     {
       "id": "easing-plus",
@@ -462,7 +462,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "19",
+      "version": "20",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -470,9 +470,9 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=19",
-      "bundle": "./plugins/layer-input/bundle.json?v=19",
-      "integrity": "sha256-ykSHyR9iDvcdKrQa5/Fo+PrDWQzdYsR/S7x3/U4LKI0="
+      "manifest": "./plugins/layer-input/manifest.json?v=20",
+      "bundle": "./plugins/layer-input/bundle.json?v=20",
+      "integrity": "sha256-mhlPk5gzCIzWKLAJZZNAqAByV8+UXLsMHYQtfsT8qvc="
     },
     {
       "id": "shape-plus",
@@ -550,14 +550,14 @@
       "category": "adjustment",
       "name": "S_Glow (beta 1.0)",
       "author": "MOUSEIIIIII",
-      "version": "18",
+      "version": "19",
       "itemCount": 1,
       "format": "native effect",
       "tagline": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
       "description": "Lightweight, high-precision glow effect with customizable spread, blend modes, and applicable atmosphere",
-      "manifest": "./plugins/sglow-hq-v2-preview/manifest.json?v=18",
-      "bundle": "./plugins/sglow-hq-v2-preview/bundle.json?v=18",
-      "integrity": "sha256-o1yLZfS6MhKujgayXESHJzDL2BsH8XkLIRxYUL2AUrU=",
+      "manifest": "./plugins/sglow-hq-v2-preview/manifest.json?v=19",
+      "bundle": "./plugins/sglow-hq-v2-preview/bundle.json?v=19",
+      "integrity": "sha256-knfkLsD4rSG5SkDWspie+nfhHLryQKrffca6vmG4SUs=",
       "zoidiumOnly": true
     }
   ]

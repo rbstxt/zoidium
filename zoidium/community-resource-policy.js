@@ -14,10 +14,21 @@
       if (!media || !(media.file instanceof root.Blob) || media.source !== PZ.asset?.source?.FILE ||
           typeof media.url !== "string" || !media.url.startsWith("blob:")) unavailable("attach the media as a local file");
     }
-    function serialized(object) {
+    function serialized(object, effectRoot = false) {
       const data = object.toJSON?.();
       if (!data) unavailable("content has no audited saved representation");
-      const json = JSON.stringify(data);
+      const groups = new WeakSet();
+      if (effectRoot && data.type === 0) groups.add(data);
+      const json = JSON.stringify(data, function (key, value) {
+        if (Array.isArray(value) && (key === "effects" || key === "objects" && groups.has(this))) {
+          const active = value.filter(effect => effect?.zoidiumBypassed !== true);
+          for (const effect of active) {
+            if (effect && typeof effect === "object" && effect.type === 0) groups.add(effect);
+          }
+          return active;
+        }
+        return value;
+      });
       if (/"(?:expression|_zoidiumLayerInput|_zoidiumSourceTrack)":|"track:/.test(json)) unavailable("expressions and layer inputs are unsupported");
       return data;
     }
@@ -27,8 +38,13 @@
     }
     function assertEffect(effect) {
       check();
+      if (PZ.zoidium?.effectBypass?.bypassed(effect)) return;
       if (effect?._community && !effect._communityOpaque) return;
-      const data = serialized(effect);
+      const data = serialized(effect, true);
+      if (data.type === 0) {
+        for (const child of effect.objects || []) assertEffect(child);
+        return;
+      }
       if (!effects.has(data.type)) unavailable("the effect input path is unsupported");
       if (data.type === 1) {
         if (effect.customProperties?.length || data.customProperties?.length) unavailable("shader resource inputs are unsupported");
@@ -82,6 +98,7 @@
       }
     }
     async function prepareEffect(effect, frame, context) {
+      if (PZ.zoidium?.effectBypass?.bypassed(effect)) { check(); return; }
       assertEffect(effect);
       // Audited native effects already own resident passes. Their ordinary
       // prepare hooks are unnecessary and can contain lazy asset acquisition.

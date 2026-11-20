@@ -18,6 +18,7 @@
       group.prepare = async function prepareExportEffectGroup(frame, context) {
         if (!context?.exportPolicy) return original.apply(this, arguments);
         for (const effect of this.objects || []) {
+          if (PZ.zoidium?.effectBypass?.bypassed(effect)) continue;
           context.exportPolicy.check?.();
           await effect.loading;
           await effect.prepare(frame, context);
@@ -27,7 +28,7 @@
     }
   }
   function hasSampler(layer, seen = new Set()) {
-    if (!layer || seen.has(layer)) return false;
+    if (!layer || seen.has(layer) || PZ.zoidium?.effectBypass?.bypassed(layer)) return false;
     seen.add(layer);
     if (layer._zoidiumFrameSampler || layer.effects?.some(effect => hasSampler(effect, seen))) return true;
     if (layer.objects?.some(child => hasSampler(child, seen))) return true;
@@ -68,7 +69,9 @@
         // subtracting it in clip.prepare can change a fractional shutter time.
         layer.update(source);
         if (layer.prepare) await layer.prepare(source, exporter);
-        else for (const effect of layer.effects || []) await effect.prepare?.(source, exporter);
+        else for (const effect of layer.effects || []) {
+          if (!PZ.zoidium?.effectBypass?.bypassed(effect)) await effect.prepare?.(source, exporter);
+        }
         exporter.exportPolicy.check();
       }
     }

@@ -304,7 +304,7 @@
     // another sampler. Keep adjustment scopes conservative: lower tracks can
     // contain samplers even when the owner's prefix is empty.
     return !isAdjustmentLayer(stage.layer) &&
-      !stage.layer.effects.slice(0, stage.effectIndex).some(effect => effect?._zoidiumFrameSampler) &&
+      !stage.layer.effects.slice(0, stage.effectIndex).some(effect => effect?._zoidiumFrameSampler && !PZ.zoidium?.effectBypass?.bypassed(effect)) &&
       !layers.hasNestedFrameSampler(stage.layer) ? 1 : depth;
   }
 
@@ -509,6 +509,7 @@
         finiteNumber(layer.__zoidiumTemporalLastUpdateFrame, localFrame), context));
       const count = index === stage.trackIndex ? stage.effectIndex : layer.effects?.length || 0;
       for (let i = 0; i < count; i += 1) {
+        if (PZ.zoidium?.effectBypass?.bypassed(layer.effects[i])) continue;
         const input = finiteNumber(layer.__zoidiumTemporalLastUpdateFrame, localFrame);
         await scoped(() => context?.resourcePolicy
           ? context.resourcePolicy.prepareEffect(layer.effects[i], input, context)

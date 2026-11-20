@@ -445,7 +445,8 @@
     function visit(layer, clip, localFrame) {
       const sourceFrame = state.mapLayerFrame(layer, localFrame)?.sourceFrame ?? localFrame;
       for (const effect of layer.effects || []) {
-        if (!effect._zoidiumFrameSampler || effect._zoidiumFrameSampler.preflight) continue;
+        if (typeof PZ !== "undefined" && PZ.zoidium?.effectBypass?.bypassed(effect) ||
+            !effect._zoidiumFrameSampler || effect._zoidiumFrameSampler.preflight) continue;
         const controlFrame = getAdjustmentEffectFrame(layer, effect, sourceFrame);
         const request = effect._zoidiumFrameSampler.getRequest(effect, controlFrame);
         // A paused comparison must use the same current-frame decoder with

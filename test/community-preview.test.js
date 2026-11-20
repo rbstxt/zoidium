@@ -84,3 +84,13 @@ test("stacked instance and prototype bridges forward the completed draw exactly 
   viewport._render(); await tick();
   assert.equal(prepares, 1); assert.equal(draws, 1); remove();
 });
+test("bypassed community effects do not start preview jobs", () => {
+  const sequence = { videoTracks: [] }, project = { sequence };
+  const effect = { parentProject: project, _community: {}, zoidiumBypassed: true };
+  let draws = 0;
+  const viewport = { editor: { project, playback: { currentFrame: 0 } }, compositor: { _sequence: sequence },
+    _render() { draws++; } };
+  const remove = install({ getEffects: () => [effect], stamp() { throw Error("unexpected job"); },
+    sameStamp: () => false, viewport, PZ: { zoidium: { effectBypass: { bypassed: e => e.zoidiumBypassed } } } });
+  viewport._render(); assert.equal(draws, 1); remove();
+});
