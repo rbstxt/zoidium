@@ -185,6 +185,108 @@ test("the sampler request follows the Quality level", () => {
   definition.lifecycle.unload.call(sandbox);
 });
 
+for (const [quality, label] of ["Full", "1/2", "1/4", "1/8"].entries()) {
+  test(`ZSMB captures every tracked Scene at ${label} using the shared Camera+ at each tap`, () => {
+    const { definition, sandbox: effect, properties } = loadDefinition();
+    definition.lifecycle.load.call(effect, { properties: { quality, qualityPresetVersion: 2 } });
+    const request = definition.getRequest(effect, 12);
+    assert.equal(request.enabled, true);
+    assert.equal(properties.values.quality, quality);
+
+    const harness = require("./camera-plus-harness");
+    const { PZ, THREE, context } = harness.createContext();
+    PZ.layer.adjustment = class extends PZ.layer {};
+    PZ.layer.composite = class extends PZ.layer {};
+    const runtime = harness.loadRuntime();
+    const draws = [];
+    const sceneIndices = new Map();
+    let camera;
+    PZ.compositor.prototype.renderLayer = function (layer) {
+      if (layer instanceof PZ.layer.scene) {
+        draws.push([sceneIndices.get(layer), layer.pass.camera === camera.threeObj, layer.pass.camera?.position.x]);
+      }
+      this.renderEffects(layer.effects, 1, 1);
+    };
+    runtime.activate(context);
+
+    function track(layer, start, track3d = false, enabled = true) {
+      const track = new PZ.track.video();
+      const clip = { object: layer, parent: track, start, length: 30 };
+      layer.parent = clip;
+      Object.assign(track, { clips: [clip], enabled, track3d,
+        getCurrentClip: frame => frame >= start && frame < start + clip.length ? clip : null });
+      return track;
+    }
+
+    try {
+      const scenes = Array.from({ length: 3 }, () => new PZ.layer.scene());
+      scenes.forEach((scene, index) => sceneIndices.set(scene, index));
+      const untrackedScene = new PZ.layer.scene();
+      const cameraLayer = PZ.layer.create(9);
+      cameraLayer.load({ objects: [] });
+      camera = cameraLayer.getCamera(0);
+      const update = camera.update;
+      const cameraFrames = [];
+      camera.update = function (frame) {
+        update.call(this, frame);
+        cameraFrames.push(frame);
+        this.threeObj.position.x = frame;
+      };
+      const cameraTrack = track(cameraLayer, 5);
+      const owner = track(new PZ.layer.adjustment(), 0);
+      // Prepare the scene at a different local time so camera lookup must use
+      // the sampled project frame instead of inferring it from scene state.
+      for (const scene of scenes) scene.update(1);
+      const sequence = { videoTracks: [...scenes.map((scene, i) => track(scene, i + 2, true)),
+        track(untrackedScene, 0), owner, cameraTrack] };
+      const capture = Object.create(PZ.compositor.prototype);
+      const renderer = { setClearColor() {} };
+      Object.assign(capture, {
+        _sequence: sequence, renderer, clear() {}, renderEffects() {},
+        readBuffer: { viewport: { z: 40, w: 20 } },
+      });
+      const state = { contexts: [], evaluatingLayers: new WeakSet() };
+      const prepared = new Map(scenes.map(scene => {
+        scene.__zoidiumTemporalUpdateRevision = 1;
+        return [scene, 1];
+      }));
+      const stage = {
+        layer: owner.clips[0].object, clip: owner.clips[0], effect,
+        effectIndex: 0, trackIndex: sequence.videoTracks.indexOf(owner),
+      };
+      const parts = {
+        sampler: {
+          bindSampleTextures: () => () => {}, copyRenderTarget() {},
+          getFrameSamplerInputFrame: (_stage, frame) => frame,
+          getFrameSamplerCapture: () => capture, ownsFrameSamplerScope: () => false,
+        },
+      };
+      const temporal = vm.createContext({ PZ, THREE, console, __zoidiumTemporalParts: parts });
+      for (const file of ["temporal-math", "temporal-layers", "temporal-capture"]) {
+        vm.runInContext(fs.readFileSync(path.join(__dirname, "../plugins/core", file + ".js"), "utf8"), temporal);
+      }
+      const target = { viewport: new THREE.Vector4() };
+      const sample = frame => parts.capture.captureFrameSamplerInput(state, capture, {}, stage, frame, 12, 1,
+        target, [], { singleEvaluation: true, frameSamplerPreparedLayers: prepared, frameSamplerChangedLayers: new Set() }, true);
+
+      for (const offset of request.frames) {
+        const frame = 12 + offset;
+        assert.equal(sample(frame), true);
+        assert.deepEqual(draws.splice(0), scenes.map((_, index) => [index, true, frame - 5]));
+        // The ordinary render hook must use the resolved camera once per Scene.
+        assert.equal(cameraFrames.filter(time => time === frame - 5).length, scenes.length);
+      }
+      cameraTrack.enabled = false;
+      for (const scene of scenes) prepared.delete(scene);
+      assert.equal(sample(12), true);
+      assert.deepEqual(draws, [], "a missing master still leaves camera-less Scenes out of the sample");
+    } finally {
+      runtime.deactivate();
+      definition.lifecycle.unload.call(effect);
+    }
+  });
+}
+
 test("loading and unloading never patches the compositor", () => {
   const proto = compositorPrototype();
   const setSize = proto.setSize, renderSequence = proto.renderSequence, unload = proto.unload;
