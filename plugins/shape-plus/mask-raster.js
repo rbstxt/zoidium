@@ -2,13 +2,30 @@
 // Pure-JS layer-mask coverage raster.
 //
 // The same code renders in the browser and runs in Node tests: no canvas, no
-// DOM, no GPU. A flattened polygon fills by scanline (even-odd), feather
-// applies as three separable box-blur passes (a Gaussian approximation whose
-// cost is independent of radius), then opacity, invert and the AE-style mode
-// combine run per pixel. Output is an 8-bit alpha plane in mask space
-// (sequence pixels, origin top-left, y down).
+// DOM, no GPU. A flattened polygon fills by scanline (even-odd), expansion
+// (P1.8 signed distance, in coverage pixels here) optionally grows or shrinks
+// coverage before feather, feather applies as three separable box-blur passes
+// (a Gaussian approximation whose cost is independent of radius), then
+// opacity, invert and the AE-style mode combine run per pixel. Output is an
+// 8-bit alpha plane in mask space (sequence pixels, origin top-left, y down).
+//
+// Render order per mask: fill-or-expand -> feather -> opacity -> invert ->
+// ordered combine. At expansion 0 this module takes the old scanline path
+// exactly (same fillPolygon call the pre-expansion raster made), so old
+// projects render byte-identically until a user edits expansion. Missing
+// expansion defaults to 0; invalid values throw visibly via
+// mask-expansion.js normalizeExpansion (never clamped, never stripped).
 const { flattenPath } = require("./path.js");
 const { combineValue } = require("./mask-model.js");
+
+// mask-expansion.js requires this file (fillPolygon, closeContour), so it is
+// required lazily inside the functions below: at load time this file has no
+// dependency on it and the cycle never materializes.
+function expansionOf(mask) {
+  const value = mask ? mask.expansion : undefined;
+  if (value === undefined || value === null) return 0;
+  return require("./mask-expansion.js").normalizeExpansion(value);
+}
 
 function closeContour(vertices, closed) {
   if (closed || vertices.length < 2) return vertices;
@@ -94,7 +111,9 @@ function featherAlpha(alpha, width, height, radius) {
 }
 
 // `masks` are evaluated geometries: { vertices, closed, mode, feather,
-// opacity, invert, enabled }. Returns { data: Uint8Array, width, height }.
+// opacity, invert, enabled, expansion }. `expansion` is in coverage pixels
+// here (callers scale layer pixels via mask-gpu.js scaleEvaluated, matching
+// feather). Returns { data: Uint8Array, width, height }.
 function rasterizeCoverage(masks, width, height) {
   if (!Number.isInteger(width) || width < 1 || !Number.isInteger(height) || height < 1)
     throw Error("Layer mask raster needs a positive integer size");
@@ -105,10 +124,18 @@ function rasterizeCoverage(masks, width, height) {
   for (const mask of masks) {
     if (!mask || mask.enabled === false || mask.enabled === 0) continue;
     scratch.fill(0);
-    const contour = closeContour(mask.vertices || [], !!mask.closed);
-    if (contour.length >= 2) {
-      const flat = flattenPath({ vertices: contour, closed: true });
-      fillPolygon(flat.points, width, height, scratch);
+    const expansion = expansionOf(mask);
+    if (expansion === 0) {
+      const contour = closeContour(mask.vertices || [], !!mask.closed);
+      if (contour.length >= 2) {
+        const flat = flattenPath({ vertices: contour, closed: true });
+        fillPolygon(flat.points, width, height, scratch);
+      }
+    } else {
+      const { expandCoverage } = require("./mask-expansion.js");
+      scratch.set(expandCoverage(
+        { vertices: mask.vertices || [], closed: !!mask.closed, expansion },
+        width, height, 1));
     }
     let channel = scratch;
     if (mask.feather > 0) channel = featherAlpha(channel, width, height, mask.feather);
