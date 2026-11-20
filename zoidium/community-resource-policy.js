@@ -14,11 +14,11 @@
       if (!media || !(media.file instanceof root.Blob) || media.source !== PZ.asset?.source?.FILE ||
           typeof media.url !== "string" || !media.url.startsWith("blob:")) unavailable("attach the media as a local file");
     }
-    function serialized(object) {
+    function serialized(object, effectRoot = false) {
       const data = object.toJSON?.();
       if (!data) unavailable("content has no audited saved representation");
       const groups = new WeakSet();
-      if (data.type === 0) groups.add(data);
+      if (effectRoot && data.type === 0) groups.add(data);
       const json = JSON.stringify(data, function (key, value) {
         if (Array.isArray(value) && (key === "effects" || key === "objects" && groups.has(this))) {
           const active = value.filter(effect => effect?.zoidiumBypassed !== true);
@@ -40,7 +40,7 @@
       check();
       if (PZ.zoidium?.effectBypass?.bypassed(effect)) return;
       if (effect?._community && !effect._communityOpaque) return;
-      const data = serialized(effect);
+      const data = serialized(effect, true);
       if (data.type === 0) {
         for (const child of effect.objects || []) assertEffect(child);
         return;
