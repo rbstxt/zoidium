@@ -92,10 +92,27 @@ function install(editor) {
       restores.push(patch(EditPanel, "generateObjectList", function (original) {
         return function (row, list) {
           if (list && list[RENDER_COPIES]) {
+            if (row && row.classList && typeof row.classList.add === "function") row.classList.add("parent");
             if (row && row.style) row.style.display = "none";
             return undefined;
           }
           return original.apply(this, arguments);
+        };
+      }));
+    }
+    if (EditPanel && typeof EditPanel.objectsChanged === "function") {
+      restores.push(patch(EditPanel, "objectsChanged", function (original) {
+        return function () {
+          const out = original.apply(this, arguments);
+          const list = this.list;
+          const emptyMessage = this.emptyMessage;
+          if (list && emptyMessage && emptyMessage.style && list.children && list.children.length > 0) {
+            const allHiddenRenderCopies = Array.from(list.children).every(function (item) {
+              return item && item.pz_object && item.pz_object[RENDER_COPIES] && item.style && item.style.display === "none";
+            });
+            if (allHiddenRenderCopies) emptyMessage.style.display = "";
+          }
+          return out;
         };
       }));
     }

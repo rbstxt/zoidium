@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=163",
       "bundle": "./plugins/core/bundle.json?v=163",
-      "integrity": "sha256-JB0wg3qNnjev5HOcEJszBb34RDAnIbQwrFJMWEo0yb4="
+      "integrity": "sha256-temjvii5rQjO4wFa0pcNdabVvM1RCEeHD/rWq70hQyQ="
     },
     {
       "id": "easing-plus",
@@ -128,7 +128,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/precomp-plus/manifest.json?v=23",
       "bundle": "./plugins/precomp-plus/bundle.json?v=23",
-      "integrity": "sha256-kGoamMZaQrB82QmpB2JzDa2zeEANTXfoxvrhc2iM6nQ="
+      "integrity": "sha256-dQwLALqsTVisz24wLzmE6tHEeqqv07ZDdOY97cddiWs="
     },
     {
       "id": "gif-support",
@@ -353,7 +353,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/camera-plus/manifest.json?v=26",
       "bundle": "./plugins/camera-plus/bundle.json?v=26",
-      "integrity": "sha256-wehRDyZ7FajliREy7jWMvCiypJLvDsMVA3/VedFN+Wk="
+      "integrity": "sha256-otUQFIf+tyk7jYZj6HHAdRr/WITwiaFzIpT5OzNOJYk="
     },
     {
       "id": "native-fx",

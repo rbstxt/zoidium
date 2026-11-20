@@ -92,3 +92,39 @@ test("a successful drag still ends through the input's own handler", () => {
   assert.deepEqual(calls, [["finish", true]]);
   assert.equal(document.body.style.cursor, "");
 });
+
+test("an input bound before installation still discards history and clears cursor on throw", () => {
+  const context = host();
+  context.document.body = { style: {} };
+  context.console = { error() {}, log() {}, warn() {} };
+  const preBoundFinish = context.PZ.ui.controls.editFinish;
+  vm.runInContext(fs.readFileSync("plugins/core/property-history.js", "utf8"), context);
+
+  let discarded = 0;
+  const history = {
+    operation: [],
+    discardOperation() { this.operation = null; discarded += 1; },
+    finishOperation() { this.operation = null; },
+  };
+  const controls = {
+    editor: { history },
+    propertyOps: { setValue() { throw new Error("stale-bound edit failed"); } },
+  };
+  const row = { pz_frame: 0, pz_oldValue: 1, focus() {} };
+  row.parentElement = { closest: (selector) => (selector === "ul" ? { pz_controls: controls } : null) };
+
+  const input = Object.create(context.PZ.ui.input.prototype);
+  input.ctx = {
+    editFinish: preBoundFinish.bind(row, { getAddress: () => [-1] }),
+    el: row,
+  };
+  input.moved = true;
+  input.value = 0.5;
+  input.initialValue = 1;
+  context.document.body.style.cursor = "move";
+
+  assert.throws(() => input.dragEnd({ altKey: false }), /stale-bound edit failed/);
+  assert.equal(history.operation, null, "dragEnd discards the leaked operation for pre-bound inputs");
+  assert.equal(discarded, 1);
+  assert.equal(context.document.body.style.cursor, "", "the move cursor is cleared");
+});

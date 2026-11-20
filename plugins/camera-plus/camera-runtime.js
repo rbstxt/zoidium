@@ -180,7 +180,10 @@ function activateCameraPlus(context, teardown) {
   function publishTime(scene) {
     const frame = Number(getEditor()?.playback?.currentFrame);
     if (!Number.isFinite(frame)) return 0;
-    const start = Number(scene?.parent?.start);
+    let start = Number(scene?.parent?.start);
+    if (!Number.isFinite(start) && typeof PZ.clip === "function") {
+      start = Number(scene?.tryGetParentOfType?.(PZ.clip)?.start);
+    }
     return Number.isFinite(start) ? frame - start : frame;
   }
 
@@ -191,7 +194,17 @@ function activateCameraPlus(context, teardown) {
     if (!live) return;
     try {
       const scene = owningScene(object);
-      if (scene) syncScene(scene, publishTime(scene));
+      if (scene) {
+        syncScene(scene, publishTime(scene));
+        return;
+      }
+      if (object?.__cameraPlusUnloaded) {
+        for (const [trackedScene, entry] of Array.from(scenes.entries())) {
+          if (entry && entry.cameraObject === object) {
+            syncScene(trackedScene, publishTime(trackedScene));
+          }
+        }
+      }
     } catch (error) {
       reportOnce(error);
     }
