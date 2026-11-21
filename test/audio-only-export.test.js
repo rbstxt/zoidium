@@ -51,3 +51,13 @@ test("M4A reports AAC unavailability and offers WAV", async () => {
     sequence: { audioSchedules: [], properties: { rate: { get: () => 30 } } } };
   await assert.rejects(createAudioJob({}, exporter, () => { throw new Error("unexpected encoder"); }).run(), /AAC encoding is unavailable.*\.wav/);
 });
+test("WAV contains the native mix returned for the selected segment", async () => {
+  const exporter = {
+    params: { format: WAV, start: 15, length: 1, rate: 48000 },
+    sequence: { audioSchedules: [], properties: { rate: { get: () => 30 } } },
+    analyzeSegment(start, count) { assert.equal(start, 24000); assert.equal(count, 1); return [{ marker: 1, media: {} }]; },
+    renderAudioSegment(segments) { assert.equal(segments[0].marker, 1); return buffer([0.5], [-1]); },
+  };
+  const wav = new DataView(await (await createAudioJob({}, exporter).run()).arrayBuffer());
+  assert.equal(wav.getInt16(44, true), 16384); assert.equal(wav.getInt16(46, true), -32768);
+});
