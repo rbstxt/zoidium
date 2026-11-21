@@ -18,15 +18,20 @@ function createPopup(document, button, className) {
   function open() {
     const rect = button.getBoundingClientRect();
     menu.style.position = "fixed";
-    menu.style.left = Math.max(0, rect.left) + "px";
-    menu.style.top = rect.bottom + "px";
     menu.hidden = false;
+    const win = document.defaultView;
+    const width = menu.offsetWidth, height = menu.offsetHeight;
+    menu.style.left = Math.max(0, Math.min(rect.left, (win?.innerWidth || rect.right + width) - width)) + "px";
+    menu.style.top = Math.max(0, rect.bottom + height > (win?.innerHeight || Infinity) ? rect.top - height : rect.bottom) + "px";
     button.setAttribute("aria-expanded", "true");
     const first = menu.querySelector("button, input, select");
     first?.focus();
   }
   const toggle = () => menu.hidden ? open() : close(false);
-  const outside = event => { if (!menu.contains(event.target) && !button.contains(event.target)) close(false); };
+  const outside = event => {
+    if (!menu.contains(event.target) && !button.contains(event.target) &&
+        !(className === "zoidium-player-plus-overflow-menu" && event.target.closest?.(".zoidium-player-plus-quality-menu"))) close(false);
+  };
   const keyboard = event => {
     if (event.key === "Escape") { event.preventDefault(); close(true); return; }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -113,14 +118,20 @@ function createOverflow(document, toolbar, controls) {
     for (const control of controls) if (control.parentElement === toolbar && control.offsetWidth) widths.set(control, control.offsetWidth + 2);
     const spans = children.filter(child => child.tagName === "SPAN");
     const extra = spans.reduce((sum, span) => sum + Math.max(0, span.offsetWidth - 8), 0);
-    let required = right - extra + 6;
+    const compressed = toolbar.classList.contains("is-player-plus-compressed");
+    const deficit = compressed ? children.reduce((sum, child) => sum +
+      (child.tagName === "BUTTON" && !child.className.includes("zoidium-player-plus-") ? Math.max(0, 29 - child.offsetWidth) : 0), 0) : 0;
+    let required = right - extra + 6 + deficit;
     for (let i = 0; i < count; i++) required += widths.get(controls[i]) || 32;
     let next = 0;
     if (required > toolbar.clientWidth) {
       required += 31;
       while (next < controls.length && required > toolbar.clientWidth) required -= widths.get(controls[next++]) || 32;
     }
-    if (next === count) return false;
+    const shouldCompress = next === controls.length && required > toolbar.clientWidth;
+    const compressionChanged = compressed !== shouldCompress;
+    toolbar.classList.toggle("is-player-plus-compressed", shouldCompress);
+    if (next === count) return compressionChanged;
     for (let i = count - 1; i >= next; i--) restore(controls[i]);
     for (let i = count; i < next; i++) popup.menu.appendChild(controls[i]);
     count = next;
@@ -128,7 +139,7 @@ function createOverflow(document, toolbar, controls) {
     if (!count) popup.close(false);
     return true;
   }
-  return { layout, dispose() { for (let i = count - 1; i >= 0; i--) restore(controls[i]); popup.dispose(); button.remove(); } };
+  return { layout, dispose() { toolbar.classList.remove("is-player-plus-compressed"); for (let i = count - 1; i >= 0; i--) restore(controls[i]); popup.dispose(); button.remove(); } };
 }
 
 module.exports = { createPopup, createQualityMenu, createOverflow };

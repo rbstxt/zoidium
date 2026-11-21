@@ -27,6 +27,17 @@ async function acquire(lock) {
   }
 }
 
+async function selectPreviewQuality(page, value) {
+  const quality = page.locator('[aria-label="Preview quality"]');
+  if (await quality.evaluate(element => element.tagName === "SELECT")) return quality.selectOption(value);
+  const overflow = page.getByRole("button", { name: "More player controls" });
+  if (!await quality.isVisible()) await overflow.click();
+  await quality.click();
+  const label = value === "1" ? "Full quality" : "1/8 quality";
+  await page.getByRole("menuitemradio", { name: label }).click();
+  if (await overflow.getAttribute("aria-expanded") === "true") await overflow.click();
+}
+
 async function run(options, test) {
   const lock = process.env.ZOIDIUM_BROWSER_LOCK;
   // Opt-in signal-coverage check: every memoized temporal key is recomputed
@@ -68,7 +79,7 @@ async function run(options, test) {
     const skip = page.getByRole("button", { name: "Skip", exact: true });
     if (await skip.isVisible()) await skip.click();
     await page.locator('[title="Pause drawing"]').click();
-    await page.locator('[aria-label="Preview quality"]').selectOption("0.125");
+    await selectPreviewQuality(page, "0.125");
     const result = await test(page);
     if (assertTemporalKeyMemo) {
       const stats = await page.evaluate(() => PZ.zoidium?.debug?.temporalKeyAssert || null);
@@ -119,7 +130,7 @@ async function main() {
           webgl: gl.getParameter(gl.VERSION), renderer: gl.getParameter(gl.RENDERER), userAgent: navigator.userAgent };
       });
       for (const fixture of matrix) {
-        await page.locator('[aria-label="Preview quality"]').selectOption(fixture.full ? "1" : "0.125");
+        await selectPreviewQuality(page, fixture.full ? "1" : "0.125");
         const begin = Date.now();
         const entry = { plugin: fixture.plugin, name: fixture.name, full: !!fixture.full };
         const failedBundle = "**/plugins/" + fixture.bundleFailure + "/bundle.json*";

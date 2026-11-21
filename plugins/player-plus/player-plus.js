@@ -122,6 +122,11 @@ const PlayerPlus = (() => {
         width: 29px;
       }
 
+      .zoidium-player-plus-toolbar.is-player-plus-compressed > button:not([class*="zoidium-player-plus-"]) {
+        flex-shrink: 1;
+        min-width: 0;
+      }
+
       .zoidium-player-plus-toolbar > span {
         width: var(--zoidium-player-plus-space, 8px) !important;
       }
@@ -204,6 +209,11 @@ const PlayerPlus = (() => {
         z-index: 2;
       }
 
+      .zoidium-player-plus-toolbar > .zoidium-player-plus-quality {
+        width: auto;
+        padding: 0 6px !important;
+        white-space: nowrap;
+      }
       .zoidium-player-plus-toolbar > .zoidium-player-plus-adaptive {
         width: auto;
         padding: 0 6px !important;
@@ -737,7 +747,7 @@ const PlayerPlus = (() => {
     state.overflow = null;
     if (state.toolbar) {
       for (const span of state.toolbar.querySelectorAll(":scope > span")) span.style.removeProperty("--zoidium-player-plus-space");
-      state.toolbar.classList.remove("zoidium-player-plus-toolbar");
+      state.toolbar.classList.remove("zoidium-player-plus-toolbar", "is-player-plus-compressed");
       delete state.toolbar.dataset.zoidiumPlayerPlus;
     }
     state.pauseButton?.remove();
