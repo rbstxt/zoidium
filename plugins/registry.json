@@ -31,9 +31,9 @@
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=170",
-      "bundle": "./plugins/core/bundle.json?v=170",
-      "integrity": "sha256-kqO02YnCnLdLElcwLlePCffcLgTsKrgEdlnmXHsuBcw="
+      "manifest": "./plugins/core/manifest.json?v=172",
+      "bundle": "./plugins/core/bundle.json?v=172",
+      "integrity": "sha256-0087OPUuqfEwHntc5+R9xQ2Q81X72hrl6G5Mjf+YlF4="
     },
     {
       "id": "easing-plus",

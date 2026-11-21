@@ -27,7 +27,7 @@ function setup() {
   const widget3d = host("dragStart", "updateMode", "dragEnd");
   const properties = host("setValue", "moveKeyframe", "deleteKeyframe", "setControlPoints",
     "setExpression", "pasteKeyframes", "startEdit");
-  const edit = host("createObject", "deleteObject", "moveObject");
+  const edit = host("createObject", "deleteObject", "moveObject", "generateAdd");
   const context = { PZ: { track: Track, ui: { timeline: { tracks, keyframes }, widget2d, widget3d, properties, edit } } };
   context.window = context;
   for (const script of ["timeline-track-state", "timeline-track-lock"]) {
@@ -86,6 +86,19 @@ test("locked tracks reject viewport transforms, property writes and keyframe edi
   locked.zoidiumLocked = false;
   propertyOps.setValue({ property: 0 });
   assert.equal(calls[0].name, "setValue");
+});
+
+test("locked property lists reject generateAdd while unlocked lists allow it", () => {
+  const { objectOps, calls, locked, free, clip } = setup();
+  const listOnLocked = { parent: clip };
+  const listOnFree = { parent: { parent: free } };
+  assert.equal(objectOps.generateAdd(listOnLocked), false);
+  assert.deepEqual(calls.filter(call => call.name === "generateAdd"), []);
+  objectOps.generateAdd(listOnFree);
+  assert.equal(calls[calls.length - 1].name, "generateAdd");
+  locked.zoidiumLocked = false;
+  objectOps.generateAdd(listOnLocked);
+  assert.equal(calls[calls.length - 1].name, "generateAdd");
 });
 
 test("track locks serialize and older tracks restore unlocked", () => {

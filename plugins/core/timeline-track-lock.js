@@ -151,6 +151,7 @@
   for (const name of ["itemDragStart", "renameClick"]) {
     guard(edit, name, panel => (panel.ctx || panel).editor, event => isLocked(event.currentTarget.pz_object));
   }
+  // generateAdd receives the property list whose parent chain reaches the track, so isLocked can walk it to the owning track.
   guard(edit, "generateAdd", editorOf, isLocked);
 
   const widget2d = PZ.ui.widget2d?.prototype;
