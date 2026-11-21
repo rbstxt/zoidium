@@ -3,7 +3,7 @@
   "id": "player-plus",
   "name": "Player+",
   "author": "Zoidium",
-  "version": "22",
+  "version": "23",
   "kind": "extension",
   "modules": [
     {
@@ -26,6 +26,11 @@
       "id": "transparency-grid",
       "type": "text",
       "source": "./plugins/player-plus/transparency-grid.js?v=22"
+    },
+    {
+      "id": "fps-meter",
+      "type": "text",
+      "source": "./plugins/player-plus/fps-meter.js?v=23"
     }
   ]
 }

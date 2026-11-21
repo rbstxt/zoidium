@@ -304,7 +304,9 @@ const PlayerPlus = (() => {
             return;
           }
           sampleAdaptive(viewport);
-          return originalFrame();
+          const result = originalFrame();
+          if (state.meter?.enabled) state.meter.sample(viewport);
+          return result;
         };
         viewport.__zoidiumPlayerPlusOriginalFrame = originalFrame;
         viewport.__zoidiumPlayerPlusFrame = guardedFrame;
@@ -562,7 +564,8 @@ const PlayerPlus = (() => {
 
   function createQualitySelect(toolbar) {
     state.qualityMenu = state.menus.createQualityMenu(state.document, {
-      getState: () => ({ quality: state.quality, effective: state.effectiveQuality, ...state.adaptiveSettings }),
+      getState: () => ({ quality: state.quality, effective: state.effectiveQuality, fpsMeter: state.meter.enabled, ...state.adaptiveSettings }),
+      setFpsMeter(value) { state.meter.setEnabled(value); },
       setQuality(value) {
         state.quality = value;
         resetAdaptive();
@@ -772,6 +775,8 @@ const PlayerPlus = (() => {
     const load = context.apis?.modules?.createRequire(context.getAsset, { root: "./plugins/player-plus" });
     state.menus = load ? load("./toolbar-menus.js") : require("./toolbar-menus.js");
     const gridModule = load ? load("./transparency-grid.js") : require("./transparency-grid.js");
+    const meterModule = load ? load("./fps-meter.js") : require("./fps-meter.js");
+    state.meter = meterModule.createMeter(state.window);
     state.grid = gridModule.createTransparencyGrid(state.window);
     state.gridDraw = state.grid.draw;
     state.quality = readStoredQuality();
@@ -782,7 +787,7 @@ const PlayerPlus = (() => {
     state.adaptiveSettings = state.adaptiveModule.readSettings(storage);
     state.adaptive = state.adaptiveModule.createController();
     state.effectiveQuality = state.quality;
-    state.speedChanged = () => { updateSpeedSelect(); if (!state.editor?.playback?.speed) resetAdaptive(); };
+    state.speedChanged = () => { updateSpeedSelect(); if (!state.editor?.playback?.speed) { resetAdaptive(); state.meter?.hide(); } };
     state.editor?.playback?.onSpeedChanged?.watch(state.speedChanged);
     installStyle(gridModule.style, gridModule.BUTTON_CLASS);
     installViewportPatches();
@@ -807,6 +812,8 @@ const PlayerPlus = (() => {
     applyQualityToAllViewports();
     removeControls();
     restoreViewportPatches();
+    state.meter?.dispose();
+    state.meter = null;
     state.grid?.dispose();
     state.grid = null;
     state.gridDraw = null;
