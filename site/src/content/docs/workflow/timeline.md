@@ -51,6 +51,16 @@ You can enter any of these three formats, no matter which format the readout cur
 - **Range and validation:** A negative frame number jumps to frame `0`. If a timecode in `HH:MM:SS:FF` has a frame field at or above the sequence frame rate, Zoidium rejects it and leaves the playhead where it is. Unrecognized text also leaves the playhead where it is.
 - **Shortcuts and Undo:** Typing in the time field does not trigger timeline shortcuts. Seeking to a frame does not add an **Undo** step.
 
+## Solo and lock tracks
+
+Each timeline track has **Solo** and **Lock** switches next to its visibility switch. They apply to every clip on the track.
+
+- **Solo:** When any track is soloed, only soloed tracks draw in the preview and in exports. Video and audio tracks are soloed separately, and inside a Precomp+ composition Solo applies to that composition's tracks only. A shared Camera+ camera or a Layer Input source on another track keeps working. Solo does not change the visibility switch: a hidden track stays hidden.
+- **Lock:** A locked track's clips cannot be moved, trimmed, deleted, or edited in the viewport, the timeline, or the properties panel. You can still select a locked clip to inspect it, play, and export.
+- **Swipe:** Press a visibility, **Solo**, or **Lock** switch and drag up or down across other tracks to give them the same state as the first switch you pressed. The drag is one **Undo** step. A click toggles one track.
+
+Solo and lock are saved with the project, and every change can be undone.
+
 ## Trim multiple clips at once
 
 Dragging a clip's left or right edge while multiple clips are selected trims the same edge of every selected clip by the same frame delta.

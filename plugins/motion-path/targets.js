@@ -26,7 +26,7 @@ function dynamicGeometry(PZ, owner) {
   return false;
 }
 function clipState(editor, PZ, clip) {
-  if (!(clip instanceof PZ.clip.video) || clip.tryGetParentOfType(PZ.sequence) !== editor.sequence) return null;
+  if (globalThis.ZoidiumTrackSwitches?.isLocked(clip) || !(clip instanceof PZ.clip.video) || clip.tryGetParentOfType(PZ.sequence) !== editor.sequence) return null;
   const frame = editor.playback.currentFrame;
   // Same span guard as Shape+'s editableClip: the clip must be on screen.
   if (!(frame >= clip.start && frame < clip.start + clip.length)) return null;

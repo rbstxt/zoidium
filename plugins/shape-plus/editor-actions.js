@@ -177,6 +177,7 @@ function installActions(s, root, options = {}) {
   }
   s.finishNudge = finishNudge;
   function keydown(event) {
+    if (globalThis.ZoidiumTrackSwitches?.isLocked(s.layer)) return;
     if (isComposingEvent(event) || isEditableTarget(event.target) || s.pathShortcuts && !s.pathShortcuts.allows(event)) return;
     const key = event.key.toLowerCase(),
       command = event.metaKey || event.ctrlKey;

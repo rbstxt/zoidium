@@ -10,6 +10,10 @@ each line describes one visible change.
 
 ### Added
 
+- Timeline tracks have **Solo** and **Lock** switches. Solo draws only the
+  soloed tracks in the preview and in exports; Lock stops every edit to the
+  track's clips. Drag across visibility, Solo, or Lock switches to set several
+  tracks at once in one undo step.
 - Player+ has a **Show transparency grid** switch that shows a checkerboard
   behind transparent parts of the preview. Exports are unaffected.
 - Scene layers have a **Scene Backdrop** setting: **Transparent** (the default)

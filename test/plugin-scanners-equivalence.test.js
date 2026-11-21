@@ -124,11 +124,13 @@ test("old and shared scanners agree on all Precomp+ engine project fixtures", as
   let comparisons = 0;
   try {
     const run = new Function("require", fs.readFileSync(filename, "utf8"));
-    run(id => {
+    const fakeRequire = id => {
       if (id === "node:test") return (_name, fn) => cases.push(fn);
       if (id === "./precomp-fixtures.js") return wrapped;
       return localRequire(id);
-    });
+    };
+    fakeRequire.resolve = localRequire.resolve;
+    run(fakeRequire);
     for (const fn of cases) {
       await fn();
       for (const project of projects.splice(0)) { compare(plain(project)); comparisons++; }

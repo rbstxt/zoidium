@@ -773,7 +773,7 @@
     var editor = global.CM;
     if (editor && editor.project) {
       var tracks = editor.project.sequence.videoTracks;
-      global.document.querySelectorAll('button[title="disable track"],button[title="enable track"]').forEach(function (eye, index) {
+      global.document.querySelectorAll('button.zoidium-video-track-visibility').forEach(function (eye, index) {
         var label = eye.parentElement;
         if (tracks[index] && !label.querySelector("[data-zoidium-track-button]")) decorateTrackLabel(label, tracks[index], "video", editor);
       });

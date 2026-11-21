@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "171",
+  "version": "172",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -43,6 +43,16 @@
     {
       "id": "audio-track-visibility",
       "source": "./plugins/core/audio-track-visibility.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "timeline-track-state",
+      "source": "./plugins/core/timeline-track-state.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "timeline-track-swipe",
+      "source": "./plugins/core/timeline-track-swipe.js",
       "phase": "pre-init"
     },
     {
@@ -331,6 +341,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "timeline-track-lock",
+      "source": "./plugins/core/timeline-track-lock.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "main-viewport",
       "source": "./plugins/core/main-viewport.js",
       "phase": "pre-init"
@@ -489,31 +504,31 @@
   "modules": [
     {
       "id": "single-graph-window",
-      "source": "./plugins/core/single-graph-window.js?v=171"
+      "source": "./plugins/core/single-graph-window.js?v=172"
     },
     {
       "id": "font-load",
-      "source": "./plugins/core/font-load.js?v=171"
+      "source": "./plugins/core/font-load.js?v=172"
     },
     {
       "id": "keyframe-row-reveal",
-      "source": "./plugins/core/keyframe-row-reveal.js?v=171"
+      "source": "./plugins/core/keyframe-row-reveal.js?v=172"
     },
     {
       "id": "video-texture-alpha",
-      "source": "./plugins/core/video-texture-alpha.js?v=171"
+      "source": "./plugins/core/video-texture-alpha.js?v=172"
     },
     {
       "id": "video-decode-hint",
-      "source": "./plugins/core/video-decode-hint.js?v=171"
+      "source": "./plugins/core/video-decode-hint.js?v=172"
     },
     {
       "id": "output-frame-cache",
-      "source": "./plugins/core/output-frame-cache.js?v=171"
+      "source": "./plugins/core/output-frame-cache.js?v=172"
     },
     {
       "id": "media-drop",
-      "source": "./plugins/core/media-drop.js?v=171"
+      "source": "./plugins/core/media-drop.js?v=172"
     }
   ]
 }

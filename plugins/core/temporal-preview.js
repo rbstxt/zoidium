@@ -45,7 +45,7 @@
     const root = viewport.compositor;
     const sequence = root?._sequence;
     for (const track of sequence?.videoTracks || []) {
-      if (track.enabled === false) continue;
+      if (track.enabled === false || global.ZoidiumTrackSwitches?.excludedBySolo(track, sequence.videoTracks)) continue;
       const clip = track.getCurrentClip?.(frame);
       const layer = clip?.object;
       if (!layers.isAdjustmentLayer(layer)) continue;
@@ -69,7 +69,7 @@
         prepared.revision !== sampler.frameSamplerInputKey(sequence, root, stage, prepared.scope,
           request.preserveInputRGB)) continue;
       const skipped = new Set(sequence.videoTracks.slice(0, stage.trackIndex)
-        .filter(candidate => candidate.enabled !== false)
+        .filter(track => track.enabled !== false && !global.ZoidiumTrackSwitches?.excludedBySolo(track, sequence.videoTracks))
         .map(candidate => candidate.getCurrentClip?.(frame)?.object)
         .filter(Boolean));
       const renderLayer = root.renderLayer;

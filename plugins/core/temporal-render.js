@@ -464,8 +464,9 @@
       if (layer.nestedTracks) {
         const childFrame = sourceFrame + finiteNumber(layer.offset, 0);
         layer.setCompTime?.(childFrame);
-        for (const track of layer.nestedTracks()) {
-          if (track.enabled === false) continue;
+        const tracks = layer.nestedTracks();
+        for (const track of tracks) {
+          if (track.enabled === false || global.ZoidiumTrackSwitches?.excludedBySolo(track, tracks)) continue;
           const child = track.getCurrentClip?.(childFrame);
           if (child) visit(child.object, child, childFrame - child.start);
         }
@@ -474,7 +475,7 @@
       }
     }
     for (const track of sequence?.videoTracks || []) {
-      if (track.enabled === false) continue;
+      if (track.enabled === false || global.ZoidiumTrackSwitches?.excludedBySolo(track, sequence.videoTracks)) continue;
       const clip = track.getCurrentClip?.(frame);
       if (clip) visit(clip.object, clip, frame - clip.start);
     }
@@ -509,8 +510,9 @@
       if (layer.nestedTracks) {
         const childFrame = inputFrame + finiteNumber(layer.offset, 0);
         layer.setCompTime?.(childFrame);
-        for (const track of layer.nestedTracks()) {
-          if (track.enabled === false) continue;
+        const tracks = layer.nestedTracks();
+        for (const track of tracks) {
+          if (track.enabled === false || global.ZoidiumTrackSwitches?.excludedBySolo(track, tracks)) continue;
           const child = track.getCurrentClip?.(childFrame);
           if (!child) continue;
           const local = childFrame - child.start;
@@ -534,7 +536,7 @@
       const trackIndex = layers.findFrameSamplerStage(sequence, effect, frame)?.trackIndex ?? 0;
       if (layers.isAdjustmentLayer(layer)) {
         for (const track of sequence.videoTracks.slice(0, trackIndex)) {
-          if (track.enabled === false) continue;
+          if (track.enabled === false || global.ZoidiumTrackSwitches?.excludedBySolo(track, sequence.videoTracks)) continue;
           const clip = track.getCurrentClip?.(frame);
           if (!clip) continue;
           const local = frame - clip.start;

@@ -57,6 +57,7 @@
     const direction = cameraShutter ? properties.motionBlurTrackFrame?.get(frame) : 2;
     for (let sample = 0; sample < count; sample++) {
       for (const track of tracks) {
+        if (global.ZoidiumTrackSwitches?.excludedBySolo(track, tracks)) continue;
         const clip = track.layer?.parent || track.getCurrentClip?.(frame);
         const layer = track.layer || clip?.object;
         if (!clip || !hasSampler(layer) || cameraShutter && track.enabled === false) continue;

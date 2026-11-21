@@ -187,7 +187,8 @@ function createEditorModel(s) {
     if (target && target.type === layer.type) replaceContents(target, data, Content);
   };
   s.valid = () =>
-    host ? host.valid() : editor.project === project && resolve() === layer;
+    !globalThis.ZoidiumTrackSwitches?.isLocked(layer) &&
+    (host ? host.valid() : editor.project === project && resolve() === layer);
   s.read = read;
   s.find = (id) => tree.find(liveContents(), id)?.item || null;
   s.active = () => s.find(s.activeId);

@@ -50,7 +50,7 @@
       throw new Error("Required preview cache video sample is unavailable.");
     }
     for (const track of sequence.videoTracks) {
-      if (track.enabled === false) continue;
+      if (track.enabled === false || global.ZoidiumTrackSwitches?.excludedBySolo(track, sequence.videoTracks)) continue;
       const clip = track.getCurrentClip?.(frame);
       if (!clip?.object) continue;
       policy.check();

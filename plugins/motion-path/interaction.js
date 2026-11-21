@@ -139,7 +139,7 @@ function createInteraction(s) {
     if (active && active.pointerId !== event.pointerId) return;
     if (active) finish(false);
     const found = hit(s.models, event.clientX, event.clientY);
-    if (!found) {
+    if (!found || globalThis.ZoidiumTrackSwitches?.isLocked(found.model.path.owner)) {
       // A press elsewhere in the viewport clears the path key selection but
       // stays with its owner (Shape+, widget2d/3d, the camera controls).
       if (s.selection.size) { s.selection.clear(); s.requestDraw(); }

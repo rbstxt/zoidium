@@ -115,7 +115,7 @@ PZ.ui.graph.prototype.deleteKeyframes = function (els) {
   this.updateLegend();
 };
 PZ.ui.graph.prototype.setContinuousTangentExact = function (prop, kf, continuous) {
-  if (kf.continuousTangent === continuous) return;
+  if (globalThis.ZoidiumTrackSwitches?.isLocked(prop) || kf.continuousTangent === continuous) return;
   // Native undo can enable continuity and mirror the handles again. Preserve
   // their exact coordinates before the flag command, including roundoff.
   if (kf.controlPoints) this.editor.history.pushCommand(this.propertyOps.setControlPoints.bind(this.propertyOps),

@@ -8,10 +8,10 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 320,
+    assetVersion: 321,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
-    registryUrl: "./plugins/registry.json?v=277",
+    registryUrl: "./plugins/registry.json?v=278",
     // Source Code Pro is imported through fonts.css as its own sheet (listed
     // before runtime-fonts.css) so the font files are not discovered only
     // after an @import chain has finished downloading.
@@ -37,6 +37,8 @@
       "./plugins/core/project-media-fps.js",
       "./plugins/core/sequence-timing.js",
       "./plugins/core/audio-track-visibility.js",
+      "./plugins/core/timeline-track-state.js",
+      "./plugins/core/timeline-track-swipe.js",
       "./plugins/core/default-project-settings.js",
       "./plugins/core/preview-context-menu.js",
       "./plugins/core/particle-viewport.js",
@@ -95,6 +97,7 @@
       "./plugins/core/paused-video-seek.js",
       "./plugins/core/project-resources.js",
       "./plugins/core/shader-program-cache.js",
+      "./plugins/core/timeline-track-lock.js",
       // Keeps the editor's main preview reachable as editor.mainViewport. It
       // must be installed before initTool() builds the viewport.
       "./plugins/core/main-viewport.js",

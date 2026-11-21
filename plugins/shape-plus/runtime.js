@@ -165,7 +165,7 @@ function installPathEditing(context, Layer, Content) {
   const notifyPerspective = () => context.ui.notify({ title: "Path editing", message: PERSPECTIVE_EDIT_MESSAGE });
   paths.setMounter((kind, layer, pathId) => {
     if (isPerspectiveView(viewport) && selectedLayer() === layer) { notifyPerspective(); return false; }
-    if (!viewport.enabled || !editor.project || !editor.sequence) return false;
+    if (!viewport.enabled || !editor.project || !editor.sequence || globalThis.ZoidiumTrackSwitches?.isLocked(layer)) return false;
     if (kind === "shape") {
       if (!(layer instanceof Layer) || find(layer.contents, pathId)?.item.kind !== "path") return false;
     } else if (!maskEditor.maskableLayer(PZ, layer) || !getMasks(layer).some(mask => mask.id === pathId)) {
