@@ -2,7 +2,8 @@
 
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
-const { createTransparencyGrid, drawTransparencyGrid } = require("../plugins/player-plus/transparency-grid");
+const { drawTransparentSequence } = require("../plugins/core/alpha-export-render");
+const { createTransparencyGrid } = require("../plugins/player-plus/transparency-grid");
 
 test("a new browser defaults to the legacy preview and retains the toggle on reload", () => {
   const values = new Map();
@@ -43,7 +44,7 @@ function fixture() {
 }
 
 test("only the root sequence clear and final display use transparency", () => {
-  const { compositor, renderer, viewport, copyMaterial, fade, draws } = fixture();
+  const { compositor, renderer, copyMaterial, fade, draws } = fixture();
   const render = renderer.render;
   const target = {};
   const display = (originalRender, scene, camera, clear) => {
@@ -51,7 +52,7 @@ test("only the root sequence clear and final display use transparency", () => {
     originalRender.call(renderer, "checker", camera, null, clear);
   };
 
-  const result = drawTransparencyGrid(viewport, 0, display, () => {
+  const result = drawTransparentSequence(compositor, 0, display, () => {
     assert.equal(renderer.alpha, 0);
     renderer.setClearColor(0, 1);
     compositor.clear(0);
@@ -75,10 +76,10 @@ test("only the root sequence clear and final display use transparency", () => {
 });
 
 test("a failed preview puts the renderer and compositor back before the next draw", () => {
-  const { renderer, compositor, viewport, copyMaterial } = fixture();
+  const { renderer, compositor, copyMaterial } = fixture();
   const render = renderer.render;
   const failure = new Error("Draw failed");
-  assert.throws(() => drawTransparencyGrid(viewport, 0, () => { throw failure; }, () => {
+  assert.throws(() => drawTransparentSequence(compositor, 0, () => { throw failure; }, () => {
     renderer.setClearColor(0, 1);
     compositor.clear(0);
     renderer.render("final", null, null, true);

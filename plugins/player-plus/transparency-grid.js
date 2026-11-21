@@ -21,45 +21,6 @@ const style = `
   }
 `;
 
-function drawTransparencyGrid(viewport, noBlending, display, draw) {
-  const { compositor, renderer } = viewport;
-  const clear = compositor.clear;
-  const ownClear = Object.hasOwn(compositor, "clear");
-  const render = renderer.render;
-  const color = renderer.getClearColor().clone();
-  const alpha = renderer.getClearAlpha();
-  let sequenceStarted = false;
-
-  compositor.clear = function (index) {
-    // The native and shared-camera compositors both start each sample here.
-    if (index !== 0 || renderer.getClearAlpha() !== 1) return clear.apply(this, arguments);
-    sequenceStarted = true;
-    renderer.setClearColor(0, 0);
-    try { return clear.apply(this, arguments); }
-    finally { renderer.setClearColor(0, 1); }
-  };
-  renderer.render = function (scene, camera, target, forceClear) {
-    if (!sequenceStarted || target !== null || forceClear !== true) return render.apply(this, arguments);
-    // The final native copy normally blends to an opaque default framebuffer.
-    // Preserve the premultiplied sample when copying to the display target.
-    const material = compositor.copyPass.material;
-    const blending = material.blending;
-    material.blending = noBlending;
-    try { return display(render, scene, camera, forceClear); }
-    finally { material.blending = blending; }
-  };
-  try {
-    // The compositor clears its motion-blur accumulation buffer first.
-    renderer.setClearColor(0, 0);
-    return draw();
-  } finally {
-    renderer.render = render;
-    if (ownClear) compositor.clear = clear;
-    else delete compositor.clear;
-    renderer.setClearColor(color, alpha);
-  }
-}
-
 function createTransparencyGrid(window) {
   let enabled = false;
   let button;
@@ -96,9 +57,10 @@ function createTransparencyGrid(window) {
     },
     draw(viewport, draw) {
       const THREE = window.THREE;
-      if (!enabled || !THREE) return draw();
-      const { renderer, canvas } = viewport;
-      return drawTransparencyGrid(viewport, THREE.NoBlending, (render, scene, camera, forceClear) => {
+      const renderTransparent = window.PZ?.zoidium?.alphaExportRender?.drawTransparentSequence;
+      if (!enabled || !THREE || !renderTransparent) return draw();
+      const { compositor, renderer, canvas } = viewport;
+      return renderTransparent(compositor, THREE.NoBlending, (render, scene, camera, forceClear) => {
         if (!pass) {
           target = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false, stencilBuffer: false });
           pass = new THREE.ShaderPass(new THREE.ShaderMaterial({
@@ -144,4 +106,4 @@ function createTransparencyGrid(window) {
   return grid;
 }
 
-module.exports = { createTransparencyGrid, drawTransparencyGrid, BUTTON_CLASS, style };
+module.exports = { createTransparencyGrid, BUTTON_CLASS, style };

@@ -286,11 +286,17 @@
   // render, in any format, took over the editor.
   let exportGeneration = 0;
   if (PZ.zoidium) PZ.zoidium.exportGeneration = () => exportGeneration;
-  function constructTracked(exporter, sequence, construct) {
+  function constructTracked(exporter, [sequence, params], construct) {
     const changed = sequence?.properties?.resolution?.onChanged;
     const before = changed?.watchers?.length ?? 0;
-    const result = construct();
+    const alphaRender = PZ.zoidium?.alphaExportRender;
+    const transparentBackground = Boolean(alphaRender && PZ.zoidium.alphaFormat?.(params));
+    const result = transparentBackground ? alphaRender.constructWithAlpha(THREE, true, construct) : construct();
     const target = result && typeof result === "object" ? result : exporter;
+    if (transparentBackground && target.renderer) {
+      alphaRender.alphaRenderers.add(target.renderer);
+      target.__zoidiumAlphaExport = true;
+    }
     exportGeneration += 1;
     if (changed?.watchers) target.__zoidiumResolutionWatchers = changed.watchers.slice(before);
     trackRendererListeners(target);
@@ -308,11 +314,11 @@
   PZ.export = new Proxy(PZ.export, {
     construct(target, args, newTarget) {
       let created = null;
-      constructTracked(null, args[0], () => (created = Reflect.construct(target, args, newTarget)));
+      constructTracked(null, args, () => (created = Reflect.construct(target, args, newTarget)));
       return created;
     },
     apply(target, self, args) {
-      return constructTracked(self, args[0], () => Reflect.apply(target, self, args));
+      return constructTracked(self, args, () => Reflect.apply(target, self, args));
     },
   });
 
@@ -364,6 +370,7 @@
       this.exportPolicy = { outputIndex: this.framesRendered, signal: controller.signal,
         communityBypass: Boolean(this.__zoidiumCommunityBypass),
         check: () => this.checkExportContext("during preparation") };
+      if (this.__zoidiumAlphaExport) this.exportPolicy.transparentBackground = true;
       if (this.compositor) this.compositor.__zoidiumExportPolicy = this.exportPolicy;
     }
     if (guard.lost || this.renderer?.context?.isContextLost?.() || this.renderer?.getContext?.()?.isContextLost?.()) {
@@ -421,7 +428,10 @@
       await waitForExport(temporal?.prepareExportSamples?.(this, projectFrame), this.exportPolicy);
       this.checkExportContext("after shutter preparation");
       try { recordAccumulationTargets(this); } catch (_error) { /* Diagnostics must not interrupt export. */ }
-      this.compositor.renderSequence(projectFrame);
+      const draw = () => this.compositor.renderSequence(projectFrame);
+      if (this.__zoidiumAlphaExport) {
+        PZ.zoidium.alphaExportRender.drawTransparentSequence(this.compositor, THREE.NoBlending, null, draw);
+      } else draw();
       try { recordCompositorTargets(this); } catch (_error) { /* Diagnostics must not interrupt export. */ }
       this.checkExportContext("after composition");
 

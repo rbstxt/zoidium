@@ -79,12 +79,13 @@
 
     const preparedLayers = inputContext?.frameSamplerPreparedLayers;
     const restoreTextures = bindSampleTextures(mediaSamples);
-    // The sequence starts opaque black; individual layer inputs start transparent.
-    renderer.setClearColor(0, isAdjustmentLayer(stage.layer) ? 1 : 0);
+    const exportPolicy = inputContext?.exportPolicy || parentContext?.exportPolicy;
+    // Adjustment inputs begin at the sequence backdrop. Layer inputs begin at zero.
+    renderer.setClearColor(0, isAdjustmentLayer(stage.layer) && !exportPolicy?.transparentBackground ? 1 : 0);
     capture.clear(0);
     renderer.setClearColor(0, 0);
     state.contexts.push({
-      exportPolicy: inputContext?.exportPolicy || parentContext?.exportPolicy,
+      exportPolicy,
       resourcePolicy: inputContext?.resourcePolicy || parentContext?.resourcePolicy,
       compositor: capture,
       singleEvaluation,
@@ -138,7 +139,7 @@
         renderEffects.call(this, prefix, uvX, uvY);
         const viewport = this.readBuffer.viewport;
         target.viewport.set(0, 0, viewport.z, viewport.w);
-        copyRenderTarget(this, target, this.readBuffer, uvX, uvY, preserveInputRGB);
+        copyRenderTarget(this, target, this.readBuffer, uvX, uvY, preserveInputRGB || exportPolicy?.transparentBackground);
         didCapture = true;
         throw captured;
       };

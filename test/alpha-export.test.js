@@ -140,14 +140,60 @@ test("transparent image export uses the alpha canvas and verifies the encoded MI
 test("device export dispatches unchecked video and unrelated formats to the original renderer", async () => {
   const disposers = [], calls = [];
   const prototype = { render(...args) { calls.push([this, ...args]); return "native bytes"; } };
-  const PZ = { zoidium: {}, ui: { export: { device: { prototype } } } };
+  const PZ = { zoidium: { alphaFormat }, ui: { export: { device: { prototype } } } };
   installAlphaVideo(PZ, () => assert.fail("the vendor must stay unloaded"), callback => disposers.push(callback));
   for (const params of [{ format: "webm_vp8_opus" }, { format: "mkv_vp8_opus", transparentBackground: false },
     { format: "mp4_h264", transparentBackground: true }]) {
-    const owner = { params }, exporter = {};
+    const owner = { params }, exporter = { params };
     assert.equal(await prototype.render.call(owner, exporter), "native bytes");
     assert.deepEqual(calls.at(-1), [owner, exporter]);
   }
   for (const dispose of disposers) dispose();
   assert.equal(PZ.zoidium.alphaVideo, undefined);
+});
+
+test("video capability requires an encoded VP8 alpha plane", async () => {
+  const { probeAlphaVideo } = require("../plugins/mp4-export/alpha-video");
+  const scope = {
+    VideoEncoder: class {}, VideoFrame: class {},
+    document: { createElement: () => ({ getContext: () => ({ fillRect() {} }) }) },
+  };
+  function vendor(alpha) {
+    return {
+      CanvasSource: class {
+        constructor(_canvas, config) {
+          assert.equal(config.alpha, "keep");
+          assert.equal(config.codec, "vp8");
+          this.config = config;
+        }
+        async add() { this.config.onEncodedPacket({ sideData: { alpha } }); }
+      },
+      Output: class {
+        addVideoTrack(_track, metadata) { assert.equal(metadata.canBeTransparent, true); }
+        async start() {}
+        async finalize() { this.state = "finalized"; }
+      },
+      WebMOutputFormat: class {},
+      NullTarget: class {},
+    };
+  }
+  assert.equal(await probeAlphaVideo(scope, () => vendor(new Uint8Array([1]))), true);
+  assert.equal(await probeAlphaVideo(scope, () => vendor(undefined)), false);
+  assert.equal(await probeAlphaVideo({}, () => assert.fail("missing WebCodecs")), false);
+});
+
+test("an unavailable video capability fails the transparent render and releases its active job", async () => {
+  const prototype = { render() { assert.fail("must not silently flatten the video"); } };
+  const PZ = { zoidium: { alphaFormat }, ui: { export: { device: { prototype } } } };
+  const exporter = {
+    params: { format: "webm_vp8_opus", transparentBackground: true },
+    __zoidiumAlphaExport: true,
+    exportPolicy: { signal: new AbortController().signal },
+    checkExportContext() {},
+  };
+  const busy = installAlphaVideo(PZ, () => assert.fail("missing WebCodecs"), () => {}, {});
+  const render = prototype.render(exporter);
+  assert.equal(busy(), true);
+  await assert.rejects(render, /VP8 alpha encoding is unavailable/);
+  assert.equal(busy(), false);
 });
