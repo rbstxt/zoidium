@@ -12,6 +12,7 @@ const pathProjection = require("./path-projection.js");
 const feedback = require("./path-feedback.js");
 const { outlineColorOf } = require("./mask-metadata.js");
 const { selectionBounds, snapPoint, constrainMoveDelta } = require("./path-transform.js");
+const { STORAGE } = require("./group-properties.js");
 const xf = require("./editor-transform.js");
 const PREFS_KEY = "zoidium.shape-plus.path-display";
 const prefsByWindow = new WeakMap();
@@ -34,6 +35,7 @@ const ACCENT = "#58a6ff", HOVER = "rgba(88,166,255,.85)";
 function ownProperties(item, frame) {
   const properties = {};
   for (const key of Object.keys(item.properties)) {
+    if (key === STORAGE) continue;
     const value = item.properties[key].get(frame);
     if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && key !== "stops" && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
     properties[key] = Array.isArray(value) ? value.slice() : value;

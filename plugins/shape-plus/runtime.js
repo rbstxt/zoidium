@@ -57,7 +57,8 @@ function install(context) {
   // work, so unmasked projects render exactly as before.
   require("./mask-render.js").installMaskRender({ PZ, THREE, Content, onDispose: own });
   require("./mask-persist.js").installMaskPersistence(PZ, own);
-  require("./native-ui.js").install(PZ, Layer, Content, own);
+  const groupProperties = require("./group-property-ui.js").install(context, Layer, Content);
+  require("./native-ui.js").install(PZ, Layer, Content, own, groupProperties);
   const { maskOverlay, transfer } = installPathEditing(context, Layer, Content);
   require("./mask-panels.js").installMaskPanels(context, Content, mode => maskOverlay.setMode(mode), transfer);
   require("./mask-api.js").installMaskApi({ PZ, THREE, Content, onDispose: own });

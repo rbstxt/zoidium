@@ -7,7 +7,7 @@ const test = require("node:test"), assert = require("node:assert/strict");
 const fs = require("node:fs"), path = require("node:path");
 const { installControls } = require("../plugins/shader-plus/controls.js");
 
-const css = fs.readFileSync(path.join(__dirname, "../plugins/shader-plus/style.css"), "utf8");
+const css = fs.readFileSync(path.join(__dirname, "../plugins/shader-plus/property-controls.css"), "utf8");
 const source = css.replace(/\/\*[\s\S]*?\*\//g, "");
 const rules = [...source.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
   .filter(match => match[1].includes(".zsp-checkbox"))

@@ -73,7 +73,7 @@ function createAddRouting(PZ, Layer, Content) {
     return true;
   };
 }
-function install(PZ, Layer, Content, onDispose) {
+function install(PZ, Layer, Content, onDispose, groupProperties) {
   function patch(target, key, wrap) {
     const original = target[key], replacement = wrap(original);
     target[key] = replacement;
@@ -124,9 +124,16 @@ function install(PZ, Layer, Content, onDispose) {
     }
     if (object instanceof Content && this.options.showPropertyControls && this !== panels?.top)
       require("./native-properties.js").decorate(this, row, object);
+    if (this.options.showPropertyControls && this !== panels?.top) groupProperties.decorate(this, row, object);
     return row;
   });
+  patch(proto, "updatePropertyList", original => function (list, frame) {
+    const result = original.apply(this, arguments);
+    groupProperties.update(list, frame);
+    return result;
+  });
   patch(proto, "unloadListItem", original => function (row) {
+    groupProperties.unload(row);
     row.pz_shapeCleanup?.();
     return original.apply(this, arguments);
   });

@@ -10,6 +10,9 @@ each line describes one visible change.
 
 ### Added
 
+- Shape+ groups can hold your own properties (Slider, Toggle, Angle, Point,
+  Color, Dropdown) from the **+** on the group header. They animate like other
+  properties and Expressions+ can read them from any layer.
 - Player+ has an optional **FPS meter** that shows the playback frame rate
   over the viewer and turns red when playback is not realtime, and the
   timeline shows a green bar over the frames held in the preview cache.

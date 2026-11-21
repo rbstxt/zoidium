@@ -614,11 +614,12 @@ test("a name serialized after project data becomes the actual disk baseline", as
   assert.equal(editor.project.ui.dirty, false);
 });
 
-test("an unchanged Shape+ project keeps its original archive across a plugin version update", async () => {
+test("an unchanged Shape+ project keeps its archive across Shape+, Expressions+, and Shader+ updates", async () => {
   const harness = createHarness();
   const editor = harness.makeEditor();
   const before = { assets: {}, media: [], sequence: { length: 150 },
-    plugins: [{ id: "shape-plus", version: "44" }] };
+    plugins: [{ id: "shape-plus", version: "47" }, { id: "expressions-plus", version: "26" },
+      { id: "shader-plus", version: "35" }] };
   harness.windowObject.Blob = Blob;
   harness.windowObject.__zoidiumRestoreParts = { panel: { async createSnapshot() {} } };
   harness.PZ.project.save = archive => addProjectEntries(archive, before);
@@ -629,7 +630,8 @@ test("an unchanged Shape+ project keeps its original archive across a plugin ver
   };
   await editor.open(original.blob);
   assert.equal(editor.project, editor.loadedProject);
-  const after = { sequence: { length: 150 }, plugins: [{ version: "45", id: "shape-plus" }], assets: {}, media: [] };
+  const after = { sequence: { length: 150 }, plugins: [{ version: "48", id: "shape-plus" },
+    { version: "27", id: "expressions-plus" }, { version: "36", id: "shader-plus" }], assets: {}, media: [] };
   harness.PZ.project.save = archive => addProjectEntries(archive, after);
   const unchanged = await harness.projectFiles.createArchive(editor);
   assert.deepEqual(await unchanged.blob.arrayBuffer(), await original.blob.arrayBuffer());

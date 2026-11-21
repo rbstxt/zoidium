@@ -5,6 +5,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const NUMERIC = ["slider", "seed"], OPTIONS = ["dropdown", "staticDropdown"];
 const list = text => String(text).split(/[\n;]/).map(s => s.trim()).filter(Boolean);
 const { parseConditions, formatConditions, matchesController, unreachable } = require("./visibility.js");
+const { settingsFields } = require("./settings-fields.js");
 const { renamed } = require("./rename.js");
 const { installReset } = require("./reset.js");
 function installEditor({ context, patch, presetFont }) {
@@ -89,22 +90,7 @@ function installEditor({ context, patch, presetFont }) {
     const title = doc.createElement("div"); title.className = "zsp-settings-title"; title.style.paddingLeft = indent + "px"; title.textContent = "Property settings";
     const body = doc.createElement("div"), specific = doc.createElement("div"), common = doc.createElement("div");
     body.append(specific, common);
-    const fields = {};
-    function line(parent, key, label, control) {
-      const el = doc.createElement("div"); el.className = "zsp-settings-line"; el.style.gridTemplateColumns = row.style.gridTemplateColumns;
-      const name = doc.createElement("span"); name.textContent = label; name.title = label; name.style.paddingLeft = indent + "px";
-      const cell = doc.createElement("div"); cell.className = "editbox"; cell.append(control);
-      control.setAttribute("aria-label", label); el.append(name, cell); parent.append(el); fields[key] = control; return control;
-    }
-    function input(parent, key, label, value, type = "text") {
-      const el = doc.createElement("input"); el.className = "pz-inputbox"; el.type = type; if (type === "number") el.step = "any";
-      el.value = value ?? ""; return line(parent, key, label, el);
-    }
-    function select(parent, key, label, entries, value) {
-      const el = doc.createElement("select"); el.className = "pz-inputbox";
-      for (const [v, text] of entries) { const option = doc.createElement("option"); option.value = v; option.textContent = text; el.append(option); }
-      el.value = value; if (el.selectedIndex < 0) el.selectedIndex = 0; return line(parent, key, label, el);
-    }
+    const { fields, line, input, select } = settingsFields(doc, row, indent);
     input(body, "name", "Name", p.properties.name.get());
     body.insertBefore(body.lastElementChild, specific);
     const compatible = ORDER.filter(key => { const c = KINDS[key].create(); return (!KINDS[key].hidden || key === kindOf(p)) && c.type === d.type && !!c.dynamic === !!d.dynamic; });

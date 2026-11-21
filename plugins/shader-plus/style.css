@@ -1,32 +1,6 @@
 /* Shader+ rows reuse CM3's native controls; these rules only size and
    color the pieces CM3 has no equivalent for, with the theme tokens. */
-.zsp-property,.zsp-property > div { min-width: 0; }
-.zsp-box { min-width: 0; max-width: 100%; box-sizing: border-box; }
-.zsp-box input,.zsp-box select,.zsp-box textarea { box-sizing: border-box; max-width: 100%; }
-.zsp-box [hidden],.zsp-property[hidden] { display: none !important; }
-.zsp-anchor { display: none; }
-.zsp-option { width: auto; max-width: 100%; }
-.zsp-inline-row,.zsp-slider { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.zsp-slider > :first-child,.zsp-inline-row > :first-child { flex: 0 0 auto; }
-
-/* Slider: theme-colored track and thumb instead of the browser default. */
-.zsp-range { flex: 1 1 60px; min-width: 40px; height: 16px; margin: 0 4px 0 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; }
-.zsp-range::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right,var(--zui-value) var(--zsp-fill,0%),var(--zui-bg-input) var(--zsp-fill,0%)); box-shadow: inset 0 0 0 1px var(--zui-border-filter); }
-.zsp-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; background: var(--zui-text-strong); border: 2px solid var(--zui-bg); box-shadow: 0 0 0 1px var(--zui-border-filter); }
-.zsp-range::-moz-range-track { height: 4px; border-radius: 2px; background: var(--zui-bg-input); }
-.zsp-range::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--zui-value); }
-.zsp-range::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: var(--zui-text-strong); border: 2px solid var(--zui-bg); }
-.zsp-range:hover::-webkit-slider-thumb { background: var(--zui-text-bright); }
-.zsp-range:disabled { opacity: .5; cursor: default; }
-
-/* Toggle checkbox: a theme-drawn box instead of the browser-default white
-   square and blue tick. The input stays a real checkbox, so keyboard focus,
-   the focus ring, and click behaviour are unchanged. */
-.zsp-checkbox { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 15px; height: 15px; margin: 0; padding: 0; border: 1px solid var(--zui-border-filter); border-radius: 2px; background: var(--zui-bg-input); cursor: pointer; position: relative; }
-.zsp-checkbox:checked { background: var(--zui-accent); border-color: var(--zui-accent); }
-.zsp-checkbox:checked::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--zui-text-bright); border-width: 0 2px 2px 0; transform: rotate(45deg); }
-.zsp-checkbox:focus-visible { outline: 2px solid var(--zui-value); outline-offset: 1px; }
-.zsp-checkbox:disabled { opacity: .5; cursor: default; }
+.zsp-property[hidden] { display: none !important; }
 
 /* CM3 icon buttons (Seed, Palette). */
 .zsp-icon { flex: 0 0 auto; padding: 2px 3px; }
@@ -47,53 +21,6 @@
 .zsp-fields select { justify-self: start; }
 .zsp-curve-fields { margin: 2px 2px 4px; }
 .zsp-gradient-fields { margin: 2px 0 6px; padding-right: 6px; }
-
-/* Angle: a row-height dial button that opens a large direction dial. */
-.zsp-angle { flex: 0 0 auto; position: relative; width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1px solid var(--zui-border-filter); background: var(--zui-bg-input); cursor: pointer; }
-.zsp-angle:hover,.zsp-angle[aria-expanded=true] { border-color: var(--zui-button-hover-border); }
-.zsp-angle:disabled { opacity: .5; cursor: default; }
-.zsp-angle-needle { position: absolute; left: 50%; top: 2px; width: 2px; height: 6px; margin-left: -1px; border-radius: 1px; background: var(--zui-value); transform-origin: 50% 6px; transform: rotate(var(--zsp-angle,0rad)); }
-.zsp-angle-pop { position: fixed; z-index: 100000; padding: 10px 10px 6px; background: var(--zui-bg-title); border: 1px solid var(--zui-border-filter); border-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.55); font-family: var(--zui-font); }
-.zsp-angle-pop::before { content: ''; position: absolute; top: -6px; left: calc(var(--zsp-caret,50%) - 6px); width: 10px; height: 10px; background: inherit; border-left: 1px solid var(--zui-border-filter); border-top: 1px solid var(--zui-border-filter); transform: rotate(45deg); }
-.zsp-angle-pop-above::before { top: auto; bottom: -6px; transform: rotate(225deg); }
-.zsp-dial { display: block; touch-action: none; cursor: grab; outline: none; }
-.zsp-dial:active { cursor: grabbing; }
-.zsp-dial-face { fill: var(--zui-bg-input); stroke: var(--zui-border-filter); stroke-width: 1; }
-.zsp-dial:focus-visible .zsp-dial-face { stroke: var(--zui-value); }
-.zsp-dial-tick { stroke: var(--zui-text-faint); stroke-width: 1.5; stroke-linecap: round; }
-.zsp-dial-tick-major { stroke: var(--zui-text-muted); stroke-width: 2; }
-.zsp-dial-sector { fill: rgb(var(--zui-accent-rgb) / .6); }
-.zsp-dial-zero { stroke: var(--zui-text-faint); stroke-width: 1.5; stroke-dasharray: 3 3; }
-.zsp-dial-hand { stroke: var(--zui-value-strong); stroke-width: 2.5; stroke-linecap: round; }
-.zsp-dial-hub { fill: var(--zui-value-strong); }
-.zsp-dial-knob-disc { fill: var(--zui-value); stroke: var(--zui-bg-title); stroke-width: 3; }
-.zsp-dial-knob-arrow { fill: none; stroke: var(--zui-bg-title); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.zsp-dial-readout { text-align: center; font-size: var(--zui-font-size-compact); color: var(--zui-value); margin-top: 2px; }
-
-/* Property settings: an inline block of native-looking property rows. */
-.zsp-settings { background: var(--zui-bg-sunken); border-top: 1px solid var(--zui-border); border-bottom: 1px solid var(--zui-border); padding: 2px 0 8px; white-space: normal; }
-.zsp-settings [hidden] { display: none !important; }
-.zsp-settings-title { font-size: var(--zui-font-size-compact); color: var(--zui-text-muted); padding: 6px 0 2px; letter-spacing: .03em; }
-.zsp-settings-line { display: grid; align-items: center; min-height: 28px; }
-.zsp-settings-line > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.zsp-settings-line > .editbox { min-width: 0; padding-right: 8px; }
-.zsp-settings-line input,.zsp-settings-line textarea { width: 100%; box-sizing: border-box; }
-.zsp-settings-line select { max-width: 100%; }
-.zsp-settings-options { resize: vertical; font: inherit; margin: 3px 0; display: block; }
-.zsp-settings-error { color: var(--zui-danger); font-size: var(--zui-font-size-compact); padding-top: 4px; }
-.zsp-settings-error:empty { display: none; }
-.zsp-settings-warning { color: var(--zui-text-muted); }
-.zsp-hidden-property { opacity: .5; }
-.zsp-show-hidden[aria-pressed=true] { color: var(--zui-accent); }
-.zsp-settings-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 8px 0; }
-.zsp-rename { border-top: 1px solid var(--zui-border); margin-top: 6px; padding-top: 2px; }
-.zsp-rename-rules:empty { display: none; }
-.zsp-rename-rule { border-left: 1px solid var(--zui-border); margin: 2px 0 2px 6px; padding: 2px 0; }
-.zsp-rename-actions { display: flex; justify-content: flex-end; gap: 6px; padding: 2px 8px; }
-.zsp-rename-actions .zsp-settings-button { padding: 1px 8px; }
-.zsp-settings-button { font: inherit; font-size: var(--zui-font-size-small); color: var(--zui-button-text); background: var(--zui-button-bg); border: 1px solid transparent; padding: 3px 14px; cursor: pointer; }
-.zsp-settings-button:hover { border-color: var(--zui-button-hover-border); }
-.zsp-settings-primary { background: var(--zui-accent); color: var(--zui-text-bright); }
 
 /* Group headings look like CM3's list headings. */
 .zsp-group { display: block; width: 100%; box-sizing: border-box; text-align: left; padding-top: 5px; padding-bottom: 5px; padding-right: 8px; border: 0; border-bottom: 1px solid var(--zui-border); background: transparent; color: var(--zui-text); font: inherit; cursor: pointer; }
