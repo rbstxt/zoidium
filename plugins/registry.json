@@ -33,7 +33,7 @@
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=174",
       "bundle": "./plugins/core/bundle.json?v=174",
-      "integrity": "sha256-Ct6PJGCGKFkP4UqI8ibS2kGUiDm/dptrjqlWjFdAkQM="
+      "integrity": "sha256-00r0QNtu4yJGHr7zk4dX92TphGcKN0Yirb3DA09+Duo="
     },
     {
       "id": "easing-plus",
@@ -96,7 +96,7 @@
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
       "manifest": "./plugins/player-plus/manifest.json?v=22",
       "bundle": "./plugins/player-plus/bundle.json?v=22",
-      "integrity": "sha256-yYfLkMA7NEfqDB+iaJyOKRw6mNGKP9iUYO38ixIMVFQ="
+      "integrity": "sha256-Z8TPP5ggl7ln2XJLjV7+Fhno/F6v71yFIuk+6XDqm/0="
     },
     {
       "id": "asset-manager",

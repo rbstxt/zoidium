@@ -3,6 +3,7 @@
 
   function createBar(win, timeline, cache) {
     const canvas = win.document.createElement("canvas");
+    canvas.setAttribute("aria-hidden", "true");
     Object.assign(canvas.style, { position: "absolute", top: "0", left: "0", height: "3px", width: "100%", pointerEvents: "none", zIndex: "2" });
     timeline.timerule.appendChild(canvas);
     let pending = null, last = "", disposed = false;

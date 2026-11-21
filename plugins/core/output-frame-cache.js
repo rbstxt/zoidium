@@ -955,7 +955,7 @@
     subscribe: listener => store.subscribe(listener),
     ranges(viewport) {
       const controller = viewport?.__zoidiumOutputFrames;
-      return controller ? model.frameRanges(store.entries.values(), controller.id) : [];
+      return controller ? store.ranges(controller.id) : [];
     },
     usage() {
       const viewport = (global.CM || global.VE)?.mainViewport || controllers.values().next().value?.viewport;

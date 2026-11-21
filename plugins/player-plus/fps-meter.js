@@ -8,8 +8,8 @@ function writeEnabled(storage, value) {
   try { storage?.setItem(KEY, String(value)); } catch (_error) { /* Keep the session setting. */ }
 }
 function createTracker() {
-  let lastFrame = null, samples = [];
-  function reset() { lastFrame = null; samples = []; }
+  let lastFrame = null, samples = [], notRealtime = false;
+  function reset() { lastFrame = null; samples = []; notRealtime = false; }
   function sample(now, frame, target) {
     if (!Number.isFinite(frame) || !Number.isFinite(now) || !(target > 0)) return null;
     if (lastFrame === frame) return null;
@@ -18,7 +18,8 @@ function createTracker() {
     while (samples.length > 2 && now - samples[0] > 1000) samples.shift();
     if (samples.length < 3 || now <= samples[0]) return null;
     const fps = (samples.length - 1) * 1000 / (now - samples[0]);
-    return { fps, notRealtime: fps < target * 0.95 };
+    if (notRealtime ? fps > target * 0.98 : fps < target * 0.95) notRealtime = !notRealtime;
+    return { fps, notRealtime };
   }
   return { sample, reset };
 }
@@ -52,7 +53,8 @@ function createMeter(win) {
     const count = ranges.reduce((sum, range) => sum + range[1] - range[0], 0);
     const length = viewport.editor?.project?.sequence?.length;
     const cached = viewport.__zoidiumCachedFrame && Number.isFinite(length) ? " · cached " + count + " of " + length : "";
-    element.textContent = result.fps.toFixed(2) + " / " + target + " fps" + cached + (result.notRealtime ? " (not realtime)" : "");
+    const text = result.fps.toFixed(2) + " / " + target + " fps" + cached + (result.notRealtime ? " (not realtime)" : "");
+    if (element.textContent !== text) element.textContent = text;
     element.hidden = false;
   }
   return { sample, hide, setEnabled, get enabled() { return enabled; }, dispose() { element?.remove(); element = null; } };

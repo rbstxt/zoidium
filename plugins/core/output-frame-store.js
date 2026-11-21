@@ -34,9 +34,14 @@
       this.entries = new Map();
       this.generation = 0;
       this.listeners = new Set();
+      this.rangeCache = new Map();
     }
     subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
-    changed() { for (const listener of this.listeners) { try { listener(); } catch (_error) { /* Observers must not affect caching. */ } } }
+    changed() { this.rangeCache.clear(); for (const listener of this.listeners) { try { listener(); } catch (_error) { /* Observers must not affect caching. */ } } }
+    ranges(owner) {
+      if (!this.rangeCache.has(owner)) this.rangeCache.set(owner, frameRanges(this.entries.values(), owner));
+      return this.rangeCache.get(owner).map(range => range.slice());
+    }
     get effectiveLimit() { return this.contextLost ? 0 : Math.min(this.limit, this.ceiling); }
     get(key) {
       const entry = this.entries.get(key);
@@ -46,12 +51,12 @@
       }
       return entry;
     }
-    delete(key) {
+    delete(key, notify = true) {
       const entry = this.entries.get(key);
       if (!entry) return;
       this.entries.delete(key);
       this.bytes -= entry.bytes;
-      this.changed();
+      if (notify) this.changed();
       if (!this.contextLost) entry.dispose();
     }
     reserve(bytes) { return Boolean(this.take(bytes)); }
@@ -115,7 +120,9 @@
     }
     clear() {
       this.generation += 1;
-      for (const key of this.entries.keys()) this.delete(key);
+      const hadEntries = this.entries.size > 0;
+      for (const key of this.entries.keys()) this.delete(key, false);
+      if (hadEntries) this.changed();
     }
   }
 
