@@ -210,6 +210,10 @@ test("the Bitrate row shows the target and follows resolution and frame rate", (
     "4x: 36 Mbps target", "8x: 72 Mbps target",
   ]);
   assert.match(row.select.title, /Target video bitrate/);
+  // MP4 is variable bitrate, so the tooltip must not promise the target.
+  assert.match(row.select.title, /actual MP4 bitrate varies/);
+  assert.doesNotMatch(row.select.title, /MP4 encodes to this target/);
+  assert.match(row.select.title, /MKV\/WebM also apply the Quality preset/);
   row.select.selectedIndex = 3;
   row.select.onchange();
   assert.equal(device.params.bitrateScale, 8);
