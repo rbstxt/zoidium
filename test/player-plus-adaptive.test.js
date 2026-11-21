@@ -20,6 +20,16 @@ test("adaptive quality steps down, respects the limit, recovers and resets", () 
   frames(100, 60); assert.equal(value, 0.5);
 });
 
+test("adaptive quality recovers when rendering reaches a 60 Hz display limit", () => {
+  const controller = adaptive.createController();
+  const settings = { enabled: true, playing: true, chosen: 1, limit: "auto", fps: 60 };
+  let now = 0, value;
+  for (let i = 0; i < 32; i++) value = controller.tick(now += 30, settings);
+  assert.equal(value, 0.5);
+  for (let i = 0; i < 120; i++) value = controller.tick(now += 1000 / 60, settings);
+  assert.equal(value, 1);
+});
+
 test("adaptive settings persist independently and tolerate blocked storage", () => {
   const data = new Map();
   const storage = { getItem: key => data.get(key), setItem: (key, value) => data.set(key, value) };
