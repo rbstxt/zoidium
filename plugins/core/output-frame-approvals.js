@@ -3,7 +3,7 @@
   "use strict";
   const receipt = {
   "schemaVersion": 1,
-  "fingerprint": "ea61a4ba00b02211f15a61d15ceb9dd931a33bea46882061c21b05b32dc7ddd1",
+  "fingerprint": "781d0776c504aed21174c460c720c4ae4e370086a3866b170984d05aab15e9a6",
   "plugins": {
     "native-fx": {
       "version": "43",
@@ -148,7 +148,7 @@
       ]
     },
     "camera-plus": {
-      "version": "28",
+      "version": "29",
       "cases": [
         "scene-camera-animation",
         "shared-camera-animation",
