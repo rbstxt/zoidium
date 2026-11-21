@@ -99,6 +99,7 @@
       "./plugins/core/output-frame-video.js",
       "./plugins/core/output-frame-capture.js",
       "./plugins/core/output-frame-cache.js",
+      "./plugins/core/timeline-cache-bar.js",
       "./plugins/core/paused-video-seek.js",
       "./plugins/core/project-resources.js",
       "./plugins/core/shader-program-cache.js",
