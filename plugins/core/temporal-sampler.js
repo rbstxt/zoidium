@@ -386,8 +386,11 @@
     }
   }
 
-  function captureFrameSamplerInput(...args) {
-    return registry.capture.captureFrameSamplerInput(...args);
+  function captureFrameSamplerInput(state, root, runtime, stage, frame, restoreFrame, depth, target, media, context) {
+    const capture = registry.capture.captureFrameSamplerInput;
+    const timing = context?.renderTime;
+    if (timing) return timing.measureSample(stage.effect, stage.layer, capture, registry.capture, arguments);
+    return capture.apply(registry.capture, arguments);
   }
 
   function frameSamplerMediaInputs(sequence, stage, projectFrame, allTracks = false, scoped = callback => callback()) {
@@ -613,6 +616,7 @@
         const reductionKey = registry.capture.reductionKey(plan, depth, scope);
         const reduced = reducing && registry.capture.cachedReduction(runtime, effect, revision, reductionKey, width, height, cacheDepth);
         if (reduced) {
+          context.renderTime?.reuseSample(effect);
           if (depth === 1) runtime.publishedReservations.set(effect, new Set(reduced.map(sample => sample.target)));
           continue;
         }
@@ -628,8 +632,11 @@
         const reservedTargets = new Set();
         runtime.reservations.add(reservedTargets);
         reservations.push({ runtime, reservedTargets });
+        const reduce = context.renderTime
+          ? (...args) => context.renderTime.measureSample(effect, stage.layer, request.reduceSamples, null, args)
+          : request.reduceSamples;
         const reduction = reducing && registry.capture.createReduction(runtime, root, effect, cacheDepth,
-          reservedTargets, width, height, plan, request.reduceSamples, revision, reductionKey, () => capturedFrames.clear());
+          reservedTargets, width, height, plan, reduce, revision, reductionKey, () => capturedFrames.clear());
         const append = sample => { samples.push(sample); reduction && reduction.append(sample); };
         const cacheKey = frame => JSON.stringify([getFrameSamplerInputFrame(stage, frame), cacheDepth,
           scope?.effect ? frameSamplerIdentity(scope.effect) : 0]);
@@ -654,6 +661,7 @@
             cached.sample.target.width === width && cached.sample.target.height === height;
           const reused = capturedFrames.get(inputFrame) || (reusable && cached.sample);
           if (reused) {
+            if (context.renderTime && !capturedFrames.has(inputFrame)) context.renderTime.reuseSample(effect);
             reused.target.inputUsed = ++runtime.inputClock;
             append(Object.assign({}, reused, { frame: sourceProjectFrame, index: item.index, opacity: item.opacity }));
             continue;
@@ -817,7 +825,10 @@
     if (reducing) {
       const reduced = registry.capture.cachedReduction(runtime, effect, revision, reductionKey, width, height,
         frameSamplerCacheDepth(stage, depth));
-      if (reduced) return reduced;
+      if (reduced) {
+        global.ZoidiumRenderTimeActive?.current(root)?.reuseSample(effect, true);
+        return reduced;
+      }
     }
     if (
       !reducing && prepared && prepared.revision === revision && prepared.depth === depth &&
@@ -836,6 +847,7 @@
         );
       })
     ) {
+      global.ZoidiumRenderTimeActive?.current(root)?.reuseSample(effect, true);
       return prepared.samples;
     }
 
@@ -855,7 +867,10 @@
         cached.sample.target.inputUsed = ++runtime.inputClock;
         return Object.assign({}, cached.sample, { frame, index: item.index, opacity: item.opacity });
       });
-      if (cachedSamples.every(Boolean)) return cachedSamples;
+      if (cachedSamples.every(Boolean)) {
+        global.ZoidiumRenderTimeActive?.current(root)?.reuseSample(effect, true);
+        return cachedSamples;
+      }
     }
 
     // Isolated plans consume only prepared GPU inputs. Synchronous drawing

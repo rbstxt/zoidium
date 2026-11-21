@@ -437,6 +437,7 @@
     renderer.setViewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     pass.render(renderer, null, null, true);
     controller.viewport.lastFrame = entry.frame;
+    global.ZoidiumRenderTimeActive?.cached(controller.viewport, entry.frame);
     shown(entry.frame);
   }
 

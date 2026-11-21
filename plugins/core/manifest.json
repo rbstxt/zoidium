@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "172",
+  "version": "173",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -53,6 +53,21 @@
     {
       "id": "timeline-track-swipe",
       "source": "./plugins/core/timeline-track-swipe.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "render-time-gpu",
+      "source": "./plugins/core/render-time-gpu.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "timeline-render-time",
+      "source": "./plugins/core/timeline-render-time.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "render-time-column",
+      "source": "./plugins/core/render-time-column.js",
       "phase": "pre-init"
     },
     {

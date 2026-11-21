@@ -7,7 +7,6 @@ const { runInNewContext } = require("node:vm");
 const test = require("node:test");
 
 function install(options = {}) {
-  const tracks = new Map();
   const storage = options.storage || new Map();
   const clock = { calls: 0, time: 0 };
   class Layer {}
@@ -17,6 +16,7 @@ function install(options = {}) {
   }
   Effect.group = Group;
   const compositor = {
+    renderSequence(layer) { return this.renderLayer(layer); },
     renderEffects(effects) {
       for (const effect of effects) {
         if (effect.bypassed) continue;
@@ -52,13 +52,13 @@ function install(options = {}) {
   }
   const api = window.ZoidiumRenderTime;
   const draw = (objects, frame = 0, context) => window.ZoidiumRenderTimeActive
-    ? window.ZoidiumRenderTimeActive.draw(viewport, frame, compositor.renderLayer, compositor, [objects], context)
-    : compositor.renderLayer(objects);
+    ? window.ZoidiumRenderTimeActive.draw(viewport, frame, compositor.renderSequence, compositor, [objects], context)
+    : compositor.renderSequence(objects);
   const makeLayer = data => Object.assign(new Layer(), data);
   const makeEffect = (ms, enabled = true) => Object.assign(new Effect(),
     { pass: { enabled, render() { clock.time += ms; } } });
   const sample = object => api.read(editor, object);
-  return { window, api, clock, tracks, storage, editor, sequence, viewport, compositor,
+  return { window, api, clock, storage, editor, sequence, viewport, compositor,
     draw, makeLayer, makeEffect, Group, sample };
 }
 
