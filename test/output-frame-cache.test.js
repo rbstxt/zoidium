@@ -717,6 +717,7 @@ for (const [name, change] of [
   ["revision change without a signal", h => { h.project.sequence.value = 2; }],
   ["seek", h => { h.viewport.editor.playback.currentFrame = 1; }],
   ["playback start", h => { h.viewport.editor.playback.speed = 1; }],
+  ["the transparency grid turns on", h => { h.viewport.__zoidiumLivePreviewGrid = () => {}; }],
   ["context loss", h => h.canvasEvents.get("webglcontextlost")()],
   ["source change", h => { h.project.assets.list.a = { url: "blob:changed" }; }],
   ["cache clear", h => h.api.clear()],

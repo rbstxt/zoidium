@@ -648,7 +648,7 @@
     const valid = () => !hidden() && visibility === visibilityEpoch && !disposed && !controller.disposed && !debug.disabled && controller.key === key &&
       editSignals.epoch === epoch && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
       !plainTimeProject(viewport) && viewport.editor.playback.speed === 0 &&
-      viewport.editor.playback.currentFrame === current && !viewport.renderMode;
+      viewport.editor.playback.currentFrame === current && !viewport.renderMode && !viewport.__zoidiumLivePreviewGrid;
     if (videoPrefetchBlocked(viewport.editor.project.sequence, frame)) return false;
     const snapshot = snapshotFor(controller, key);
     const sequence = snapshot.project.sequence;
@@ -704,7 +704,7 @@
     const valid = () => !hidden() && visibility === visibilityEpoch && !disposed && !controller.disposed && !debug.disabled && !debug.prefetchDisabled &&
       controller.key === key && controller.generation === generation && editSignals.epoch === epoch &&
       viewport.editor.playback.speed === 0 && viewport.editor.playback.currentFrame === current &&
-      !viewport.renderMode && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
+      !viewport.renderMode && !viewport.__zoidiumLivePreviewGrid && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
       cheapKey(viewport) === cheap;
     const policy = controller.videoJob = videoFrames.job(valid);
     const start = performance.now();
@@ -815,7 +815,8 @@
         if (!controller.prefetching) disposeSnapshot(controller);
         continue;
       }
-      if (controller.prefetching || controller.disposed || viewport.renderMode || viewport.editor.playback.speed !== 0) continue;
+      if (controller.prefetching || controller.disposed || viewport.renderMode || viewport.__zoidiumLivePreviewGrid ||
+          viewport.editor.playback.speed !== 0) continue;
       // Draws that ran live left the key unvalidated; validate it now.
       if (currentKey(controller) === LIVE) {
         scheduleIdle(Math.max(50, editSignals.hotWindowMs - quiet));
