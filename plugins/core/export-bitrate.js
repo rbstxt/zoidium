@@ -153,7 +153,8 @@
       : null;
     if (select) {
       select.title = "Target video bitrate for the selected resolution and " +
-        "frame rate. MP4 encodes to this target; MKV/WebM also apply the " +
+        "frame rate. The actual MP4 bitrate varies with the content: simple " +
+        "or static footage encodes below the target. MKV/WebM also apply the " +
         "Quality preset.";
     }
     // Export options pages have no periodic update, so the labels follow the
