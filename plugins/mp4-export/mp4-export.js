@@ -1,6 +1,7 @@
 "use strict";
 
 let activeJobs = 0;
+let hasAlphaJob;
 
 function install(context) {
   const PZ = context.PZ || globalThis.PZ;
@@ -8,6 +9,9 @@ function install(context) {
   const load = context.apis.modules.createRequire(context.getAsset, { root: "./plugins/mp4-export/" });
   const { MP4_FORMAT, isMp4, frameCount } = load("./export-math.js");
   const { createJob } = load("./render.js");
+  const { installAlphaVideo } = load("./alpha-video.js");
+  hasAlphaJob = installAlphaVideo(PZ, () => load("./vendor/mediabunny-1.62.0.cjs"),
+    callback => context.lifecycle.onDispose(callback));
   const prototype = PZ.ui.export.device.prototype;
   // The page owns its restoration record. The activation only keeps weak
   // page references so closed dialogs and their devices can be collected.
@@ -195,6 +199,6 @@ function install(context) {
 
 module.exports = {
   activate: install,
-  isInUse() { return activeJobs > 0; },
-  inUseReason() { return "Finish or cancel the MP4 export before disabling MP4 Export."; },
+  isInUse() { return activeJobs > 0 || Boolean(hasAlphaJob?.()); },
+  inUseReason() { return "Finish or cancel the export before disabling MP4 Export."; },
 };

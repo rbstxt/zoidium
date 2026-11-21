@@ -66,8 +66,10 @@ function readbackHint(cause) {
   return "";
 }
 
-function readbackFailure(cause) {
-  return new Error(READBACK_FAILURE + readbackHint(cause), { cause });
+function readbackFailure(cause, formatName) {
+  const message = formatName === "MP4" ? READBACK_FAILURE :
+    "The browser could not read the finished " + formatName + " from temporary storage. Free some disk space and try again.";
+  return new Error(message + readbackHint(cause), { cause });
 }
 
 async function probeCause(snapshot) {
@@ -169,6 +171,7 @@ function watchUnload(scope) {
 // attempt fails, the read error names the small set of remaining causes instead
 // of the raw "Failed to fetch".
 async function readBack(scope, file, name, length, options) {
+  const { formatName = "MP4", mimeType = "video/mp4" } = options || {};
   const delays = options && Array.isArray(options.delays) ? options.delays : READBACK_DELAYS;
   const signal = options && options.signal;
   const ResponseCtor = scope.Response || (typeof Response === "function" ? Response : null);
@@ -183,10 +186,10 @@ async function readBack(scope, file, name, length, options) {
       // change between attempts, and an old File handle keeps the first error.
       snapshot = await file.getFile();
       const copy = await new ResponseCtor(snapshot.stream(), {
-        headers: { "Content-Type": "video/mp4" },
+        headers: { "Content-Type": mimeType },
       }).blob();
       if (!copy || copy.size !== length) {
-        throw new Error("The copied MP4 was " + (copy ? copy.size : 0) +
+        throw new Error("The copied " + formatName + " was " + (copy ? copy.size : 0) +
           " bytes instead of " + length + ".");
       }
       return { blob: copy, retained: false };
@@ -200,7 +203,7 @@ async function readBack(scope, file, name, length, options) {
         const probed = await probeCause(snapshot);
         if (probed) cause = probed;
       }
-      console.warn("[Zoidium] MP4 output read-back failed (attempt " + attempt + "): " + describeError(cause));
+      console.warn("[Zoidium] " + formatName + " output read-back failed (attempt " + attempt + "): " + describeError(cause));
     }
   }
   // Every copy failed. The temporary file can still be downloaded when it is
@@ -218,19 +221,20 @@ async function readBack(scope, file, name, length, options) {
       if (probed) cause = probed;
       else {
         retainedNames.add(name);
-        return { blob: new Blob([snapshot], { type: "video/mp4" }), retained: true };
+        return { blob: new Blob([snapshot], { type: mimeType }), retained: true };
       }
     }
   } catch (error) {
     if (isMemoryError(error)) throw error;
     cause = error;
   }
-  throw readbackFailure(cause);
+  throw readbackFailure(cause, formatName);
 }
 
 // OPFS bounds page memory. The fallback retains immutable Blob chunks and
 // supports header rewrites without constructing a contiguous movie buffer.
 async function createStorage(scope, bunny, options) {
+  const { formatName = "MP4", mimeType = "video/mp4" } = options || {};
   let directory, name, file, writer;
   let parts = [];
   let length = 0;
@@ -241,7 +245,7 @@ async function createStorage(scope, bunny, options) {
     if (scope.navigator.storage?.getDirectory) {
       directory = await scope.navigator.storage.getDirectory();
       await removeRetained(directory);
-      name = "zoidium-mp4-" + scope.crypto.randomUUID();
+      name = "zoidium-" + formatName.toLowerCase() + "-" + scope.crypto.randomUUID();
       file = await directory.getFileHandle(name, { create: true });
       writer = await file.createWritable();
     }
@@ -251,7 +255,7 @@ async function createStorage(scope, bunny, options) {
   }
   const stream = new WritableStream({
     async write(chunk) {
-      if (chunk.position < 0 || chunk.position > length) throw new Error("The MP4 writer produced an invalid file offset.");
+      if (chunk.position < 0 || chunk.position > length) throw new Error("The " + formatName + " writer produced an invalid file offset.");
       if (writer) await writer.write({ type: "write", position: chunk.position, data: chunk.data });
       else parts = replaceChunks(parts, new Blob([chunk.data]), chunk.position);
       length = Math.max(length, chunk.position + chunk.data.byteLength);
@@ -266,9 +270,9 @@ async function createStorage(scope, bunny, options) {
   return {
     target: new bunny.StreamTarget(stream, { chunked: true, chunkSize: 1024 * 1024 }),
     async finish() {
-      if (!length) throw new Error("The MP4 export is empty.");
+      if (!length) throw new Error("The " + formatName + " export is empty.");
       warnLowBitrate(length, options);
-      if (!file) return new Blob(parts.map((part) => part.blob), { type: "video/mp4" });
+      if (!file) return new Blob(parts.map((part) => part.blob), { type: mimeType });
       // Detach from our temporary file once, using browser Blob storage. The
       // normal download manager then receives a stable Blob, not a live File.
       const read = await readBack(scope, file, name, length, options);

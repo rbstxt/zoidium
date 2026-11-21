@@ -10,6 +10,10 @@ each line describes one visible change.
 
 ### Added
 
+- The export page has a **Transparent background** option for PNG, WebP, and
+  WebM/MKV (VP8 with alpha). Transparent and partly transparent pixels keep
+  their alpha in the exported file. It is off by default and hidden for MP4 and
+  JPEG.
 - The timeline has an optional **Render Time** column that shows how long each
   track and effect took to draw in the last preview frame, coloured against
   the frame budget, so slow layers stand out. It is off by default and

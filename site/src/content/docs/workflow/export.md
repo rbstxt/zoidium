@@ -32,18 +32,26 @@ H.264 MP4 has no alpha channel. If an odd output dimension reaches the MP4 encod
 
 These sizing controls affect the captured image only; they do not change project resolution. Downloads run directly in the current editor tab.
 
+## Export with a transparent background
+
+1. Open **Export**, then choose **Single frame capture** or **Device**.
+2. Under **Format**, select **.png**, **.webp**, **.webm (vp8/opus)**, or **.mkv (vp8/opus)**.
+3. When **Transparent background** appears, select it and click **Start**.
+
+The checkbox starts unchecked each time you open the options. A solid scene backdrop or an opaque layer still covers the pixels behind it. **black fill** adds opaque black bars.
+
 ## Formats, alpha, and audio
 
 | Format | Encoding | Audio | Alpha |
 | --- | --- | --- | --- |
 | **.mp4 (H.264 / AAC or Opus)** | H.264 video | AAC preferred, Opus fallback | No |
-| **.mkv (vp8/opus)** | VP8 video | Opus | Not guaranteed |
-| **.webm (vp8/opus)** | VP8 video | Opus | Not guaranteed |
-| **.png** | PNG image | None | Yes, for transparent rendered pixels |
+| **.mkv (vp8/opus)** | VP8 video | Opus | With **Transparent background**, when VP8 alpha encoding is available |
+| **.webm (vp8/opus)** | VP8 video | Opus | With **Transparent background**, when VP8 alpha encoding is available |
+| **.png** | PNG image | None | With **Transparent background** |
 | **.jpg** | JPEG image | None | No |
-| **.webp** | WebP image | None | Yes, when the browser supports WebP encoding |
+| **.webp** | WebP image | None | With **Transparent background**, when WebP encoding is available |
 
-- **Alpha note:** **black fill** always adds opaque black bars, including on PNG and WebP. Alpha support does not make an opaque project background transparent.
+Enable **MP4 Export** to use transparent MKV and WebM. VP8 compression can change alpha values. Use a player or editor that supports VP8 alpha to view the transparency.
 - **MP4 audio:** Encoded at 48 kHz stereo, 128 kbit/s. If the project has no scheduled audio, MP4 writes no audio track. When AAC encoding is unavailable, MP4 falls back to Opus (some players need MKV, WebM, or a player that supports Opus in MP4). If the AAC timing-calibration check fails, export stops rather than silently switching to Opus; try the desktop app, MKV, or WebM. If an audio asset fails to decode, convert it to WAV and replace it in [Assets](/docs/workflow/assets/).
 
 ## Resolution, aspect ratio, frame rate, and bitrate
