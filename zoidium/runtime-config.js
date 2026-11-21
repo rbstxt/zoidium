@@ -37,6 +37,7 @@
       "./plugins/core/project-media-fps.js",
       "./plugins/core/sequence-timing.js",
       "./plugins/core/audio-track-visibility.js",
+      "./plugins/core/timeline-track-state.js",
       "./plugins/core/timeline-track-swipe.js",
       "./plugins/core/default-project-settings.js",
       "./plugins/core/preview-context-menu.js",
@@ -95,6 +96,7 @@
       "./plugins/core/paused-video-seek.js",
       "./plugins/core/project-resources.js",
       "./plugins/core/shader-program-cache.js",
+      "./plugins/core/timeline-track-lock.js",
       // Keeps the editor's main preview reachable as editor.mainViewport. It
       // must be installed before initTool() builds the viewport.
       "./plugins/core/main-viewport.js",
