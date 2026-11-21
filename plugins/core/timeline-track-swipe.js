@@ -30,7 +30,7 @@
     if (column === "visibility") {
       icon.style.fill = active ? "var(--zui-text, #ccc)" : "var(--zui-toggle-on, #8a2828)";
     } else {
-      icon.style.color = active ? "var(--zui-accent, #70c29d)" : "var(--zui-text-muted, #999)";
+      icon.style.color = active ? "var(--zui-value, #70c29d)" : "var(--zui-text-muted, #999)";
       icon.style.fill = "none";
     }
     if (column === "solo") icon.firstElementChild.setAttribute("fill", active ? "currentColor" : "none");
