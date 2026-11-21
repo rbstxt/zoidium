@@ -244,3 +244,99 @@ test("disjoint GPU measurements fall back to CPU; hiding cancels a pending poll"
   assert.equal(gpu.queries.size, 0);
   assert.equal(gpu.callbacks.size, 0);
 });
+
+test("the timeline toggle restores the gutter and displays native layer and effect rows while enabled", () => {
+  const { api, window, editor, sequence, makeLayer, makeEffect, draw } = install();
+  const document = { createElement: () => new Element(), head: null };
+  class Element {
+    constructor() {
+      this.ownerDocument = document;
+      this.children = [];
+      this.dataset = {};
+      this.attributes = new Map();
+      const classes = new Set();
+      this.classList = { add: value => classes.add(value), remove: value => classes.delete(value),
+        contains: value => classes.has(value) };
+      this.style = { width: "200px", left: "200px", gridTemplateColumns: "1fr auto",
+        setProperty: () => {}, removeProperty: () => {} };
+    }
+    get lastElementChild() { return this.children.at(-1); }
+    setAttribute(name, value) { this.attributes.set(name, value); }
+    addEventListener() {}
+    querySelector() { return null; }
+    appendChild(node) { node.parentNode = this; this.children.push(node); }
+    insertBefore(node, before) {
+      node.parentNode = this;
+      this.children.splice(this.children.indexOf(before), 0, node);
+    }
+    remove() { this.parentNode.children.splice(this.parentNode.children.indexOf(this), 1); }
+  }
+  document.head = new Element();
+  window.document = document;
+  class Timeline {
+    create() {
+      this.timestamp = new Element();
+      new Element().appendChild(this.timestamp);
+      this.timerule = new Element();
+      this.scrollBar = new Element();
+      this.markermask = new Element();
+    }
+  }
+  Timeline.tracks = class {
+    create() {
+      for (const key of ["labels", "videoLabels", "audioLabels", "container"]) this[key] = new Element();
+    }
+    createTrackLabel() {
+      const label = new Element();
+      label.appendChild(new Element());
+      label.appendChild(new Element());
+      return label;
+    }
+  };
+  Timeline.keyframes = class {
+    createKeyframeTrack() {
+      const lane = new Element();
+      lane.pz_label = new Element();
+      return lane;
+    }
+  };
+  window.PZ.ui = { timeline: Timeline };
+  const source = readFileSync(join(__dirname, "../plugins/core/render-time-column.js"), "utf8");
+  runInNewContext(source, { window, WeakRef });
+  const timeline = new Timeline();
+  timeline.editor = editor;
+  timeline.create();
+  timeline.tracks = new Timeline.tracks();
+  timeline.tracks.timeline = timeline;
+  timeline.keyframes = new Timeline.keyframes();
+  timeline.keyframes.timeline = timeline;
+  timeline.keyframes.labels = new Element();
+  timeline.keyframes.container = new Element();
+  timeline.tracks.create();
+  const effect = makeEffect(23);
+  const layer = makeLayer({ cost: 4, effects: [effect] });
+  const track = { getCurrentClip: () => ({ object: layer }) };
+  sequence.videoTracks = [track];
+  const trackRow = timeline.tracks.createTrackLabel(track, 0);
+  const effectLane = timeline.keyframes.createKeyframeTrack(null, effect);
+  effectLane.pz_label.textContent = "Effect";
+  const header = timeline.timestamp.parentNode;
+  const toggle = header.lastElementChild;
+  assert.equal(toggle.attributes.get("aria-pressed"), "false");
+  assert.equal(trackRow.children.length, 2);
+  toggle.onclick({ stopPropagation() {} });
+  assert.equal(api.enabled, true);
+  assert.equal(toggle.attributes.get("aria-pressed"), "true");
+  assert.equal(header.style.width, "calc(200px + 40px)");
+  draw(layer);
+  const cell = trackRow.children[1];
+  assert.equal(cell.textContent, "27.0 ms CPU");
+  assert.equal(cell.dataset.load, "heavy");
+  assert.equal(effectLane.pz_label.dataset.renderTime, "23.0 ms CPU");
+  assert.equal(effectLane.pz_label.classList.contains("zoidium-render-time-keyframe"), true);
+  toggle.onclick({ stopPropagation() {} });
+  assert.equal(trackRow.children.length, 2);
+  assert.equal(header.style.width, "200px");
+  assert.equal(effectLane.pz_label.dataset.renderTime, undefined);
+  assert.equal(effectLane.pz_label.classList.contains("zoidium-render-time-keyframe"), false);
+});
