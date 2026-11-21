@@ -10,9 +10,13 @@
   const gutters = new WeakMap();
   const rows = new Set();
   const entries = new WeakMap();
-  const explanation = "Render Time for the last preview frame. GPU measures elapsed draw time. CPU measures draw submission. Worker and media waits are excluded.";
+  const explanation = "Render Time for the last preview frame. CPU is JavaScript draw submission wall time and may include driver waits. " +
+    "GPU is timer-query elapsed time. Values are smoothed. Temporal sample renders count toward the requesting effect.";
 
-  const width = "92px";
+  const cellWidth = 168;
+  // The first 92px column widened the gutter by 40px; a wider cell needs the difference too.
+  const gutterExtra = 40 + (cellWidth - 92);
+  const width = cellWidth + "px";
   const style = global.document.createElement("style");
   style.textContent = `
     .zoidium-render-time-keyframe, .zoidium-render-time-keyframe-lane { display: block !important; }
@@ -53,12 +57,54 @@
     }
     if (!layout) return;
     for (const [el, property, initial] of layout) {
-      const widened = "calc(" + initial + " + 40px)";
+      const widened = "calc(" + initial + " + " + gutterExtra + "px)";
       if (timing.enabled) el.style[property] = widened;
       // Restore only what this column wrote; a value the timeline rewrote meanwhile is kept.
       else if (el.style[property] === widened) el.style[property] = initial;
     }
     if (!timing.enabled) gutters.delete(timeline);
+  }
+
+  function format(ms) {
+    return ms < 10 ? ms.toFixed(2) : ms.toFixed(1);
+  }
+
+  const gpuReasons = {
+    pending: "GPU pending: waiting for the timer query",
+    unavailable: "GPU not measured: this context has no timer query",
+    disjoint: "GPU not measured: the timer results were disjoint",
+    timeout: "GPU not measured: the timer query timed out",
+    busy: "GPU not measured: another timer query was active",
+    limit: "GPU not measured: the frame reached the query limit",
+  };
+
+  // Both metrics measure overlapping work, so the load is the heavier one.
+  function load(value) {
+    return Math.max(value.cpuMs, value.gpuMs || 0) / value.budget * 100;
+  }
+
+  function label(value) {
+    const marker = value.samplesCached ? "*" : "";
+    if (value.gpuMs === null) return "CPU " + format(value.cpuMs) + " ms · GPU —" + marker;
+    return "CPU " + format(value.cpuMs) + " · GPU " + format(value.gpuMs) + " ms" + marker;
+  }
+
+  function describe(value) {
+    const parts = ["CPU " + format(value.cpuMs) + " ms draw submission, may include driver waits"];
+    if (value.gpuMs === null) {
+      parts.push(gpuReasons[value.gpuStatus] || gpuReasons.unavailable);
+    } else {
+      parts.push("GPU " + format(value.gpuMs) + " ms timer query");
+      parts.push(value.gpuAge ? "GPU frame is " + value.gpuAge + " behind" : "GPU frame is current");
+    }
+    if (value.budget) {
+      const cpu = Math.round(value.cpuMs / value.budget * 100);
+      const gpu = value.gpuMs === null ? null : Math.round(value.gpuMs / value.budget * 100);
+      parts.push("Frame budget: CPU " + cpu + "%" + (gpu === null ? "" : ", GPU " + gpu + "%"));
+    }
+    if (value.samplesCached) parts.push("Includes reused temporal samples");
+    parts.push("Smoothed sample");
+    return parts.join(" · ");
   }
 
   function renderCell(entry) {
@@ -95,7 +141,7 @@
 
     const cell = entry.cell;
     const value = kind === "track" ? timing.readTrack(editor, object) : timing.read(editor, object);
-    const percent = value?.budget ? value.ms / value.budget * 100 : 0;
+    const percent = value?.budget ? load(value) : 0;
     const level = percent >= 50 ? "heavy" : percent >= 10 ? "moderate" : "light";
     const color = {
       heavy: "var(--zui-danger, #df9b9b)",
@@ -108,11 +154,8 @@
       text = "Cached";
       title = "The preview reused rendered pixels";
     } else if (value) {
-      const ms = value.ms < 10 ? value.ms.toFixed(2) : value.ms.toFixed(1);
-      text = ms + " ms " + value.basis + (value.samplesCached ? "*" : "");
-      title = ms + " ms " + (value.basis === "GPU" ? "GPU draw time" : "CPU draw submission");
-      if (value.budget) title += " · " + Math.round(percent) + "% of frame budget";
-      if (value.samplesCached) title += " · Reused temporal samples";
+      text = label(value);
+      title = describe(value);
     }
     if (kind === "keyframe") {
       row.classList.add("zoidium-render-time-keyframe");

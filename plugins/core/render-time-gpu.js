@@ -14,12 +14,17 @@
       check() {
         if (gl.isContextLost?.() || gl.getParameter(ext.GPU_DISJOINT_EXT)) epoch++;
       },
-      begin() {
-        // Leave another extension's active query alone.
-        const active = webgl2
+      active() {
+        return !!this.current();
+      },
+      current() {
+        return webgl2
           ? gl.getQuery(target, gl.CURRENT_QUERY)
           : ext.getQueryEXT(target, ext.CURRENT_QUERY_EXT);
-        if (active) return null;
+      },
+      begin() {
+        // Leave another extension's active query alone.
+        if (this.current()) return null;
         const query = webgl2 ? gl.createQuery() : ext.createQueryEXT();
         if (query) {
           if (webgl2) gl.beginQuery(target, query);

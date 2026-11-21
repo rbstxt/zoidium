@@ -5,6 +5,7 @@
   const preference = "zoidium.timeline.render-time";
   const maxQueries = 192;
   const maxPending = 4;
+  const queryTimeout = 1000;
   let editors = new WeakMap();
   const liveDraws = new WeakMap();
   const prepared = new Set();
@@ -17,7 +18,9 @@
   function stateFor(editor) {
     let state = editors.get(editor);
     if (!state || state.project !== editor.project) {
-      state = { project: editor.project, snapshot: null, serial: 0, shown: 0 };
+      // CPU submission and GPU elapsed samples publish on their own schedules.
+      // Each snapshot keeps the frame and serial it belongs to.
+      state = { project: editor.project, cpu: null, gpu: null, statuses: new WeakMap(), serial: 0, shown: 0 };
       editors.set(editor, state);
     }
     return state;
@@ -40,26 +43,42 @@
     const sequence = compositor._sequence;
     const fps = sequence?.properties?.rate?.get?.() || editor.playback?.frameRate;
     const state = stateFor(editor);
-    const timer = pending.size < maxPending ? timerFor(compositor) : null;
+    const saturated = pending.size >= maxPending;
+    const timer = saturated ? null : timerFor(compositor);
+    let gpuStatus = timer ? null : saturated ? "busy" : "unavailable";
     timer?.check();
     const epoch = timer?.epoch;
     const records = new Map();
     const queries = [];
     const stack = [];
     let activeQuery = null;
-    let useGpu = !!timer;
     let discarded = false;
 
     function releaseQueries() {
+      if (!timer) return;
       for (const { query } of queries) timer.remove(query);
       queries.length = 0;
     }
 
+    // The first failure explains the whole frame. A partial query set is never
+    // reported as a numeric GPU total.
+    function fail(status) {
+      if (!gpuStatus) gpuStatus = status;
+    }
+
     function begin(record) {
-      if (useGpu && timer.epoch === epoch) {
-        if (queries.length < maxQueries) activeQuery = timer.begin();
-        if (activeQuery) queries.push({ query: activeQuery, records: Array.from(new Set(stack)) });
-        else useGpu = false;
+      if (timer && !gpuStatus) {
+        if (timer.epoch !== epoch) fail("disjoint");
+        else if (queries.length >= maxQueries) fail("limit");
+        else {
+          activeQuery = timer.begin();
+          if (!activeQuery) fail(timer.active?.() ? "busy" : "unavailable");
+          else {
+            const owners = Array.from(new Set(stack));
+            queries.push({ query: activeQuery, records: owners });
+            for (const owner of owners) owner.timed = true;
+          }
+        }
       }
       if (record) record.started = global.performance.now();
     }
@@ -78,7 +97,7 @@
     function measure(object, callback, self, args) {
       if (discarded) return callback.apply(self, args);
       let record = records.get(object);
-      if (!record) records.set(object, record = { cpu: 0, gpu: 0, drew: true });
+      if (!record) records.set(object, record = { object, cpu: 0, gpu: 0, drew: true });
       record.drew = true;
       const previous = stack.at(-1);
       end(previous);
@@ -110,38 +129,44 @@
       return result;
     }
 
+    // Resolve once: `null` means the queries are still pending, an object
+    // carries the explicit status. Accumulation stays on the records so a
+    // nested layer keeps every segment it owns.
+    function resolve(force) {
+      if (!timer || gpuStatus || !queries.length) return { status: gpuStatus || "unavailable" };
+      timer.check();
+      if (timer.epoch !== epoch) return { status: "disjoint" };
+      if (!queries.every(({ query }) => timer.ready(query))) {
+        return force ? { status: "timeout" } : null;
+      }
+      let valid = true;
+      for (const { query, records: owners } of queries) {
+        const ms = timer.milliseconds(query);
+        if (!Number.isFinite(ms) || ms < 0) { valid = false; continue; }
+        for (const owner of owners) owner.gpu += ms;
+      }
+      return { status: valid ? "available" : "disjoint" };
+    }
+
     return {
       editor, state, sequence, frame, records, measure, measureSample,
       budget: Number.isFinite(fps) && fps > 0 ? 1000 / fps : null,
       serial: 0,
       get discarded() { return discarded; },
+      get gpuStatus() { return gpuStatus; },
+      get gpuPending() { return !gpuStatus && !!timer && queries.length > 0; },
+      resolve,
       reuseLayer(layer) {
         if (discarded) return;
         let record = records.get(layer);
-        if (!record) records.set(layer, record = { cpu: 0, gpu: 0 });
+        if (!record) records.set(layer, record = { object: layer, cpu: 0, gpu: 0 });
         record.cached = true;
       },
       reuseSample(effect, preparedInput) {
         if (discarded) return;
         let record = records.get(effect);
-        if (!record) records.set(effect, record = { cpu: 0, gpu: 0 });
+        if (!record) records.set(effect, record = { object: effect, cpu: 0, gpu: 0 });
         if (!preparedInput || !record.sampled) record.samplesCached = true;
-      },
-      result(force) {
-        if (timer && useGpu && queries.length && !force) {
-          timer.check();
-          if (timer.epoch === epoch) {
-            if (!queries.every(({ query }) => timer.ready(query))) return null;
-            let valid = true;
-            for (const { query, records } of queries) {
-              const ms = timer.milliseconds(query);
-              if (!Number.isFinite(ms) || ms < 0) valid = false;
-              for (const record of records) record.gpu += ms;
-            }
-            return valid ? "GPU" : "CPU";
-          }
-        }
-        return "CPU";
       },
       discard() {
         discarded = true;
@@ -207,39 +232,83 @@
     }
   }
 
-  function publish(frame, basis) {
+  function recordStatus(state, object, sequence, frame, status) {
+    const old = state.statuses.get(object);
+    if (old && old.sequence === sequence && old.frame > frame) return;
+    state.statuses.set(object, { sequence, frame, status });
+  }
+
+  function statusFor(state, object, sequence) {
+    const record = state.statuses.get(object);
+    return record && record.sequence === sequence ? record.status : "unavailable";
+  }
+
+  function publishCpu(frame) {
     const { editor, state, serial, sequence, budget, records } = frame;
     if (state.project !== editor.project || state.shown >= serial) return;
+    const previous = state.cpu?.sequence === sequence ? state.cpu.values : null;
+    const status = frame.gpuStatus || (frame.gpuPending ? "pending" : "unavailable");
     const values = new Map();
-    const previous = state.snapshot?.sequence === sequence ? state.snapshot.values : null;
     for (const [object, entry] of records) {
       if (entry.cached) {
-        values.set(object, { cached: true, budget });
+        values.set(object, { cached: true });
         continue;
       }
       if (!entry.drew) continue;
-      const raw = basis === "GPU" ? entry.gpu : entry.cpu;
       const old = previous?.get(object);
-      const smooth = old?.basis === basis && old.samplesCached === !!entry.samplesCached;
-      const ms = smooth ? old.ms + (raw - old.ms) * 0.25 : raw;
-      values.set(object, { ms, basis, budget, samplesCached: !!entry.samplesCached });
+      const smooth = old && typeof old.ms === "number" && old.samplesCached === !!entry.samplesCached;
+      values.set(object, {
+        ms: smooth ? old.ms + (entry.cpu - old.ms) * 0.25 : entry.cpu,
+        samplesCached: !!entry.samplesCached,
+      });
+      recordStatus(state, object, sequence, frame.frame, status);
     }
     state.shown = serial;
-    state.snapshot = { sequence, frame: frame.frame, values };
+    state.cpu = { sequence, frame: frame.frame, serial, budget, values };
+    global.ZoidiumRenderTimeColumn?.refresh();
+  }
+
+  function publishGpu(frame, status) {
+    const { state, records, sequence } = frame;
+    if (state.project !== frame.editor.project) return;
+    const frameNumber = frame.frame;
+    if (status !== "available") {
+      for (const [object, entry] of records) {
+        if (entry.drew) recordStatus(state, object, sequence, frameNumber, status);
+      }
+      return;
+    }
+    // Keep the newest completed sample by submission order; a late, older
+    // result must not replace it, and a looped sequence keeps publishing.
+    const previous = state.gpu?.sequence === sequence ? state.gpu : null;
+    if (previous && frame.serial < previous.serial) return;
+    const values = new Map();
+    for (const [object, entry] of records) {
+      if (!entry.timed) continue;
+      const old = previous?.values.get(object);
+      const smooth = old && typeof old.ms === "number" && old.samplesCached === !!entry.samplesCached;
+      values.set(object, {
+        ms: smooth ? old.ms + (entry.gpu - old.ms) * 0.25 : entry.gpu,
+        samplesCached: !!entry.samplesCached,
+      });
+      recordStatus(state, object, sequence, frameNumber, "available");
+    }
+    if (!values.size && previous) return;
+    state.gpu = { sequence, frame: frameNumber, serial: frame.serial, values };
     global.ZoidiumRenderTimeColumn?.refresh();
   }
 
   function poll() {
     pollId = null;
     for (const frame of pending) {
-      if (frame.state.shown >= frame.serial || frame.editor.project !== frame.state.project) {
+      if (frame.editor.project !== frame.state.project) {
         frame.discard();
         continue;
       }
-      const result = frame.result(global.performance.now() - frame.submittedAt > 1000);
-      if (!result) continue;
+      const resolution = frame.resolve(global.performance.now() - frame.submittedAt > queryTimeout);
+      if (!resolution) continue;
       frame.discard();
-      publish(frame, result);
+      publishGpu(frame, resolution.status);
     }
     if (pending.size) pollId = global.requestAnimationFrame(poll);
   }
@@ -270,14 +339,21 @@
     }
     if (timing.discarded) return result;
     timing.serial = ++state.serial;
-    const basis = timing.result(false);
-    if (basis) {
-      timing.discard();
-      publish(timing, basis);
+    publishCpu(timing);
+    if (timing.gpuPending) {
+      const resolution = timing.resolve(false);
+      if (resolution) {
+        timing.discard();
+        publishGpu(timing, resolution.status);
+      } else {
+        timing.submittedAt = global.performance.now();
+        pending.add(timing);
+        if (pollId === null) pollId = global.requestAnimationFrame(poll);
+      }
     } else {
-      timing.submittedAt = global.performance.now();
-      pending.add(timing);
-      if (pollId === null) pollId = global.requestAnimationFrame(poll);
+      const status = timing.gpuStatus || "unavailable";
+      timing.discard();
+      publishGpu(timing, status);
     }
     return result;
   }
@@ -297,13 +373,15 @@
     if (!canMeasure(viewport)) return;
     const state = stateFor(viewport.editor);
     state.shown = ++state.serial;
-    state.snapshot = { sequence: viewport.compositor._sequence, frame, cached: true };
+    state.cpu = { sequence: viewport.compositor._sequence, frame, serial: state.shown, cached: true };
+    // Reused pixels are not a measurement; do not smooth or pair across them.
+    state.gpu = null;
     global.ZoidiumRenderTimeColumn?.refresh();
   }
 
   function snapshotFor(editor) {
     const state = editors.get(editor);
-    return state?.project === editor.project ? state.snapshot : null;
+    return state?.project === editor.project ? state.cpu : null;
   }
 
   function activeLayer(track, sequence, frame) {
@@ -311,17 +389,37 @@
     return track.getCurrentClip?.(frame)?.object || null;
   }
 
+  function metricFor(state, snapshot, object) {
+    const entry = snapshot.values.get(object);
+    if (!entry || entry.cached) return entry || null;
+    const gpu = state.gpu?.sequence === snapshot.sequence ? state.gpu : null;
+    const sample = gpu?.values.get(object) || null;
+    return {
+      cpuMs: entry.ms,
+      cpuFrame: snapshot.frame,
+      gpuMs: sample ? sample.ms : null,
+      gpuStatus: sample ? "available" : statusFor(state, object, snapshot.sequence),
+      gpuFrame: sample ? gpu.frame : null,
+      gpuAge: sample ? Math.max(0, snapshot.frame - gpu.frame) : null,
+      budget: snapshot.budget,
+      samplesCached: !!entry.samplesCached,
+    };
+  }
+
   function readTrack(editor, track) {
+    const state = editors.get(editor);
     const snapshot = snapshotFor(editor);
-    if (!snapshot) return null;
+    if (!state || !snapshot) return null;
     const layer = activeLayer(track, snapshot.sequence, snapshot.frame);
-    return layer && (snapshot.cached ? { cached: true } : snapshot.values.get(layer) || null);
+    if (!layer) return null;
+    return snapshot.cached ? { cached: true } : metricFor(state, snapshot, layer);
   }
 
   function read(editor, object) {
+    const state = editors.get(editor);
     const snapshot = snapshotFor(editor);
-    if (!snapshot) return null;
-    if (!snapshot.cached) return snapshot.values.get(object) || null;
+    if (!state || !snapshot) return null;
+    if (!snapshot.cached) return metricFor(state, snapshot, object);
     if (PZ.zoidium?.effectBypass?.bypassed(object)) return null;
     const track = object.tryGetParentOfType?.(PZ.track);
     if (!track || track.getCurrentClip?.(snapshot.frame) === object.tryGetParentOfType?.(PZ.clip) &&
