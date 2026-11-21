@@ -14,7 +14,7 @@ test("MP4 deactivation restores connected options pages and native controls", ()
     const first = new Device(), second = new Device();
     const firstPage = first.createOptionsPage(), secondPage = second.createOptionsPage();
     assert.equal(firstPage.isConnected, true);
-    assert.equal(firstPage.format.options.length, 2);
+    assert.equal(firstPage.format.options.length, 4);
     firstPage.format.selectedIndex = 1;
     firstPage.format.onchange();
     assert.equal(first.params.format, MP4_FORMAT);

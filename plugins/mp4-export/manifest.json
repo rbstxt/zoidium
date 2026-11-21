@@ -3,7 +3,7 @@
   "id": "mp4-export",
   "name": "MP4 Export",
   "author": "Zoidium",
-  "version": "15",
+  "version": "16",
   "kind": "extension",
   "description": "Export H.264 MP4 with AAC audio or an Opus fallback through the native Export panel.",
   "category": "utilities",
@@ -78,6 +78,16 @@
       "id": "audio-decode",
       "type": "text",
       "source": "./plugins/mp4-export/audio-decode.js?v=15"
+    },
+    {
+      "id": "audio-only-js",
+      "type": "text",
+      "source": "./plugins/mp4-export/audio-only.js"
+    },
+    {
+      "id": "audio-options-js",
+      "type": "text",
+      "source": "./plugins/mp4-export/audio-options.js"
     }
   ]
 }

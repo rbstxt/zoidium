@@ -20,6 +20,14 @@ If a **Precomp+** composition is currently open, click **Back to Main** before o
 For MP4, the **Quality** selector is disabled; use **Bitrate** to control video quality.
 H.264 MP4 has no alpha channel. If an odd output dimension reaches the MP4 encoder, it pads one black pixel on the right or bottom.
 
+## Export audio only
+
+1. Open **Export**, then **Device**.
+2. In **Format**, select **.wav (16-bit PCM)** or **.m4a (AAC)**.
+3. Click **Start**. When the render completes, click **Download your audio**.
+
+The export uses the same range and audio track settings as video export. Both formats use 48 kHz stereo. WAV contains uncompressed 16-bit PCM. M4A uses AAC at 128 kbit/s and requires an AAC encoder. If AAC is unavailable, select WAV. A project without audio exports silence for the selected range.
+
 ## Export a single frame as an image
 
 1. Move the playhead to the frame you want to capture.
@@ -37,6 +45,8 @@ These sizing controls affect the captured image only; they do not change project
 | Format | Encoding | Audio | Alpha |
 | --- | --- | --- | --- |
 | **.mp4 (H.264 / AAC or Opus)** | H.264 video | AAC preferred, Opus fallback | No |
+| **.wav (16-bit PCM)** | None | 16-bit PCM | No |
+| **.m4a (AAC)** | None | AAC | No |
 | **.mkv (vp8/opus)** | VP8 video | Opus | Not guaranteed |
 | **.webm (vp8/opus)** | VP8 video | Opus | Not guaranteed |
 | **.png** | PNG image | None | Yes, for transparent rendered pixels |
