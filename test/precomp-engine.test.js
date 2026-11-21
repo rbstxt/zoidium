@@ -797,6 +797,32 @@ test("composition media completion refreshes a paused preview once", async () =>
   }
 });
 
+test("nested audio is scheduled when composition media loads before the editor swaps projects", async () => {
+  const env = createEnvironment();
+  const incoming = { ...env, project: new env.PZ.project() };
+  const media = addCompMedia(incoming, "X", "X", [{ type: 1, clips: [audioClipJSON(0, 10, "Tone")] }]);
+  let resolve;
+  media.loaded = false;
+  media.loading = new Promise(done => { resolve = done; });
+  addClip(incoming, 0, { start: 5, length: 10, compId: "X" });
+
+  try {
+    env.PZ.schedule.analyzeSequence(incoming.project.sequence);
+    assert.deepEqual(incoming.project.sequence.lastAudioItems, []);
+    media.loaded = true;
+    resolve();
+    await media.loading;
+
+    assert.equal(env.editor.project, env.project);
+    const [nested] = incoming.project.sequence.lastAudioItems;
+    assert.equal(nested.start, 5);
+    assert.equal(nested.length, 10);
+    assert.equal(nested.media.asset.key, "footage");
+  } finally {
+    env.uninstall();
+  }
+});
+
 test("composition media completion avoids extra playback draws and stale project redraws", async () => {
   for (const scenario of ["playing", "drawing paused", "project replaced", "media removed"]) {
     const env = createEnvironment();

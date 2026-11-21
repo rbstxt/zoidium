@@ -53,14 +53,15 @@
     hint.style.gridTemplateColumns = "minmax(0, 1fr)";
 
     function update() {
-      const provider = video();
       const format = params.format;
-      const reason = formatReason(format, format === "webp" && webp(), provider);
-      input.disabled = Boolean(reason);
-      label.style.display = reason ? "none" : "flex";
+      const audioOnly = format === "audio_wav" || format === "audio_m4a";
+      const provider = audioOnly ? undefined : video();
+      const reason = audioOnly ? "" : formatReason(format, format === "webp" && webp(), provider);
+      input.disabled = audioOnly || Boolean(reason);
+      label.style.display = input.disabled ? "none" : "flex";
       hint.style.display = reason ? "" : "none";
       hint.textContent = reason;
-      if (reason) delete params.transparentBackground;
+      if (input.disabled) delete params.transparentBackground;
       input.checked = params.transparentBackground === true;
       if (kinds.get(format) === "video" && provider?.status === undefined && provider?.probe) {
         provider.probe().then(update);
@@ -71,6 +72,7 @@
       else delete params.transparentBackground;
     });
     select.addEventListener("change", update);
+    page.__zoidiumRefreshAlphaOption = update;
     const next = formatRow.nextSibling;
     formatRow.parentElement.insertBefore(label, next);
     formatRow.parentElement.insertBefore(hint, next);

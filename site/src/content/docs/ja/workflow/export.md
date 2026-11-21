@@ -1,8 +1,8 @@
 ---
-title: 動画とフレームの書き出し
-description: H.264 MP4、WebM、MKV、静止画キャプチャ、True datamosh WebM 書き出しの手順と、解像度・ビットレート・音声・エラー復旧のまとめです。
+title: 動画、音声、フレームの書き出し
+description: H.264 MP4、WebM、MKV、WAV、M4A、静止画を書き出します。透過書き出しや True datamosh を設定します。
 ---
-動画書き出しには **Export > Device**、再生ヘッド位置の静止画保存には **Export > Single frame capture** を使います。
+動画や音声の書き出しには **Export > Device** を使います。再生ヘッド位置の静止画を保存するには **Export > Single frame capture** を使います。
 **Precomp+** のコンポジションを開いている間は両方の書き出しがブロックされるため、先に **Back to Main** で **Main** へ戻ってください。
 
 ## 動画を書き出す (MP4 / WebM / MKV)
@@ -20,6 +20,19 @@ description: H.264 MP4、WebM、MKV、静止画キャプチャ、True datamosh W
 MP4 では **Quality** プリセットは無効化されます。画質調整には **Bitrate** を使ってください。
 H.264 MP4 はアルファチャンネルを持ちません。奇数の出力寸法が MP4 エンコーダーに渡された場合、右端または下端に 1 ピクセルの黒余白が追加されます。
 
+## 音声のみを書き出す
+
+**MP4 Export** は WAV と M4A の形式を **Device** に追加します。
+
+1. **Export** から **Device** を開きます。
+2. **Format** で **.wav (16-bit PCM)** または **.m4a (AAC)** を選びます。
+3. **Start** をクリックします。
+4. **Render complete** が表示されたら **Download your audio** をクリックします。
+
+どちらの形式も 48 kHz ステレオです。WAV は非圧縮の 16 ビット PCM を書き出します。M4A は AAC が必要で、128 kbit/s でエンコードします。ブラウザーで AAC エンコードを開始できない場合は **.wav (16-bit PCM)** を選びます。
+
+音声書き出しでは、MP4 と同じ範囲とミックスを使い、トラックのミュート、音声ソロ、Precomp+ の音声を反映します。書き出し範囲に音声がない場合は、その長さの無音を書き出します。
+
 ## 1 フレームを静止画として書き出す
 
 1. 書き出したいフレームに再生ヘッドを合わせます。
@@ -34,8 +47,8 @@ H.264 MP4 はアルファチャンネルを持ちません。奇数の出力寸�
 
 ## 背景を透明にして書き出す
 
-1. **Export** から **Single frame capture** または **Device** を開きます。
-2. **Format** で **.png**、**.webp**、**.webm (vp8/opus)**、または **.mkv (vp8/opus)** を選びます。
+1. **Export** から、静止画の場合は **Single frame capture**、動画の場合は **Device** を開きます。
+2. **Format** で、静止画の場合は **.png** または **.webp** を選びます。動画の場合は **.webm (vp8/opus)** または **.mkv (vp8/opus)** を選びます。
 3. **Transparent background** が表示されたら、チェックを入れて **Start** をクリックします。
 
 設定画面を開くたびに、チェックボックスは未選択になります。シーンの単色背景や不透明なレイヤーは、その背後のピクセルを覆います。**black fill** は不透明な黒帯を追加します。
@@ -47,6 +60,8 @@ H.264 MP4 はアルファチャンネルを持ちません。奇数の出力寸�
 | **.mp4 (H.264 / AAC or Opus)** | H.264 動画 | AAC 優先、Opus フォールバック | なし |
 | **.mkv (vp8/opus)** | VP8 動画 | Opus | VP8 アルファのエンコードに対応している場合に **Transparent background** で有効 |
 | **.webm (vp8/opus)** | VP8 動画 | Opus | VP8 アルファのエンコードに対応している場合に **Transparent background** で有効 |
+| **.wav (16-bit PCM)** | なし | 16 ビット PCM | なし |
+| **.m4a (AAC)** | なし | AAC | なし |
 | **.png** | PNG 画像 | なし | **Transparent background** で有効 |
 | **.jpg** | JPEG 画像 | なし | なし |
 | **.webp** | WebP 画像 | なし | WebP のエンコードに対応している場合に **Transparent background** で有効 |

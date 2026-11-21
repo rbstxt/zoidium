@@ -595,7 +595,10 @@
     owner.params.customResolution = validateCustomSize(saved.customResolution)
       ? [1920, 1080] : saved.customResolution.slice();
 
-    function showError(error) {
+    let videoSizeRequired = true;
+    let sizeError = "";
+    function updateError() {
+      const error = videoSizeRequired ? sizeError : "";
       message.textContent = error;
       message.style.display = error ? "" : "none";
       for (const input of inputs) input.setAttribute("aria-invalid", String(!!error));
@@ -603,6 +606,10 @@
         start.disabled = !!error;
         start.setAttribute("aria-disabled", String(!!error));
       }
+    }
+    function showError(error) {
+      sizeError = error;
+      updateError();
     }
     function update() {
       const custom = owner.params.resolutionMode === "custom";
@@ -613,7 +620,7 @@
       rememberResolution(owner.params, select.selectedIndex);
     }
     function commit() {
-      if (owner.params.resolutionMode !== "custom") return true;
+      if (!videoSizeRequired || owner.params.resolutionMode !== "custom") return true;
       const size = inputs.map(input => Number(input.value.trim()));
       const error = validateCustomSize(size);
       showError(error);
@@ -640,7 +647,14 @@
       syncExportParams(owner.params);
       update();
     };
-    owner.__zoidiumResolutionControls = { update, showError };
+    owner.__zoidiumResolutionControls = {
+      update, showError,
+      setVideoSizeRequired(required) {
+        if (required === videoSizeRequired) return;
+        videoSizeRequired = required;
+        updateError();
+      },
+    };
     if (Number.isInteger(saved.preset) && saved.preset >= 0 && saved.preset <= customIndex) {
       owner.params.aspectRatio = normalizeAspectRatio(saved.aspectRatio);
       owner.params.aspectRatioMode = normalizeAspectRatioMode(saved.aspectRatioMode) === "contain" ? 1 : 0;

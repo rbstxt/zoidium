@@ -1,8 +1,8 @@
 ---
-title: Exporting video and frames
-description: Export H.264 MP4, WebM, MKV, still images, and True datamosh WebM renders, plus sizing, bitrate, audio, and error recovery.
+title: Exporting video, audio, and frames
+description: Export H.264 MP4, WebM, MKV, WAV, M4A, and still images. Set up transparent exports or True datamosh.
 ---
-Use **Export > Device** to render video and **Export > Single frame capture** to save the playhead frame as a still image.
+Use **Export > Device** to render video or audio. Use **Export > Single frame capture** to save the playhead frame as a still image.
 If a **Precomp+** composition is currently open, click **Back to Main** before opening **Export**. Both export paths are blocked while a source composition is active.
 
 ## Export a video (MP4, WebM, or MKV)
@@ -20,6 +20,19 @@ If a **Precomp+** composition is currently open, click **Back to Main** before o
 For MP4, the **Quality** selector is disabled; use **Bitrate** to control video quality.
 H.264 MP4 has no alpha channel. If an odd output dimension reaches the MP4 encoder, it pads one black pixel on the right or bottom.
 
+## Export audio only
+
+**MP4 Export** adds the WAV and M4A formats to **Device**.
+
+1. Open **Export**, then **Device**.
+2. In **Format**, select **.wav (16-bit PCM)** or **.m4a (AAC)**.
+3. Click **Start**.
+4. When **Render complete** appears, click **Download your audio**.
+
+Both formats use 48 kHz stereo. WAV writes uncompressed 16-bit PCM. M4A requires AAC and encodes at 128 kbit/s. If your browser cannot start AAC encoding, select **.wav (16-bit PCM)**.
+
+Audio export uses the same range and mix as MP4, including track mute, audio solo, and Precomp+ audio. If the export range has no audio, the file contains silence for that duration.
+
 ## Export a single frame as an image
 
 1. Move the playhead to the frame you want to capture.
@@ -34,8 +47,8 @@ These sizing controls affect the captured image only; they do not change project
 
 ## Export with a transparent background
 
-1. Open **Export**, then choose **Single frame capture** or **Device**.
-2. Under **Format**, select **.png**, **.webp**, **.webm (vp8/opus)**, or **.mkv (vp8/opus)**.
+1. Open **Export**, then choose **Single frame capture** for images or **Device** for video.
+2. In **Format**, select **.png** or **.webp** for images. For video, select **.webm (vp8/opus)** or **.mkv (vp8/opus)**.
 3. When **Transparent background** appears, select it and click **Start**.
 
 The checkbox starts unchecked each time you open the options. A solid scene backdrop or an opaque layer still covers the pixels behind it. **black fill** adds opaque black bars.
@@ -47,6 +60,8 @@ The checkbox starts unchecked each time you open the options. A solid scene back
 | **.mp4 (H.264 / AAC or Opus)** | H.264 video | AAC preferred, Opus fallback | No |
 | **.mkv (vp8/opus)** | VP8 video | Opus | With **Transparent background**, when VP8 alpha encoding is available |
 | **.webm (vp8/opus)** | VP8 video | Opus | With **Transparent background**, when VP8 alpha encoding is available |
+| **.wav (16-bit PCM)** | None | 16-bit PCM | No |
+| **.m4a (AAC)** | None | AAC | No |
 | **.png** | PNG image | None | With **Transparent background** |
 | **.jpg** | JPEG image | None | No |
 | **.webp** | WebP image | None | With **Transparent background**, when WebP encoding is available |

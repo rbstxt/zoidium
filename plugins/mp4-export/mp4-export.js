@@ -10,8 +10,8 @@ function install(context) {
   const { MP4_FORMAT, isMp4, frameCount } = load("./export-math.js");
   const { createJob } = load("./render.js");
   const { installAlphaVideo } = load("./alpha-video.js");
-  hasAlphaJob = installAlphaVideo(PZ, () => load("./vendor/mediabunny-1.62.0.cjs"),
-    callback => context.lifecycle.onDispose(callback));
+  const { WAV, isAudio, createAudioJob } = load("./audio-only.js");
+  const { addAudioOptions } = load("./audio-options.js");
   const prototype = PZ.ui.export.device.prototype;
   // The page owns its restoration record. The activation only keeps weak
   // page references so closed dialogs and their devices can be collected.
@@ -42,14 +42,24 @@ function install(context) {
       const record = page && records.get(page);
       if (!record) continue;
       records.delete(page);
-      const { select, change, wrapped, option, owner, restoreQuality } = record;
+      const { select, change, wrapped, option, owner, params, restoreQuality, audioOptions } = record;
       if (select.onchange === wrapped) select.onchange = change;
-      if (isMp4(owner.params)) { owner.params.format = owner.DEVICE_FORMATS[0]; select.selectedIndex = 0; }
+      const currentPage = owner.params === params;
+      if (currentPage && (isMp4(params) || isAudio(params))) {
+        params.format = owner.DEVICE_FORMATS[0];
+        select.selectedIndex = 0;
+      }
       option.remove();
+      audioOptions.dispose();
       restoreQuality();
+      if (currentPage) page.__zoidiumRefreshAlphaOption?.();
     }
     owned.clear();
   });
+  // Lifecycle cleanups run in reverse order. Remove the provider before
+  // refreshing alpha controls on the open Device page.
+  hasAlphaJob = installAlphaVideo(PZ, () => load("./vendor/mediabunny-1.62.0.cjs"),
+    callback => context.lifecycle.onDispose(callback));
   patch("createOptionsPage", (original) => function mp4OptionsPage() {
     const page = original.apply(this, arguments);
     const select = Array.from(page.querySelectorAll("select")).find(
@@ -62,6 +72,7 @@ function install(context) {
     const index = select.options.length;
     select.appendChild(option);
     const owner = this;
+    const audioOptions = addAudioOptions(page, select, owner);
     const change = select.onchange;
     const quality = Array.from(page.querySelectorAll("select")).find(
       (element) => element.options.length === 5 && /^very low/.test(element.options[0].text),
@@ -75,15 +86,23 @@ function install(context) {
       }
     }
     const wrapped = function mp4FormatChange(event) {
-      if (select.selectedIndex === index) {
+      let result;
+      if (audioOptions.select()) {
+        restoreQuality();
+      } else if (select.selectedIndex === index) {
         owner.params.format = MP4_FORMAT;
+        audioOptions.update();
         if (quality) { quality.disabled = true; quality.title = qualityHint; }
       } else {
         restoreQuality();
-        return change?.call(this, event);
+        result = change?.call(this, event);
+        audioOptions.update();
       }
+      // The alpha change listener may have read the previous format.
+      page.__zoidiumRefreshAlphaOption?.();
+      return result;
     };
-    records.set(page, { select, change, wrapped, option, owner, restoreQuality });
+    records.set(page, { select, change, wrapped, option, owner, params: owner.params, restoreQuality, audioOptions });
     const ref = new WeakRef(page);
     owned.add(ref);
     collected.register(page, ref, ref);
@@ -91,18 +110,22 @@ function install(context) {
     return page;
   });
   patch("createProgressPage", (original) => function mp4ProgressPage() {
-    if (!isMp4(this.params)) return original.apply(this, arguments);
+    if (!isMp4(this.params) && !isAudio(this.params)) return original.apply(this, arguments);
     const owner = this;
+    const audioOnly = isAudio(this.params);
+    const extension = audioOnly ? (this.params.format === WAV ? "wav" : "m4a") : "mp4";
+    const format = extension.toUpperCase();
+    const filename = (audioOnly ? "audio." : "video.") + extension;
     const controls = PZ.ui.controls.legacy;
     let cancelled = false, settled = false, job = null, timer = null;
-    const page = this.export.createPage("Rendering MP4...", true, () => {
+    const page = this.export.createPage("Rendering " + format + "...", true, () => {
       if (!settled) { cancelled = true; job?.cancel(); }
       else owner.renderCleanUp();
       clearInterval(timer);
       return true;
     });
     page.appendChild(controls.generateDescription({
-      content: "Your MP4 is being rendered. Audio uses AAC when available, otherwise Opus. Opus in MP4 requires a compatible player.",
+      content: audioOnly ? "Your audio is being rendered." : "Your MP4 is being rendered. Audio uses AAC when available, otherwise Opus. Opus in MP4 requires a compatible player.",
     }));
     this.editor.enabled = false;
     this.editor.playback.enabled = false;
@@ -122,7 +145,7 @@ function install(context) {
           startFrames = null;
         }
         recordExport("recordExportStart", {
-          format: "mp4",
+          format: extension,
           width: owner.params.width,
           height: owner.params.height,
           fps: owner.params.rate,
@@ -130,7 +153,8 @@ function install(context) {
           bitrateScale: owner.params.bitrateScale,
         });
         exporter = new PZ.export(owner.editor.sequence, owner.params);
-        job = createJob(scope, PZ, exporter, () => load("./vendor/mediabunny-1.62.0.cjs"));
+        job = audioOnly ? createAudioJob(scope, exporter, () => load("./vendor/mediabunny-1.62.0.cjs")) :
+          createJob(scope, PZ, exporter, () => load("./vendor/mediabunny-1.62.0.cjs"));
         const progress = page.appendChild(controls.generateProgressbar({
           get() { return exporter.framesRendered / exporter.totalFrames * 100; },
         }, owner));
@@ -147,23 +171,23 @@ function install(context) {
         const blob = await job.run();
         if (cancelled) return;
         PZ.downloadBlob = blob;
-        PZ.downloadFilename = "video.mp4";
+        PZ.downloadFilename = filename;
         settled = true;
         recordExport("recordExportComplete", {
-          format: "mp4",
+          format: extension,
           durationMs: Math.round(performance.now() - started),
           bytes: blob && blob.size,
-          filename: "video.mp4",
+          filename,
         });
         owner.export.navigate(owner.createFinishedPage());
       } catch (error) {
         if (cancelled) return;
         settled = true;
-        recordExport("recordExportError", error, { format: "mp4", stage: "render" });
+        recordExport("recordExportError", error, { format: extension, stage: "render" });
         // Native error pages interpolate HTML. Keep encoder messages as text.
         const failed = owner.export.createPage("Render error", true, () => { owner.renderCleanUp(); return true; });
         const description = controls.generateDescription({ content: "" });
-        description.textContent = "MP4 export failed. " + (error?.message || "Try a smaller size or MKV/WebM.");
+        description.textContent = format + " export failed. " + (error?.message || "Try a smaller size or MKV/WebM.");
         failed.appendChild(description);
         owner.export.navigate(failed);
       } finally {
@@ -183,14 +207,17 @@ function install(context) {
     return page;
   });
   patch("createFinishedPage", (original) => function mp4FinishedPage() {
-    if (!isMp4(this.params)) return original.apply(this, arguments);
+    if (!isMp4(this.params) && !isAudio(this.params)) return original.apply(this, arguments);
+    const audioOnly = isAudio(this.params);
+    const format = audioOnly ? (this.params.format === WAV ? "WAV" : "M4A") : "MP4";
+    const filename = audioOnly ? "audio." + format.toLowerCase() : "video.mp4";
     const page = this.export.createPage("Render complete", true, () => { this.renderCleanUp(); return true; });
     const controls = PZ.ui.controls.legacy;
-    page.appendChild(controls.generateDescription({ content: "Your MP4 is finished. Click below to download." }));
-    const button = controls.generateButton({ title: "Download your video", clickfn() {} }, this);
+    page.appendChild(controls.generateDescription({ content: "Your " + format + " is finished. Click below to download." }));
+    const button = controls.generateButton({ title: audioOnly ? "Download your audio" : "Download your video", clickfn() {} }, this);
     const manager = scope.ZoidiumDownloads;
     if (!manager) throw new Error("The download adapter is unavailable. Reload the editor and try again.");
-    const artifact = manager.capture(PZ.downloadBlob, "video.mp4");
+    const artifact = manager.capture(PZ.downloadBlob, filename);
     manager.bind(button, artifact);
     page.appendChild(button);
     return page;

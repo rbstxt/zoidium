@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "174",
+      "version": "175",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=174",
-      "bundle": "./plugins/core/bundle.json?v=174",
-      "integrity": "sha256-37HmEzVMUrm+HzR/jebmlwdbocLrRpUeHS/RIBAl6v0="
+      "manifest": "./plugins/core/manifest.json?v=175",
+      "bundle": "./plugins/core/bundle.json?v=175",
+      "integrity": "sha256-g3ohW8Wkb4MX/7x+gcy34WyPC9nKaIlLuYmWtx3fCQc="
     },
     {
       "id": "easing-plus",
@@ -119,16 +119,16 @@
       "category": "utilities",
       "name": "Precomp+",
       "author": "DaviFX",
-      "version": "24",
+      "version": "25",
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Pre-compose and nested compositions",
       "color": "#4f9db6",
       "description": "Pre-compose selected video clips into compositions, manage them in a Compositions window, and render them nested in Main.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/precomp-plus/manifest.json?v=24",
-      "bundle": "./plugins/precomp-plus/bundle.json?v=24",
-      "integrity": "sha256-XkORGj0bytSfR14bORvbm5UmufBOnJWg+Coyo7FVUCA="
+      "manifest": "./plugins/precomp-plus/manifest.json?v=25",
+      "bundle": "./plugins/precomp-plus/bundle.json?v=25",
+      "integrity": "sha256-oda0tzfgBsF7vLEn7hVJT+oM3rtOqVv+5ya7UVGR8Ag="
     },
     {
       "id": "gif-support",
@@ -521,14 +521,14 @@
       "id": "mp4-export",
       "name": "MP4 Export",
       "author": "Zoidium",
-      "version": "16",
+      "version": "17",
       "category": "utilities",
       "defaultEnabled": true,
       "tagline": "H.264 MP4 video export",
       "description": "Export MP4 from the native Export panel with AAC or Opus audio. Requires WebCodecs encoder support.",
-      "manifest": "./plugins/mp4-export/manifest.json?v=16",
-      "integrity": "sha256-w+vMVx95MdbYjIuoNuUluMRjTlsnP67tfm7S+Qzy3yw=",
-      "bundle": "./plugins/mp4-export/bundle.json?v=16"
+      "manifest": "./plugins/mp4-export/manifest.json?v=17",
+      "integrity": "sha256-btehKIBCgeS49MMKyLKdyLHr6j4uS2Z/azSpqrf2TCU=",
+      "bundle": "./plugins/mp4-export/bundle.json?v=17"
     },
     {
       "id": "smart-motion-blur-lite",
