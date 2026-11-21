@@ -79,3 +79,70 @@ test("adaptive preview bypasses output caching and restores for pause and Render
     viewport._renderFn(); assert.deepEqual(drawn.at(-1), [400, undefined]);
   } finally { viewport.renderMode = false; PlayerPlus.deactivate(); }
 });
+
+function adaptiveHarness() {
+  const { makeDocument, FakeElement } = require("./fake-dom.js");
+  const state = { now: 0, drawn: [] };
+  const storage = new Map([["zoidium.player-plus.adaptive", "true"]]);
+  const win = { performance: { now: () => state.now }, devicePixelRatio: 1,
+    localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
+    requestAnimationFrame() { return 1; }, cancelAnimationFrame() {} };
+  const playback = { speed: 1, frameRate: 30, onSpeedChanged: { watch() {}, unwatch() {} } };
+  class Viewport {
+    constructor(name) {
+      this.name = name; this.editor = { playback }; this.enabled = true;
+      this.canvas = { width: 100, height: 100, isConnected: true, style: { width: "100px", height: "100px" } };
+      this.renderer = { setDrawingBufferSize: (w, h) => { this.canvas.width = w; this.canvas.height = h; } };
+      this.compositor = { setSize() {} }; this._renderFn = () => this._render();
+    }
+    _render() { state.drawn.push([this.name, this.canvas.width]); }
+    resize() {}
+  }
+  const document = makeDocument(), toolbar = new FakeElement("div");
+  toolbar.querySelector = selector => selector === 'button[title="play (space)"]' ? true :
+    toolbar.children.find(child => selector.startsWith(".") && child.classList.contains(selector.slice(1))) || null;
+  document.getElementById = () => null;
+  return { ...state, state, win, playback, Viewport, document, toolbar, FakeElement };
+}
+
+test("adaptive timing moves to another viewport when the timed one is detached", async () => {
+  const PlayerPlus = require("../plugins/player-plus/player-plus.js");
+  const h = adaptiveHarness(), first = new h.Viewport("first"), second = new h.Viewport("second");
+  h.document.querySelectorAll = selector => selector === "canvas" ?
+    [first, second].map(viewport => ({ parentElement: { pz_panel: viewport } })) : [h.toolbar];
+  await PlayerPlus.activate({ editor: { playback: h.playback }, window: h.win, document: h.document,
+    PZ: { ui: { viewport: h.Viewport, generateIcon: () => new h.FakeElement("svg"), switchIcon() {} } } });
+  try {
+    h.state.now += 60; first._renderFn();
+    first.canvas.isConnected = false;
+    for (let i = 0; i < 33; i++) { h.state.now += 60; second._renderFn(); }
+    assert.equal(second.canvas.width, 50);
+  } finally { PlayerPlus.deactivate(); }
+});
+
+test("an existing Player+ toolbar without adaptive controls gets them before the speed menu", async () => {
+  const PlayerPlus = require("../plugins/player-plus/player-plus.js");
+  const h = adaptiveHarness(), viewport = new h.Viewport("only");
+  h.document.querySelectorAll = selector => selector === "canvas" ? [{ parentElement: { pz_panel: viewport } }] : [h.toolbar];
+  const ctx = { editor: { playback: h.playback }, window: h.win, document: h.document,
+    PZ: { ui: { viewport: h.Viewport, generateIcon: () => new h.FakeElement("svg"), switchIcon() {} } } };
+  await PlayerPlus.activate(ctx);
+  PlayerPlus.deactivate();
+  // Simulate a toolbar left by a version without adaptive controls.
+  h.toolbar.children.length = 0;
+  for (const name of ["pause", "render-once", "quality", "speed"]) {
+    const node = new h.FakeElement(name === "quality" || name === "speed" ? "select" : "button");
+    node.classList.add("zoidium-player-plus-" + name);
+    if (name === "pause") node.appendChild(new h.FakeElement("svg"));
+    if (name === "speed") node.value = "1";
+    h.toolbar.appendChild(node);
+  }
+  h.toolbar.dataset.zoidiumPlayerPlus = "true";
+  await PlayerPlus.activate(ctx);
+  try {
+    const names = h.toolbar.children.map(child => child.classList.value.split(" ").find(c => c.startsWith("zoidium-player-plus-")));
+    assert.deepEqual(names, ["zoidium-player-plus-pause", "zoidium-player-plus-render-once", "zoidium-player-plus-quality",
+      "zoidium-player-plus-adaptive", "zoidium-player-plus-limit", "zoidium-player-plus-speed"]);
+  } finally { PlayerPlus.deactivate(); }
+  assert.equal(h.toolbar.children.some(child => child.classList.contains("zoidium-player-plus-adaptive")), false);
+});

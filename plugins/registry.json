@@ -94,9 +94,9 @@
       "tagline": "Playback Quality Controls",
       "color": "#4f7dbf",
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
-      "manifest": "./plugins/player-plus/manifest.json?v=18",
-      "bundle": "./plugins/player-plus/bundle.json?v=18",
-      "integrity": "sha256-m3UmKU2Uyv0D6LbwXWRat/KFMsBz+jbaNdZBaimFg2A="
+      "manifest": "./plugins/player-plus/manifest.json?v=19",
+      "bundle": "./plugins/player-plus/bundle.json?v=19",
+      "integrity": "sha256-/4irXaeGySXPSAyQapUO8W9h85aoViy+hbs3YW3shcI="
     },
     {
       "id": "asset-manager",

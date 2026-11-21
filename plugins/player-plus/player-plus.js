@@ -334,6 +334,7 @@ const PlayerPlus = (() => {
 
   function resetAdaptive() {
     if (!state.adaptive) return;
+    state.timingViewport = null;
     setEffectiveQuality(state.adaptive.reset(state.quality));
     for (const viewport of getViewports()) updateCacheBypass(viewport);
     updateAdaptiveLabel();
@@ -341,7 +342,8 @@ const PlayerPlus = (() => {
 
   function sampleAdaptive(viewport) {
     if (!state.adaptive || viewport.renderMode || state.paused) return;
-    if (!state.timingViewport) state.timingViewport = viewport;
+    // A viewport removed by a layout change stops drawing; let the next one take over timing.
+    if (!state.timingViewport || state.timingViewport.canvas?.isConnected === false) state.timingViewport = viewport;
     if (state.timingViewport !== viewport) return;
     const playback = viewport.editor?.playback || state.editor?.playback;
     const now = state.window.performance?.now?.() ?? Date.now();
@@ -356,7 +358,7 @@ const PlayerPlus = (() => {
     try { return state.window.localStorage; } catch (_error) { return null; }
   }
 
-  function createAdaptiveControls(toolbar) {
+  function createAdaptiveControls(toolbar, before = null) {
     const button = state.document.createElement("button");
     button.type = "button";
     button.className = "zoidium-player-plus-adaptive";
@@ -384,7 +386,7 @@ const PlayerPlus = (() => {
       state.adaptiveModule.writeSetting(adaptiveStorage(), "limit", limit.value);
       resetAdaptive();
     });
-    toolbar.appendChild(button); toolbar.appendChild(limit);
+    toolbar.insertBefore(button, before); toolbar.insertBefore(limit, before);
     state.adaptiveButton = button; state.adaptiveLimit = limit;
   }
 
@@ -672,6 +674,18 @@ const PlayerPlus = (() => {
         state.renderOnceButton = renderOnceButton;
         state.qualitySelect = qualitySelect;
         state.speedSelect = speedSelect;
+        const adaptiveButton = toolbar.querySelector(".zoidium-player-plus-adaptive");
+        const adaptiveLimit = toolbar.querySelector(".zoidium-player-plus-limit");
+        // A toolbar built before adaptive quality existed gets the controls added in place.
+        if (adaptiveButton && adaptiveLimit) {
+          state.adaptiveButton = adaptiveButton;
+          state.adaptiveLimit = adaptiveLimit;
+          adaptiveButton.setAttribute("aria-pressed", String(state.adaptiveSettings.enabled));
+          adaptiveLimit.value = state.adaptiveSettings.limit;
+        } else {
+          adaptiveButton?.remove(); adaptiveLimit?.remove();
+          createAdaptiveControls(toolbar, speedSelect);
+        }
         updateSpeedSelect();
         updatePauseButton();
         watchToolbarLayout(toolbar);
