@@ -13,6 +13,7 @@ Use **Player+** and the **Preview cache** to keep the viewport responsive on com
 | **Pause drawing** | Suspends automatic viewport redraws while you edit. Does not stop the playhead or audio. |
 | **Render once** | Draws the current frame on demand, including edits made while drawing is paused. |
 | **Resume drawing** | Restores automatic viewport updates. Drawing starts enabled. |
+| **Show transparency grid** | Shows a checkerboard behind transparent parts of the preview instead of black. Off by default. Saved locally. |
 | **Preview quality** | Scales both viewport pixel dimensions to **Full quality** (default), **1/2 quality**, **1/4 quality**, or **1/8 quality**. Saved locally. |
 | **Adaptive** | While playing, lowers **Preview quality** one step at a time when frames take too long, and raises it again when there is headroom. Pausing returns to the quality you chose. Off by default. Saved locally. |
 | **Lowest** | The lowest quality **Adaptive** may use: **Auto** (1/8), **1/2**, **1/4**, or **1/8**. Saved locally. |
@@ -20,6 +21,12 @@ Use **Player+** and the **Preview cache** to keep the viewport responsive on com
 
 Native audio playback follows the selected positive speed.
 **Playback speed**, **Preview quality**, and **Adaptive** affect editor playback only. While **Adaptive** has lowered the quality, the quality menu shows it (for example **Adaptive · 1/4**) and the frame cache does not store those frames. Saved projects, project resolution, and export settings stay separate.
+
+## Check transparency
+
+Click **Show transparency grid** to see which parts of the frame are transparent. The grid appears only in the live preview: **Render once**, the eyedropper, the preview cache, and exports keep the usual black backdrop. While the grid is on, blend modes and adjustment layers see transparent black below the lowest layer instead of opaque black, so a mode that depends on the backdrop can look different from the export.
+
+A Scene layer is transparent where nothing is drawn. To fill it, open the Scene's properties and set **Scene Backdrop** to **Solid Color**, then choose **Backdrop Color** and **Backdrop Opacity**. The backdrop is saved with the project and is drawn behind the Scene's objects, before the Scene is composited with its blend mode. **Transparent** (the default) keeps the previous output.
 
 ## Work smoothly on a heavy project
 

@@ -86,3 +86,23 @@ test("the worker stops once the preview catches the playhead", async () => {
   await new Promise(setImmediate);
   assert.equal(h.root.frames.length, frames + 1, "a caught-up tick redraws the prepared frame");
 });
+
+test("prepared previews use the grid only while the viewport requests it", async () => {
+  const h = host(false);
+  const gridFrames = [];
+  h.viewport._render();
+  h.viewport.__zoidiumLivePreviewGrid = (viewport, draw) => {
+    assert.equal(viewport, h.viewport);
+    const result = draw();
+    gridFrames.push(h.root.frames.at(-1));
+    return result;
+  };
+  await drainFrames(h, 30);
+  assert.deepEqual(gridFrames, [30], "the pending worker draws with the current grid preference");
+
+  h.viewport.editor.playback.currentFrame = 31;
+  h.viewport._render();
+  delete h.viewport.__zoidiumLivePreviewGrid;
+  await drainFrames(h, 31);
+  assert.deepEqual(gridFrames, [30], "a clean draw supersedes the grid for any pending preview");
+});

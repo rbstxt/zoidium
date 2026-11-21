@@ -344,7 +344,7 @@ function activateCameraPlus(context, teardown) {
         pass.scene.overrideMaterial = pass.overrideMaterial;
         pass.envMap.render(renderer);
         pass.motionBlur.render(renderer);
-        dof.render(renderer, output, pass.scene, pass.camera, output.viewport, clear);
+        dof.render(renderer, output, pass.scene, pass.camera, output.viewport, clear, PZ.zoidium?.sceneBackdrop?.drawColor);
       } finally {
         pass.scene.overrideMaterial = previous;
       }

@@ -34,6 +34,27 @@ test("a miss draws live exactly once; a complete draw is stored and then replaye
   h.api.dispose();
 });
 
+test("a transparency grid draw bypasses cache hits and both capture paths", async () => {
+  const h = harness();
+  await h.warm();
+  h.viewport.__zoidiumLivePreviewGrid = () => {};
+  const live = h.counts.live;
+  const entries = h.api.debug.entries;
+  const stores = h.api.debug.stores;
+  const hits = h.api.debug.hits;
+  h.viewport._render();
+  assert.equal(h.counts.live, live + 1);
+  assert.equal(h.api.debug.hits, hits);
+  h.api.capturePreview(h.viewport, 1);
+  await flush();
+  assert.equal(h.api.debug.entries, entries);
+  assert.equal(h.api.debug.stores, stores);
+  delete h.viewport.__zoidiumLivePreviewGrid;
+  h.viewport._render();
+  assert.equal(h.api.debug.hits, hits + 1);
+  h.api.dispose();
+});
+
 test("hits outside the post-signal window never serialize the project", async () => {
   const h = harness();
   await h.warm(); h.cool(); h.viewport._render();
@@ -696,6 +717,7 @@ for (const [name, change] of [
   ["revision change without a signal", h => { h.project.sequence.value = 2; }],
   ["seek", h => { h.viewport.editor.playback.currentFrame = 1; }],
   ["playback start", h => { h.viewport.editor.playback.speed = 1; }],
+  ["the transparency grid turns on", h => { h.viewport.__zoidiumLivePreviewGrid = () => {}; }],
   ["context loss", h => h.canvasEvents.get("webglcontextlost")()],
   ["source change", h => { h.project.assets.list.a = { url: "blob:changed" }; }],
   ["cache clear", h => h.api.clear()],

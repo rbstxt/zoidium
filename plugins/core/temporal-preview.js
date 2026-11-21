@@ -109,8 +109,14 @@
     let restoreInput = () => {};
     try {
       sequence.update(frame);
-      restoreInput = reusePreparedAdjustmentInput(viewport, runtime, frame);
-      viewport.compositor.renderSequence(frame);
+      const drawGrid = viewport.__zoidiumLivePreviewGrid;
+      if (drawGrid) {
+        // Prepared adjustment inputs include the native opaque backdrop.
+        drawGrid(viewport, () => viewport.compositor.renderSequence(frame));
+      } else {
+        restoreInput = reusePreparedAdjustmentInput(viewport, runtime, frame);
+        viewport.compositor.renderSequence(frame);
+      }
       viewport.lastFrame = frame;
     } finally {
       restoreInput();

@@ -339,11 +339,13 @@ parts.dof = (function () {
     // renderer: WebGL renderer; target: the pass output target; scene/camera:
     // the RenderPass inputs; viewport: target viewport; forceClear: as in
     // THREE.RenderPass.
-    SceneDof.prototype.render = function (renderer, target, scene, camera, viewport, forceClear) {
+    SceneDof.prototype.render = function (renderer, target, scene, camera, viewport, forceClear, drawBackdrop) {
       this.setSize(target.width, target.height);
       this.colorTarget.viewport.copy(viewport);
       this.depthTarget.viewport.copy(viewport);
-      renderer.render(scene, camera, this.colorTarget, forceClear);
+      const drawColor = () => renderer.render(scene, camera, this.colorTarget, forceClear);
+      if (drawBackdrop) drawBackdrop(scene, renderer, drawColor);
+      else drawColor();
       this.renderDepth(renderer, this.depthTarget, scene, camera, forceClear);
       this.composite(renderer, this.colorTarget.texture, this.depthTarget.texture, viewport.z, viewport.w,
         viewport.z / target.width, viewport.w / target.height, target, forceClear);

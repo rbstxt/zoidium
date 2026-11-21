@@ -95,7 +95,7 @@ function adaptiveHarness() {
       this.renderer = { setDrawingBufferSize: (w, h) => { this.canvas.width = w; this.canvas.height = h; } };
       this.compositor = { setSize() {} }; this._renderFn = () => this._render();
     }
-    _render() { state.drawn.push([this.name, this.canvas.width]); }
+    _render() { state.drawn.push([this.canvas.width, Boolean(this.__zoidiumLivePreviewGrid)]); }
     resize() {}
   }
   const document = makeDocument(), toolbar = new FakeElement("div");
@@ -145,4 +145,21 @@ test("an existing Player+ toolbar without adaptive controls gets them before the
       "zoidium-player-plus-adaptive", "zoidium-player-plus-limit", "zoidium-player-plus-speed"]);
   } finally { PlayerPlus.deactivate(); }
   assert.equal(h.toolbar.children.some(child => child.classList.contains("zoidium-player-plus-adaptive")), false);
+});
+
+test("the transparency grid stays on while adaptive quality is reduced, but not for the eyedropper", async () => {
+  const PlayerPlus = require("../plugins/player-plus/player-plus.js");
+  const h = adaptiveHarness(), viewport = new h.Viewport("main"), grids = h.state.drawn;
+  h.win.localStorage.setItem("zoidium.player-plus.transparency-grid", "true");
+  h.document.querySelectorAll = selector => selector === "canvas" ? [{ parentElement: { pz_panel: viewport } }] : [h.toolbar];
+  await PlayerPlus.activate({ editor: { playback: h.playback, mainViewport: viewport }, window: h.win, document: h.document,
+    PZ: { ui: { viewport: h.Viewport, generateIcon: () => new h.FakeElement("svg"), switchIcon() {} } } });
+  try {
+    for (let i = 0; i < 33; i++) { h.state.now += 60; viewport._renderFn(); }
+    assert.deepEqual(grids.at(-1), [50, true]);
+    assert.equal(viewport.__zoidiumImmediateOutput, true);
+    viewport.__zoidiumPickingColor = true;
+    h.state.now += 60; viewport._renderFn();
+    assert.deepEqual(grids.at(-1), [50, false]);
+  } finally { delete viewport.__zoidiumPickingColor; PlayerPlus.deactivate(); }
 });

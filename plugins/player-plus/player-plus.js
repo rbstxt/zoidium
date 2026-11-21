@@ -35,6 +35,9 @@ const PlayerPlus = (() => {
     layoutObservers: [],
     layoutFrame: 0,
     style: null,
+    grid: null,
+    gridDraw: null,
+    gridRefresh: null,
     quality: 1,
     paused: false,
     viewports: new Set(),
@@ -88,7 +91,7 @@ const PlayerPlus = (() => {
     }
   }
 
-  function installStyle() {
+  function installStyle(gridStyle, gridButtonClass) {
     const existing = state.document.getElementById(STYLE_ID);
     if (existing) {
       state.style = existing;
@@ -122,7 +125,8 @@ const PlayerPlus = (() => {
       }
 
       .zoidium-player-plus-pause,
-      .zoidium-player-plus-render-once {
+      .zoidium-player-plus-render-once,
+      .${gridButtonClass} {
         background: transparent !important;
         border: 2px solid transparent !important;
         box-sizing: border-box;
@@ -145,7 +149,8 @@ const PlayerPlus = (() => {
       }
 
       .zoidium-player-plus-pause:focus,
-      .zoidium-player-plus-render-once:focus {
+      .zoidium-player-plus-render-once:focus,
+      .${gridButtonClass}:focus {
         border-color: var(--zui-accent) !important;
         outline: 0;
       }
@@ -222,6 +227,7 @@ const PlayerPlus = (() => {
         background-color: var(--zui-bg-input);
         color: var(--zui-text);
       }
+      ${gridStyle}
     `;
     state.document.head.appendChild(style);
     state.style = style;
@@ -295,6 +301,15 @@ const PlayerPlus = (() => {
         viewport.camera.updateProjectionMatrix();
       }
     }
+  }
+
+  // Adaptive quality sets __zoidiumImmediateOutput only to keep reduced frames out of the
+  // frame cache; the transparency grid still draws then. Any other immediate draw (the
+  // eyedropper, private renders) needs the default composite.
+  function legacyOutputRequested(viewport) {
+    if (!viewport.__zoidiumImmediateOutput) return false;
+    const bypass = viewport.__zoidiumPlayerPlusCacheBypass;
+    return !bypass || !!bypass.previous || viewport.__zoidiumPickingColor === true;
   }
 
   function updateCacheBypass(viewport) {
@@ -399,8 +414,9 @@ const PlayerPlus = (() => {
     const originalRenderPipeline = state.originalRenderPipeline = unwrapInactivePatch(prototype._render);
     state.patchedRenderPipeline = function () {
       registerViewport(this);
+      const renderOnce = this.__zoidiumPlayerPlusRenderOnce;
       if (this.__zoidiumPlayerPlusPaused) {
-        if (this.__zoidiumPlayerPlusRenderOnce) {
+        if (renderOnce) {
           this.__zoidiumPlayerPlusRenderOnce = false;
         } else {
           if (this.animFrameReq != null) {
@@ -409,6 +425,11 @@ const PlayerPlus = (() => {
           }
           return;
         }
+      }
+      if (this === state.editor?.mainViewport) {
+        this.__zoidiumLivePreviewGrid = state.grid.enabled && !this.renderMode &&
+          !legacyOutputRequested(this) && !this.__zoidiumCommunityPrepared &&
+          (!renderOnce || state.gridRefresh === this) ? state.gridDraw : null;
       }
       return originalRenderPipeline.apply(this, arguments);
     };
@@ -442,6 +463,7 @@ const PlayerPlus = (() => {
       delete viewport.__zoidiumPlayerPlusOriginalFrame;
       delete viewport.__zoidiumPlayerPlusPaused;
       delete viewport.__zoidiumPlayerPlusRenderOnce;
+      delete viewport.__zoidiumLivePreviewGrid;
     }
     state.viewports.clear();
     state.viewportPrototype = null;
@@ -503,6 +525,13 @@ const PlayerPlus = (() => {
     for (const viewport of getViewports()) renderViewportOnce(viewport);
   }
 
+  function refreshGrid() {
+    const viewport = state.editor?.mainViewport;
+    state.gridRefresh = viewport;
+    try { renderViewportOnce(viewport); }
+    finally { state.gridRefresh = null; }
+  }
+
   function createPauseButton(toolbar) {
     const button = state.document.createElement("button");
     button.className = "zoidium-player-plus-pause";
@@ -548,6 +577,7 @@ const PlayerPlus = (() => {
       resetAdaptive();
       storeQuality(value);
       applyQualityToAllViewports();
+      if (state.paused && state.grid.enabled) refreshGrid();
     });
     toolbar.appendChild(select);
     state.qualitySelect = select;
@@ -698,6 +728,7 @@ const PlayerPlus = (() => {
     state.toolbar = toolbar;
     createPauseButton(toolbar);
     createRenderOnceButton(toolbar);
+    state.grid.installButton(state.document, toolbar, state.renderOnceButton.nextSibling, refreshGrid);
     createQualitySelect(toolbar);
     createAdaptiveControls(toolbar);
     createSpeedSelect(toolbar);
@@ -755,6 +786,10 @@ const PlayerPlus = (() => {
     state.window = context.window || window;
     state.document = context.document || document;
     state.PZ = context.PZ || state.window.PZ;
+    const load = context.apis?.modules?.createRequire(context.getAsset, { root: "./plugins/player-plus" });
+    const gridModule = load ? load("./transparency-grid.js") : require("./transparency-grid.js");
+    state.grid = gridModule.createTransparencyGrid(state.window);
+    state.gridDraw = state.grid.draw;
     state.quality = readStoredQuality();
     const createRequire = context.apis?.modules?.createRequire || globalThis.ZoidiumPluginApis?.modules?.createRequire;
     state.adaptiveModule = createRequire ? createRequire(context.getAsset, { root: "./plugins/player-plus/" })("./adaptive-quality.js") : require("./adaptive-quality.js");
@@ -765,7 +800,7 @@ const PlayerPlus = (() => {
     state.effectiveQuality = state.quality;
     state.speedChanged = () => { updateSpeedSelect(); if (!state.editor?.playback?.speed) resetAdaptive(); };
     state.editor?.playback?.onSpeedChanged?.watch(state.speedChanged);
-    installStyle();
+    installStyle(gridModule.style, gridModule.BUTTON_CLASS);
     installViewportPatches();
     watchForToolbar();
     // The initial project may finish sizing the viewport just after activation.
@@ -788,6 +823,9 @@ const PlayerPlus = (() => {
     applyQualityToAllViewports();
     removeControls();
     restoreViewportPatches();
+    state.grid?.dispose();
+    state.grid = null;
+    state.gridDraw = null;
     state.style?.remove();
     state.style = null;
     state.editor = null;

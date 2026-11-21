@@ -728,6 +728,8 @@
           schedule.__zoidiumTemporalRejoin = false;
           delete schedule.__zoidiumTemporalRejoinStarted;
         }
+        const drawGrid = this.__zoidiumLivePreviewGrid;
+        if (drawGrid) return drawGrid(this, () => state.originalViewportRender.apply(this, arguments));
         return state.originalViewportRender.apply(this, arguments);
       }
 

@@ -3,19 +3,24 @@
   "id": "player-plus",
   "name": "Player+",
   "author": "Zoidium",
-  "version": "19",
+  "version": "20",
   "kind": "extension",
   "modules": [
     {
       "id": "player-controls",
-      "source": "./plugins/player-plus/player-plus.js?v=19"
+      "source": "./plugins/player-plus/player-plus.js?v=20"
     }
   ],
   "resources": [
     {
       "id": "adaptive-quality",
       "type": "text",
-      "source": "./plugins/player-plus/adaptive-quality.js?v=19"
+      "source": "./plugins/player-plus/adaptive-quality.js?v=20"
+    },
+    {
+      "id": "transparency-grid",
+      "type": "text",
+      "source": "./plugins/player-plus/transparency-grid.js?v=20"
     }
   ]
 }

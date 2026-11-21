@@ -10,6 +10,10 @@ each line describes one visible change.
 
 ### Added
 
+- Player+ has a **Show transparency grid** switch that shows a checkerboard
+  behind transparent parts of the preview. Exports are unaffected.
+- Scene layers have a **Scene Backdrop** setting: **Transparent** (the default)
+  or **Solid Color** with **Backdrop Color** and **Backdrop Opacity**.
 - Player+ has an **Adaptive** preview quality switch. While playing, it lowers
   the preview quality step by step when frames take too long, never below the
   **Lowest** setting, and returns to your chosen quality when you pause.

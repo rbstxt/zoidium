@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "170",
+      "version": "171",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=170",
-      "bundle": "./plugins/core/bundle.json?v=170",
-      "integrity": "sha256-4wuh3xV7VNAApTowJxsUWlYdaeTw67Px5euvpQa2Bb4="
+      "manifest": "./plugins/core/manifest.json?v=171",
+      "bundle": "./plugins/core/bundle.json?v=171",
+      "integrity": "sha256-AwH8S+vNuPsudtCmaUq1BX04tyVYHHnoApOZ6s4dcdk="
     },
     {
       "id": "easing-plus",
@@ -87,16 +87,16 @@
       "category": "utilities",
       "name": "Player+",
       "author": "Zoidium",
-      "version": "19",
+      "version": "20",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "playback controls",
       "tagline": "Playback Quality Controls",
       "color": "#4f7dbf",
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
-      "manifest": "./plugins/player-plus/manifest.json?v=19",
-      "bundle": "./plugins/player-plus/bundle.json?v=19",
-      "integrity": "sha256-/4irXaeGySXPSAyQapUO8W9h85aoViy+hbs3YW3shcI="
+      "manifest": "./plugins/player-plus/manifest.json?v=20",
+      "bundle": "./plugins/player-plus/bundle.json?v=20",
+      "integrity": "sha256-eUTLQUCJGzP3kbhL5I+qR1xwVF7kbwVksvgJPYJYLMk="
     },
     {
       "id": "asset-manager",
@@ -344,16 +344,16 @@
       "category": "scene",
       "name": "Camera+",
       "author": "DaviFX",
-      "version": "27",
+      "version": "28",
       "itemCount": 1,
       "format": "camera rig",
       "tagline": "Camera layers, 3D tracks and DOF",
       "color": "#3d7bc5",
       "description": "Adds a separate Camera+ object with depth of field, seeded vibrate and focus tools, Camera layers, and a 3D switch on video tracks that lets scenes and flat layers follow the shared camera. The default CM3 camera is left unchanged.",
       "zoidiumOnly": true,
-      "manifest": "./plugins/camera-plus/manifest.json?v=27",
-      "bundle": "./plugins/camera-plus/bundle.json?v=27",
-      "integrity": "sha256-0+8PLPK9QkGQKOk5KQG/TLBceMyeCxDsBP9y4CEAgvM="
+      "manifest": "./plugins/camera-plus/manifest.json?v=28",
+      "bundle": "./plugins/camera-plus/bundle.json?v=28",
+      "integrity": "sha256-3R2aaQOUBrgPM3aRnC2eiIJmRxPf99TThkLEkIn0820="
     },
     {
       "id": "native-fx",
