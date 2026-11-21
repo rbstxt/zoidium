@@ -69,7 +69,7 @@ test("adaptive preview bypasses output caching and restores for pause and Render
     for (let i = 0; i < 33; i++) { now += 60; viewport._renderFn(); }
     assert.deepEqual(drawn.at(-1), [50, true]);
     assert.equal(viewport.__zoidiumImmediateOutput, true);
-    assert.match(toolbar.children.find(child => child.classList.contains("zoidium-player-plus-quality")).children[0].textContent, /Adaptive/);
+    assert.match(toolbar.children.find(child => child.classList.contains("zoidium-player-plus-quality")).textContent, /Auto · 1\/2/);
     toolbar.children.find(child => child.classList.contains("zoidium-player-plus-render-once")).dispatch("click");
     assert.deepEqual(drawn.at(-1), [100, undefined]);
     for (let i = 0; i < 33; i++) { now += 60; viewport._renderFn(); }
@@ -120,7 +120,7 @@ test("adaptive timing moves to another viewport when the timed one is detached",
   } finally { PlayerPlus.deactivate(); }
 });
 
-test("an existing Player+ toolbar without adaptive controls gets them before the speed menu", async () => {
+test("an existing Player+ toolbar is replaced with the combined controls", async () => {
   const PlayerPlus = require("../plugins/player-plus/player-plus.js");
   const h = adaptiveHarness(), viewport = new h.Viewport("only");
   h.document.querySelectorAll = selector => selector === "canvas" ? [{ parentElement: { pz_panel: viewport } }] : [h.toolbar];
@@ -141,8 +141,8 @@ test("an existing Player+ toolbar without adaptive controls gets them before the
   await PlayerPlus.activate(ctx);
   try {
     const names = h.toolbar.children.map(child => child.classList.value.split(" ").find(c => c.startsWith("zoidium-player-plus-")));
-    assert.deepEqual(names, ["zoidium-player-plus-pause", "zoidium-player-plus-render-once", "zoidium-player-plus-quality",
-      "zoidium-player-plus-adaptive", "zoidium-player-plus-limit", "zoidium-player-plus-speed"]);
+    for (const name of ["pause", "render-once", "quality", "speed", "overflow"]) assert.ok(names.includes("zoidium-player-plus-" + name));
+    assert.equal(names.includes("zoidium-player-plus-adaptive"), false);
   } finally { PlayerPlus.deactivate(); }
   assert.equal(h.toolbar.children.some(child => child.classList.contains("zoidium-player-plus-adaptive")), false);
 });
