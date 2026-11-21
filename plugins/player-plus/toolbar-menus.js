@@ -76,7 +76,6 @@ function createQualityMenu(document, options) {
   fpsMeter.setAttribute("aria-label", "Show FPS meter");
   fpsLabel.appendChild(fpsMeter);
   const fpsText = document.createElement("span"); fpsText.textContent = "FPS meter"; fpsLabel.appendChild(fpsText);
-  popup.menu.appendChild(fpsLabel);
   fpsMeter.addEventListener("change", () => { options.setFpsMeter(fpsMeter.checked); update(); });
   const limitLabel = document.createElement("label");
   const limitText = document.createElement("span"); limitText.textContent = "Lowest"; limitLabel.appendChild(limitText);
@@ -86,6 +85,7 @@ function createQualityMenu(document, options) {
     const item = document.createElement("option"); item.value = value; item.textContent = label; limit.appendChild(item);
   }
   limitLabel.appendChild(limit); popup.menu.appendChild(limitLabel);
+  popup.menu.appendChild(fpsLabel);
   adaptive.addEventListener("change", () => { options.setAdaptive(adaptive.checked); update(); });
   limit.addEventListener("change", () => { options.setLimit(limit.value); update(); });
   function update() {
