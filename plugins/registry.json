@@ -31,8 +31,8 @@
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
-      "manifest": "./plugins/core/manifest.json?v=174",
-      "bundle": "./plugins/core/bundle.json?v=174",
+      "manifest": "./plugins/core/manifest.json?v=175",
+      "bundle": "./plugins/core/bundle.json?v=175",
       "integrity": "sha256-KM9JU3bvY+85ELroy0etU+zITFQYHImS6IkUnWS4TA4="
     },
     {
@@ -61,8 +61,8 @@
       "format": "expressions",
       "tagline": "Modern expressions and property links",
       "description": "Modern deterministic expressions, property links and Sequence Controls in native CM3 panels.",
-      "manifest": "./plugins/expressions-plus/manifest.json?v=26",
-      "bundle": "./plugins/expressions-plus/bundle.json?v=26",
+      "manifest": "./plugins/expressions-plus/manifest.json?v=27",
+      "bundle": "./plugins/expressions-plus/bundle.json?v=27",
       "integrity": "sha256-CHLk1L5wwTc8LiOT1MRW9nwWEpSpyGsSUB2JRF6pO8c=",
       "zoidiumOnly": true,
       "warning": "Extended expressions and controls require Zoidium with Expressions+."
@@ -78,9 +78,9 @@
       "format": "shader controls",
       "tagline": "Custom shader property editors",
       "description": "Native custom shader controls with optional baked texture inputs.",
-      "manifest": "./plugins/shader-plus/manifest.json?v=35",
-      "bundle": "./plugins/shader-plus/bundle.json?v=35",
-      "integrity": "sha256-g9JOJauep30FGvYHZxGG3mu7nOJORmmcHpWOGjLXF28="
+      "manifest": "./plugins/shader-plus/manifest.json?v=36",
+      "bundle": "./plugins/shader-plus/bundle.json?v=36",
+      "integrity": "sha256-+G4cJkyRPcJblfJFYPs7sgq4JRZRcZdwXX7uAFlOpog="
     },
     {
       "id": "player-plus",
@@ -483,9 +483,9 @@
       "description": "Animated vector layers, procedural contents, pen masks for Scene and Adjustment layers, SVG import and native preview path editing.",
       "category": "scene",
       "defaultEnabled": true,
-      "manifest": "./plugins/shape-plus/manifest.json?v=47",
-      "bundle": "./plugins/shape-plus/bundle.json?v=47",
-      "integrity": "sha256-8/AeuZMVImJdvUI2SSKZPuzzeINMsrDmoeN9339/4Fg="
+      "manifest": "./plugins/shape-plus/manifest.json?v=48",
+      "bundle": "./plugins/shape-plus/bundle.json?v=48",
+      "integrity": "sha256-JXzHkZCfGj1jMRNj74ObEFdD6WGNHbe1KgLNNQR+mRE="
     },
     {
       "id": "constraints",

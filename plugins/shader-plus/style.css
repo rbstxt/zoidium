@@ -1,6 +1,5 @@
 /* Shader+ rows reuse CM3's native controls; these rules only size and
    color the pieces CM3 has no equivalent for, with the theme tokens. */
-.zsp-property,.zsp-property > div { min-width: 0; }
 .zsp-property[hidden] { display: none !important; }
 
 /* CM3 icon buttons (Seed, Palette). */

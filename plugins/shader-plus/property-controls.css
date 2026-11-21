@@ -71,3 +71,5 @@
 .zsp-settings-button { font: inherit; font-size: var(--zui-font-size-small); color: var(--zui-button-text); background: var(--zui-button-bg); border: 1px solid transparent; padding: 3px 14px; cursor: pointer; }
 .zsp-settings-button:hover { border-color: var(--zui-button-hover-border); }
 .zsp-settings-primary { background: var(--zui-accent); color: var(--zui-text-bright); }
+/* Shared rows (Shader+ and Shape+ group properties) may shrink inside narrow panels. */
+.zsp-property,.zsp-property > div { min-width: 0; }
