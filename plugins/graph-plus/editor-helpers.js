@@ -101,6 +101,7 @@ function displayName(prop) {
     if (prop.properties && prop.properties.name) return prop.properties.name.get();
   } catch (e) {}
   try {
+    if (prop.definition && prop.definition.zoidiumPathLabel) return prop.definition.zoidiumPathLabel;
     if (prop.definition && prop.definition.name) return prop.definition.name;
   } catch (e) {}
   return "Property";

@@ -56,3 +56,11 @@ test("panel and timeline labels leave native clipboard names unchanged", () => {
   assert.equal(property.definition.name, "sp-a In X");
   restore();
 });
+
+test("graph editor uses the display label without changing the clipboard key", () => {
+  const { displayName } = require("../plugins/graph-plus/editor-helpers")({});
+  const property = { definition: { name: "sp-a X", zoidiumPathLabel: "Point 1 - X" } };
+  assert.equal(displayName(property), "Point 1 - X");
+  assert.equal(property.definition.name, "sp-a X");
+  assert.equal(displayName({ definition: { name: "Opacity" } }), "Opacity");
+});
