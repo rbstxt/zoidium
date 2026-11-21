@@ -72,15 +72,15 @@
       "category": "utilities",
       "name": "Shader+",
       "author": "Zoidium",
-      "version": "36",
+      "version": "37",
       "defaultEnabled": true,
       "itemCount": 12,
       "format": "shader controls",
       "tagline": "Custom shader property editors",
       "description": "Native custom shader controls with optional baked texture inputs.",
-      "manifest": "./plugins/shader-plus/manifest.json?v=36",
-      "bundle": "./plugins/shader-plus/bundle.json?v=36",
-      "integrity": "sha256-+G4cJkyRPcJblfJFYPs7sgq4JRZRcZdwXX7uAFlOpog="
+      "manifest": "./plugins/shader-plus/manifest.json?v=37",
+      "bundle": "./plugins/shader-plus/bundle.json?v=37",
+      "integrity": "sha256-pgTKFTmGxT1EAgnNnXgTW+0JGV7YLzsU11Wo999m1MQ="
     },
     {
       "id": "player-plus",
@@ -462,7 +462,7 @@
       "category": "experimental",
       "name": "Layer Input",
       "author": "Zoidium",
-      "version": "20",
+      "version": "21",
       "itemCount": 4,
       "format": "layer sources",
       "tagline": "Layer-to-Layer Inputs",
@@ -470,9 +470,9 @@
       "description": "Lets effects, 3D materials, and Custom Shaders use another video track as an information source.",
       "zoidiumOnly": true,
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
-      "manifest": "./plugins/layer-input/manifest.json?v=20",
-      "bundle": "./plugins/layer-input/bundle.json?v=20",
-      "integrity": "sha256-mhlPk5gzCIzWKLAJZZNAqAByV8+UXLsMHYQtfsT8qvc="
+      "manifest": "./plugins/layer-input/manifest.json?v=21",
+      "bundle": "./plugins/layer-input/bundle.json?v=21",
+      "integrity": "sha256-gbjQsak+1cAeuQVnuUbDSoQRf4OHuiuHDdZy0kNEICg="
     },
     {
       "id": "shape-plus",

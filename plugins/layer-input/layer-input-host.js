@@ -185,12 +185,6 @@ module.exports = function createHost(state, deps) {
       if (installation.active) registerShaderInstance(this);
       return result;
     };
-    state.patchedShaderUpdateFragmentShader = function () {
-      const result = originalShaderUpdateFragmentShader.apply(this, arguments);
-      clearShaderInputDefines(this);
-      patchShaderInputUniforms(this);
-      return result;
-    };
     state.patchedShaderUpdate = function (frame) {
       const result = originalShaderUpdate.apply(this, arguments);
       updateShaderInputUniforms(this, frame);
