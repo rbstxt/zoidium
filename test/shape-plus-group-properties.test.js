@@ -33,11 +33,12 @@ function setup(data = fixture()) {
     }
   }
   class PropertyList extends host.propertyList {
+    constructor(definitions, parent) { super({}, parent); this.addAll(definitions); }
     add(name, property) { this.addAll({ [name]: property }); }
     addAll(properties) {
       for (const [name, property] of Object.entries(properties)) {
         this[name] = property instanceof PropertyList || property instanceof Property ? property : new Property(property);
-        this[name].parent = this;
+        if (!this[name].parent) this[name].parent = this;
       }
     }
     remove(name) { delete this[name]; }

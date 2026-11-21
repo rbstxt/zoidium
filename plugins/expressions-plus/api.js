@@ -22,7 +22,7 @@ function propertyOf(node, name) {
     const p = props[key];
     if (p && typeof p.get === "function" && (key === name || p.definition?.name === name || named(p) === name)) return p;
   }
-  return find(node?.customProperties, name);
+  return find(node?.customProperties || node?.groupProperties, name);
 }
 
 // Per-evaluation legacy context without per-frame allocation. The overrides for
@@ -155,6 +155,7 @@ function createAPI(options) {
       property: name => propertyHandle(propertyOf(node, String(name))),
       effect: name => objectHandle(find(node.effects, name)),
       object: name => objectHandle(find(node.objects, name)),
+      content: name => objectHandle(find(node.contents, name)),
       layer: name => objectHandle(find(layers(node), name)),
     });
     Object.defineProperties(handle, {

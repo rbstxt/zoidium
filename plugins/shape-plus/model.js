@@ -1,6 +1,7 @@
 "use strict";
 const { holdValue, localFrame } = require("./text-properties.js");
 const { definitions, titles } = require("./properties.js");
+const groupProperties = require("./group-properties.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 function validate(contents, depth = 0, state = { count: 0, ids: new Set() }) {
   if (!Array.isArray(contents) || depth > 16) throw Error("Invalid Shape+ contents depth");
@@ -8,7 +9,10 @@ function validate(contents, depth = 0, state = { count: 0, ids: new Set() }) {
     if (++state.count > 512 || !item || !titles[item.kind] || typeof item.id !== "string" || state.ids.has(item.id)) throw Error("Invalid Shape+ contents item or duplicate id");
     state.ids.add(item.id);
     if (item.kind === "path" && (!Array.isArray(item.vertexIds) || item.vertexIds.length < 1 || item.vertexIds.length > 256 || new Set(item.vertexIds).size !== item.vertexIds.length || !item.vertexIds.every(id => typeof id === "string" && id.length > 0 && id.length <= 128))) throw Error("Invalid Shape+ path topology");
-    if (item.kind === "group") validate(item.contents, depth + 1, state);
+    if (item.kind === "group") {
+      groupProperties.validateGroupProperties(item[groupProperties.STORAGE]);
+      validate(item.contents, depth + 1, state);
+    }
   }
   return contents;
 }
@@ -62,6 +66,8 @@ function createModel(PZ, textService) {
         name.get = () => get() === "Text" ? String(holdValue(this.properties.sourceText, this.textFrame || 0)).split("\n")[0] || "Text" : get();
       }
     }
+    get groupProperties() { return this.properties[groupProperties.STORAGE]; }
+    setGroupProperties(records) { groupProperties.restoreGroupProperties(PZ, this, records); }
     load(data) {
       data = clone(data || {});
       if (data.id) {
@@ -84,7 +90,11 @@ function createModel(PZ, textService) {
       }
       this.hiddenAxes = clone(data.axisStore || {});
       this.extra = data;
+      if (this.groupProperties) this.properties.remove(groupProperties.STORAGE);
       this.properties.load(data.properties);
+      if (this.kind === "group" && data[groupProperties.STORAGE] !== undefined) {
+        this.setGroupProperties(data[groupProperties.STORAGE]);
+      }
       if (this.contents) {
         for (const child of this.contents) child.unload();
         this.contents.splice(0, this.contents.length);
@@ -92,7 +102,14 @@ function createModel(PZ, textService) {
       }
     }
     toJSON() {
-      const result = { ...this.extra, id: this.id, kind: this.kind, properties: { ...this.extra.properties, ...clone(this.properties) } };
+      const properties = clone(this.properties);
+      if (this.groupProperties) delete properties[groupProperties.STORAGE];
+      const result = { ...this.extra, id: this.id, kind: this.kind, properties: { ...this.extra.properties, ...properties } };
+      if (this.kind === "group") {
+        const records = groupProperties.readGroupProperties(this);
+        if (records.length) result[groupProperties.STORAGE] = records;
+        else delete result[groupProperties.STORAGE];
+      }
       if (this.kind === "text" && Object.keys(this.hiddenAxes || {}).length) result.axisStore = clone(this.hiddenAxes);
       else if (this.kind === "text") delete result.axisStore;
       if (this.kind === "textAnimator" && Object.keys(this.hiddenAxes || {}).length) result.axisStore = clone(this.hiddenAxes);
@@ -105,6 +122,7 @@ function createModel(PZ, textService) {
       if (this.kind === "text") this.textFrame = frame;
       const properties = {};
       for (const key of Object.keys(this.properties)) {
+        if (key === groupProperties.STORAGE) continue;
         const value = this.kind === "text" && this.properties[key].definition.dynamic && [PZ.property.type.TEXT, PZ.property.type.ASSET, PZ.property.type.LIST].includes(this.properties[key].definition.type) ? holdValue(this.properties[key], frame) : this.properties[key].get(frame);
         if (typeof value === "number" && !Number.isFinite(value) || Array.isArray(value) && key !== "stops" && !value.every(Number.isFinite)) throw Error("Shape+ property must be finite");
         properties[key] = Array.isArray(value) ? value.slice() :

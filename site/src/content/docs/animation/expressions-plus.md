@@ -36,6 +36,26 @@ Expressions+ adds a **Controls** list to each sequence so you can drive multiple
 - **Slider settings…** configures **min**, **max**, and **step** (`max` must be at least `min`, and `step` must be positive).
 - **Link to control…** shows controls matching the target property type (numeric properties also accept **Checkbox** controls) and inserts a `control(name, id)` expression. Generated control links survive control renames and reordering.
 
+## Drive shape position with a group property
+
+1. In **Objects**, select the **Rectangle 1** group in a new Shape+ layer.
+2. Click **Add group property** (+).
+3. Name the property `Travel`. Choose **Slider**, set **Maximum** to `200`, and click **Add**.
+4. Select the rectangle inside **Rectangle 1**. Alt-click the animation button for **Position**.
+5. Enter this expression and click **Apply**.
+
+   ```js
+   [thisLayer.content("Rectangle 1").param("Travel"), value[1]]
+   ```
+
+6. Select **Rectangle 1** again and drag **Travel**. The rectangle moves horizontally.
+
+To read the same control from another layer, replace `thisLayer` with `layer("Shape+")`.
+Use the source layer's name if you renamed it. For nested groups, add a `.content("Group name")` call for each level.
+Names are case-sensitive. If siblings share a name, `content()` uses the first match.
+If you rename a group or control, update its name in the expression.
+`param()` returns the current value. Use `property("Travel")` for methods such as `valueAtTime()`.
+
 ## Frame rate and shader helpers
 
 - In expressions, `fps` returns the owning sequence's frame rate (including at frame `0`).
