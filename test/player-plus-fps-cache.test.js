@@ -25,3 +25,37 @@ test("FPS meter preference defaults off and persists", () => {
   meter.writeEnabled(storage, false);
   assert.equal(meter.readEnabled(storage), false);
 });
+
+test("cache ranges reflect additions, eviction, and invalidation", () => {
+  const { FrameStore, frameRanges } = require("../plugins/core/output-frame-store.js");
+  const store = new FrameStore(2);
+  let changes = 0;
+  store.subscribe(() => changes++);
+  const entry = (owner, frame) => ({ owner, frame, bytes: 1, complete: true, dispose() {} });
+  store.put("a", entry(1, 1));
+  store.put("b", entry(1, 2));
+  assert.deepEqual(frameRanges(store.entries.values(), 1), [[1, 3]]);
+  store.put("c", entry(2, 3));
+  assert.deepEqual(frameRanges(store.entries.values(), 1), [[2, 3]]);
+  store.clear();
+  assert.deepEqual(frameRanges(store.entries.values(), 1), []);
+  assert.ok(changes >= 4);
+});
+
+test("timeline cache bar batches cache changes and draws clipped frame ranges", () => {
+  const { createBar } = require("../plugins/core/timeline-cache-bar.js");
+  const calls = [], queue = [];
+  const context = { clearRect: (...args) => calls.push(["clear", ...args]), fillRect: (...args) => calls.push(["fill", ...args]) };
+  const canvas = { style: {}, getContext: () => context, remove() {} };
+  const win = { document: { createElement: () => canvas }, requestAnimationFrame: fn => { queue.push(fn); return queue.length; }, cancelAnimationFrame() {} };
+  const viewport = {};
+  let listener;
+  const cache = { ranges: () => [[1, 4], [8, 12]], subscribe: fn => { listener = fn; return () => {}; } };
+  const timeline = { timerule: { clientWidth: 100, appendChild() {} }, editor: { mainViewport: viewport }, scrollBar: { scrollLeft: 20 }, zoom: 1, frameToPx: frame => frame * 10 };
+  const bar = createBar(win, timeline, cache);
+  listener(); listener();
+  assert.equal(queue.length, 1);
+  queue.shift()();
+  assert.deepEqual(calls.filter(call => call[0] === "fill"), [["fill", 0, 0, 20, 3], ["fill", 60, 0, 40, 3]]);
+  bar.dispose();
+});

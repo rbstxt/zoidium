@@ -48,7 +48,11 @@ function createMeter(win) {
     element.style.left = rect.left + 6 + "px";
     element.style.top = rect.top + 6 + "px";
     element.style.color = result.notRealtime ? "#ff6060" : "white";
-    element.textContent = result.fps.toFixed(2) + " / " + target + " fps" + (result.notRealtime ? " (not realtime)" : "");
+    const ranges = viewport.__zoidiumCachedFrame ? win.ZoidiumFrameCache?.ranges(viewport) || [] : [];
+    const count = ranges.reduce((sum, range) => sum + range[1] - range[0], 0);
+    const length = viewport.editor?.project?.sequence?.length;
+    const cached = viewport.__zoidiumCachedFrame && Number.isFinite(length) ? " · cached " + count + " of " + length : "";
+    element.textContent = result.fps.toFixed(2) + " / " + target + " fps" + cached + (result.notRealtime ? " (not realtime)" : "");
     element.hidden = false;
   }
   return { sample, hide, setEnabled, get enabled() { return enabled; }, dispose() { element?.remove(); element = null; } };

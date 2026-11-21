@@ -11,6 +11,18 @@
     return Number.isFinite(number) ? Math.max(0, Math.min(MAX_MIB, Math.floor(number))) : 512;
   }
 
+  function frameRanges(entries, owner) {
+    const frames = Array.from(entries).filter(entry => entry.owner === owner && Number.isInteger(entry.frame))
+      .map(entry => entry.frame).sort((a, b) => a - b);
+    const ranges = [];
+    for (const frame of frames) {
+      const last = ranges[ranges.length - 1];
+      if (last && frame <= last[1]) last[1] = Math.max(last[1], frame + 1);
+      else ranges.push([frame, frame + 1]);
+    }
+    return ranges;
+  }
+
   class FrameStore {
     constructor(limit = DEFAULT_BYTES, maxEntries = MAX_ENTRIES) {
       this.limit = limit;
@@ -21,7 +33,10 @@
       this.bytes = 0;
       this.entries = new Map();
       this.generation = 0;
+      this.listeners = new Set();
     }
+    subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
+    changed() { for (const listener of this.listeners) { try { listener(); } catch (_error) { /* Observers must not affect caching. */ } } }
     get effectiveLimit() { return this.contextLost ? 0 : Math.min(this.limit, this.ceiling); }
     get(key) {
       const entry = this.entries.get(key);
@@ -36,6 +51,7 @@
       if (!entry) return;
       this.entries.delete(key);
       this.bytes -= entry.bytes;
+      this.changed();
       if (!this.contextLost) entry.dispose();
     }
     reserve(bytes) { return Boolean(this.take(bytes)); }
@@ -50,6 +66,7 @@
           // until the caller completes a fresh full-frame copy and put().
           this.entries.delete(key);
           this.bytes -= entry.bytes;
+          this.changed();
           entry.complete = false;
           recycled = entry;
         } else this.delete(key);
@@ -66,6 +83,7 @@
       while (this.entries.size >= this.maxEntries) this.delete(this.entries.keys().next().value);
       this.entries.set(key, entry);
       this.bytes += entry.bytes;
+      this.changed();
       return true;
     }
     resize(limit) {
@@ -235,7 +253,7 @@
   }
 
   const api = { assetCompletion, assetsComplete, decoderComplete, videoPrefetchBlocked, restoreLinkKeys, canonicalJSON,
-    DEFAULT_BYTES, MAX_MIB, MAX_ENTRIES, FrameStore, revisionOf, sizeMiB };
+    DEFAULT_BYTES, MAX_MIB, MAX_ENTRIES, FrameStore, frameRanges, revisionOf, sizeMiB };
   global.ZoidiumOutputFrameStore = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
