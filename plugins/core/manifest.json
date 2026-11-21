@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "170",
+  "version": "171",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -43,6 +43,11 @@
     {
       "id": "audio-track-visibility",
       "source": "./plugins/core/audio-track-visibility.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "timeline-track-swipe",
+      "source": "./plugins/core/timeline-track-swipe.js",
       "phase": "pre-init"
     },
     {
