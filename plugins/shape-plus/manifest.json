@@ -539,6 +539,11 @@
       "id": "mask-row-view",
       "type": "text",
       "source": "./plugins/shape-plus/mask-row-view.js?v=48"
+    },
+    {
+      "id": "path-channel-labels",
+      "type": "text",
+      "source": "./plugins/shape-plus/path-channel-labels.js?v=48"
     }
   ]
 }
