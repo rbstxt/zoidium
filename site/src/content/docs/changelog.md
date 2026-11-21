@@ -265,6 +265,11 @@ each line describes one visible change.
 
 ### Changed
 
+- The **Render Time** column shows CPU and GPU time side by side
+  (`CPU 0.12 · GPU 1.30 ms`). When the GPU timer is unavailable it shows
+  `GPU —` with the reason in the tooltip, instead of a CPU label that looked
+  like the layer rendered on the CPU. The tooltip explains what each number
+  includes.
 - The export **Bitrate** tooltip and the export docs now say the value is a
   target. MP4 uses variable bitrate, so simple, dark or slow footage encodes
   below it and detailed, fast footage can go above it.
