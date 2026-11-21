@@ -1,13 +1,38 @@
 "use strict";
 const { declarations, propertySymbols, stripComments } = require("./code-assist.js");
 const reference = require("./reference.js");
+function ownerLabel(owner) {
+  return (owner.kind ? owner.kind + " " : "property ") + owner.name;
+}
+function collisionMessage(name, owners) {
+  const labels = owners.map(ownerLabel), last = labels[labels.length - 1];
+  if (labels.every(label => label === labels[0])) return name + " is defined by more than one property; rename one.";
+  const named = labels.length === 2 ? "both the " + labels[0] + " and the " + last : "the " + labels.slice(0, -1).join(", the ") + " and the " + last;
+  return name + " is used by " + named + "; rename one.";
+}
 function lint(source, effect, entries) {
   const declared = declarations(source), byName = new Map(declared.map(d => [d.name, d]));
   const bindings = propertySymbols(effect), expected = new Map([...entries, ...bindings].filter(e => e.type !== "#define" && e.category !== "helper" && e.category !== "include").map(e => [e.name, e]));
-  const result = [];
+  // A Path's auxiliary uniforms share its name prefix, so an unrelated
+  // property with that exact name claims the same uniform. Report one hint
+  // that names both owners instead of a type mismatch for each binding.
+  const owners = new Map(), collisions = new Map();
   for (const binding of bindings) {
     if (binding.static || binding.type === "#define") continue;
-    const d = byName.get(binding.name), types = binding.types || [binding.type];
+    const owner = binding.owner || { name: binding.name, kind: null };
+    const list = owners.get(binding.name) || [];
+    if (!list.some(o => o.name === owner.name && o.kind === owner.kind)) list.push(owner);
+    owners.set(binding.name, list);
+  }
+  for (const [name, list] of owners) if (list.length > 1) collisions.set(name, list);
+  const result = [], reported = new Set();
+  for (const binding of bindings) {
+    if (binding.static || binding.type === "#define") continue;
+    const d = byName.get(binding.name), types = binding.types || [binding.type], collision = collisions.get(binding.name);
+    if (collision) {
+      if (!reported.has(binding.name)) { reported.add(binding.name); result.push({ line: d?.line || 1, message: collisionMessage(binding.name, collision) }); }
+      continue;
+    }
     if (!d && binding.property) result.push({ line: 1, message: binding.name + " has no uniform declaration.", declare: binding.signature });
     else if (d && !types.includes(d.type)) result.push({ line: d.line, message: binding.name + " expects " + types.join(" or ") + ", declared " + d.type + "." });
   }

@@ -17,9 +17,16 @@ function propertySymbols(effect) {
   return (effect?.customProperties || []).flatMap(p => {
     const name = String(p.properties.name.get()).replace(/\s/g, "_"), d = p.definition;
     const entry = reference.entries.find(e => e.category === "kind" && e.kind === d.zoidiumShader?.kind);
-    const type = entry?.types[0] || (d.type === 8 ? "sampler2D" : nativeTypes[d.type] || "#define");
-    const describe = (name, type, description, extra = {}) => ({ name, type, signature: type === "#define" ? "#define " + name + " value" : "uniform " + type.replace(/\[.*\]/, "") + " " + name + (type.match(/\[.*\]/)?.[0] || "") + ";", description, hint: description, example: name, id: entry?.id, ...extra });
-    const result = [describe(name, type, entry?.description || (d.dynamic ? "Custom uniform" : "Custom property"), { types: entry?.types || [type], property: true, static: !d.dynamic && ![8].includes(d.type) && !entry?.types.includes("sampler2D") && entry?.kind !== "palette" })];
+    // A Layer Input is a static native LIST whose value is a track token, but
+    // the host drops that define and binds a sampler instead.
+    const layerSource = d._zoidiumShaderLayerSource === true;
+    const type = entry?.types[0] || (d.type === 8 || layerSource ? "sampler2D" : nativeTypes[d.type] || "#define");
+    // Path binds only its auxiliary uniforms (path-sample.js bind); a base
+    // sampler named after the property never exists.
+    const auxiliaryOnly = entry?.kind === "path";
+    const owner = { name, kind: entry?.name || null };
+    const describe = (symbol, type, description, extra = {}) => ({ name: symbol, type, signature: type === "#define" ? "#define " + symbol + " value" : "uniform " + type.replace(/\[.*\]/, "") + " " + symbol + (type.match(/\[.*\]/)?.[0] || "") + ";", description, hint: description, example: symbol, id: entry?.id, owner, ...extra });
+    const result = auxiliaryOnly ? [] : [describe(name, type, entry?.description || (d.dynamic ? "Custom uniform" : "Custom property"), { types: entry?.types || [type], property: true, static: !d.dynamic && ![8].includes(d.type) && !layerSource && !entry?.types.includes("sampler2D") && entry?.kind !== "palette" })];
     for (const aux of entry?.auxiliary || []) {
       if (aux.type === "#define") for (const key of Object.keys(constants(name, items(d)))) result.push(describe(key, "#define", aux.description));
       else result.push(describe(name + aux.suffix, aux.type, aux.description));

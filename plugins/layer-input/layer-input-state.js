@@ -47,6 +47,7 @@
     patchedShaderUpdateFragmentShader: null,
     originalShaderUnload: null,
     patchedShaderUnload: null,
+    disposeShaderStage: null,
     shaderWatchers: new Map(),
     shaderEmptyTexture: null,
     propertyTypeList: null,

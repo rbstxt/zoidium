@@ -149,13 +149,35 @@ module.exports = function createHost(state, deps) {
     state.propertyTypeEntryAdded = true;
   }
 
+  // Layer Input define cleanup as a shared shader-pipeline stage. The editor
+  // checker compiles through the pipeline preview, which runs a compile
+  // captured before this plugin wraps the prototype, so a prototype wrapper
+  // alone never reaches the preview. The stage covers the live declaration
+  // (uniform plus define cleanup) and the preview (define cleanup only, on a
+  // facade that owns no textures).
+  function installShaderStage() {
+    if (state.disposeShaderStage) return true;
+    const pipeline = deps.shaderPipeline;
+    if (!pipeline?.register) return false;
+    state.disposeShaderStage = pipeline.register({
+      id: "layer-input",
+      declare() {
+        clearShaderInputDefines(this);
+        patchShaderInputUniforms(this);
+      },
+      previewDeclare() {
+        clearShaderInputDefines(this);
+      },
+    });
+    return true;
+  }
+
   function installShaderPatches() {
     const prototype = state.PZ.effect?.shader?.prototype;
     if (!prototype || prototype.update === state.patchedShaderUpdate) return;
     state.shaderPrototype = prototype;
     const originalShaderLoad = state.originalShaderLoad = shared.unwrapInactivePatch(prototype.load);
     const originalShaderUpdate = state.originalShaderUpdate = shared.unwrapInactivePatch(prototype.update);
-    const originalShaderUpdateFragmentShader = state.originalShaderUpdateFragmentShader = shared.unwrapInactivePatch(prototype.updateFragmentShader);
     const originalShaderUnload = state.originalShaderUnload = shared.unwrapInactivePatch(prototype.unload);
     const installation = state.installation;
     state.patchedShaderLoad = async function () {
@@ -181,8 +203,20 @@ module.exports = function createHost(state, deps) {
     };
     state.patchedShaderLoad = shared.guardPatch(prototype, "load", state.patchedShaderLoad, originalShaderLoad);
     prototype.load = state.patchedShaderLoad;
-    state.patchedShaderUpdateFragmentShader = shared.guardPatch(prototype, "updateFragmentShader", state.patchedShaderUpdateFragmentShader, originalShaderUpdateFragmentShader);
-    prototype.updateFragmentShader = state.patchedShaderUpdateFragmentShader;
+    // The shared pipeline stage owns the compile cleanup when it is
+    // available. Keep the prototype wrapper only as a fallback, so the live
+    // define cleanup never runs twice.
+    if (!state.disposeShaderStage) {
+      const originalShaderUpdateFragmentShader = state.originalShaderUpdateFragmentShader = shared.unwrapInactivePatch(prototype.updateFragmentShader);
+      state.patchedShaderUpdateFragmentShader = function () {
+        const result = originalShaderUpdateFragmentShader.apply(this, arguments);
+        clearShaderInputDefines(this);
+        patchShaderInputUniforms(this);
+        return result;
+      };
+      state.patchedShaderUpdateFragmentShader = shared.guardPatch(prototype, "updateFragmentShader", state.patchedShaderUpdateFragmentShader, originalShaderUpdateFragmentShader);
+      prototype.updateFragmentShader = state.patchedShaderUpdateFragmentShader;
+    }
     state.patchedShaderUpdate = shared.guardPatch(prototype, "update", state.patchedShaderUpdate, originalShaderUpdate);
     prototype.update = state.patchedShaderUpdate;
     state.patchedShaderUnload = shared.guardPatch(prototype, "unload", state.patchedShaderUnload, originalShaderUnload);
@@ -405,6 +439,14 @@ module.exports = function createHost(state, deps) {
   }
 
   function restorePatches() {
+    if (state.disposeShaderStage) {
+      try {
+        state.disposeShaderStage();
+      } catch (_error) {
+        // A replaced pipeline host makes the old registration harmless.
+      }
+      state.disposeShaderStage = null;
+    }
     if (state.compositorPrototype?.renderSequence === state.patchedRenderSequence) {
       state.compositorPrototype.renderSequence = state.originalRenderSequence;
     }
@@ -491,6 +533,7 @@ module.exports = function createHost(state, deps) {
     installLayerSourceMaterial,
     installShaderPatches,
     installShaderPropertyType,
+    installShaderStage,
     installViewportPatch,
     patchShaderInputUniforms,
     registerShaderInstance,
