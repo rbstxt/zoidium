@@ -167,12 +167,11 @@
   var META_ENTRY = "meta";
   var openedShapeProjects = new WeakMap();
 
-  // A Shape+ version change can update the requirements descriptor while
-  // leaving the authored project identical. Keep the validated document bytes
-  // in that case, including field order. Saves after edits use current data.
+  // Shape+ projects can pick up current plugin versions during serialization.
+  // Keep the original validated bytes when only these descriptors changed.
   function comparableShapeDocument(document) {
     for (var plugin of Array.isArray(document?.plugins) ? document.plugins : []) {
-      if (plugin?.id === "shape-plus") delete plugin.version;
+      if (["shape-plus", "expressions-plus", "shader-plus"].includes(plugin?.id)) delete plugin.version;
     }
     return JSON.stringify(document, function (_key, value) {
       if (!isPlainObject(value)) return value;
