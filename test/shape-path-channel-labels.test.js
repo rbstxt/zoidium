@@ -25,6 +25,17 @@ test("topology reload renumbers labels without changing serialized channel data"
   item.load(reordered);
   assert.deepEqual(item.properties.path.objects.map(channel => channel.definition.zoidiumPathLabel), names(reordered.vertexIds));
   assert.deepEqual(JSON.parse(JSON.stringify(item)).properties.path, reordered.properties.path);
+  for (const ids of [["sp-a", "sp-new", "sp-b"], ["sp-b"], ["sp-b", "sp-a"]]) {
+    const changed = JSON.parse(JSON.stringify(snapshot));
+    changed.vertexIds = ids;
+    changed.properties.path.objects = ids.flatMap(id => {
+      const index = snapshot.vertexIds.indexOf(id);
+      return index < 0 ? snapshot.properties.path.objects.slice(0, 6) : snapshot.properties.path.objects.slice(index * 6, index * 6 + 6);
+    });
+    item.load(changed);
+    assert.deepEqual(item.properties.path.objects.map(channel => channel.definition.zoidiumPathLabel), names(ids));
+    assert.deepEqual(JSON.parse(JSON.stringify(item)).properties.path, changed.properties.path);
+  }
   item.load(snapshot);
   assert.deepEqual(item.properties.path.objects.map(channel => channel.definition.zoidiumPathLabel), names(snapshot.vertexIds));
   assert.deepEqual(JSON.parse(JSON.stringify(item)).properties.path, snapshot.properties.path);
