@@ -10,6 +10,13 @@ each line describes one visible change.
 
 ### Added
 
+- Export can write audio only: **.wav** (16-bit PCM, 48 kHz stereo) or **.m4a**
+  (AAC, with WAV suggested when AAC is unavailable). It uses the same mix as
+  MP4 export, including muted tracks, audio Solo and Precomp+ audio, and
+  renders no video frames.
+- The Shader+ docs explain how a Path property makes something follow a path
+  (`Points`) instead of masking it (`Coverage`), with a glow and a moving
+  particles example.
 - The export page has a **Transparent background** option for PNG, WebP, and
   WebM/MKV (VP8 with alpha). Transparent and partly transparent pixels keep
   their alpha in the exported file. It is off by default and hidden for MP4 and
@@ -367,6 +374,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- Precomp+ audio inside a composition is no longer lost after reopening a
+  saved project.
 - Scenes that use Camera+ now draw as soon as a project opens. Before, some
   Scenes stayed missing from the preview until their layer was selected.
 - ZSMB no longer renders black at 1/2 quality and below on 3D Scenes that use a
