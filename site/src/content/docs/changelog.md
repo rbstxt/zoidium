@@ -248,6 +248,10 @@ each line describes one visible change.
 
 ### Changed
 
+- The Player+ toolbar no longer overflows. Preview quality, **Adaptive**, and
+  **Lowest** share one compact quality button with a menu, the speed menu is
+  shorter, and when the toolbar is narrow the least-used Player+ controls move
+  to a **⋯** menu.
 - The effect eye button now sits in the same rightmost column on every effect
   row and matches the other header buttons. Press an eye and drag up or down
   across other effects to set them all the same way; the drag is one undo step.

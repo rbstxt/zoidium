@@ -12,6 +12,7 @@ const { prepareRuntimeStage } = require("./runtime-resources");
 const { pack } = require("./pack-community-plugin");
 const manifest = require("../examples/community-filter/manifest.json");
 const { desktopBoundaries } = require("./community-desktop-boundaries");
+const { selectPreviewQuality } = require("./select-preview-quality");
 const lock = process.env.ZOIDIUM_BROWSER_LOCK;
 const output = process.env.ZOIDIUM_COMMUNITY_DESKTOP_REPORT;
 const report = { started: new Date().toISOString(), assertions: [] };
@@ -45,9 +46,8 @@ async function main() {
       await page.evaluate(async () => {
         await globalThis.ZoidiumPluginManagerInternals.registryReady;
         if (!CM.mainViewport.__zoidiumPlayerPlusPaused) document.querySelector('button[title="Pause drawing"]')?.click();
-        const quality = document.querySelector('select[title="Preview quality"]');
-        if (quality) { quality.value = "0.125"; quality.dispatchEvent(new Event("change", { bubbles: true })); }
       });
+      await selectPreviewQuality(page, "0.125");
     }
     async function launch(extra = []) {
       application = await _electron.launch({ ...(executablePath ? { executablePath } : {}),

@@ -69,7 +69,7 @@ test("adaptive preview bypasses output caching and restores for pause and Render
     for (let i = 0; i < 33; i++) { now += 60; viewport._renderFn(); }
     assert.deepEqual(drawn.at(-1), [50, true]);
     assert.equal(viewport.__zoidiumImmediateOutput, true);
-    assert.match(toolbar.children.find(child => child.classList.contains("zoidium-player-plus-quality")).children[0].textContent, /Adaptive/);
+    assert.match(toolbar.children.find(child => child.classList.contains("zoidium-player-plus-quality")).textContent, /Auto · 1\/2/);
     toolbar.children.find(child => child.classList.contains("zoidium-player-plus-render-once")).dispatch("click");
     assert.deepEqual(drawn.at(-1), [100, undefined]);
     for (let i = 0; i < 33; i++) { now += 60; viewport._renderFn(); }
@@ -120,7 +120,7 @@ test("adaptive timing moves to another viewport when the timed one is detached",
   } finally { PlayerPlus.deactivate(); }
 });
 
-test("an existing Player+ toolbar without adaptive controls gets them before the speed menu", async () => {
+test("an existing Player+ toolbar is replaced with the combined controls", async () => {
   const PlayerPlus = require("../plugins/player-plus/player-plus.js");
   const h = adaptiveHarness(), viewport = new h.Viewport("only");
   h.document.querySelectorAll = selector => selector === "canvas" ? [{ parentElement: { pz_panel: viewport } }] : [h.toolbar];
@@ -130,7 +130,7 @@ test("an existing Player+ toolbar without adaptive controls gets them before the
   PlayerPlus.deactivate();
   // Simulate a toolbar left by a version without adaptive controls.
   h.toolbar.children.length = 0;
-  for (const name of ["pause", "render-once", "quality", "speed"]) {
+  for (const name of ["pause", "render-once", "quality", "speed", "overflow"]) {
     const node = new h.FakeElement(name === "quality" || name === "speed" ? "select" : "button");
     node.classList.add("zoidium-player-plus-" + name);
     if (name === "pause") node.appendChild(new h.FakeElement("svg"));
@@ -140,9 +140,13 @@ test("an existing Player+ toolbar without adaptive controls gets them before the
   h.toolbar.dataset.zoidiumPlayerPlus = "true";
   await PlayerPlus.activate(ctx);
   try {
+    const css = h.document.head.children.find(node => node.tagName === "STYLE").textContent;
+    assert.doesNotMatch(css, /is-player-plus-compressed > button/);
+    assert.match(css, /is-player-plus-compressed > span/);
     const names = h.toolbar.children.map(child => child.classList.value.split(" ").find(c => c.startsWith("zoidium-player-plus-")));
-    assert.deepEqual(names, ["zoidium-player-plus-pause", "zoidium-player-plus-render-once", "zoidium-player-plus-quality",
-      "zoidium-player-plus-adaptive", "zoidium-player-plus-limit", "zoidium-player-plus-speed"]);
+    for (const name of ["pause", "render-once", "quality", "speed", "overflow"]) assert.ok(names.includes("zoidium-player-plus-" + name));
+    assert.equal(names.includes("zoidium-player-plus-adaptive"), false);
+    assert.equal(names.filter(name => name === "zoidium-player-plus-overflow").length, 1);
   } finally { PlayerPlus.deactivate(); }
   assert.equal(h.toolbar.children.some(child => child.classList.contains("zoidium-player-plus-adaptive")), false);
 });
