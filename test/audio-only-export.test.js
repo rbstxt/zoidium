@@ -46,3 +46,8 @@ test("audio selector hides video rows and restores their prior display", () => {
     control.dispose(); assert.equal(select.options.length, 0);
   } finally { global.document = old; }
 });
+test("M4A reports AAC unavailability and offers WAV", async () => {
+  const exporter = { params: { format: "audio_m4a", start: 0, length: 30, rate: 30 },
+    sequence: { audioSchedules: [], properties: { rate: { get: () => 30 } } } };
+  await assert.rejects(createAudioJob({}, exporter, () => { throw new Error("unexpected encoder"); }).run(), /AAC encoding is unavailable.*\.wav/);
+});

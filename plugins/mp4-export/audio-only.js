@@ -50,7 +50,12 @@ function createAudioJob(scope, exporter, loadBunny) {
           const bunny = loadBunny();
           storage = await createStorage(scope, bunny, { signal: controller.signal, hasAudio: true });
           output = new bunny.Output({ format: new bunny.Mp4OutputFormat({ fastStart: false }), target: storage.target });
-          audio = await createAudioEncoding(scope, bunny, config, count / params.rate, controller.signal);
+          try {
+            audio = await createAudioEncoding(scope, bunny, config, count / params.rate, controller.signal);
+          } catch (error) {
+            check();
+            throw new Error("AAC encoding could not be started. Select .wav instead. " + error.message, { cause: error });
+          }
           output.addAudioTrack(audio.source);
           await output.start();
         }
