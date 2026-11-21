@@ -13,7 +13,7 @@ If a **Precomp+** composition is currently open, click **Back to Main** before o
 2. In **Format**, select **.mp4 (H.264 / AAC or Opus)**, **.webm (vp8/opus)**, or **.mkv (vp8/opus)**.
 3. Set **Resolution**, **Aspect ratio**, and **Aspect ratio mode**.
 4. Set **Frame rate** from `1` to `240` FPS.
-5. Set **Bitrate** (**1x (default)**, **2x**, **4x**, or **8x**). Each option displays the target bitrate for your chosen resolution and frame rate.
+5. Set **Bitrate** (**1x (default)**, **2x**, **4x**, or **8x**). Each option shows the target video bitrate for your chosen resolution and frame rate, not a guaranteed rate.
 6. Click **Start**.
 7. When **Render complete** appears, click **Download your video**.
 
@@ -78,6 +78,8 @@ Enable **MP4 Export** to use transparent MKV and WebM. VP8 compression can chang
 - **Saved preferences:** The browser remembers your Device resolution, custom size, aspect ratio, and aspect ratio mode across sessions without changing saved projects.
 - **Frame rate:** Accepts decimal values from `1` to `240` FPS (clamped if out of range; non-numeric input keeps the previous value). Changing export FPS changes output frame count and sampling without changing sequence FPS, duration, `fps`, or `zFps`.
 - **Bitrate:** **1x (default)**, **2x**, **4x**, and **8x** multiply the encoder's target video bitrate (for example, **1x (default): 9 Mbps target** at 1920×1080 and 30 fps) and update live as you change resolution or frame rate.
+
+MP4 export uses variable bitrate, so **Bitrate** sets the encoder's target, not a guaranteed rate. Simple, dark, or mostly static footage encodes well below the target, while detailed, fast-motion footage can exceed it. With a 128 Mbps target, slow shapes on a dark background encode at about 6 Mbps, and full-frame moving noise reaches about 233 Mbps. A higher setting still gives detailed frames more room and adds no unneeded data, so expect a media-info tool to report a bitrate below the target for simple footage.
 
 ## Export with True datamosh (WebM)
 
