@@ -41,6 +41,7 @@
       "./plugins/core/preview-context-menu.js",
       "./plugins/core/particle-viewport.js",
       "./plugins/core/particle-defaults.js",
+      "./plugins/core/scene-backdrop.js",
       "./plugins/core/empty-keyframes.js",
       "./plugins/core/property-history.js",
       "./plugins/core/video-seek-policy.js",
