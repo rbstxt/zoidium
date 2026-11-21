@@ -3,7 +3,7 @@
   "id": "material-plus",
   "name": "Material+",
   "author": "Zoidium",
-  "version": "42",
+  "version": "43",
   "kind": "material-pack",
   "description": "Adds Matcap, Node Material, Image+, physically based, and corrected-UV material extensions.",
   "materialTypes": [
