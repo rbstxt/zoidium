@@ -459,6 +459,7 @@
   }
 
   function render(viewport, fallback) {
+    viewport.__zoidiumCachedFrame = false;
     if (approvalsStale || viewport.__zoidiumLivePreviewGrid) return fallback();
     // A clock change needs one live evaluation, with no private project,
     // serialization or speculative renders. Samplers keep their cache path.
@@ -482,6 +483,7 @@
     if (hit) {
       controller.reason = null;
       display(controller, hit);
+      viewport.__zoidiumCachedFrame = true;
       controller.videoLive?.dispose();
       controller.videoLive = null;
       debug.hits += 1;
@@ -950,6 +952,11 @@
 
   const api = {
     debug, render, release, capturePreview,
+    subscribe: listener => store.subscribe(listener),
+    ranges(viewport) {
+      const controller = viewport?.__zoidiumOutputFrames;
+      return controller ? store.ranges(controller.id) : [];
+    },
     usage() {
       const viewport = (global.CM || global.VE)?.mainViewport || controllers.values().next().value?.viewport;
       const gl = viewport?.renderer?.context;

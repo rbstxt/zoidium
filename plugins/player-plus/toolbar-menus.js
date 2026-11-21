@@ -70,6 +70,13 @@ function createQualityMenu(document, options) {
   adaptiveLabel.appendChild(adaptive);
   const text = document.createElement("span"); text.textContent = "Adaptive"; adaptiveLabel.appendChild(text);
   popup.menu.appendChild(adaptiveLabel);
+  const fpsLabel = document.createElement("label");
+  const fpsMeter = document.createElement("input");
+  fpsMeter.type = "checkbox";
+  fpsMeter.setAttribute("aria-label", "Show FPS meter");
+  fpsLabel.appendChild(fpsMeter);
+  const fpsText = document.createElement("span"); fpsText.textContent = "FPS meter"; fpsLabel.appendChild(fpsText);
+  fpsMeter.addEventListener("change", () => { options.setFpsMeter(fpsMeter.checked); update(); });
   const limitLabel = document.createElement("label");
   const limitText = document.createElement("span"); limitText.textContent = "Lowest"; limitLabel.appendChild(limitText);
   const limit = document.createElement("select");
@@ -78,6 +85,7 @@ function createQualityMenu(document, options) {
     const item = document.createElement("option"); item.value = value; item.textContent = label; limit.appendChild(item);
   }
   limitLabel.appendChild(limit); popup.menu.appendChild(limitLabel);
+  popup.menu.appendChild(fpsLabel);
   adaptive.addEventListener("change", () => { options.setAdaptive(adaptive.checked); update(); });
   limit.addEventListener("change", () => { options.setLimit(limit.value); update(); });
   function update() {
@@ -86,6 +94,7 @@ function createQualityMenu(document, options) {
     button.textContent = state.effective !== state.quality ? "Auto · " + label : label;
     choices.forEach((choice, index) => choice.setAttribute("aria-checked", String(QUALITY[index][0] === state.quality)));
     adaptive.checked = state.enabled;
+    fpsMeter.checked = state.fpsMeter;
     limit.value = state.limit;
     limitLabel.hidden = !state.enabled;
   }

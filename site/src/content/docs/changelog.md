@@ -10,6 +10,9 @@ each line describes one visible change.
 
 ### Added
 
+- Player+ has an optional **FPS meter** that shows the playback frame rate
+  over the viewer and turns red when playback is not realtime, and the
+  timeline shows a green bar over the frames held in the preview cache.
 - Export can write audio only: **.wav** (16-bit PCM, 48 kHz stereo) or **.m4a**
   (AAC, with WAV suggested when AAC is unavailable). It uses the same mix as
   MP4 export, including muted tracks, audio Solo and Precomp+ audio, and

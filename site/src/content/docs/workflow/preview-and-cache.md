@@ -40,9 +40,15 @@ A Scene layer is transparent where nothing is drawn. To fill it, open the Scene'
 6. For a closer look, raise **Preview quality** to **1/4 quality**, **1/2 quality**, or **Full quality**, then click **Render once** again.
 7. Return to **1/8 quality** before making further expensive edits, or click **Resume drawing** when you want live updates again.
 
+## Check playback speed with the FPS meter
+
+Turn on **FPS meter** in the Player+ quality menu to show the playback frame rate in the top-left corner of the viewer while playing, for example `29.8 / 30 fps · cached 36 of 180`. The text turns red with **not realtime** when playback falls below the project frame rate, and returns to normal once it recovers. **cached** counts the frames that came from the preview cache. The meter is off by default and does no work while off.
+
 ## Reuse frames with the preview cache
 
 The preview cache stores finished editor frames in GPU memory so returning to the same frame and project state redraws immediately.
+
+A green bar along the top of the timeline ruler marks the frames that are currently cached. It shrinks when an edit, a quality change, or eviction removes frames.
 
 1. Open **Settings**.
 2. Set **Preview cache** to the maximum memory budget you want. The default is `512` MiB, and `0` disables caching.
