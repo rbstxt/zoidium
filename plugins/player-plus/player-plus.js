@@ -23,8 +23,6 @@ const PlayerPlus = (() => {
     renderOnceButton: null,
     qualitySelect: null,
     qualityMenu: null,
-    adaptiveButton: null,
-    adaptiveLimit: null,
     adaptive: null,
     adaptiveModule: null,
     adaptiveSettings: null,
@@ -122,9 +120,13 @@ const PlayerPlus = (() => {
         width: 29px;
       }
 
-      .zoidium-player-plus-toolbar.is-player-plus-compressed > button:not([class*="zoidium-player-plus-"]) {
-        flex-shrink: 1;
-        min-width: 0;
+      .zoidium-player-plus-toolbar.is-player-plus-compressed {
+        gap: 0;
+        padding: 0 !important;
+      }
+
+      .zoidium-player-plus-toolbar.is-player-plus-compressed > span {
+        width: 0 !important;
       }
 
       .zoidium-player-plus-toolbar > span {
@@ -185,8 +187,6 @@ const PlayerPlus = (() => {
         fill: var(--zui-value);
       }
 
-      .zoidium-player-plus-adaptive,
-      .zoidium-player-plus-limit,
       .zoidium-player-plus-speed,
       .zoidium-player-plus-quality {
         background-color: var(--zui-bg-input);
@@ -214,18 +214,10 @@ const PlayerPlus = (() => {
         padding: 0 6px !important;
         white-space: nowrap;
       }
-      .zoidium-player-plus-toolbar > .zoidium-player-plus-adaptive {
-        width: auto;
-        padding: 0 6px !important;
-        order: 2;
-      }
-      .zoidium-player-plus-adaptive[aria-pressed="true"] { border-color: var(--zui-accent); }
-      .zoidium-player-plus-limit { min-width: 90px; }
-
       .zoidium-player-plus-speed {
         order: 1;
-        min-width: 70px;
-        width: 70px;
+        min-width: 82px;
+        width: 82px;
       }
 
       .zoidium-player-plus-speed:focus-visible,
@@ -703,8 +695,10 @@ const PlayerPlus = (() => {
 
   function installControls(toolbar) {
     if (!toolbar) return;
+    state.overflow?.dispose();
+    state.overflow = null;
     if (toolbar.dataset.zoidiumPlayerPlus === "true") {
-      for (const name of ["pause", "render-once", "quality", "adaptive", "limit", "speed"]) {
+      for (const name of ["pause", "render-once", "quality", "adaptive", "limit", "speed", "overflow"]) {
         toolbar.querySelector(".zoidium-player-plus-" + name)?.remove();
       }
       toolbar.querySelector(".zoidium-player-plus-transparency-grid")?.remove();
@@ -755,16 +749,12 @@ const PlayerPlus = (() => {
     state.qualityMenu?.dispose();
     state.qualityMenu = null;
     state.qualitySelect?.remove();
-    state.adaptiveButton?.remove();
-    state.adaptiveLimit?.remove();
     state.speedSelect?.remove();
     state.toolbar = null;
     state.pauseButton = null;
     state.pauseIcon = null;
     state.renderOnceButton = null;
     state.qualitySelect = null;
-    state.adaptiveButton = null;
-    state.adaptiveLimit = null;
     state.speedSelect = null;
   }
 

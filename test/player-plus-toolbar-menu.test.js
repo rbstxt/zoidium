@@ -38,3 +38,22 @@ test("overflow moves controls as width changes and cleans up", () => {
   assert.equal(overflow.layout(), true); assert.equal(a.parentElement, toolbar);
   overflow.dispose(); assert.equal(document.body.children.length, 0);
 });
+
+test("extreme overflow compresses spacing and restores it on widen and dispose", () => {
+  const document = makeDocument(), toolbar = document.createElement("div");
+  const native = document.createElement("button"), control = document.createElement("button");
+  toolbar.appendChild(native); toolbar.appendChild(control);
+  native.offsetParent = toolbar; native.offsetLeft = 0; native.offsetWidth = 29;
+  control.offsetParent = toolbar; control.offsetLeft = 29; control.offsetWidth = 30;
+  toolbar.clientWidth = 40;
+  const overflow = createOverflow(document, toolbar, [control]);
+  overflow.layout();
+  assert.equal(toolbar.classList.contains("is-player-plus-compressed"), true);
+  assert.equal(native.offsetWidth, 29);
+  toolbar.clientWidth = 200;
+  overflow.layout();
+  assert.equal(toolbar.classList.contains("is-player-plus-compressed"), false);
+  toolbar.clientWidth = 40; overflow.layout();
+  overflow.dispose();
+  assert.equal(toolbar.classList.contains("is-player-plus-compressed"), false);
+});

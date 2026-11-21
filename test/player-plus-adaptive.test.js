@@ -130,7 +130,7 @@ test("an existing Player+ toolbar is replaced with the combined controls", async
   PlayerPlus.deactivate();
   // Simulate a toolbar left by a version without adaptive controls.
   h.toolbar.children.length = 0;
-  for (const name of ["pause", "render-once", "quality", "speed"]) {
+  for (const name of ["pause", "render-once", "quality", "speed", "overflow"]) {
     const node = new h.FakeElement(name === "quality" || name === "speed" ? "select" : "button");
     node.classList.add("zoidium-player-plus-" + name);
     if (name === "pause") node.appendChild(new h.FakeElement("svg"));
@@ -140,9 +140,13 @@ test("an existing Player+ toolbar is replaced with the combined controls", async
   h.toolbar.dataset.zoidiumPlayerPlus = "true";
   await PlayerPlus.activate(ctx);
   try {
+    const css = h.document.head.children.find(node => node.tagName === "STYLE").textContent;
+    assert.doesNotMatch(css, /is-player-plus-compressed > button/);
+    assert.match(css, /is-player-plus-compressed > span/);
     const names = h.toolbar.children.map(child => child.classList.value.split(" ").find(c => c.startsWith("zoidium-player-plus-")));
     for (const name of ["pause", "render-once", "quality", "speed", "overflow"]) assert.ok(names.includes("zoidium-player-plus-" + name));
     assert.equal(names.includes("zoidium-player-plus-adaptive"), false);
+    assert.equal(names.filter(name => name === "zoidium-player-plus-overflow").length, 1);
   } finally { PlayerPlus.deactivate(); }
   assert.equal(h.toolbar.children.some(child => child.classList.contains("zoidium-player-plus-adaptive")), false);
 });

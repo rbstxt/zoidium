@@ -30,7 +30,7 @@ function createPopup(document, button, className) {
   const toggle = () => menu.hidden ? open() : close(false);
   const outside = event => {
     if (!menu.contains(event.target) && !button.contains(event.target) &&
-        !(className === "zoidium-player-plus-overflow-menu" && event.target.closest?.(".zoidium-player-plus-quality-menu"))) close(false);
+        !(className === "zoidium-player-plus-overflow-menu" && event.target.closest?.(".zoidium-player-plus-quality-menu, .zoidium-player-plus-quality"))) close(false);
   };
   const keyboard = event => {
     if (event.key === "Escape") { event.preventDefault(); close(true); return; }
@@ -119,9 +119,10 @@ function createOverflow(document, toolbar, controls) {
     const spans = children.filter(child => child.tagName === "SPAN");
     const extra = spans.reduce((sum, span) => sum + Math.max(0, span.offsetWidth - 8), 0);
     const compressed = toolbar.classList.contains("is-player-plus-compressed");
-    const deficit = compressed ? children.reduce((sum, child) => sum +
-      (child.tagName === "BUTTON" && !child.className.includes("zoidium-player-plus-") ? Math.max(0, 29 - child.offsetWidth) : 0), 0) : 0;
-    let required = right - extra + 6 + deficit;
+    // Reconstruct the normal minimum width while spacing is compressed.
+    const visible = children.filter(child => child !== button && child.offsetParent);
+    const spacing = compressed ? 5 + visible.length * 2 + spans.length * 8 : 0;
+    let required = right - extra + 6 + spacing;
     for (let i = 0; i < count; i++) required += widths.get(controls[i]) || 32;
     let next = 0;
     if (required > toolbar.clientWidth) {
