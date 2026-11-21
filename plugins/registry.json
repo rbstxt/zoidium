@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "174",
+      "version": "175",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=174",
       "bundle": "./plugins/core/bundle.json?v=174",
-      "integrity": "sha256-dxzmIUkifeZVJesG/ToyMCCLeDX9opZzTBBBcilT3b4="
+      "integrity": "sha256-Ct6PJGCGKFkP4UqI8ibS2kGUiDm/dptrjqlWjFdAkQM="
     },
     {
       "id": "easing-plus",
@@ -87,7 +87,7 @@
       "category": "utilities",
       "name": "Player+",
       "author": "Zoidium",
-      "version": "22",
+      "version": "23",
       "defaultEnabled": true,
       "itemCount": 1,
       "format": "playback controls",
@@ -96,7 +96,7 @@
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
       "manifest": "./plugins/player-plus/manifest.json?v=22",
       "bundle": "./plugins/player-plus/bundle.json?v=22",
-      "integrity": "sha256-Px3wUvSP6fAUtEMAxtUStD+BNLMvhuyJl7qANIy4OpA="
+      "integrity": "sha256-NxMRiTjpNeWxd2f26irVVR53ny2/6tBw3iV4/pPbNoA="
     },
     {
       "id": "asset-manager",
