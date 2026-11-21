@@ -24,11 +24,13 @@ function createTracker() {
 }
 function createMeter(win) {
   const tracker = createTracker();
-  let enabled = readEnabled(win.localStorage), element = null, lastUpdate = 0;
+  let storage;
+  try { storage = win.localStorage; } catch (_error) { storage = null; }
+  let enabled = readEnabled(storage), element = null, lastUpdate = 0;
   function hide() { tracker.reset(); if (element) element.hidden = true; }
-  function setEnabled(value) { enabled = value; writeEnabled(win.localStorage, value); if (!value) hide(); }
+  function setEnabled(value) { enabled = value; writeEnabled(storage, value); if (!value) hide(); }
   function sample(viewport) {
-    if (!enabled) return;
+    if (!enabled || viewport.editor?.mainViewport !== viewport) return;
     const playback = viewport.editor?.playback;
     if (!playback?.speed || viewport.renderMode || viewport.__zoidiumPlayerPlusPaused) { hide(); return; }
     const target = Number(playback.frameRate);

@@ -480,7 +480,7 @@ const PlayerPlus = (() => {
   function setDrawingPaused(paused) {
     const next = Boolean(paused);
     state.paused = next;
-    if (next) resetAdaptive();
+    if (next) { resetAdaptive(); state.meter?.hide(); }
     const viewports = getViewports();
     for (const viewport of viewports) {
       const wasPaused = viewport.__zoidiumPlayerPlusPaused === true;
