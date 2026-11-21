@@ -65,9 +65,11 @@ Solo and lock are saved with the project, and every change can be undone.
 
 Click **Render Time** at the top of the timeline labels to show how long each track and each effect took to draw in the last preview frame. Click it again to hide the column; while hidden it measures nothing.
 
-- Times are smoothed so they stay readable during playback. A Scene's time includes everything inside it, and a track's time includes its effects.
-- Colours compare each time with one frame at the project frame rate: bold red for half a frame or more, a softer colour for a tenth or more.
-- **GPU** times come from GPU timer queries when the browser offers them. Otherwise the column shows **CPU**, the time spent submitting draw calls, which is a guide rather than the full GPU cost.
+- Each cell shows both **CPU** and **GPU** times, such as `CPU 0.12 · GPU 1.30 ms`. **CPU** is the wall time spent in JavaScript submitting the layer's drawing. That time can include waits for the graphics driver. A **CPU** number does not mean the layer renders on the CPU. **GPU** is the elapsed time measured by GPU timer queries.
+- When GPU timing is unavailable or not ready, the cell shows `GPU —`. Hover a cell to see the reason, such as a pending query, an unavailable timer, or a timeout. For measured GPU times, the tooltip also shows how old the GPU sample is. The **GPU** value can lag the **CPU** value by a few frames.
+- Times are smoothed so they stay readable during playback. Rows overlap: a Scene includes everything inside it, and a track includes its effects. Do not add rows up to get the frame time.
+- When an effect renders other layers to build temporal samples, that time counts on the effect and its layer. For example, motion blur or echo on an adjustment layer can give that layer a large time.
+- Colours compare the larger of **CPU** and **GPU** with one frame at the project frame rate: bold red for half a frame or more, a softer colour for a tenth or more.
 - **Cached** means the preview reused stored pixels for that frame instead of drawing it.
 
 Render Time affects the preview only; exports are unchanged.
