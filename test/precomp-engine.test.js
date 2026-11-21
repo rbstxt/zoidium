@@ -127,6 +127,46 @@ test("pre-compose preserves the eye and 3D switches of moved tracks", () => {
   assert.equal(env.project.sequence.videoTracks[0].track3d, true, "opening restores the 3D switch live");
 });
 
+test("nested Solo stays local and the track switches round trip through the open composition", async () => {
+  const env = createEnvironment();
+  const vm = require("node:vm");
+  const source = require("node:fs").readFileSync(require.resolve("../plugins/core/timeline-track-state.js"), "utf8");
+  const context = { PZ: env.PZ };
+  context.window = context;
+  vm.runInNewContext(source, context);
+  const previous = globalThis.ZoidiumTrackSwitches;
+  globalThis.ZoidiumTrackSwitches = context.ZoidiumTrackSwitches;
+  try {
+    addCompMedia(env, "X", "X", [
+      { type: 0, zoidiumSolo: true, clips: [clipJSON(0, 30, "P")] },
+      { type: 0, zoidiumLocked: true, clips: [clipJSON(0, 30, "Q")] },
+    ]);
+    addClip(env, 0, { start: 0, length: 30, compId: "X" });
+    const layer = renderAt(env, 10);
+    assert.deepEqual(layer.activeClips.map(clip => clip.properties.name.v), ["P"]);
+    assert.equal(env.project.sequence.videoTracks[0].zoidiumSolo, undefined);
+    assert.equal(env.engine.openComp(env.editor, "X").ok, true);
+    const [first, second] = env.project.sequence.videoTracks;
+    assert.equal(first.zoidiumSolo, true);
+    assert.equal(second.zoidiumLocked, true);
+    assert.equal(context.ZoidiumTrackSwitches.isLocked(second.clips[0].object), true);
+    env.tracks.selectedClips = [second.clips[0]];
+    assert.equal(env.engine.precompose(env.editor, "Blocked").ok, false);
+    first.zoidiumSolo = false;
+    second.zoidiumSolo = true;
+    assert.equal(env.engine.openComp(env.editor, null).ok, true);
+    assert.deepEqual(renderAt(env, 10).activeClips.map(clip => clip.properties.name.v), ["Q"]);
+    const reloaded = await reloadProject(env, JSON.parse(JSON.stringify(env.project)));
+    const tracks = reloaded.media[0].data;
+    assert.equal(tracks[1].zoidiumLocked, true);
+    assert.equal(tracks[1].zoidiumSolo, true);
+    assert.equal(tracks[0].zoidiumSolo, undefined);
+  } finally {
+    if (previous === undefined) delete globalThis.ZoidiumTrackSwitches;
+    else globalThis.ZoidiumTrackSwitches = previous;
+  }
+});
+
 test("muted nested video tracks render nothing", () => {
   const env = createEnvironment();
   addCompMedia(env, "X", "X", [

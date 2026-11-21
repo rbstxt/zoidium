@@ -16,7 +16,7 @@ function setup() {
   const doc = {
     ...listen(listeners),
     defaultView: listen(windowListeners),
-    elementFromPoint: () => hit,
+    elementFromPoint: (x, y) => typeof hit === "function" ? hit(x, y) : hit,
     createElement: tag => new Element(tag),
     createElementNS: (_ns, tag) => new Element(tag),
   };
@@ -82,7 +82,7 @@ function setup() {
     doc, tracks, editor, undo, redo, labels, calls,
     begin(button, extra) { button.onpointerdown({ ...base, currentTarget: button, ...extra }); },
     click(button, detail = 0) { button.onclick({ ...base, detail }); },
-    move(target, pointerId = 1) { hit = target; listeners.pointermove({ pointerId }); },
+    move(target, pointerId = 1, point) { hit = target; listeners.pointermove({ pointerId, ...point }); },
     end(type = "pointerup") { listeners[type]({ type, pointerId: 1 }); },
     blur() { windowListeners.blur({ type: "blur" }); },
   };
@@ -148,4 +148,15 @@ test("pointer cancellation and window blur finish one undoable edit", () => {
   blur();
   assert.equal(editor.history.operation, null);
   assert.equal(undo.length, 2);
+});
+
+test("a fast swipe still hits the middle row", () => {
+  const { labels, begin, move, end, tracks, undo } = setup();
+  const buttons = labels.slice(0, 3).map(label => label.children[2]);
+  begin(buttons[0], { clientX: 8, clientY: 20 });
+  move((_x, y) => buttons.find((button, index) => Math.abs(y - (20 + index * 40)) <= 8), 1,
+    { clientX: 8, clientY: 100 });
+  end();
+  assert.deepEqual(tracks.slice(0, 3).map(track => track.zoidiumSolo), [true, true, true]);
+  assert.equal(undo.length, 1);
 });

@@ -161,6 +161,11 @@
     if (!widget?.el) return;
     widget.el.style.display = widget.position && widget.edit && !isLocked(widget.position) ? "" : "none";
   }
+  wrap(widget2d, "create", original => function () {
+    const result = original.apply(this, arguments);
+    this.onEditChanged?.watch(() => refreshWidget2d(this));
+    return result;
+  });
   for (const name of ["objectsChanged", "update"]) {
     wrap(widget2d, name, original => function () {
       const result = original.apply(this, arguments);
@@ -232,13 +237,15 @@
   wrap(edit, "create", original => function () {
     const result = original.apply(this, arguments);
     const block = event => {
-      const target = event.target.closest?.("button:not(.collapse), input, select, textarea, [contenteditable], [tabindex]");
-      const row = target?.closest?.("li");
-      if (!row || !isLocked(row.pz_object)) return;
+      const target = event.target;
+      const row = target.closest?.("li");
+      if (!row || !isLocked(row.pz_object) || target.closest(".collapse")) return;
+      if (!row.children[1]?.contains(target) &&
+          !target.closest("button, input, select, textarea, [contenteditable], [tabindex]")) return;
       event.preventDefault();
       event.stopImmediatePropagation();
     };
-    for (const name of ["mousedown", "touchstart", "keydown", "click", "change", "drop"]) {
+    for (const name of ["pointerdown", "mousedown", "touchstart", "keydown", "click", "input", "change", "drop", "paste"]) {
       this.list.addEventListener(name, block, { capture: true, passive: false });
     }
     return result;

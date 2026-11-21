@@ -76,8 +76,20 @@
 
   function move(event) {
     if (!drag || event.pointerId !== drag.pointerId) return;
-    try { apply(drag.document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".zoidium-track-switch")); }
-    catch (error) { end(event); throw error; }
+    const { clientX: x, clientY: y } = event;
+    const from = drag.point;
+    drag.point = { x, y };
+    const steps = from && Number.isFinite(from.x + from.y + x + y)
+      ? Math.max(1, Math.ceil(Math.max(Math.abs(x - from.x), Math.abs(y - from.y)) / 8)) : 1;
+    try {
+      // Pointer events can span more than one row. Sample along the last
+      // movement so skipped events do not skip a switch in the same column.
+      for (let step = 1; step <= steps; step++) {
+        const px = steps === 1 ? x : from.x + (x - from.x) * step / steps;
+        const py = steps === 1 ? y : from.y + (y - from.y) * step / steps;
+        apply(drag.document.elementFromPoint(px, py)?.closest?.(".zoidium-track-switch"));
+      }
+    } catch (error) { end(event); throw error; }
   }
 
   function end(event) {
@@ -98,7 +110,8 @@
     event.stopPropagation();
     event.currentTarget.focus();
     drag = { ...target, editor, project: editor.project, document: event.currentTarget.ownerDocument,
-      pointerId: event.pointerId, value: !isOn(target.track, target.column) };
+      pointerId: event.pointerId, point: { x: event.clientX, y: event.clientY },
+      value: !isOn(target.track, target.column) };
     editor.history.startOperation();
     drag.operation = editor.history.operation;
     drag.document.addEventListener("pointermove", move, true);
