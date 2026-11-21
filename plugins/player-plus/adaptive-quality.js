@@ -32,7 +32,7 @@ function createController() {
       index = LEVELS.indexOf(effective);
       if (average > budget / 0.9 && index < floor) { effective = LEVELS[index + 1]; samples = []; }
       else if (samples.length >= 90) {
-        if (average < budget * 0.7 && index > ceiling) effective = LEVELS[index - 1];
+        if (average < budget * 1.05 && index > ceiling) effective = LEVELS[index - 1];
         samples = [];
       }
     }
