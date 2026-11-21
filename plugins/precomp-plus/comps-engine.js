@@ -500,12 +500,15 @@ function waitForMedia(project, media) {
   if (!loading || typeof loading.then !== "function" || mediaWaits.get(media) === loading) return;
   mediaWaits.set(media, loading);
   const editorAtWait = activeEditor;
+  const projectAtWait = editorAtWait?.project;
   loading.then(function () {
     if (mediaWaits.get(media) !== loading || !media.loaded || !project.media.includes(media)) return;
     if (editorAtWait && editorAtWait !== activeEditor) return;
-    if (activeEditor && activeEditor.project !== project) return;
-    reanalyze(project);
     const editor = activeEditor;
+    // Project open waits for the media before assigning the new project.
+    // Refresh its schedules while the editor still shows the old project.
+    if (editor && editor.project !== project && editor.project !== projectAtWait) return;
+    reanalyze(project);
     if (!editor || editor.project !== project) return;
     globalThis.ZoidiumFrameCache?.touch("composition-media-loaded");
     globalThis.ZoidiumFrameCache?.clear();
