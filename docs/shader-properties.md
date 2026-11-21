@@ -253,22 +253,36 @@ For each Path property named `Name`, the shader receives:
 uniform sampler2D NameCoverage; // coverage in the shader's UV space
 uniform sampler2D NamePoints;    // 256 equally spaced points, xy in UV space
 uniform float NameLength;        // path length in u units
-uniform int NameCount;           // sampled point count, 0 when the source is missing
+uniform int NameCount;           // 256 when the source resolves, 0 when missing
 ```
 
-Coverage is the feathered mask alpha (or the filled Shape+ path) resampled to
-the shader's UV space. Points are spaced equally along the path by arc
-length; open paths keep their endpoints. The points texture is 256x1 RGBA
-float, sampled with nearest filtering. Length divides the mask-space length
-by the source layer width. When float textures are unavailable, points fall
-back to 8-bit with a one-time warning; coverage is always 8-bit.
+Use `NamePoints` to follow a path. Use `NameCoverage` to mask.
+
+Coverage is the feathered mask alpha or the filled Shape+ path resampled to the
+shader's UV space with `v = 1` at the top. Points use the same UV space and are
+spaced equally along the path by arc length. On an open path, texel `0` is the
+start and texel `255` is the end. On a closed path, sample `k` sits at `k / 256`
+around the loop. Coverage closes open paths when it rasterizes the fill, while
+Points does not close them. For a Shape+ path source, the Shape+ layer's own
+transform is not applied, so coordinates stay in layer-local space.
+
+The points texture is 256x1 RGBA float, sampled with nearest filtering.
+Interpolate manually between adjacent texels for smooth motion along the path.
+`NameCount` is `256` when the source resolves and `0` when missing. Use it as a
+presence check, not as a vertex count. `NameLength` divides the mask-space
+length by the source layer width, so it is in `u` units. When float textures
+are unavailable, points fall back to 8-bit with a one-time warning. Coverage is
+always 8-bit.
 
 The path resolves at the render frame, so an animated mask or path moves the
 effect. A missing or deleted source binds an empty coverage, count 0, and a
 visible shader error. Sampling never renders, so a Path property cannot
 create a render cycle. For Plexus and Particular emitters, reuse the same
-sampled representation (256 points plus length); emitter bindings are not
+sampled representation (256 points plus length). Emitter bindings are not
 part of this release.
+
+See [Property kind examples](/docs/shaders/kind-examples/#path) for snippets
+that move particles along a path and interpolate `NamePoints`.
 
 Example: draw a glow along a path.
 
@@ -294,7 +308,7 @@ void main(){
 ```
 
 Scale distances by `vec2(aspect, 1.0)` first when the frame is not square.
-The loop taps every second point; use all 256 points when the path is long
+The loop taps every second point. Use all 256 points when the path is long
 and the glow is narrow.
 
 ## AlipFX migration
