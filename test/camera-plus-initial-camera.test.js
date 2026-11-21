@@ -44,6 +44,38 @@ test("a pasted Scene with only a nested Camera+ publishes its camera before upda
   runtime.deactivate();
 });
 
+test("opening a project keeps the camera its Scene published during load", () => {
+  const ctx = harness.createContext();
+  const runtime = harness.loadRuntime();
+  let projectChanged;
+  ctx.PZ.project = class FakeProject extends ctx.PZ.object {};
+  ctx.editor.project = new ctx.PZ.project();
+  ctx.editor.onProjectChanged = {
+    watch(callback) { projectChanged = callback; },
+    unwatch() {},
+  };
+  runtime.activate(ctx.context);
+  try {
+    const previousScene = loadScene(ctx, [cameraJSON()]);
+    previousScene.parent = ctx.editor.project;
+    const incoming = new ctx.PZ.project();
+    const scene = new ctx.PZ.layer.scene();
+    scene.parent = incoming;
+    scene.load({ properties: {}, objects: [{ type: 5, properties: {}, objects: [cameraJSON()] }] });
+    const camera = scene.objects[0].objects[0];
+    assert.equal(scene.pass.camera, camera.threeObj, "the incoming Scene publishes its camera during load");
+
+    ctx.editor.project = incoming;
+    projectChanged();
+
+    assert.equal(previousScene.pass.camera, null, "the previous project's Scene releases its camera");
+    assert.ok(scene.pass.camera === camera.threeObj, "CM3 can render the incoming Scene before updating it");
+    assert.deepEqual(scene.updates, [], "opening does not evaluate the Scene");
+  } finally {
+    runtime.deactivate();
+  }
+});
+
 test("a Camera+ added to an open Scene publishes immediately", () => {
   const { ctx, runtime } = activate();
   const scene = loadScene(ctx, []);

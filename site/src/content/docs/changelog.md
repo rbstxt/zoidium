@@ -367,6 +367,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- Scenes that use Camera+ now draw as soon as a project opens. Before, some
+  Scenes stayed missing from the preview until their layer was selected.
 - ZSMB no longer renders black at 1/2 quality and below on 3D Scenes that use a
   shared Camera+ layer, including after reopening a saved project or switching
   preview quality.
