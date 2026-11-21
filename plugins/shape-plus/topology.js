@@ -104,8 +104,12 @@ function integerPaths(paths, maxPoints = MAX_POINTS, minPoints = 3, requireClose
 function clip(subject, other, mode) {
   const engine = new C.Clipper(C.Clipper.ioStrictlySimple),
     result = [];
-  engine.AddPaths(subject, C.PolyType.ptSubject, true);
-  engine.AddPaths(other, C.PolyType.ptClip, true);
+  // Clipper rejects empty and sub-grid contours. When neither side contributes
+  // an accepted contour the operation has nothing to do; Execute() then
+  // reports false, which is a result rather than an error.
+  const subjectAdded = engine.AddPaths(subject, C.PolyType.ptSubject, true);
+  const clipAdded = engine.AddPaths(other, C.PolyType.ptClip, true);
+  if (!subjectAdded && !clipAdded) return [];
   const types = {
     add: C.ClipType.ctUnion,
     subtract: C.ClipType.ctDifference,
@@ -160,7 +164,10 @@ function output(polygons, id) {
 function merge(paths, p, id = "merge", maxPoints = MAX_POINTS) {
   if (p.mode === "merge")
     return paths.map((path) => ({ ...path, vertices: undefined }));
-  const integers = integerPaths(paths, maxPoints);
+  // Keep one entry per input contour so an empty or degenerate operand keeps
+  // its position in the operation; Clipper itself drops the contours it
+  // cannot accept, which leaves the remaining operands unchanged.
+  const integers = integerPaths(paths, maxPoints, 0);
   if (!integers.length) return [];
   let result;
   if (p.mode === "add") result = clip(integers, [], "add");

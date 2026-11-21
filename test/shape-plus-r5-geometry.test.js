@@ -158,6 +158,98 @@ test("merge retains contours without welding, subtract unions all cutters", () =
     76,
   );
 });
+const degenerate = () => ({ closed: true, points: [[0, 0], [0, 0], [0, 0], [0, 0]] });
+const emptyContour = () => ({ closed: true, points: [] });
+const subGridContour = () => ({
+  closed: true,
+  points: [
+    [0, 0],
+    [1e-6, 0],
+    [0, 1e-6],
+  ],
+});
+test("degenerate cutters preserve their subject position in every merge mode", () => {
+  const subject = square();
+  for (const empty of [degenerate(), emptyContour(), subGridContour()])
+    for (const [inputs, expected] of [
+      [[subject, empty], { add: 100, subtract: 100, intersect: 0, exclude: 100 }],
+      [[empty, subject], { add: 100, subtract: 0, intersect: 0, exclude: 100 }],
+    ])
+      for (const [mode, area] of Object.entries(expected))
+        near(total(merge(inputs, { mode })), area);
+  for (const mode of ["add", "subtract", "intersect", "exclude"]) {
+    const both = merge([degenerate(), degenerate()], { mode });
+    assert.equal(both.length, 0, mode);
+    assert.equal(merge([emptyContour(), emptyContour()], { mode }).length, 0, mode);
+  }
+});
+test("empty operands keep their place in a longer merge list", () => {
+  const subject = square(),
+    cutter = square(5),
+    far = square(20),
+    empty = emptyContour();
+  near(total(merge([subject, empty, cutter], { mode: "subtract" })), 50);
+  near(total(merge([subject, cutter, empty], { mode: "subtract" })), 50);
+  near(total(merge([emptyContour(), subject, cutter], { mode: "subtract" })), 0);
+  near(total(merge([subject, empty, cutter], { mode: "add" })), 150);
+  assert.deepEqual(
+    merge([subject, empty, cutter], { mode: "subtract" }),
+    merge([subject, cutter], { mode: "subtract" }),
+  );
+  const crossed = merge([subject, far, far], { mode: "intersect" });
+  assert.equal(crossed.length, 0);
+});
+test("merge paths subtract ignores an empty cutter and intersect clears for one", () => {
+  const subject = square(),
+    degenerateCutter = degenerate(),
+    empty = emptyContour();
+  near(total(merge([subject, degenerateCutter], { mode: "subtract" })), 100);
+  near(total(merge([empty, subject], { mode: "subtract" })), 0);
+  near(total(merge([subject, degenerateCutter], { mode: "add" })), 100);
+  near(total(merge([subject, empty], { mode: "intersect" })), 0);
+});
+test("merge paths subtract with a zero radius polygon keeps the square fill", () => {
+  const { Content } = createModel(PZ);
+  // A dynamic host property treats 0 as absent unless it is keyed, so give the
+  // radius an explicit keyframe.
+  const keyed = (value) => ({
+    animated: false,
+    keyframes: [{ frame: 0, value, tween: 0 }],
+  });
+  const node = (kind, id, properties = {}) => {
+    const n = new Content(kind, { id });
+    n.load({ id, properties });
+    return n.evaluate(0);
+  };
+  const subject = node("rectangle", "r"),
+    zeroRadius = node("polystar", "p", {
+      mode: "polygon",
+      outerRadius: keyed(0),
+    }),
+    mergePaths = node("mergePaths", "m", { mode: "subtract" }),
+    fill = node("fill", "f");
+  const meshArea = (positions) => {
+    let sum = 0;
+    for (let i = 0; i < positions.length; i += 9)
+      sum += Math.abs(
+        area([
+          positions.slice(i, i + 2),
+          positions.slice(i + 3, i + 5),
+          positions.slice(i + 6, i + 8),
+        ]),
+      );
+    return sum;
+  };
+  const kept = compile([subject, zeroRadius, mergePaths, fill]);
+  assert.equal(kept.commands.length, 1);
+  const positions = kept.commands[0].positions;
+  assert.ok(positions.length > 0);
+  assert.ok(positions.every(Number.isFinite));
+  near(meshArea(positions), 40000, 1);
+  const cleared = compile([zeroRadius, subject, mergePaths, fill]);
+  assert.equal(cleared.commands.length, 1);
+  assert.equal(cleared.commands[0].positions.length, 0);
+});
 test("offset splits a narrow neck and preserves oppositely wound holes", () => {
   const dumbbell = {
     closed: true,

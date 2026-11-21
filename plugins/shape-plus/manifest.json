@@ -3,597 +3,597 @@
   "id": "shape-plus",
   "name": "Shape+",
   "author": "Zoidium",
-  "version": "49",
+  "version": "50",
   "kind": "extension",
   "description": "Animated vector layers, procedural contents, pen masks for Scene and Adjustment layers, SVG import and native preview path editing.",
   "category": "scene",
   "modules": [
     {
       "id": "shape-plus",
-      "source": "./plugins/shape-plus/shape-plus.js?v=49"
+      "source": "./plugins/shape-plus/shape-plus.js?v=50"
     }
   ],
   "resources": [
     {
       "id": "group-properties",
       "type": "text",
-      "source": "./plugins/shape-plus/group-properties.js?v=49"
+      "source": "./plugins/shape-plus/group-properties.js?v=50"
     },
     {
       "id": "group-property-settings",
       "type": "text",
-      "source": "./plugins/shape-plus/group-property-settings.js?v=49"
+      "source": "./plugins/shape-plus/group-property-settings.js?v=50"
     },
     {
       "id": "group-property-ui",
       "type": "text",
-      "source": "./plugins/shape-plus/group-property-ui.js?v=49"
+      "source": "./plugins/shape-plus/group-property-ui.js?v=50"
     },
     {
       "id": "shared-kinds-js",
       "type": "text",
-      "source": "./plugins/shader-plus/kinds.js?v=49"
+      "source": "./plugins/shader-plus/kinds.js?v=50"
     },
     {
       "id": "shared-snap-js",
       "type": "text",
-      "source": "./plugins/shader-plus/snap.js?v=49"
+      "source": "./plugins/shader-plus/snap.js?v=50"
     },
     {
       "id": "shared-visibility-js",
       "type": "text",
-      "source": "./plugins/shader-plus/visibility.js?v=49"
+      "source": "./plugins/shader-plus/visibility.js?v=50"
     },
     {
       "id": "shared-property-controls-js",
       "type": "text",
-      "source": "./plugins/shader-plus/property-controls.js?v=49"
+      "source": "./plugins/shader-plus/property-controls.js?v=50"
     },
     {
       "id": "shared-property-controls-css",
       "type": "text",
-      "source": "./plugins/shader-plus/property-controls.css?v=49"
+      "source": "./plugins/shader-plus/property-controls.css?v=50"
     },
     {
       "id": "shared-settings-fields-js",
       "type": "text",
-      "source": "./plugins/shader-plus/settings-fields.js?v=49"
+      "source": "./plugins/shader-plus/settings-fields.js?v=50"
     },
     {
       "id": "shared-angle-control-js",
       "type": "text",
-      "source": "./plugins/shader-plus/angle-control.js?v=49"
+      "source": "./plugins/shader-plus/angle-control.js?v=50"
     },
     {
       "id": "compiler",
       "type": "text",
-      "source": "./plugins/shape-plus/compiler.js?v=49"
+      "source": "./plugins/shape-plus/compiler.js?v=50"
     },
     {
       "id": "fill",
       "type": "text",
-      "source": "./plugins/shape-plus/fill.js?v=49"
+      "source": "./plugins/shape-plus/fill.js?v=50"
     },
     {
       "id": "layer",
       "type": "text",
-      "source": "./plugins/shape-plus/layer.js?v=49"
+      "source": "./plugins/shape-plus/layer.js?v=50"
     },
     {
       "id": "model",
       "type": "text",
-      "source": "./plugins/shape-plus/model.js?v=49"
+      "source": "./plugins/shape-plus/model.js?v=50"
     },
     {
       "id": "path",
       "type": "text",
-      "source": "./plugins/shape-plus/path.js?v=49"
+      "source": "./plugins/shape-plus/path.js?v=50"
     },
     {
       "id": "primitives",
       "type": "text",
-      "source": "./plugins/shape-plus/primitives.js?v=49"
+      "source": "./plugins/shape-plus/primitives.js?v=50"
     },
     {
       "id": "properties",
       "type": "text",
-      "source": "./plugins/shape-plus/properties.js?v=49"
+      "source": "./plugins/shape-plus/properties.js?v=50"
     },
     {
       "id": "render",
       "type": "text",
-      "source": "./plugins/shape-plus/render.js?v=49"
+      "source": "./plugins/shape-plus/render.js?v=50"
     },
     {
       "id": "runtime",
       "type": "text",
-      "source": "./plugins/shape-plus/runtime.js?v=49"
+      "source": "./plugins/shape-plus/runtime.js?v=50"
     },
     {
       "id": "stroke",
       "type": "text",
-      "source": "./plugins/shape-plus/stroke.js?v=49"
+      "source": "./plugins/shape-plus/stroke.js?v=50"
     },
     {
       "id": "native-ui",
       "type": "text",
-      "source": "./plugins/shape-plus/native-ui.js?v=49"
+      "source": "./plugins/shape-plus/native-ui.js?v=50"
     },
     {
       "id": "editor",
       "type": "text",
-      "source": "./plugins/shape-plus/editor.js?v=49"
+      "source": "./plugins/shape-plus/editor.js?v=50"
     },
     {
       "id": "editor-model",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-model.js?v=49"
+      "source": "./plugins/shape-plus/editor-model.js?v=50"
     },
     {
       "id": "editor-geometry",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-geometry.js?v=49"
+      "source": "./plugins/shape-plus/editor-geometry.js?v=50"
     },
     {
       "id": "editor-topology",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-topology.js?v=49"
+      "source": "./plugins/shape-plus/editor-topology.js?v=50"
     },
     {
       "id": "editor-tree-data",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-tree-data.js?v=49"
+      "source": "./plugins/shape-plus/editor-tree-data.js?v=50"
     },
     {
       "id": "editor-history",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-history.js?v=49"
+      "source": "./plugins/shape-plus/editor-history.js?v=50"
     },
     {
       "id": "editor-canvas",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-canvas.js?v=49"
+      "source": "./plugins/shape-plus/editor-canvas.js?v=50"
     },
     {
       "id": "editor-pointer-machine",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-pointer-machine.js?v=49"
+      "source": "./plugins/shape-plus/editor-pointer-machine.js?v=50"
     },
     {
       "id": "editor-pointer",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-pointer.js?v=49"
+      "source": "./plugins/shape-plus/editor-pointer.js?v=50"
     },
     {
       "id": "editor-actions",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-actions.js?v=49"
+      "source": "./plugins/shape-plus/editor-actions.js?v=50"
     },
     {
       "id": "editor-selection",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-selection.js?v=49"
+      "source": "./plugins/shape-plus/editor-selection.js?v=50"
     },
     {
       "id": "paint-shader",
       "type": "text",
-      "source": "./plugins/shape-plus/paint-shader.js?v=49"
+      "source": "./plugins/shape-plus/paint-shader.js?v=50"
     },
     {
       "id": "editor-icons",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-icons.js?v=49"
+      "source": "./plugins/shape-plus/editor-icons.js?v=50"
     },
     {
       "id": "paint",
       "type": "text",
-      "source": "./plugins/shape-plus/paint.js?v=49"
+      "source": "./plugins/shape-plus/paint.js?v=50"
     },
     {
       "id": "operators",
       "type": "text",
-      "source": "./plugins/shape-plus/operators.js?v=49"
+      "source": "./plugins/shape-plus/operators.js?v=50"
     },
     {
       "id": "stroke-profile",
       "type": "text",
-      "source": "./plugins/shape-plus/stroke-profile.js?v=49"
+      "source": "./plugins/shape-plus/stroke-profile.js?v=50"
     },
     {
       "id": "compiler-procedural",
       "type": "text",
-      "source": "./plugins/shape-plus/compiler-procedural.js?v=49"
+      "source": "./plugins/shape-plus/compiler-procedural.js?v=50"
     },
     {
       "id": "editor-controls",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-controls.js?v=49"
+      "source": "./plugins/shape-plus/editor-controls.js?v=50"
     },
     {
       "id": "viewport-mapping",
       "type": "text",
-      "source": "./plugins/shape-plus/viewport-mapping.js?v=49"
+      "source": "./plugins/shape-plus/viewport-mapping.js?v=50"
     },
     {
       "id": "native-properties",
       "type": "text",
-      "source": "./plugins/shape-plus/native-properties.js?v=49"
+      "source": "./plugins/shape-plus/native-properties.js?v=50"
     },
     {
       "id": "deform",
       "type": "text",
-      "source": "./plugins/shape-plus/deform.js?v=49"
+      "source": "./plugins/shape-plus/deform.js?v=50"
     },
     {
       "id": "topology",
       "type": "text",
-      "source": "./plugins/shape-plus/topology.js?v=49"
+      "source": "./plugins/shape-plus/topology.js?v=50"
     },
     {
       "id": "vendor-clipper",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/clipper.js?v=49"
+      "source": "./plugins/shape-plus/vendor/clipper.js?v=50"
     },
     {
       "id": "license-boost",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-Boost.txt?v=49"
+      "source": "./plugins/shape-plus/vendor/LICENSE-Boost.txt?v=50"
     },
     {
       "id": "license-jsbn",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-JSBN.txt?v=49"
+      "source": "./plugins/shape-plus/vendor/LICENSE-JSBN.txt?v=50"
     },
     {
       "id": "svg-path",
       "type": "text",
-      "source": "./plugins/shape-plus/svg-path.js?v=49"
+      "source": "./plugins/shape-plus/svg-path.js?v=50"
     },
     {
       "id": "svg-import",
       "type": "text",
-      "source": "./plugins/shape-plus/svg-import.js?v=49"
+      "source": "./plugins/shape-plus/svg-import.js?v=50"
     },
     {
       "id": "convert-native",
       "type": "text",
-      "source": "./plugins/shape-plus/convert-native.js?v=49"
+      "source": "./plugins/shape-plus/convert-native.js?v=50"
     },
     {
       "id": "workflow",
       "type": "text",
-      "source": "./plugins/shape-plus/workflow.js?v=49"
+      "source": "./plugins/shape-plus/workflow.js?v=50"
     },
     {
       "id": "vendor-earcut",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/earcut.js?v=49"
+      "source": "./plugins/shape-plus/vendor/earcut.js?v=50"
     },
     {
       "id": "license-earcut",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-Earcut.txt?v=49"
+      "source": "./plugins/shape-plus/vendor/LICENSE-Earcut.txt?v=50"
     },
     {
       "id": "geometry-budget",
       "type": "text",
-      "source": "./plugins/shape-plus/geometry-budget.js?v=49"
+      "source": "./plugins/shape-plus/geometry-budget.js?v=50"
     },
     {
       "id": "geometry-failure",
       "type": "text",
-      "source": "./plugins/shape-plus/geometry-failure.js?v=49"
+      "source": "./plugins/shape-plus/geometry-failure.js?v=50"
     },
     {
       "id": "stroke-scalable",
       "type": "text",
-      "source": "./plugins/shape-plus/stroke-scalable.js?v=49"
+      "source": "./plugins/shape-plus/stroke-scalable.js?v=50"
     },
     {
       "id": "native-focus",
       "type": "text",
-      "source": "./plugins/shape-plus/native-focus.js?v=49"
+      "source": "./plugins/shape-plus/native-focus.js?v=50"
     },
     {
       "id": "contents-ops",
       "type": "text",
-      "source": "./plugins/shape-plus/contents-ops.js?v=49"
+      "source": "./plugins/shape-plus/contents-ops.js?v=50"
     },
     {
       "id": "editor-menu",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-menu.js?v=49"
+      "source": "./plugins/shape-plus/editor-menu.js?v=50"
     },
     {
       "id": "editor-pick",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-pick.js?v=49"
+      "source": "./plugins/shape-plus/editor-pick.js?v=50"
     },
     {
       "id": "editor-transform",
       "type": "text",
-      "source": "./plugins/shape-plus/editor-transform.js?v=49"
+      "source": "./plugins/shape-plus/editor-transform.js?v=50"
     },
     {
       "id": "native-hints",
       "type": "text",
-      "source": "./plugins/shape-plus/native-hints.js?v=49"
+      "source": "./plugins/shape-plus/native-hints.js?v=50"
     },
     {
       "id": "preset-variables",
       "type": "text",
-      "source": "./plugins/shape-plus/preset-variables.js?v=49"
+      "source": "./plugins/shape-plus/preset-variables.js?v=50"
     },
     {
       "id": "text-engine",
       "type": "text",
-      "source": "./plugins/shape-plus/text-engine.js?v=49"
+      "source": "./plugins/shape-plus/text-engine.js?v=50"
     },
     {
       "id": "vendor-harfbuzz",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/harfbuzz.js?v=49",
+      "source": "./plugins/shape-plus/vendor/harfbuzz.js?v=50",
       "optionalBundle": "text-engine"
     },
     {
       "id": "vendor-harfbuzz-api",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/harfbuzz-api.js?v=49",
+      "source": "./plugins/shape-plus/vendor/harfbuzz-api.js?v=50",
       "optionalBundle": "text-engine"
     },
     {
       "id": "vendor-harfbuzz-wasm",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/harfbuzz.wasm.base64?v=49",
+      "source": "./plugins/shape-plus/vendor/harfbuzz.wasm.base64?v=50",
       "optionalBundle": "text-engine"
     },
     {
       "id": "license-harfbuzz",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-HarfBuzz.txt?v=49",
+      "source": "./plugins/shape-plus/vendor/LICENSE-HarfBuzz.txt?v=50",
       "optionalBundle": "text-engine"
     },
     {
       "id": "license-harfbuzz-upstream",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-HarfBuzz-upstream.txt?v=49",
+      "source": "./plugins/shape-plus/vendor/LICENSE-HarfBuzz-upstream.txt?v=50",
       "optionalBundle": "text-engine"
     },
     {
       "id": "license-apache",
       "type": "text",
-      "source": "./plugins/shape-plus/vendor/LICENSE-Apache-2.0.txt?v=49",
+      "source": "./plugins/shape-plus/vendor/LICENSE-Apache-2.0.txt?v=50",
       "optionalBundle": "text-engine"
     },
     {
       "id": "text-font",
       "type": "text",
-      "source": "./plugins/shape-plus/text-font.js?v=49"
+      "source": "./plugins/shape-plus/text-font.js?v=50"
     },
     {
       "id": "text-shaping",
       "type": "text",
-      "source": "./plugins/shape-plus/text-shaping.js?v=49"
+      "source": "./plugins/shape-plus/text-shaping.js?v=50"
     },
     {
       "id": "text-layout",
       "type": "text",
-      "source": "./plugins/shape-plus/text-layout.js?v=49"
+      "source": "./plugins/shape-plus/text-layout.js?v=50"
     },
     {
       "id": "text-paths",
       "type": "text",
-      "source": "./plugins/shape-plus/text-paths.js?v=49"
+      "source": "./plugins/shape-plus/text-paths.js?v=50"
     },
     {
       "id": "text-properties",
       "type": "text",
-      "source": "./plugins/shape-plus/text-properties.js?v=49"
+      "source": "./plugins/shape-plus/text-properties.js?v=50"
     },
     {
       "id": "text-service",
       "type": "text",
-      "source": "./plugins/shape-plus/text-service.js?v=49"
+      "source": "./plugins/shape-plus/text-service.js?v=50"
     },
     {
       "id": "text-controls",
       "type": "text",
-      "source": "./plugins/shape-plus/text-controls.js?v=49"
+      "source": "./plugins/shape-plus/text-controls.js?v=50"
     },
     {
       "id": "text-caret",
       "type": "text",
-      "source": "./plugins/shape-plus/text-caret.js?v=49"
+      "source": "./plugins/shape-plus/text-caret.js?v=50"
     },
     {
       "id": "text-inline",
       "type": "text",
-      "source": "./plugins/shape-plus/text-inline.js?v=49"
+      "source": "./plugins/shape-plus/text-inline.js?v=50"
     },
     {
       "id": "text-convert",
       "type": "text",
-      "source": "./plugins/shape-plus/text-convert.js?v=49"
+      "source": "./plugins/shape-plus/text-convert.js?v=50"
     },
     {
       "id": "contents-state",
       "type": "text",
-      "source": "./plugins/shape-plus/contents-state.js?v=49"
+      "source": "./plugins/shape-plus/contents-state.js?v=50"
     },
     {
       "id": "text-cache",
       "type": "text",
-      "source": "./plugins/shape-plus/text-cache.js?v=49"
+      "source": "./plugins/shape-plus/text-cache.js?v=50"
     },
     {
       "id": "text-geometry",
       "type": "text",
-      "source": "./plugins/shape-plus/text-geometry.js?v=49"
+      "source": "./plugins/shape-plus/text-geometry.js?v=50"
     },
     {
       "id": "text-fill",
       "type": "text",
-      "source": "./plugins/shape-plus/text-fill.js?v=49"
+      "source": "./plugins/shape-plus/text-fill.js?v=50"
     },
     {
       "id": "text-animator-properties",
       "type": "text",
-      "source": "./plugins/shape-plus/text-animator-properties.js?v=49"
+      "source": "./plugins/shape-plus/text-animator-properties.js?v=50"
     },
     {
       "id": "text-selectors",
       "type": "text",
-      "source": "./plugins/shape-plus/text-selectors.js?v=49"
+      "source": "./plugins/shape-plus/text-selectors.js?v=50"
     },
     {
       "id": "text-animate",
       "type": "text",
-      "source": "./plugins/shape-plus/text-animate.js?v=49"
+      "source": "./plugins/shape-plus/text-animate.js?v=50"
     },
     {
       "id": "fill-overflow",
       "type": "text",
-      "source": "./plugins/shape-plus/fill-overflow.js?v=49"
+      "source": "./plugins/shape-plus/fill-overflow.js?v=50"
     },
     {
       "id": "mask-model",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-model.js?v=49"
+      "source": "./plugins/shape-plus/mask-model.js?v=50"
     },
     {
       "id": "mask-raster",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-raster.js?v=49"
+      "source": "./plugins/shape-plus/mask-raster.js?v=50"
     },
     {
       "id": "mask-host",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-host.js?v=49"
+      "source": "./plugins/shape-plus/mask-host.js?v=50"
     },
     {
       "id": "mask-render",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-render.js?v=49"
+      "source": "./plugins/shape-plus/mask-render.js?v=50"
     },
     {
       "id": "mask-persist",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-persist.js?v=49"
+      "source": "./plugins/shape-plus/mask-persist.js?v=50"
     },
     {
       "id": "mask-overlay",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-overlay.js?v=49"
+      "source": "./plugins/shape-plus/mask-overlay.js?v=50"
     },
     {
       "id": "mask-panels",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-panels.js?v=49"
+      "source": "./plugins/shape-plus/mask-panels.js?v=50"
     },
     {
       "id": "mask-api",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-api.js?v=49"
+      "source": "./plugins/shape-plus/mask-api.js?v=50"
     },
     {
       "id": "mask-gpu",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-gpu.js?v=49"
+      "source": "./plugins/shape-plus/mask-gpu.js?v=50"
     },
     {
       "id": "mask-expansion",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-expansion.js?v=49"
+      "source": "./plugins/shape-plus/mask-expansion.js?v=50"
     },
     {
       "id": "path-timeline-view",
       "type": "text",
-      "source": "./plugins/shape-plus/path-timeline-view.js?v=49"
+      "source": "./plugins/shape-plus/path-timeline-view.js?v=50"
     },
     {
       "id": "path-timeline-model",
       "type": "text",
-      "source": "./plugins/shape-plus/path-timeline-model.js?v=49"
+      "source": "./plugins/shape-plus/path-timeline-model.js?v=50"
     },
     {
       "id": "path-multi-mask",
       "type": "text",
-      "source": "./plugins/shape-plus/path-multi-mask.js?v=49"
+      "source": "./plugins/shape-plus/path-multi-mask.js?v=50"
     },
     {
       "id": "path-transfer",
       "type": "text",
-      "source": "./plugins/shape-plus/path-transfer.js?v=49"
+      "source": "./plugins/shape-plus/path-transfer.js?v=50"
     },
     {
       "id": "path-topology",
       "type": "text",
-      "source": "./plugins/shape-plus/path-topology.js?v=49"
+      "source": "./plugins/shape-plus/path-topology.js?v=50"
     },
     {
       "id": "path-animation",
       "type": "text",
-      "source": "./plugins/shape-plus/path-animation.js?v=49"
+      "source": "./plugins/shape-plus/path-animation.js?v=50"
     },
     {
       "id": "path-native-channels",
       "type": "text",
-      "source": "./plugins/shape-plus/path-native-channels.js?v=49"
+      "source": "./plugins/shape-plus/path-native-channels.js?v=50"
     },
     {
       "id": "path-hosts",
       "type": "text",
-      "source": "./plugins/shape-plus/path-hosts.js?v=49"
+      "source": "./plugins/shape-plus/path-hosts.js?v=50"
     },
     {
       "id": "path-controller",
       "type": "text",
-      "source": "./plugins/shape-plus/path-controller.js?v=49"
+      "source": "./plugins/shape-plus/path-controller.js?v=50"
     },
     {
       "id": "path-input",
       "type": "text",
-      "source": "./plugins/shape-plus/path-input.js?v=49"
+      "source": "./plugins/shape-plus/path-input.js?v=50"
     },
     {
       "id": "path-gestures",
       "type": "text",
-      "source": "./plugins/shape-plus/path-gestures.js?v=49"
+      "source": "./plugins/shape-plus/path-gestures.js?v=50"
     },
     {
       "id": "path-transform",
       "type": "text",
-      "source": "./plugins/shape-plus/path-transform.js?v=49"
+      "source": "./plugins/shape-plus/path-transform.js?v=50"
     },
     {
       "id": "path-feedback",
       "type": "text",
-      "source": "./plugins/shape-plus/path-feedback.js?v=49"
+      "source": "./plugins/shape-plus/path-feedback.js?v=50"
     },
     {
       "id": "path-projection",
       "type": "text",
-      "source": "./plugins/shape-plus/path-projection.js?v=49"
+      "source": "./plugins/shape-plus/path-projection.js?v=50"
     },
     {
       "id": "path-selection",
       "type": "text",
-      "source": "./plugins/shape-plus/path-selection.js?v=49"
+      "source": "./plugins/shape-plus/path-selection.js?v=50"
     },
     {
       "id": "mask-metadata",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-metadata.js?v=49"
+      "source": "./plugins/shape-plus/mask-metadata.js?v=50"
     },
     {
       "id": "mask-row-view",
       "type": "text",
-      "source": "./plugins/shape-plus/mask-row-view.js?v=49"
+      "source": "./plugins/shape-plus/mask-row-view.js?v=50"
     },
     {
       "id": "path-channel-labels",
       "type": "text",
-      "source": "./plugins/shape-plus/path-channel-labels.js?v=49"
+      "source": "./plugins/shape-plus/path-channel-labels.js?v=50"
     }
   ]
 }
