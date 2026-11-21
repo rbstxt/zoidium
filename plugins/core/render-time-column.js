@@ -53,7 +53,10 @@
     }
     if (!layout) return;
     for (const [el, property, initial] of layout) {
-      el.style[property] = timing.enabled ? "calc(" + initial + " + 40px)" : initial;
+      const widened = "calc(" + initial + " + 40px)";
+      if (timing.enabled) el.style[property] = widened;
+      // Restore only what this column wrote; a value the timeline rewrote meanwhile is kept.
+      else if (el.style[property] === widened) el.style[property] = initial;
     }
     if (!timing.enabled) gutters.delete(timeline);
   }

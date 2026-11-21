@@ -339,4 +339,10 @@ test("the timeline toggle restores the gutter and displays native layer and effe
   assert.equal(header.style.width, "200px");
   assert.equal(effectLane.pz_label.dataset.renderTime, undefined);
   assert.equal(effectLane.pz_label.classList.contains("zoidium-render-time-keyframe"), false);
+  // A width the timeline rewrites while the column is shown survives hiding it.
+  toggle.onclick({ stopPropagation() {} });
+  timeline.tracks.labels.style.width = "260px";
+  toggle.onclick({ stopPropagation() {} });
+  assert.equal(timeline.tracks.labels.style.width, "260px");
+  assert.equal(header.style.width, "200px");
 });
