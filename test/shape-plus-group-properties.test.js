@@ -71,6 +71,8 @@ test("Shape+ group controls round trip their native keyframes and stay out of ge
   assert.equal(JSON.stringify(reopened), JSON.stringify(saved));
   const legacy = setup(fixture()).group;
   assert.equal(JSON.stringify(group.evaluate(15)), JSON.stringify(legacy.evaluate(15)));
+  const { scene } = require("../plugins/shape-plus/editor-canvas.js");
+  assert.deepEqual(scene([group], 15), scene([legacy], 15));
   const legacySaved = JSON.stringify(legacy);
   legacy.load(JSON.parse(legacySaved));
   assert.equal(JSON.stringify(legacy), legacySaved);
