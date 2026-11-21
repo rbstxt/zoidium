@@ -26,14 +26,14 @@
       "id": "core",
       "name": "Zoidium Core",
       "author": "Zoidium",
-      "version": "171",
+      "version": "172",
       "visibility": "hidden",
       "alwaysEnabled": true,
       "tagline": "Built-in core extensions",
       "description": "Hidden built-in extensions that always run. Not shown in the Plugins panel and never stored in projects.",
       "manifest": "./plugins/core/manifest.json?v=170",
       "bundle": "./plugins/core/bundle.json?v=170",
-      "integrity": "sha256-Me1XBiEbuERV8nuvwckk+mJMlbwkM9Lx++SdbH7F7q8="
+      "integrity": "sha256-Q3iyzLSmVuWaXQaHccUpcQeI/qlXSq5g6CjqyOG/N8w="
     },
     {
       "id": "easing-plus",
@@ -119,7 +119,7 @@
       "category": "utilities",
       "name": "Precomp+",
       "author": "DaviFX",
-      "version": "23",
+      "version": "24",
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Pre-compose and nested compositions",
@@ -128,7 +128,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/precomp-plus/manifest.json?v=23",
       "bundle": "./plugins/precomp-plus/bundle.json?v=23",
-      "integrity": "sha256-dQwLALqsTVisz24wLzmE6tHEeqqv07ZDdOY97cddiWs="
+      "integrity": "sha256-XkORGj0bytSfR14bORvbm5UmufBOnJWg+Coyo7FVUCA="
     },
     {
       "id": "gif-support",
@@ -151,7 +151,7 @@
       "category": "utilities",
       "name": "Graph Editor 2",
       "author": "DaviFX",
-      "version": "24",
+      "version": "25",
       "itemCount": 1,
       "format": "graph editor",
       "tagline": "Rebuilt keyframe graph editor",
@@ -159,14 +159,14 @@
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
       "manifest": "./plugins/graph-plus/manifest.json?v=24",
       "bundle": "./plugins/graph-plus/bundle.json?v=24",
-      "integrity": "sha256-G7W7EKmG3slbelyYQN/my66c2z3SbkeWDB5VyqSHpsM="
+      "integrity": "sha256-pGX1Ru6OC6a0+WWKkd8DEYRC1vAs1Boj94l01m0Hc+0="
     },
     {
       "id": "motion-path",
       "category": "utilities",
       "name": "Motion Paths",
       "author": "Zoidium",
-      "version": "6",
+      "version": "7",
       "itemCount": 1,
       "format": "viewport tool",
       "tagline": "Editable motion paths in the preview",
@@ -174,7 +174,7 @@
       "defaultEnabled": true,
       "manifest": "./plugins/motion-path/manifest.json?v=6",
       "bundle": "./plugins/motion-path/bundle.json?v=6",
-      "integrity": "sha256-SpJTyAhaWSbfMH7oWfFfKVSofUTSCCGHqZggee11FKU="
+      "integrity": "sha256-0X+814LH2ByNWYNyibqH/XOCRDMf9CLUhSUSkdc9nzw="
     },
     {
       "id": "light-plus",
@@ -478,14 +478,14 @@
       "id": "shape-plus",
       "name": "Shape+",
       "author": "Zoidium",
-      "version": "46",
+      "version": "47",
       "tagline": "Animated vector layers",
       "description": "Animated vector layers, procedural contents, pen masks for Scene and Adjustment layers, SVG import and native preview path editing.",
       "category": "scene",
       "defaultEnabled": true,
       "manifest": "./plugins/shape-plus/manifest.json?v=46",
       "bundle": "./plugins/shape-plus/bundle.json?v=46",
-      "integrity": "sha256-SzRJtB5gfYYiJKmuHM8A+9j7XAhLQO6iyuf5VQCDTyU="
+      "integrity": "sha256-Gyd9hPO/x4AI+KWb/W2wZJPN1fCXpCnTaY2at+8JFv0="
     },
     {
       "id": "constraints",
