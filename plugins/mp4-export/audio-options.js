@@ -8,10 +8,13 @@ function addAudioOptions(page, select, owner) {
     return { format, option };
   });
   const hidden = new Map();
+  const resolution = owner.__zoidiumResolutionControls;
   function restore() { for (const [row, display] of hidden) row.style.display = display; hidden.clear(); }
   function update() {
     restore();
-    if (!isAudio(owner.params)) return;
+    const audioOnly = isAudio(owner.params);
+    resolution?.setVideoSizeRequired?.(!audioOnly);
+    if (!audioOnly) return;
     for (const row of page.querySelectorAll(".proprow")) {
       const label = (row.querySelector("span")?.textContent || "").trim();
       if (/^(Resolution|Output size \(px\)|Aspect ratio|Aspect ratio mode|Frame rate|Bitrate|Quality|True datamosh)$/i.test(label)) {
@@ -26,7 +29,11 @@ function addAudioOptions(page, select, owner) {
       owner.params.format = match.format; update(); return true;
     },
     update,
-    dispose() { restore(); options.forEach(entry => entry.option.remove()); },
+    dispose() {
+      restore();
+      resolution?.setVideoSizeRequired?.(true);
+      options.forEach(entry => entry.option.remove());
+    },
   };
 }
 module.exports = { addAudioOptions };

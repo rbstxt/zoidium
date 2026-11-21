@@ -36,14 +36,19 @@ test("audio selector hides video rows and restores their prior display", () => {
   global.document = { createElement: () => ({ remove() { select.options.splice(select.options.indexOf(this), 1); } }) };
   const select = { options: [], selectedIndex: 0, appendChild(option) { this.options.push(option); } };
   const rows = ["Resolution", "Frame rate", "Quality", "True datamosh", "Format"].map(label => ({ style: { display: label === "Quality" ? "grid" : "" }, querySelector: () => ({ textContent: label }) }));
-  const owner = { params: {} };
+  let videoSizeRequired = true;
+  const owner = { params: {}, __zoidiumResolutionControls: { setVideoSizeRequired(value) { videoSizeRequired = value; } } };
   try {
     const control = addAudioOptions({ querySelectorAll: () => rows }, select, owner);
     assert.equal(control.select(), true);
     assert.deepEqual(rows.map(row => row.style.display), ["none", "none", "none", "none", ""]);
+    assert.equal(videoSizeRequired, false);
     owner.params.format = "mkv"; control.update();
     assert.deepEqual(rows.map(row => row.style.display), ["", "", "grid", "", ""]);
+    assert.equal(videoSizeRequired, true);
+    control.select();
     control.dispose(); assert.equal(select.options.length, 0);
+    assert.equal(videoSizeRequired, true);
   } finally { global.document = old; }
 });
 test("M4A reports AAC unavailability and offers WAV", async () => {
@@ -51,13 +56,36 @@ test("M4A reports AAC unavailability and offers WAV", async () => {
     sequence: { audioSchedules: [], properties: { rate: { get: () => 30 } } } };
   await assert.rejects(createAudioJob({}, exporter, () => { throw new Error("unexpected encoder"); }).run(), /AAC encoding is unavailable.*\.wav/);
 });
-test("WAV contains the native mix returned for the selected segment", async () => {
+test("WAV decodes the scheduled source and writes the native mix for a nonzero in point", async () => {
+  const bytes = new ArrayBuffer(8);
+  const decoded = buffer([1], [-1]);
+  const media = { file: { arrayBuffer: async () => bytes } };
+  const segment = { media, offset: 1.25, playbackRate: 2 };
+  let decoderClosed = false;
+  const scope = {
+    AudioContext: class {
+      constructor(options) { assert.equal(options.sampleRate, 48000); }
+      async decodeAudioData(input) { assert.equal(input, bytes); return decoded; }
+      close() { decoderClosed = true; }
+    },
+  };
   const exporter = {
     params: { format: WAV, start: 15, length: 1, rate: 48000 },
-    sequence: { audioSchedules: [], properties: { rate: { get: () => 30 } } },
-    analyzeSegment(start, count) { assert.equal(start, 24000); assert.equal(count, 1); return [{ marker: 1, media: {} }]; },
-    renderAudioSegment(segments) { assert.equal(segments[0].marker, 1); return buffer([0.5], [-1]); },
+    sequence: { audioSchedules: [{ items: [{ media }] }], properties: { rate: { get: () => 30 } } },
+    analyzeSegment(start, count) {
+      assert.equal(start, 24000);
+      assert.equal(count, 1);
+      return [segment];
+    },
+    renderAudioSegment(segments, start, count) {
+      assert.deepEqual(segments, [{ ...segment, buffer: decoded, startOffset: 2.5 }]);
+      assert.equal(start, 24000);
+      assert.equal(count, 1);
+      return buffer([0.5], [-1]);
+    },
   };
-  const wav = new DataView(await (await createAudioJob({}, exporter).run()).arrayBuffer());
-  assert.equal(wav.getInt16(44, true), 16384); assert.equal(wav.getInt16(46, true), -32768);
+  const wav = new DataView(await (await createAudioJob(scope, exporter).run()).arrayBuffer());
+  assert.equal(wav.getInt16(44, true), 16384);
+  assert.equal(wav.getInt16(46, true), -32768);
+  assert.equal(decoderClosed, true);
 });

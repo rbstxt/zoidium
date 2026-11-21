@@ -152,6 +152,29 @@ test("invalid serialized Custom dimensions fail before allocating an exporter", 
   assert.equal(h.counts().exports, 0);
 });
 
+test("audio can start with an invalid video size and video restores the error", () => {
+  const ui = harness().open();
+  custom(ui, 3441, 1440);
+  const controls = ui.owner.__zoidiumResolutionControls;
+  const event = {
+    prevented: false,
+    preventDefault() { this.prevented = true; },
+    stopImmediatePropagation() {},
+  };
+  controls.setVideoSizeRequired(false);
+  assert.equal(ui.start.disabled, false);
+  assert.equal(ui.message.style.display, "none");
+  ui.start.clickListener(event);
+  assert.equal(event.prevented, false);
+
+  controls.setVideoSizeRequired(true);
+  assert.equal(ui.width.value, "3441");
+  assert.equal(ui.start.disabled, true);
+  assert.match(ui.message.textContent, /even whole numbers/);
+  ui.start.clickListener(event);
+  assert.equal(event.prevented, true);
+});
+
 test("native codec rejection includes the custom size and recovery options; presets keep their original error", async () => {
   const h = harness(), ui = h.open(); custom(ui, 3440, 1440);
   await assert.rejects(ui.owner.render(), /3440×1440.*smaller Resolution.*another Format.*Codec rejected/);
