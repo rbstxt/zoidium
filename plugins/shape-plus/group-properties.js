@@ -4,6 +4,7 @@ const { KINDS, kindOf } = require("../shader-plus/kinds.js");
 const STORAGE = "zoidiumGroupProperties";
 const KINDS_IN_ORDER = ["slider", "checkbox", "angle", "point", "color4", "dropdown"];
 const MAX_PROPERTIES = 64;
+const ID = /^p[a-z0-9-]{1,64}$/i;
 const clone = value => JSON.parse(JSON.stringify(value));
 
 function validateGroupProperties(records, reserved = []) {
@@ -14,9 +15,12 @@ function validateGroupProperties(records, reserved = []) {
   const names = new Set(reserved), ids = new Set();
   for (const record of records) {
     const definition = record?.type, kind = kindOf({ definition });
-    const name = record?.properties?.name, id = definition?.zoidiumShapeGroup?.id;
+    const name = record?.properties?.name, metadata = definition?.zoidiumShapeGroup;
+    const id = metadata?.id, when = metadata?.visibleWhen;
     if (!KINDS_IN_ORDER.includes(kind) || !definition.custom || !definition.dynamic
-        || typeof id !== "string" || !/^p[a-z0-9-]{1,64}$/i.test(id) || ids.has(id)) {
+        || typeof id !== "string" || !ID.test(id) || ids.has(id)
+        || when && (typeof when.property !== "string" || !ID.test(when.property)
+          || !Array.isArray(when.values) || when.conditions && !Array.isArray(when.conditions))) {
       throw Error("Invalid Shape+ group property");
     }
     const template = KINDS[kind].create();
@@ -27,6 +31,11 @@ function validateGroupProperties(records, reserved = []) {
     }
     if (typeof name !== "string" || !name.trim() || names.has(name)) {
       throw Error("Property names must be nonempty and unique in the group");
+    }
+    const components = template.group ? record.objects : [record];
+    if (!Array.isArray(components) || components.length !== (template.objects?.length || 1)
+        || components.some(axis => !Array.isArray(axis?.keyframes) || !axis.keyframes.length)) {
+      throw Error("Missing Shape+ group property keyframes");
     }
     names.add(name);
     ids.add(id);

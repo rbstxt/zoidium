@@ -139,3 +139,84 @@ test("Shape+ edits add, rename, reorder, and remove controls with undo and redo"
     assert.deepEqual(names(), expected);
   }
 });
+
+test("native Shape+ controls use stable property addresses and native keyframes for all six kinds", () => {
+  const { nativeHost } = require("./expressions-plus-harness.js");
+  const { PZ } = nativeHost();
+  const { Content } = createModel(PZ);
+  const { KINDS_IN_ORDER, definitionFor, createRecord } = require("../plugins/shape-plus/group-properties.js");
+  const group = new Content("group");
+  group.load(fixture());
+  const records = KINDS_IN_ORDER.map((kind, i) => createRecord(PZ, definitionFor(kind, "p" + i), kind));
+  Object.assign(records[0].type.zoidiumShapeGroup, {
+    group: "Motion", help: "Distance in pixels", visibleWhen: { property: "p1", values: [1] },
+  });
+  group.setGroupProperties(records);
+  const ids = new Map();
+  for (const [name, expected] of [
+    ["slider", 0.5], ["checkbox", 0], ["angle", 0],
+    ["point", [0.5, 0.5]], ["color4", [1, 1, 1, 1]], ["dropdown", 0],
+  ]) {
+    const property = [...group.groupProperties].find(p => p.properties.name.get() === name);
+    assert.ok(property instanceof PZ.property.dynamic);
+    const address = property.getAddress();
+    assert.equal(group.addressLookup(address), property);
+    assert.deepEqual(clone(property.get(0)), expected);
+    ids.set(name, address);
+  }
+
+  const toggle = group.addressLookup(ids.get("checkbox"));
+  toggle.animated = true;
+  toggle.keyframes.push(new PZ.keyframe(1, 30, toggle.defaultTween));
+  assert.deepEqual([toggle.get(0), toggle.get(15), toggle.get(30)], [0, 0, 1]);
+
+  const saved = clone(group);
+  const reopened = new Content("group");
+  reopened.load(saved);
+  assert.equal(JSON.stringify(reopened), JSON.stringify(saved));
+  const reordered = saved.zoidiumGroupProperties.reverse();
+  reopened.setGroupProperties(reordered);
+  assert.equal(reopened.addressLookup(ids.get("checkbox")).get(30), 1);
+  assert.deepEqual([...reopened.groupProperties].map(p => p.properties.name.get()), KINDS_IN_ORDER.slice().reverse());
+});
+
+test("native Expressions+ evaluates a keyed control at the source clip time", () => {
+  const { installEngine } = require("../plugins/expressions-plus/engine.js");
+  const native = require("./expressions-plus-harness.js").nativeHost(), { PZ } = native;
+  const { Content } = createModel(PZ);
+  const sequence = new PZ.sequence();
+  sequence.properties.load();
+  const addLayer = (name, start) => {
+    const clip = new PZ.clip();
+    const track = new PZ.track.video();
+    sequence.videoTracks.push(track);
+    track.clips.push(clip);
+    clip.load({ start, length: 90 });
+    const layer = new PZ.layer();
+    layer.properties.name.set(name);
+    clip.children.push(layer);
+    clip.object = layer;
+    layer.parent = clip;
+    layer.contents = new PZ.objectList(layer, Content);
+    layer.children.push(layer.contents);
+    const group = new Content("group");
+    layer.contents.push(group);
+    group.load(fixture([record()]));
+    return group;
+  };
+  const receiver = addLayer("Artwork", 20), source = addLayer("Controller", 30);
+  const target = new Content("rectangle");
+  receiver.contents.push(target);
+  target.load({ properties: {} });
+  const position = target.properties.position;
+  installEngine({ ...native, project: sequence });
+  position.expression = new PZ.expression('[thisLayer.content("Motion").param("Travel"), layer("Controller").content("Motion").param("Travel")]');
+  assert.deepEqual(clone(position.get(25)), [100, 60]);
+  assert.equal(position.expression.error, null);
+  source.setGroupProperties([]);
+  assert.deepEqual(clone(position.get(25)), [0, 0]);
+  assert.match(position.expression.error, /property was not found/);
+  source.setGroupProperties([record()]);
+  assert.deepEqual(clone(position.get(25)), [100, 60]);
+  assert.equal(position.expression.error, null);
+});

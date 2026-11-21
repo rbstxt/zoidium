@@ -80,6 +80,7 @@ function openSettings(row, group, property, apply, close) {
   }
   kind.onchange = showKind;
   showKind();
+  input(panel, "group", "Group", metadata?.group);
   input(panel, "help", "Tooltip", metadata?.help);
   const controllers = Array.from(group.groupProperties || []).filter(p => p !== property && !p.definition.group);
   const when = select(panel, "when", "Visible when", [["", "Always"], ...controllers.map(p => [
@@ -138,8 +139,10 @@ function openSettings(row, group, property, apply, close) {
         }
       }
       next.zoidiumShapeGroup = { id };
-      const help = fields.help.value.trim();
-      if (help) next.zoidiumShapeGroup.help = help;
+      for (const key of ["group", "help"]) {
+        const value = fields[key].value.trim();
+        if (value) next.zoidiumShapeGroup[key] = value;
+      }
       if (when.value) next.zoidiumShapeGroup.visibleWhen = { property: when.value, ...parseConditions(condition.value) };
       apply(next, label);
       close();

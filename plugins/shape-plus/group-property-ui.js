@@ -21,12 +21,14 @@ function install(context, Layer, Content) {
   const style = doc.createElement("style");
   style.textContent = context.getAsset("text", STYLE)
     + "\n.shape-plus-group-property[hidden],.shape-plus-group-property-button[hidden],.shape-plus-group-property[hidden]+ul{display:none!important}";
+  style.textContent += "\n.shape-plus-group-heading{padding-block:4px;color:var(--zui-text-muted);background:var(--zui-bg-sunken)}\n"
+    + ".shape-plus-group-heading[hidden]{display:none!important}";
   doc.head.append(style);
   lifecycle.onDispose(() => style.remove());
 
   let active;
   const reveals = new WeakSet();
-  const buttons = new WeakMap();
+  const buttons = new WeakMap(), headings = new WeakMap();
   function close() { active?.panel.remove(); active = null; }
   lifecycle.onDispose(close);
 
@@ -126,18 +128,37 @@ function install(context, Layer, Content) {
     const records = group.groupProperties;
     const show = buttons.get(group);
     if (!records) return;
-    let conditional = false;
-    for (const row of list.children) {
+    let conditional = false, heading = null, shown = false;
+    for (const row of Array.from(list.children)) {
       const property = row.pz_object;
       if (!property || property.parent !== records) continue;
-      const when = property.definition.zoidiumShapeGroup.visibleWhen;
+      const metadata = property.definition.zoidiumShapeGroup;
+      if (heading?.textContent !== metadata.group) {
+        if (heading) heading.hidden = !shown;
+        heading = null;
+        shown = false;
+        if (metadata.group) {
+          heading = headings.get(row);
+          if (!heading) {
+            heading = doc.createElement("li");
+            heading.className = "shape-plus-group-heading";
+            heading.style.paddingLeft = row.firstElementChild.style.paddingLeft;
+            heading.textContent = metadata.group;
+            row.before(heading);
+            headings.set(row, heading);
+          }
+        }
+      }
+      const when = metadata.visibleWhen;
       conditional ||= !!when;
-      const controller = when && records[when.property];
+      const controller = when && Object.hasOwn(records, when.property) ? records[when.property] : null;
       const hidden = !!when && (!controller || !matchesController(when, controller, controller.get(frame - controller.frameOffset)));
       const reveal = hidden && reveals.has(group);
       row.hidden = hidden && !reveal;
       row.classList.toggle("zsp-hidden-property", reveal);
+      shown ||= !row.hidden;
     }
+    if (heading) heading.hidden = !shown;
     if (show) show.hidden = !conditional;
   }
 
