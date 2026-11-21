@@ -3,12 +3,19 @@
   "id": "player-plus",
   "name": "Player+",
   "author": "Zoidium",
-  "version": "18",
+  "version": "19",
   "kind": "extension",
   "modules": [
     {
       "id": "player-controls",
-      "source": "./plugins/player-plus/player-plus.js?v=18"
+      "source": "./plugins/player-plus/player-plus.js?v=19"
+    }
+  ],
+  "resources": [
+    {
+      "id": "transparency-grid",
+      "type": "text",
+      "source": "./plugins/player-plus/transparency-grid.js"
     }
   ]
 }

@@ -54,10 +54,11 @@ async function run(options, test) {
     page.setDefaultTimeout(30000);
     page.on("pageerror", error => console.error(error.message));
     page.on("console", message => { if (message.type() === "error") console.error(message.text().slice(0, 400)); });
-    await page.addInitScript(ids => {
+    await page.addInitScript(({ ids, oracle }) => {
       localStorage.setItem("zoidium.player-plus.quality", "0.125");
+      if (oracle) localStorage.removeItem("zoidium.player-plus.transparency-grid");
       for (const id of ids) localStorage.setItem("zoidium.plugin.enabled." + id, "true");
-    }, Object.keys(options.candidates || {}));
+    }, { ids: Object.keys(options.candidates || {}), oracle: options.oracle === true });
     await page.goto("http://127.0.0.1:" + server.address().port);
     await page.waitForFunction(() => globalThis.CM?.mainViewport && globalThis.ZoidiumFrameCache);
     if (assertTemporalKeyMemo) await page.evaluate(() => {
@@ -106,7 +107,8 @@ async function main() {
     matrix.push({ ...sample, name: sample.name + "-full", full: true });
   }
   try {
-    await run({ profile: path.resolve(profile), candidates, onStage: stage => { report.stage = stage; } }, async page => {
+    await run({ profile: path.resolve(profile), candidates, oracle: true,
+      onStage: stage => { report.stage = stage; } }, async page => {
       await page.waitForFunction(ids => ids.every(id => globalThis.PZ.zoidium.getDebugPlugins()
         .some(plugin => plugin.id === id && plugin.enabled && plugin.phase === "enabled")), approvals.candidates);
       report.environment = await page.evaluate(() => {

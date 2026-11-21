@@ -458,7 +458,7 @@
   }
 
   function render(viewport, fallback) {
-    if (approvalsStale) return fallback();
+    if (approvalsStale || viewport.__zoidiumLivePreviewGrid) return fallback();
     // A clock change needs one live evaluation, with no private project,
     // serialization or speculative renders. Samplers keep their cache path.
     if (plainTimeProject(viewport)) return fallback();
@@ -522,6 +522,7 @@
     const controller = viewport.__zoidiumOutputFrames;
     if (controller) shown(frame);
     if (disposed || debug.disabled || !store.effectiveLimit || !controller || viewport.renderMode ||
+      viewport.__zoidiumLivePreviewGrid ||
       !Number.isInteger(frame) || frame < 0) return;
     const key = keyFor(controller);
     if (!key || key === LIVE || key !== controller.key || store.entries.has(entryKey(controller, frame))) return;
