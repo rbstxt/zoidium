@@ -3,6 +3,9 @@
 const STORAGE_KEY = "zoidium.player-plus.transparency-grid";
 const BUTTON_CLASS = "zoidium-player-plus-transparency-grid";
 const style = `
+  .zoidium-player-plus-transparency-grid {
+    color: var(--zui-text-muted, #acacac);
+  }
   .zoidium-player-plus-transparency-grid[aria-pressed="true"] {
     color: var(--zui-value);
   }
