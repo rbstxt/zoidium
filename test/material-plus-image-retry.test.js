@@ -120,3 +120,80 @@ test("a rejection after releaseImages does not release the asset twice", async (
   await assert.rejects(first, /late decode failure/);
   assert.equal(calls.unloads.length, 1, "the released entry is not unloaded again");
 });
+
+// The asset reloader replaces the decode promise on the loaded wrapper before
+// it calls reloadImages. The returned promise stays pending until the test
+// settles it, so the rejection arrives while the entry is in a known state.
+function deferredLoading(entry) {
+  const pending = {};
+  entry.loaded.loading = new Promise((resolve, reject) => {
+    pending.resolve = resolve;
+    pending.reject = reject;
+  });
+  return pending;
+}
+
+test("a rejected graph image reload is retried by the next prepareImages", async () => {
+  const { nodes, material, calls, pending } = imageWorld();
+  const graph = imageGraph("image");
+  const first = nodes.prepareImages(graph, material);
+  pending[0].resolve();
+  await first;
+  const entry = nodes.getImageCache(material).image;
+  assert.equal(entry.revision, 1);
+  const asset = entry.asset;
+
+  const reload = deferredLoading(entry);
+  const reloaded = nodes.reloadImages(material, "image", asset);
+  reload.reject(new Error("synthetic reload failure"));
+  await assert.rejects(reloaded, /synthetic reload failure/);
+
+  assert.equal(nodes.getImageCache(material).image, undefined);
+  assert.deepEqual(calls.unloads, [asset]);
+
+  await nodes.prepareImages(graph, material);
+  const replacement = nodes.getImageCache(material).image;
+  assert.equal(calls.loads.length, 2, "the next prepareImages loads the asset again");
+  assert.notEqual(replacement.asset, asset);
+  assert.deepEqual(replacement.canvas, { key: "image", attempt: 2 });
+  assert.equal(replacement.revision, 1);
+  assert.equal(calls.unloads.length, 1, "only the failed reload was released");
+
+  nodes.releaseImages(material);
+  assert.equal(calls.unloads.length, 2);
+  assert.equal(calls.unloads.length, calls.loads.length, "every loaded asset is released once");
+});
+
+test("a rejected reload leaves a replacement entry alone", async () => {
+  const { nodes, material, calls, pending } = imageWorld();
+  const graph = imageGraph("image");
+  const first = nodes.prepareImages(graph, material);
+  pending[0].resolve();
+  await first;
+  const entry = nodes.getImageCache(material).image;
+  const firstAsset = entry.asset;
+
+  const reload = deferredLoading(entry);
+  const reloaded = nodes.reloadImages(material, "image", entry.asset);
+
+  // The graph drops the image while the reload is pending, and a later edit
+  // adds it back with a replacement entry.
+  await nodes.prepareImages(imageGraph(), material);
+  assert.equal(calls.unloads.length, 1);
+  const second = nodes.prepareImages(graph, material);
+  const replacement = nodes.getImageCache(material).image;
+  assert.equal(calls.loads.length, 2);
+
+  reload.reject(new Error("late reload failure"));
+  await assert.rejects(reloaded, /late reload failure/);
+  await second;
+
+  assert.equal(nodes.getImageCache(material).image, replacement, "the replacement stays cached");
+  assert.equal(replacement.disposed, false);
+  assert.equal(replacement.revision, 1);
+  assert.equal(calls.unloads.length, 1, "the replaced entry is not released a second time");
+  assert.deepEqual(calls.unloads, [firstAsset]);
+
+  await nodes.prepareImages(graph, material);
+  assert.equal(calls.loads.length, 2, "the cached replacement is reused");
+});
