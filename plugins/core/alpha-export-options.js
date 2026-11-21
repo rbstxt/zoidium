@@ -80,21 +80,25 @@
   function installAlphaImageEncoder(encoder) {
     if (typeof encoder?.encode !== "function") return;
     const original = encoder.encode;
-    encoder.encode = async function (exporter, params) {
+    encoder.encode = function (exporter, params) {
       if (alphaFormat(params) !== "image") return original.apply(this, arguments);
-      // toBlob reads the premultiplied WebGL canvas and writes straight alpha.
-      await exporter.getVideoFrame();
-      exporter.checkExportContext("before image encoding");
-      const blob = await encoder.canvasToBlob(exporter.renderer.domElement, params.format, params.quality);
-      // The native progress page can be closed while toBlob is in flight.
-      if (exporter.__zoidiumExportDisposed) return new Promise(() => {});
-      exporter.checkExportContext("after image encoding");
-      if (blob?.type !== "image/" + params.format) {
-        throw new Error(params.format.toUpperCase() + " encoding did not produce an image in the requested format.");
-      }
-      exporter.__zoidiumPendingFrame = null;
-      return blob;
+      return encodeTransparentImage(encoder, exporter, params);
     };
+  }
+
+  async function encodeTransparentImage(encoder, exporter, params) {
+    // toBlob reads the premultiplied WebGL canvas and writes straight alpha.
+    await exporter.getVideoFrame();
+    exporter.checkExportContext("before image encoding");
+    const blob = await encoder.canvasToBlob(exporter.renderer.domElement, params.format, params.quality);
+    // The native progress page can be closed while toBlob is in flight.
+    if (exporter.__zoidiumExportDisposed) return new Promise(() => {});
+    exporter.checkExportContext("after image encoding");
+    if (blob?.type !== "image/" + params.format) {
+      throw new Error(params.format.toUpperCase() + " encoding did not produce an image in the requested format.");
+    }
+    exporter.__zoidiumPendingFrame = null;
+    return blob;
   }
 
   if (typeof module === "object" && module.exports) {

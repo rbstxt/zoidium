@@ -108,13 +108,13 @@ test("premultiplied adjustment and CanvasTexture inputs copy before the effects 
   assert.equal(material.blending, 1);
 });
 
-test("image export passes the original encoder inputs through when off or unsupported", async () => {
+test("image export passes the original encoder inputs through when off or unsupported", () => {
   const calls = [];
   const image = { encode(...args) { calls.push(args); return "native bytes"; } };
   installAlphaImageEncoder(image);
   const exporter = {};
   for (const params of [{ format: "png" }, { format: "jpg", transparentBackground: true }]) {
-    assert.equal(await image.encode(exporter, params), "native bytes");
+    assert.equal(image.encode(exporter, params), "native bytes");
     assert.deepEqual(calls.at(-1), [exporter, params]);
   }
 });

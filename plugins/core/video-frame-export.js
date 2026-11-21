@@ -428,10 +428,10 @@
       await waitForExport(temporal?.prepareExportSamples?.(this, projectFrame), this.exportPolicy);
       this.checkExportContext("after shutter preparation");
       try { recordAccumulationTargets(this); } catch (_error) { /* Diagnostics must not interrupt export. */ }
-      const draw = () => this.compositor.renderSequence(projectFrame);
       if (this.__zoidiumAlphaExport) {
-        PZ.zoidium.alphaExportRender.drawTransparentSequence(this.compositor, THREE.NoBlending, null, draw);
-      } else draw();
+        PZ.zoidium.alphaExportRender.drawTransparentSequence(this.compositor, THREE.NoBlending, null,
+          () => this.compositor.renderSequence(projectFrame));
+      } else this.compositor.renderSequence(projectFrame);
       try { recordCompositorTargets(this); } catch (_error) { /* Diagnostics must not interrupt export. */ }
       this.checkExportContext("after composition");
 

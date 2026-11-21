@@ -51,7 +51,7 @@ The checkbox starts unchecked each time you open the options. A solid scene back
 | **.jpg** | JPEG image | None | No |
 | **.webp** | WebP image | None | With **Transparent background**, when WebP encoding is available |
 
-Enable **MP4 Export** to use transparent MKV and WebM. Use a player or editor that supports VP8 alpha to view the transparency.
+Enable **MP4 Export** to use transparent MKV and WebM. VP8 compression can change alpha values. Use a player or editor that supports VP8 alpha to view the transparency.
 - **MP4 audio:** Encoded at 48 kHz stereo, 128 kbit/s. If the project has no scheduled audio, MP4 writes no audio track. When AAC encoding is unavailable, MP4 falls back to Opus (some players need MKV, WebM, or a player that supports Opus in MP4). If the AAC timing-calibration check fails, export stops rather than silently switching to Opus; try the desktop app, MKV, or WebM. If an audio asset fails to decode, convert it to WAV and replace it in [Assets](/docs/workflow/assets/).
 
 ## Resolution, aspect ratio, frame rate, and bitrate
