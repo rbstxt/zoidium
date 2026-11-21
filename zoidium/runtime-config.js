@@ -37,6 +37,7 @@
       "./plugins/core/project-media-fps.js",
       "./plugins/core/sequence-timing.js",
       "./plugins/core/audio-track-visibility.js",
+      "./plugins/core/timeline-track-swipe.js",
       "./plugins/core/default-project-settings.js",
       "./plugins/core/preview-context-menu.js",
       "./plugins/core/particle-viewport.js",
