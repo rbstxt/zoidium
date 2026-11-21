@@ -76,6 +76,7 @@
       const renderEffects = root.renderEffects;
       root.renderLayer = function temporalReusedLayer(object) {
         if (!skipped.has(object)) return renderLayer.apply(this, arguments);
+        global.ZoidiumRenderTimeActive?.current(root)?.reuseLayer(object);
       };
       root.renderEffects = function temporalReusedEffects(effects) {
         if (effects === layer.effects) {
@@ -99,7 +100,7 @@
     return () => {};
   }
 
-  function renderPreparedPreview(viewport, runtime, frame) {
+  function renderPreparedPreview(viewport, runtime, frame, timing) {
     const math = registry.math;
     const layers = registry.layers;
     const sampler = registry.sampler;
@@ -110,13 +111,17 @@
     try {
       sequence.update(frame);
       const drawGrid = viewport.__zoidiumLivePreviewGrid;
-      if (drawGrid) {
+      const renderTime = global.ZoidiumRenderTimeActive;
+      const compositor = viewport.compositor;
+      if (!drawGrid) restoreInput = reusePreparedAdjustmentInput(viewport, runtime, frame);
+      if (renderTime) {
+        const draw = () => renderTime.draw(viewport, frame, compositor.renderSequence, compositor, [frame], timing);
+        if (drawGrid) drawGrid(viewport, draw);
+        else draw();
+      } else if (drawGrid) {
         // Prepared adjustment inputs include the native opaque backdrop.
-        drawGrid(viewport, () => viewport.compositor.renderSequence(frame));
-      } else {
-        restoreInput = reusePreparedAdjustmentInput(viewport, runtime, frame);
-        viewport.compositor.renderSequence(frame);
-      }
+        drawGrid(viewport, () => compositor.renderSequence(frame));
+      } else compositor.renderSequence(frame);
       viewport.lastFrame = frame;
     } finally {
       restoreInput();

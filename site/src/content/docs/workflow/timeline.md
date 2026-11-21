@@ -61,6 +61,17 @@ Each timeline track has **Solo** and **Lock** switches next to its visibility sw
 
 Solo and lock are saved with the project, and every change can be undone.
 
+## Find slow layers with Render Time
+
+Click **Render Time** at the top of the timeline labels to show how long each track and each effect took to draw in the last preview frame. Click it again to hide the column; while hidden it measures nothing.
+
+- Times are smoothed so they stay readable during playback. A Scene's time includes everything inside it, and a track's time includes its effects.
+- Colours compare each time with one frame at the project frame rate: bold red for half a frame or more, a softer colour for a tenth or more.
+- **GPU** times come from GPU timer queries when the browser offers them. Otherwise the column shows **CPU**, the time spent submitting draw calls, which is a guide rather than the full GPU cost.
+- **Cached** means the preview reused stored pixels for that frame instead of drawing it.
+
+Render Time affects the preview only; exports are unchanged.
+
 ## Trim multiple clips at once
 
 Dragging a clip's left or right edge while multiple clips are selected trims the same edge of every selected clip by the same frame delta.

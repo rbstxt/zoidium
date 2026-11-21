@@ -10,6 +10,10 @@ each line describes one visible change.
 
 ### Added
 
+- The timeline has an optional **Render Time** column that shows how long each
+  track and effect took to draw in the last preview frame, coloured against
+  the frame budget, so slow layers stand out. It is off by default and
+  measures nothing while hidden.
 - Timeline tracks have **Solo** and **Lock** switches. Solo draws only the
   soloed tracks in the preview and in exports; Lock stops every edit to the
   track's clips. Drag across visibility, Solo, or Lock switches to set several

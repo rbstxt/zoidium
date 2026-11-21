@@ -499,7 +499,13 @@
     return { frame, key, effects, temporalVideo, mediaDecoders, currentFramePreview };
   }
 
-  async function preparePreviewRequest(state, viewport, sequence, runtime, generation, request) {
+  function preparePreviewRequest(state, viewport, sequence, runtime, generation, request) {
+    const timing = host?.ZoidiumRenderTimeActive?.prepare(viewport, request.frame);
+    const prepared = preparePreviewFrame(state, viewport, sequence, runtime, generation, request, timing);
+    return timing ? prepared.finally(() => { if (!timing.serial) timing.discard(); }) : prepared;
+  }
+
+  async function preparePreviewFrame(state, viewport, sequence, runtime, generation, request, timing) {
     const { frame, key, effects } = request;
     const preparedContent = new Set();
     async function prepareContent(layer, inputFrame) {
@@ -544,8 +550,9 @@
         }
       }
       await prepareContent(layer, sourceFrame);
-      await effect.prepare(sourceFrame,
-        { sequence, frameSamplerRoot: viewport.compositor });
+      const sampleContext = { sequence, frameSamplerRoot: viewport.compositor };
+      if (timing) sampleContext.renderTime = timing;
+      await effect.prepare(sourceFrame, sampleContext);
     }
     const frameSamplerDecode = request.mediaDecoders?.[0] || effects.map(({ effect, sourceFrame }) =>
       effect._zoidiumFrameSampler.getRequest(effect, sourceFrame)?.decodeMedia)
@@ -573,7 +580,7 @@
     if (decision.rebaselined) runtime.previewDrawnFrame = undefined;
     runtime.previewLiveFrame = liveFrame;
     if (decision.draw) {
-      renderPreparedPreview(viewport, runtime, frame);
+      renderPreparedPreview(viewport, runtime, frame, timing);
       runtime.previewDrawnFrame = frame;
       host?.ZoidiumFrameCache?.capturePreview?.(viewport, frame);
     }
@@ -730,9 +737,12 @@
           schedule.__zoidiumTemporalRejoin = false;
           delete schedule.__zoidiumTemporalRejoinStarted;
         }
+        const timing = host?.ZoidiumRenderTimeActive;
         const drawGrid = this.__zoidiumLivePreviewGrid;
-        if (drawGrid) return drawGrid(this, () => state.originalViewportRender.apply(this, arguments));
-        return state.originalViewportRender.apply(this, arguments);
+        const original = state.originalViewportRender;
+        if (drawGrid) return drawGrid(this, () =>
+          timing ? timing.drawNative(this, original, arguments) : original.apply(this, arguments));
+        return timing ? timing.drawNative(this, original, arguments) : original.apply(this, arguments);
       }
 
       // The 3D editing viewport must remain on the live editing frame. Temporal
