@@ -22,6 +22,13 @@ const PlayerPlus = (() => {
     pauseIcon: null,
     renderOnceButton: null,
     qualitySelect: null,
+    adaptiveButton: null,
+    adaptiveLimit: null,
+    adaptive: null,
+    adaptiveModule: null,
+    adaptiveSettings: null,
+    effectiveQuality: 1,
+    timingViewport: null,
     speedSelect: null,
     speedChanged: null,
     toolbarObserver: null,
@@ -166,6 +173,8 @@ const PlayerPlus = (() => {
         fill: var(--zui-value);
       }
 
+      .zoidium-player-plus-adaptive,
+      .zoidium-player-plus-limit,
       .zoidium-player-plus-speed,
       .zoidium-player-plus-quality {
         background-color: var(--zui-bg-input);
@@ -187,6 +196,14 @@ const PlayerPlus = (() => {
         top: 6px;
         z-index: 2;
       }
+
+      .zoidium-player-plus-toolbar > .zoidium-player-plus-adaptive {
+        width: auto;
+        padding: 0 6px !important;
+        order: 2;
+      }
+      .zoidium-player-plus-adaptive[aria-pressed="true"] { border-color: var(--zui-accent); }
+      .zoidium-player-plus-limit { min-width: 90px; }
 
       .zoidium-player-plus-speed {
         order: 1;
@@ -227,6 +244,7 @@ const PlayerPlus = (() => {
     const constructor = viewportConstructor();
     if (!viewport || !constructor || !(viewport instanceof constructor)) return null;
     state.viewports.add(viewport);
+    updateCacheBypass(viewport);
     if (!viewport.__zoidiumPlayerPlusFrame) {
       const originalFrame = viewport._renderFn;
       if (typeof originalFrame === "function") {
@@ -237,6 +255,7 @@ const PlayerPlus = (() => {
             viewport.animFrameReq = null;
             return;
           }
+          sampleAdaptive(viewport);
           return originalFrame();
         };
         viewport.__zoidiumPlayerPlusOriginalFrame = originalFrame;
@@ -260,14 +279,14 @@ const PlayerPlus = (() => {
   }
 
   function applyQualityToViewport(viewport) {
-    if (!viewport?.renderer || !viewport.canvas || !viewport.compositor) return;
+    if (!viewport?.renderer || !viewport.canvas || !viewport.compositor || viewport.renderMode) return;
     const cssWidth = parseFloat(viewport.canvas.style.width) || viewport.canvas.clientWidth;
     const cssHeight = parseFloat(viewport.canvas.style.height) || viewport.canvas.clientHeight;
     if (!(cssWidth > 0) || !(cssHeight > 0)) return;
 
     const devicePixelRatio = state.window?.devicePixelRatio || 1;
-    const width = Math.max(1, Math.round(cssWidth * devicePixelRatio * state.quality));
-    const height = Math.max(1, Math.round(cssHeight * devicePixelRatio * state.quality));
+    const width = Math.max(1, Math.round(cssWidth * devicePixelRatio * state.effectiveQuality));
+    const height = Math.max(1, Math.round(cssHeight * devicePixelRatio * state.effectiveQuality));
     if (viewport.canvas.width !== width || viewport.canvas.height !== height) {
       viewport.renderer.setDrawingBufferSize(width, height, 1);
       viewport.compositor.setSize(viewport.canvas.width, viewport.canvas.height);
@@ -278,8 +297,97 @@ const PlayerPlus = (() => {
     }
   }
 
+  function updateCacheBypass(viewport) {
+    const reduced = state.effectiveQuality !== state.quality;
+    if (reduced && !viewport.__zoidiumPlayerPlusCacheBypass) {
+      viewport.__zoidiumPlayerPlusCacheBypass = { previous: viewport.__zoidiumImmediateOutput };
+      viewport.__zoidiumImmediateOutput = true;
+    } else if (!reduced && viewport.__zoidiumPlayerPlusCacheBypass) {
+      viewport.__zoidiumImmediateOutput = viewport.__zoidiumPlayerPlusCacheBypass.previous;
+      delete viewport.__zoidiumPlayerPlusCacheBypass;
+    }
+  }
+
   function applyQualityToAllViewports() {
     for (const viewport of getViewports()) applyQualityToViewport(viewport);
+  }
+
+  function updateAdaptiveLabel() {
+    if (!state.qualitySelect) return;
+    for (const option of state.qualitySelect.children) {
+      const item = QUALITY_OPTIONS.find(entry => entry.value === Number(option.value));
+      if (item) option.textContent = item.label;
+    }
+    const selected = Array.from(state.qualitySelect.children).find(option => Number(option.value) === state.quality);
+    if (selected && state.effectiveQuality !== state.quality) {
+      const effective = QUALITY_OPTIONS.find(option => option.value === state.effectiveQuality);
+      selected.textContent = "Adaptive · " + effective.label.replace(" quality", "");
+    }
+  }
+
+  function setEffectiveQuality(value) {
+    if (state.effectiveQuality === value) return;
+    state.effectiveQuality = value;
+    applyQualityToAllViewports();
+    updateAdaptiveLabel();
+  }
+
+  function resetAdaptive() {
+    if (!state.adaptive) return;
+    state.timingViewport = null;
+    setEffectiveQuality(state.adaptive.reset(state.quality));
+    for (const viewport of getViewports()) updateCacheBypass(viewport);
+    updateAdaptiveLabel();
+  }
+
+  function sampleAdaptive(viewport) {
+    if (!state.adaptive || viewport.renderMode || state.paused) return;
+    // A viewport removed by a layout change stops drawing; let the next one take over timing.
+    if (!state.timingViewport || state.timingViewport.canvas?.isConnected === false) state.timingViewport = viewport;
+    if (state.timingViewport !== viewport) return;
+    const playback = viewport.editor?.playback || state.editor?.playback;
+    const now = state.window.performance?.now?.() ?? Date.now();
+    const value = state.adaptive.tick(now, {
+      enabled: state.adaptiveSettings.enabled, playing: !!playback?.speed,
+      chosen: state.quality, limit: state.adaptiveSettings.limit, fps: playback?.frameRate,
+    });
+    setEffectiveQuality(value);
+  }
+
+  function adaptiveStorage() {
+    try { return state.window.localStorage; } catch (_error) { return null; }
+  }
+
+  function createAdaptiveControls(toolbar, before = null) {
+    const button = state.document.createElement("button");
+    button.type = "button";
+    button.className = "zoidium-player-plus-adaptive";
+    button.textContent = "Adaptive";
+    button.title = "Adaptive preview quality";
+    button.setAttribute("aria-pressed", String(state.adaptiveSettings.enabled));
+    button.addEventListener("click", () => {
+      state.adaptiveSettings.enabled = !state.adaptiveSettings.enabled;
+      state.adaptiveModule.writeSetting(adaptiveStorage(), "enabled", state.adaptiveSettings.enabled);
+      button.setAttribute("aria-pressed", String(state.adaptiveSettings.enabled));
+      resetAdaptive();
+    });
+    const limit = state.document.createElement("select");
+    limit.className = "pz-inputbox zoidium-player-plus-limit";
+    limit.title = "Lowest adaptive quality";
+    limit.setAttribute("aria-label", limit.title);
+    for (const [value, label] of [["auto", "Lowest: Auto"], ["0.5", "Lowest: 1/2"], ["0.25", "Lowest: 1/4"], ["0.125", "Lowest: 1/8"]]) {
+      const option = state.document.createElement("option");
+      option.value = value; option.textContent = label; limit.appendChild(option);
+    }
+    limit.value = state.adaptiveSettings.limit;
+    limit.addEventListener("change", () => {
+      if (!["auto", "0.5", "0.25", "0.125"].includes(limit.value)) return;
+      state.adaptiveSettings.limit = limit.value;
+      state.adaptiveModule.writeSetting(adaptiveStorage(), "limit", limit.value);
+      resetAdaptive();
+    });
+    toolbar.insertBefore(button, before); toolbar.insertBefore(limit, before);
+    state.adaptiveButton = button; state.adaptiveLimit = limit;
   }
 
   function installViewportPatches() {
@@ -326,6 +434,7 @@ const PlayerPlus = (() => {
     }
     if (prototype.resize === state.patchedResize) prototype.resize = state.originalResize;
     for (const viewport of state.viewports) {
+      updateCacheBypass(viewport);
       if (viewport.__zoidiumPlayerPlusFrame === viewport._renderFn) {
         viewport._renderFn = viewport.__zoidiumPlayerPlusOriginalFrame;
       }
@@ -345,6 +454,7 @@ const PlayerPlus = (() => {
   function setDrawingPaused(paused) {
     const next = Boolean(paused);
     state.paused = next;
+    if (next) resetAdaptive();
     const viewports = getViewports();
     for (const viewport of viewports) {
       const wasPaused = viewport.__zoidiumPlayerPlusPaused === true;
@@ -389,6 +499,7 @@ const PlayerPlus = (() => {
   }
 
   function renderOnce() {
+    resetAdaptive();
     for (const viewport of getViewports()) renderViewportOnce(viewport);
   }
 
@@ -434,6 +545,7 @@ const PlayerPlus = (() => {
       const value = Number(select.value);
       if (!QUALITY_OPTIONS.some((option) => option.value === value)) return;
       state.quality = value;
+      resetAdaptive();
       storeQuality(value);
       applyQualityToAllViewports();
     });
@@ -562,6 +674,18 @@ const PlayerPlus = (() => {
         state.renderOnceButton = renderOnceButton;
         state.qualitySelect = qualitySelect;
         state.speedSelect = speedSelect;
+        const adaptiveButton = toolbar.querySelector(".zoidium-player-plus-adaptive");
+        const adaptiveLimit = toolbar.querySelector(".zoidium-player-plus-limit");
+        // A toolbar built before adaptive quality existed gets the controls added in place.
+        if (adaptiveButton && adaptiveLimit) {
+          state.adaptiveButton = adaptiveButton;
+          state.adaptiveLimit = adaptiveLimit;
+          adaptiveButton.setAttribute("aria-pressed", String(state.adaptiveSettings.enabled));
+          adaptiveLimit.value = state.adaptiveSettings.limit;
+        } else {
+          adaptiveButton?.remove(); adaptiveLimit?.remove();
+          createAdaptiveControls(toolbar, speedSelect);
+        }
         updateSpeedSelect();
         updatePauseButton();
         watchToolbarLayout(toolbar);
@@ -575,6 +699,7 @@ const PlayerPlus = (() => {
     createPauseButton(toolbar);
     createRenderOnceButton(toolbar);
     createQualitySelect(toolbar);
+    createAdaptiveControls(toolbar);
     createSpeedSelect(toolbar);
     applyQualityToAllViewports();
     watchToolbarLayout(toolbar);
@@ -606,12 +731,16 @@ const PlayerPlus = (() => {
     state.pauseButton?.remove();
     state.renderOnceButton?.remove();
     state.qualitySelect?.remove();
+    state.adaptiveButton?.remove();
+    state.adaptiveLimit?.remove();
     state.speedSelect?.remove();
     state.toolbar = null;
     state.pauseButton = null;
     state.pauseIcon = null;
     state.renderOnceButton = null;
     state.qualitySelect = null;
+    state.adaptiveButton = null;
+    state.adaptiveLimit = null;
     state.speedSelect = null;
   }
 
@@ -627,7 +756,14 @@ const PlayerPlus = (() => {
     state.document = context.document || document;
     state.PZ = context.PZ || state.window.PZ;
     state.quality = readStoredQuality();
-    state.speedChanged = updateSpeedSelect;
+    const createRequire = context.apis?.modules?.createRequire || globalThis.ZoidiumPluginApis?.modules?.createRequire;
+    state.adaptiveModule = createRequire ? createRequire(context.getAsset, { root: "./plugins/player-plus/" })("./adaptive-quality.js") : require("./adaptive-quality.js");
+    let storage;
+    try { storage = state.window.localStorage; } catch (_error) { storage = null; }
+    state.adaptiveSettings = state.adaptiveModule.readSettings(storage);
+    state.adaptive = state.adaptiveModule.createController();
+    state.effectiveQuality = state.quality;
+    state.speedChanged = () => { updateSpeedSelect(); if (!state.editor?.playback?.speed) resetAdaptive(); };
     state.editor?.playback?.onSpeedChanged?.watch(state.speedChanged);
     installStyle();
     installViewportPatches();
@@ -648,6 +784,7 @@ const PlayerPlus = (() => {
     state.toolbarObserver = null;
     setDrawingPaused(false);
     state.quality = 1;
+    state.effectiveQuality = 1;
     applyQualityToAllViewports();
     removeControls();
     restoreViewportPatches();
@@ -659,6 +796,10 @@ const PlayerPlus = (() => {
     state.window = null;
     state.quality = 1;
     state.paused = false;
+    state.adaptive = null;
+    state.adaptiveModule = null;
+    state.adaptiveSettings = null;
+    state.timingViewport = null;
   }
 
   return { activate, deactivate, playSpaces };

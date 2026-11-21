@@ -10,6 +10,10 @@ each line describes one visible change.
 
 ### Added
 
+- Player+ has an **Adaptive** preview quality switch. While playing, it lowers
+  the preview quality step by step when frames take too long, never below the
+  **Lowest** setting, and returns to your chosen quality when you pause.
+  Exports are unaffected.
 - Masks and Shape+ paths share one path editor. Q (or P) is the Pen: the
   first click draws a mask on a selected Scene or Adjustment layer, a path on a
   selected Shape+ layer, or a new Shape+ layer when nothing suitable is selected.

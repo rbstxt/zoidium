@@ -14,10 +14,12 @@ Use **Player+** and the **Preview cache** to keep the viewport responsive on com
 | **Render once** | Draws the current frame on demand, including edits made while drawing is paused. |
 | **Resume drawing** | Restores automatic viewport updates. Drawing starts enabled. |
 | **Preview quality** | Scales both viewport pixel dimensions to **Full quality** (default), **1/2 quality**, **1/4 quality**, or **1/8 quality**. Saved locally. |
+| **Adaptive** | While playing, lowers **Preview quality** one step at a time when frames take too long, and raises it again when there is headroom. Pausing returns to the quality you chose. Off by default. Saved locally. |
+| **Lowest** | The lowest quality **Adaptive** may use: **Auto** (1/8), **1/2**, **1/4**, or **1/8**. Saved locally. |
 | **Playback speed** | Selects **Paused**, **0.25x**, **0.5x**, **0.75x**, **1x**, **1.25x**, **1.5x**, or **2x**. Follows **J**, **K**, and **L** shuttle shortcuts, including reverse and faster shuttle speeds. |
 
 Native audio playback follows the selected positive speed.
-**Playback speed** and **Preview quality** affect editor playback only. Saved projects, project resolution, and export settings stay separate.
+**Playback speed**, **Preview quality**, and **Adaptive** affect editor playback only. While **Adaptive** has lowered the quality, the quality menu shows it (for example **Adaptive · 1/4**) and the frame cache does not store those frames. Saved projects, project resolution, and export settings stay separate.
 
 ## Work smoothly on a heavy project
 
