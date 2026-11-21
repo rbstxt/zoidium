@@ -1,6 +1,6 @@
 ---
 title: 動画とフレームの書き出し
-description: H.264 MP4、WebM、MKV、静止画キャプチャ、True datamosh WebM 書き出しの手順と、解像度・ビットレート・音声・エラー復旧のまとめです。
+description: H.264 MP4、WebM、MKV、WAV、M4A、静止画、True datamosh WebM の書き出し手順です。
 ---
 動画書き出しには **Export > Device**、再生ヘッド位置の静止画保存には **Export > Single frame capture** を使います。
 **Precomp+** のコンポジションを開いている間は両方の書き出しがブロックされるため、先に **Back to Main** で **Main** へ戻ってください。
@@ -24,9 +24,12 @@ H.264 MP4 はアルファチャンネルを持ちません。奇数の出力寸�
 
 1. **Export** から **Device** を開きます。
 2. **Format** で **.wav (16-bit PCM)** または **.m4a (AAC)** を選びます。
-3. **Start** をクリックします。完了後に **Download your audio** をクリックします。
+3. **Start** をクリックします。
+4. **Render complete** が表示されたら、**Download your audio** をクリックします。
 
-動画書き出しと同じ範囲と音声トラックの設定を使います。両形式とも 48 kHz ステレオです。WAV は非圧縮の 16 ビット PCM です。M4A は 128 kbit/s の AAC を使い、AAC エンコーダーが必要です。AAC を使えない場合は WAV を選んでください。音声がないプロジェクトでは、選択した範囲の無音を書き出します。
+両形式とも 48 kHz ステレオです。WAV は非圧縮の 16 ビット PCM です。M4A は 128 kbit/s の AAC を使います。ブラウザーで AAC エンコードを開始できない場合は、**.wav (16-bit PCM)** を選びます。
+
+音声は MP4 と同じ範囲とミックスを使います。ミックスには、トラックのミュート、音声のソロ、Precomp+ の音声が反映されます。範囲内に音声がない場合は、その長さの無音を書き出します。
 
 ## 1 フレームを静止画として書き出す
 

@@ -1,6 +1,6 @@
 "use strict";
 
-const { SAMPLE_RATE, frameCount, firstSupported } = require("./export-math.js");
+const { SAMPLE_RATE, frameCount, firstSupported, isMemoryError } = require("./export-math.js");
 const { createAudioMixer, planAudio } = require("./audio-mix.js");
 const { createAudioEncoding } = require("./audio-encode.js");
 const { createStorage } = require("./stream-target.js");
@@ -54,7 +54,8 @@ function createAudioJob(scope, exporter, loadBunny) {
             audio = await createAudioEncoding(scope, bunny, config, count / params.rate, controller.signal);
           } catch (error) {
             check();
-            throw new Error("AAC encoding could not be started. Select .wav instead. " + error.message, { cause: error });
+            if (isMemoryError(error)) throw error;
+            throw new Error("AAC encoding could not be started in this browser. Select .wav instead.", { cause: error });
           }
           output.addAudioTrack(audio.source);
           await output.start();

@@ -56,6 +56,26 @@ test("M4A reports AAC unavailability and offers WAV", async () => {
     sequence: { audioSchedules: [], properties: { rate: { get: () => 30 } } } };
   await assert.rejects(createAudioJob({}, exporter, () => { throw new Error("unexpected encoder"); }).run(), /AAC encoding is unavailable.*\.wav/);
 });
+
+test("M4A offers WAV if a reported AAC encoder fails timing calibration", async () => {
+  const exporter = { params: { format: "audio_m4a", start: 0, length: 30, rate: 30 },
+    sequence: { audioSchedules: [] } };
+  const scope = {
+    AudioEncoder: class {
+      static async isConfigSupported() { return { supported: true }; }
+      constructor() { throw new Error("Encoder unavailable"); }
+    },
+  };
+  const bunny = {
+    StreamTarget: class {},
+    Mp4OutputFormat: class {},
+    Output: class { async cancel() {} },
+  };
+  await assert.rejects(createAudioJob(scope, exporter, () => bunny).run(), {
+    message: "AAC encoding could not be started in this browser. Select .wav instead.",
+  });
+});
+
 test("WAV decodes the scheduled source and writes the native mix for a nonzero in point", async () => {
   const bytes = new ArrayBuffer(8);
   const decoded = buffer([1], [-1]);
@@ -78,7 +98,7 @@ test("WAV decodes the scheduled source and writes the native mix for a nonzero i
       return [segment];
     },
     renderAudioSegment(segments, start, count) {
-      assert.deepEqual(segments, [{ ...segment, buffer: decoded, startOffset: 2.5 }]);
+      assert.deepEqual(segments, [{ media, offset: 1.25, playbackRate: 2, buffer: decoded, startOffset: 2.5 }]);
       assert.equal(start, 24000);
       assert.equal(count, 1);
       return buffer([0.5], [-1]);

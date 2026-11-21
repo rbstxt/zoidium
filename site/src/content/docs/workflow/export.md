@@ -1,6 +1,6 @@
 ---
 title: Exporting video and frames
-description: Export H.264 MP4, WebM, MKV, still images, and True datamosh WebM renders, plus sizing, bitrate, audio, and error recovery.
+description: Export H.264 MP4, WebM, MKV, WAV, M4A, still images, and True datamosh WebM renders.
 ---
 Use **Export > Device** to render video and **Export > Single frame capture** to save the playhead frame as a still image.
 If a **Precomp+** composition is currently open, click **Back to Main** before opening **Export**. Both export paths are blocked while a source composition is active.
@@ -24,9 +24,12 @@ H.264 MP4 has no alpha channel. If an odd output dimension reaches the MP4 encod
 
 1. Open **Export**, then **Device**.
 2. In **Format**, select **.wav (16-bit PCM)** or **.m4a (AAC)**.
-3. Click **Start**. When the render completes, click **Download your audio**.
+3. Click **Start**.
+4. When **Render complete** appears, click **Download your audio**.
 
-The export uses the same range and audio track settings as video export. Both formats use 48 kHz stereo. WAV contains uncompressed 16-bit PCM. M4A uses AAC at 128 kbit/s and requires an AAC encoder. If AAC is unavailable, select WAV. A project without audio exports silence for the selected range.
+Both formats use 48 kHz stereo. WAV contains uncompressed 16-bit PCM. M4A uses AAC at 128 kbit/s. If your browser cannot start AAC encoding, select **.wav (16-bit PCM)**.
+
+Audio uses the same range and mix as MP4, including track mute, audio solo, and Precomp+ audio. If the range has no audio, the file contains silence for that duration.
 
 ## Export a single frame as an image
 
