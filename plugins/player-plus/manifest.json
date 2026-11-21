@@ -3,12 +3,19 @@
   "id": "player-plus",
   "name": "Player+",
   "author": "Zoidium",
-  "version": "18",
+  "version": "19",
   "kind": "extension",
   "modules": [
     {
       "id": "player-controls",
-      "source": "./plugins/player-plus/player-plus.js?v=18"
+      "source": "./plugins/player-plus/player-plus.js?v=19"
+    }
+  ],
+  "resources": [
+    {
+      "id": "adaptive-quality",
+      "type": "text",
+      "source": "./plugins/player-plus/adaptive-quality.js?v=19"
     }
   ]
 }
