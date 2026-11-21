@@ -119,7 +119,7 @@
       "category": "utilities",
       "name": "Precomp+",
       "author": "DaviFX",
-      "version": "24",
+      "version": "25",
       "itemCount": 1,
       "format": "workflow",
       "tagline": "Pre-compose and nested compositions",
@@ -128,7 +128,7 @@
       "zoidiumOnly": true,
       "manifest": "./plugins/precomp-plus/manifest.json?v=24",
       "bundle": "./plugins/precomp-plus/bundle.json?v=24",
-      "integrity": "sha256-XkORGj0bytSfR14bORvbm5UmufBOnJWg+Coyo7FVUCA="
+      "integrity": "sha256-oda0tzfgBsF7vLEn7hVJT+oM3rtOqVv+5ya7UVGR8Ag="
     },
     {
       "id": "gif-support",
