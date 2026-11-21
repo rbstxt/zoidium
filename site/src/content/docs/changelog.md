@@ -265,6 +265,9 @@ each line describes one visible change.
 
 ### Changed
 
+- The export **Bitrate** tooltip and the export docs now say the value is a
+  target. MP4 uses variable bitrate, so simple, dark or slow footage encodes
+  below it and detailed, fast footage can go above it.
 - Path and mask vertex channels show readable names such as **Point 1 - X**
   in the properties panel, the timeline, and Graph Editor 2 instead of internal
   IDs. Saved projects and expressions are unchanged.
@@ -383,6 +386,18 @@ each line describes one visible change.
 
 ### Fixed
 
+- Shape+ **Merge Paths** no longer erases the whole group when one shape
+  becomes empty, for example a polygon animated to radius 0. Subtracting an
+  empty shape keeps the other shape, and intersecting with one gives nothing.
+- The Shader+ code check no longer reports `',' : syntax error` on a line that
+  samples a Layer Input property. Completions and checks treat Layer Input
+  properties as images.
+- The Shader+ code check no longer asks for a declaration named after a Path
+  property itself. It expects the four Path uniforms (`Coverage`, `Points`,
+  `Length`, `Count`) and, when another property reuses one of those names,
+  names both properties.
+- A Material+ node graph image that failed to load is loaded again the next
+  time the graph needs it, instead of staying blank.
 - Precomp+ audio inside a composition is no longer lost after reopening a
   saved project.
 - Scenes that use Camera+ now draw as soon as a project opens. Before, some
