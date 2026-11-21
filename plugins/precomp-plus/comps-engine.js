@@ -576,7 +576,7 @@ Object.assign(CompLayer, {
     const clips = this.activeClips;
     clips.length = 0;
     for (let i = tracks.length - 1; i >= 0; i--) {
-      if (tracks[i].enabled === false) continue;
+      if (tracks[i].enabled === false || globalThis.ZoidiumTrackSwitches?.excludedBySolo(tracks[i], tracks)) continue;
       const clip = tracks[i].getCurrentClip(ct);
       if (clip && clip.object) clips.push(clip);
     }
@@ -727,8 +727,9 @@ function collectNestedAudio(layerClip, origin, winStart, winEnd, out, path) {
   if (!layer || typeof layer.nestedAudioTracks !== "function") return;
   if (path.has(layer.compId) || path.size >= MAX_DEPTH) return;
   path.add(layer.compId);
-  layer.nestedAudioTracks().forEach(function (track) {
-    if (track.enabled === false) return;
+  const audioTracks = layer.nestedAudioTracks();
+  audioTracks.forEach(function (track) {
+    if (track.enabled === false || globalThis.ZoidiumTrackSwitches?.excludedBySolo(track, audioTracks)) return;
     track.clips.forEach(function (clip) {
       const clipOrigin = origin + clip.start - layer.offset;
       const start = Math.max(winStart, clipOrigin);
@@ -738,7 +739,9 @@ function collectNestedAudio(layerClip, origin, winStart, winEnd, out, path) {
     });
   });
   if (typeof layer.nestedTracks === "function") {
-    layer.nestedTracks().forEach(function (track) {
+    const videoTracks = layer.nestedTracks();
+    videoTracks.forEach(function (track) {
+      if (globalThis.ZoidiumTrackSwitches?.excludedBySolo(track, videoTracks)) return;
       track.clips.forEach(function (clip) {
         if (clip.object && typeof clip.object.nestedAudioTracks === "function") {
           const clipOrigin = origin + clip.start - layer.offset;
@@ -767,6 +770,7 @@ function analyzeVideo(seq) {
   const audio = sched.combineTracks(seq.audioTracks);
   const extraAudio = [];
   clips.forEach(function (clip) {
+    if (globalThis.ZoidiumTrackSwitches?.excludedBySolo(clip.parent?.parent, seq.videoTracks)) return;
     if (clip.object && typeof clip.object.nestedAudioTracks === "function") {
       collectNestedAudio(clip, clip.start, clip.start, clip.start + clip.length, extraAudio, new Set());
     }

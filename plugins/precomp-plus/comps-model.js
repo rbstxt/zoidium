@@ -245,6 +245,8 @@ function trackSwitches(track) {
     if (track.enabled !== undefined) switches.enabled = !!track.enabled;
     if (track.track3d !== undefined) switches.track3d = !!track.track3d;
     if (track.skip !== undefined) switches.skip = !!track.skip;
+    if (track.zoidiumSolo === true) switches.zoidiumSolo = true;
+    if (track.zoidiumLocked === true) switches.zoidiumLocked = true;
   }
   return switches;
 }
@@ -259,6 +261,8 @@ function applyTrackSwitches(track, json) {
   if (Object.prototype.hasOwnProperty.call(json, "enabled")) track.enabled = !!json.enabled;
   if (Object.prototype.hasOwnProperty.call(json, "track3d")) track.track3d = !!json.track3d;
   if (Object.prototype.hasOwnProperty.call(json, "skip")) track.skip = !!json.skip;
+  if (json.zoidiumSolo === true) track.zoidiumSolo = true;
+  if (json.zoidiumLocked === true) track.zoidiumLocked = true;
 }
 
 module.exports = {

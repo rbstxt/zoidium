@@ -499,7 +499,7 @@
     const tracks = sequence?.videoTracks || [];
     for (let trackIndex = 0; trackIndex < tracks.length; trackIndex += 1) {
       const track = tracks[trackIndex];
-      if (!track || track.enabled === false) continue;
+      if (!track || track.enabled === false || global.ZoidiumTrackSwitches?.excludedBySolo(track, tracks)) continue;
       let clip = track.getCurrentClip?.(projectFrame);
       let layer = clip?.object;
       let effectIndex = layer?.effects?.indexOf?.(effect) ?? -1;

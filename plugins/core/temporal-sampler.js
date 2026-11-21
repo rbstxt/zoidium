@@ -397,7 +397,7 @@
     const end = allTracks ? tracks.length : stage.trackIndex + (isAdjustmentLayer(stage.layer) ? 0 : 1);
     for (let index = start; index < end; index += 1) {
       const track = tracks[index];
-      if (!track || track.enabled === false) continue;
+      if (!track || track.enabled === false || global.ZoidiumTrackSwitches?.excludedBySolo(track, tracks)) continue;
       const clip = registry.capture.inputClip(stage, track, index, projectFrame);
       if (clip) activeClips.add(clip);
     }
@@ -484,7 +484,7 @@
     const start = isAdjustmentLayer(stage.layer) ? 0 : stage.trackIndex;
     for (let index = start; index <= stage.trackIndex; index += 1) {
       registry.capture.checkPolicy(context);
-      if (tracks[index]?.enabled === false) continue;
+      if (tracks[index]?.enabled === false || global.ZoidiumTrackSwitches?.excludedBySolo(tracks[index], tracks)) continue;
       const clip = index === stage.trackIndex ? stage.clip : registry.capture.inputClip(stage, tracks[index], index, frame);
       const layer = clip?.object;
       if (!layer) continue;
@@ -745,7 +745,9 @@
           const tracks = sequence.videoTracks || [];
           const currentLayers = new Set([stage.layer]);
           for (let i = 0; i < stage.trackIndex; i += 1) {
-            if (tracks[i]?.enabled !== false) currentLayers.add(tracks[i]?.getCurrentClip?.(projectFrame)?.object);
+            if (tracks[i]?.enabled !== false && !global.ZoidiumTrackSwitches?.excludedBySolo(tracks[i], tracks)) {
+              currentLayers.add(tracks[i]?.getCurrentClip?.(projectFrame)?.object);
+            }
           }
           for (const changedLayer of changedLayers) {
             if (!currentLayers.has(changedLayer)) restoreLayerAtContextFrame(changedLayer, projectFrame, state, context?.exportPolicy);

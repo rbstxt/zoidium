@@ -99,7 +99,7 @@
       const tracks = sequence.videoTracks || [];
       for (let index = 0; index < (isAdjustmentLayer(stage.layer) ? stage.trackIndex : 0); index += 1) {
         const track = tracks[index];
-        if (!track || track.enabled === false) continue;
+        if (!track || track.enabled === false || global.ZoidiumTrackSwitches?.excludedBySolo(track, tracks)) continue;
         const clip = inputClip(stage, track, index, projectFrame);
         const layer = clip?.object;
         // Camera+ checks eligibility after looking up the sampled camera.
@@ -295,7 +295,8 @@
 
   async function prepareChildren(layer, frame, context) {
     const children = layer.nestedTracks
-      ? layer.nested.flatMap(track => track.enabled === false ? [] : [track.getCurrentClip(frame + (layer.offset || 0))].filter(Boolean))
+      ? layer.nested.filter(track => track.enabled !== false && !global.ZoidiumTrackSwitches?.excludedBySolo(track, layer.nested))
+        .flatMap(track => [track.getCurrentClip(frame + (layer.offset || 0))].filter(Boolean))
       : Array.from(layer.objects || [], object => ({ object }));
     for (const child of children) {
       if (!(child.object instanceof PZ.layer)) continue;

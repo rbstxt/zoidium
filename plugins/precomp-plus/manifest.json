@@ -3,7 +3,7 @@
   "id": "precomp-plus",
   "name": "Precomp+",
   "author": "DaviFX",
-  "version": "23",
+  "version": "24",
   "kind": "extension",
   "description": "Pre-compose selected video clips into compositions, with a Compositions window and nested rendering.",
   "category": "UTILITIES",
