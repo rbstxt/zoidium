@@ -151,15 +151,15 @@
       "category": "utilities",
       "name": "Graph Editor 2",
       "author": "DaviFX",
-      "version": "25",
+      "version": "26",
       "itemCount": 1,
       "format": "graph editor",
       "tagline": "Rebuilt keyframe graph editor",
       "color": "#4f7dbf",
       "description": "Replaces the keyframe graph editor with DaviFX's Graph Editor 2: easing presets, tangent tools, ruler scrubbing, a track list with live values and a full keyboard set.",
-      "manifest": "./plugins/graph-plus/manifest.json?v=25",
-      "bundle": "./plugins/graph-plus/bundle.json?v=25",
-      "integrity": "sha256-pGX1Ru6OC6a0+WWKkd8DEYRC1vAs1Boj94l01m0Hc+0="
+      "manifest": "./plugins/graph-plus/manifest.json?v=26",
+      "bundle": "./plugins/graph-plus/bundle.json?v=26",
+      "integrity": "sha256-+5DXDieS4glWXS5btkTcod2MxrPcRPEPOrj1ZGci0w8="
     },
     {
       "id": "motion-path",
@@ -478,14 +478,14 @@
       "id": "shape-plus",
       "name": "Shape+",
       "author": "Zoidium",
-      "version": "48",
+      "version": "49",
       "tagline": "Animated vector layers",
       "description": "Animated vector layers, procedural contents, pen masks for Scene and Adjustment layers, SVG import and native preview path editing.",
       "category": "scene",
       "defaultEnabled": true,
-      "manifest": "./plugins/shape-plus/manifest.json?v=48",
-      "bundle": "./plugins/shape-plus/bundle.json?v=48",
-      "integrity": "sha256-JXzHkZCfGj1jMRNj74ObEFdD6WGNHbe1KgLNNQR+mRE="
+      "manifest": "./plugins/shape-plus/manifest.json?v=49",
+      "bundle": "./plugins/shape-plus/bundle.json?v=49",
+      "integrity": "sha256-asYzV5AIHqiuA0pNTKskY8GgScYdhjDAlN0ITQ3ft9k="
     },
     {
       "id": "constraints",

@@ -265,6 +265,9 @@ each line describes one visible change.
 
 ### Changed
 
+- Path and mask vertex channels show readable names such as **Point 1 - X**
+  in the properties panel, the timeline, and Graph Editor 2 instead of internal
+  IDs. Saved projects and expressions are unchanged.
 - The Player+ toolbar no longer overflows. Preview quality, **Adaptive**, and
   **Lowest** share one compact quality button with a menu, the speed menu is
   shorter, and when the toolbar is narrow the least-used Player+ controls move

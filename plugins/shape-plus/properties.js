@@ -102,7 +102,9 @@ function definitions(PZ, kind, vertexIds) {
       objects: vertexIds.flatMap((id, i) => {
         const point = initial[i % 4];
         return ["X", "Y", "In X", "In Y", "Out X", "Out Y"].map((channel, j) =>
-          number(id + " " + channel, j < 2 ? point[j] : 0),
+          number(id + " " + channel, j < 2 ? point[j] : 0, {
+            zoidiumPathLabel: "Point " + (i + 1) + [" - X", " - Y", " In - X", " In - Y", " Out - X", " Out - Y"][j],
+          }),
         );
       }),
     };
