@@ -159,3 +159,88 @@ test("preview instrumentation never measures an export or publishes after a fail
   draw(layer, 2);
   assert.equal(sample(layer).ms, 5);
 });
+
+function fakeGpu() {
+  let active = null;
+  let ready = false;
+  let disjoint = false;
+  const callbacks = new Set();
+  const queries = new Set();
+  const extension = {
+    createQueryEXT() {
+      const query = {};
+      queries.add(query);
+      return query;
+    },
+    getQueryEXT: () => active,
+    beginQueryEXT(_target, query) {
+      assert.equal(active, null);
+      active = query;
+    },
+    endQueryEXT() {
+      assert.ok(active);
+      active = null;
+    },
+    getQueryObjectEXT(_query, parameter) {
+      if (parameter === "available") return ready;
+      assert.equal(ready, true);
+      return 2e6;
+    },
+    deleteQueryEXT(query) { assert.equal(queries.delete(query), true); },
+    QUERY_RESULT_AVAILABLE_EXT: "available",
+  };
+  return {
+    queries,
+    callbacks,
+    gl: {
+      getExtension: name => name === "EXT_disjoint_timer_query" ? extension : null,
+      getParameter: () => disjoint,
+    },
+    requestAnimationFrame(callback) { callbacks.add(callback); return callback; },
+    cancelAnimationFrame(callback) { callbacks.delete(callback); },
+    resolve(lost = false) {
+      ready = true;
+      disjoint = lost;
+      const pending = [...callbacks];
+      callbacks.clear();
+      pending.forEach(callback => callback());
+    },
+  };
+}
+
+test("GPU query segments add to parent totals without blocking or nesting queries", () => {
+  const gpu = fakeGpu();
+  const { api, draw, makeLayer, makeEffect, sample } = install(gpu);
+  const pass = makeEffect(50);
+  const layer = makeLayer({ cost: 70, effects: [pass] });
+  api.setEnabled(true);
+  draw(layer);
+  assert.equal(sample(layer), null);
+  assert.equal(gpu.queries.size, 3);
+  gpu.resolve();
+  assert.equal(sample(pass).basis, "GPU");
+  assert.equal(sample(pass).ms, 2);
+  assert.equal(sample(layer).ms, 6);
+  assert.equal(gpu.queries.size, 0);
+});
+
+test("disjoint GPU measurements fall back to CPU; hiding cancels a pending poll", () => {
+  const disjoint = fakeGpu();
+  const fallback = install(disjoint);
+  fallback.api.setEnabled(true);
+  const layer = fallback.makeLayer({ cost: 8 });
+  fallback.draw(layer);
+  disjoint.resolve(true);
+  assert.equal(fallback.sample(layer).basis, "CPU");
+  assert.equal(fallback.sample(layer).ms, 8);
+
+  const gpu = fakeGpu();
+  const { api, draw, makeLayer } = install(gpu);
+  api.setEnabled(true);
+  draw(makeLayer({ cost: 7 }));
+  assert.equal(gpu.queries.size, 1);
+  assert.equal(gpu.callbacks.size, 1);
+  api.setEnabled(false);
+  assert.equal(gpu.queries.size, 0);
+  assert.equal(gpu.callbacks.size, 0);
+});
