@@ -42,7 +42,7 @@ Expressions+ adds a **Controls** list to each sequence so you can drive multiple
 2. Click **Add group property** (+).
 3. Name the property `Travel`. Choose **Slider**, set **Maximum** to `200`, and click **Add**.
 4. Select the rectangle inside **Rectangle 1**. Alt-click the animation button for **Position**.
-5. Enter this expression and click **Apply**.
+5. Click **Open expression editor**. Enter this expression and click **Apply**.
 
    ```js
    [thisLayer.content("Rectangle 1").param("Travel"), value[1]]

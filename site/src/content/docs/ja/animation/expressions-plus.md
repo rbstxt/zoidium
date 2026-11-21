@@ -42,7 +42,7 @@ Expressions+ は各シーケンスに **Controls** 一覧を追加し、複数�
 2. **Add group property** (+) をクリックします。
 3. 名前を `Travel` にします。**Slider** を選び、**Maximum** に `200` を設定して、**Add** をクリックします。
 4. **Rectangle 1** 内の長方形を選択します。**Position** のアニメーションボタンを Alt クリックします。
-5. 次の式を入力し、**Apply** をクリックします。
+5. **Open expression editor** をクリックします。次の式を入力し、**Apply** をクリックします。
 
    ```js
    [thisLayer.content("Rectangle 1").param("Travel"), value[1]]
