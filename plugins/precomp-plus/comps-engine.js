@@ -171,6 +171,10 @@ function precompose(editor, rawName) {
   });
   const picked = pickedVideo.concat(pickedAudio);
   if (!picked.length) return fail("Select one or more clips on the timeline first.");
+  const isLocked = globalThis.ZoidiumTrackSwitches?.isLocked;
+  if (isLocked && picked.some(({ clip }) => isLocked(clip) || clip.link?.clips?.some(isLocked))) {
+    return fail("Unlock the selected tracks and their linked clips before pre-composing.");
+  }
 
   const minStart = Math.min.apply(null, picked.map(function (p) { return p.clip.start; }));
   const maxEnd = Math.max.apply(null, picked.map(function (p) { return p.clip.start + p.clip.length; }));

@@ -336,6 +336,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "timeline-track-lock",
+      "source": "./plugins/core/timeline-track-lock.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "main-viewport",
       "source": "./plugins/core/main-viewport.js",
       "phase": "pre-init"

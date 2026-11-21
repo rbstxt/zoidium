@@ -30,7 +30,7 @@ function maskClip(editor, viewport, PZ) {
   if (!viewport.enabled || clips?.length !== 1) return null;
   const entry = clips[0];
   const layer = entry?.object instanceof PZ.layer ? entry.object : entry instanceof PZ.layer ? entry : null;
-  if (!maskableLayer(PZ, layer)) return null;
+  if (!maskableLayer(PZ, layer) || globalThis.ZoidiumTrackSwitches?.isLocked(layer)) return null;
   const start = entry?.start ?? 0, length = entry?.length ?? Infinity, offset = entry?.offset ?? 0;
   const frame = editor.playback.currentFrame;
   if (frame < start || frame >= start + length) return null;

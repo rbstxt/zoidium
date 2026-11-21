@@ -33,7 +33,7 @@ module.exports = function ({ PZ, addrString }) {
     }
   };
   proto.editableGroups = function () {
-    return this.propGroups().filter(g => !expressionOf(g.pz_object) && g.style.display !== "none" &&
+    return this.propGroups().filter(g => !globalThis.ZoidiumTrackSwitches?.isLocked(g.pz_object) && !expressionOf(g.pz_object) && g.style.display !== "none" &&
       (!this._selectedAxes?.size || this._selectedAxes.has(g.pz_object)));
   };
   proto.selectAxes = function (groups, additive) {

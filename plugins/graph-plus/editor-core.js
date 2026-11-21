@@ -338,7 +338,7 @@ PZ.ui.graph.prototype.selectedKeys = function () {
   if (!this.svg) return [];
   return Array.prototype.slice.call(this.svg.querySelectorAll(".g2-kf.selected")).filter(el => {
     var group = el.parentElement.parentElement;
-    return !expressionOf(group.pz_object) && group.style.display !== "none" &&
+    return !globalThis.ZoidiumTrackSwitches?.isLocked(group.pz_object) && !expressionOf(group.pz_object) && group.style.display !== "none" &&
       (!this._selectedAxes?.size || this._selectedAxes.has(group.pz_object));
   });
 };

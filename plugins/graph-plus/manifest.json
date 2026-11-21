@@ -3,7 +3,7 @@
   "id": "graph-plus",
   "name": "Graph Editor 2",
   "author": "DaviFX",
-  "version": "24",
+  "version": "25",
   "kind": "extension",
   "modules": [
     {

@@ -3,7 +3,7 @@
   "id": "motion-path",
   "name": "Motion Paths",
   "author": "Zoidium",
-  "version": "6",
+  "version": "7",
   "kind": "extension",
   "description": "After Effects style motion paths for animated Position in the preview, with draggable keyframes and bezier handles.",
   "category": "utilities",

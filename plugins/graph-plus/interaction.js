@@ -47,6 +47,7 @@ PZ.ui.graph.prototype.attachKeyframeHandlers = function (el) {
   var self = this;
   el._g2down = function (e) {
     if (e.button !== 0 || self._spaceDown || self.tool === "pan") return;
+    if (globalThis.ZoidiumTrackSwitches?.isLocked(el.parentElement?.parentElement?.pz_object)) return;
     e.stopPropagation();
     try { e.preventDefault(); } catch (err) { /* Synthetic host events may lack preventDefault. */ }
     focusNoScroll(self.bodyEl);
@@ -190,6 +191,7 @@ PZ.ui.graph.prototype.attachHandleHandlers = function (el, cpIdx, kfEl) {
   var self = this;
   el._g2down = function (e) {
     if (e.button !== 0 || self._spaceDown || self.tool === "pan") return;
+    if (globalThis.ZoidiumTrackSwitches?.isLocked(kfEl.parentElement?.parentElement?.pz_object)) return;
     e.stopPropagation();
     try { e.preventDefault(); } catch (err) { /* Synthetic host events may lack preventDefault. */ }
     focusNoScroll(self.bodyEl);
