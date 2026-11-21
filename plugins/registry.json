@@ -472,7 +472,7 @@
       "warning": "Layer Input projects require Zoidium. This feature is extremely experimental and may cause unexpected crashes.",
       "manifest": "./plugins/layer-input/manifest.json?v=21",
       "bundle": "./plugins/layer-input/bundle.json?v=21",
-      "integrity": "sha256-gbjQsak+1cAeuQVnuUbDSoQRf4OHuiuHDdZy0kNEICg="
+      "integrity": "sha256-hcUzAUewrlaJ9BZrmkW3N3RSIFmyEZyl0NwGY6fLI5M="
     },
     {
       "id": "shape-plus",
