@@ -303,17 +303,18 @@ function activateCameraPlus(context, teardown) {
     console.error(REPORT_PREFIX, "scene camera sync failed; the scene keeps its CM3 camera", error);
   }
 
-  function restoreAllScenes() {
-    for (const [scene, entry] of Array.from(scenes.entries())) {
+  function restoreScenes(keepProject) {
+    for (const [scene, entry] of scenes) {
+      if (keepProject && scene.tryGetParentOfType(PZ.project) === keepProject) continue;
       restoreScene(scene, entry);
+      scenes.delete(scene);
     }
-    scenes.clear();
   }
 
   teardown.push(function () {
     live = false;
   });
-  teardown.push(restoreAllScenes);
+  teardown.push(restoreScenes);
 
   // ---- object class ------------------------------------------------------
 
@@ -479,7 +480,9 @@ function activateCameraPlus(context, teardown) {
         if (isCameraPlusObject(object)) object.unload();
       });
       previousProject = next;
-      restoreAllScenes();
+      // Load publishes the incoming cameras before the editor switches projects.
+      // CM3 skips a Scene with no pass camera before its first update can run.
+      restoreScenes(next);
       shared.projectChanged();
     };
     teardown.push(() => projectChanged.unwatch(onProjectChanged));
