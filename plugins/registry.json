@@ -96,7 +96,7 @@
       "description": "Adds drawing pause, single-render, and preview quality controls to the playback bar.",
       "manifest": "./plugins/player-plus/manifest.json?v=22",
       "bundle": "./plugins/player-plus/bundle.json?v=22",
-      "integrity": "sha256-NxMRiTjpNeWxd2f26irVVR53ny2/6tBw3iV4/pPbNoA="
+      "integrity": "sha256-yYfLkMA7NEfqDB+iaJyOKRw6mNGKP9iUYO38ixIMVFQ="
     },
     {
       "id": "asset-manager",
