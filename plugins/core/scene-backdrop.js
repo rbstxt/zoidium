@@ -16,10 +16,14 @@
     [opacity]: { name: "Backdrop Opacity", type: type.NUMBER, value: 1, min: 0, max: 1, step: 0.05, decimals: 2 },
   };
   const settings = new WeakMap();
+  const backdrop = THREE.Color ? new THREE.Color() : null;
+  const previousColor = THREE.Color ? new THREE.Color() : null;
   const load = scenePrototype.load;
   scenePrototype.load = function () {
     const properties = this.properties.childProperties;
-    if (!properties[mode]) properties.addAll(definitions);
+    // Add whichever backdrop properties are missing, so a project that saved only some of them still draws.
+    const missing = Object.fromEntries(Object.entries(definitions).filter(([key]) => !properties[key]));
+    if (Object.keys(missing).length) properties.addAll(missing);
     const result = load.apply(this, arguments);
     settings.set(this.threeObj, properties);
     return result;
@@ -35,13 +39,10 @@
 
     const alpha = clamp(properties[opacity].get(), 1);
     const rgb = properties[color].get() || [];
-    const scale = renderer.getContextAttributes()?.premultipliedAlpha === false ? alpha : 1;
-    const backdrop = new THREE.Color().setRGB(
-      clamp(rgb[0], 0) * scale,
-      clamp(rgb[1], 0) * scale,
-      clamp(rgb[2], 0) * scale,
-    );
-    const previousColor = renderer.getClearColor().clone();
+    // Scene targets hold premultiplied colour (the layer composite divides by alpha), whatever the
+    // canvas context attributes are, so the clear colour is always scaled by the opacity.
+    backdrop.setRGB(clamp(rgb[0], 0) * alpha, clamp(rgb[1], 0) * alpha, clamp(rgb[2], 0) * alpha);
+    previousColor.copy(renderer.getClearColor());
     const previousAlpha = renderer.getClearAlpha();
     try {
       renderer.setClearColor(backdrop, alpha);
@@ -59,7 +60,7 @@
     const renderScene = renderer.render;
     renderer.render = (renderedScene, camera, output, ...args) => {
       const draw = () => renderScene.call(renderer, renderedScene, camera, output, ...args);
-      // The native pass may also render cube-map faces and velocity.
+      // envMap.render and motionBlur.render draw through here too; only the scene colour draw matches.
       if (renderedScene !== scene || camera !== this.camera || output !== target) return draw();
       return drawColor(scene, renderer, draw);
     };

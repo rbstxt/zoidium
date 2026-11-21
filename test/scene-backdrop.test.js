@@ -86,7 +86,7 @@ test("a solid backdrop affects only the scene color render and restores renderer
   assert.deepEqual(draws.map(([, rgb, alpha]) => [Array.from(rgb), alpha]), [
     [[0.2, 0.3, 0.4], 0.1],
     [[0.2, 0.3, 0.4], 0.1],
-    [[0.9, 0.6, 0.3], 0.5],
+    [[0.45, 0.3, 0.15], 0.5],
   ]);
   assert.equal(renderer.render, render);
   assert.deepEqual(Array.from(renderer.getClearColor().toArray()), [0.2, 0.3, 0.4]);
@@ -110,4 +110,32 @@ test("Camera+ can draw a premultiplied solid backdrop without changing the depth
   ]);
   assert.throws(() => drawColor(scene.threeObj, renderer, () => { throw new Error("Draw failed"); }), /Draw failed/);
   assert.equal(renderer.getClearAlpha(), 0.1);
+});
+
+test("the solid backdrop clear is premultiplied whatever the context attributes say", () => {
+  for (const premultipliedAlpha of [true, false, undefined]) {
+    const { PZ, THREE, scene, properties } = fixture();
+    const draws = [];
+    const renderer = rendererFor(THREE, draws);
+    renderer.getContextAttributes = () => ({ premultipliedAlpha });
+    properties.zoidiumBackdropMode.set(1);
+    properties.zoidiumBackdropColor.set([0.8, 0.4, 0.2]);
+    properties.zoidiumBackdropOpacity.set(0.5);
+    PZ.zoidium.sceneBackdrop.drawColor(scene.threeObj, renderer, () => renderer.render(scene.threeObj, null, "color", true));
+    assert.deepEqual(draws.map(([, rgb, alpha]) => [Array.from(rgb).map(v => +v.toFixed(6)), alpha]), [[[0.4, 0.2, 0.1], 0.5]]);
+  }
+});
+
+test("a scene that saved only the backdrop mode gets the missing properties", () => {
+  const { PZ } = fixture();
+  const project = new PZ.project();
+  const json = JSON.parse(JSON.stringify(fixture().project));
+  const props = json.sequence.videoTracks[0].clips[0].object.properties.childProperties;
+  props.zoidiumBackdropMode = 1;
+  delete props.zoidiumBackdropColor; delete props.zoidiumBackdropOpacity;
+  project.load(json);
+  const restored = project.sequence.videoTracks[0].clips[0].object.properties.childProperties;
+  assert.equal(restored.zoidiumBackdropMode.get(), 1);
+  assert.deepEqual(Array.from(restored.zoidiumBackdropColor.get()), [0, 0, 0]);
+  assert.equal(restored.zoidiumBackdropOpacity.get(), 1);
 });
