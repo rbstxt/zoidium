@@ -46,6 +46,18 @@ module.exports = function attachGraphImages(nodes, env) {
         const cache = nodes.getImageCache(material);
         return graph.nodes.filter(n => n.params.asset).map(n => [n.params.asset, cache[n.params.asset]?.revision || 0]);
     };
+    // A rejected load must leave the cache, so the next prepareImages loads the
+    // image again instead of replaying the same rejection. Only the entry that
+    // still owns the cache slot releases its asset: stale removal and
+    // releaseImages already released what they removed, and a replacement
+    // entry can reference the same project asset object.
+    function releaseFailedEntry(cache, key, entry, assets) {
+        if (cache[key] !== entry) return;
+        delete cache[key];
+        if (entry.disposed) return;
+        entry.disposed = true;
+        assets.unload(entry.asset);
+    }
     nodes.prepareImages = async function (graph, material) {
         const cache = nodes.getImageCache(material);
         const assets = projectAssets(material);
@@ -66,6 +78,9 @@ module.exports = function attachGraphImages(nodes, env) {
                 if (entry.disposed) return;
                 entry.canvas = loaded.getImage();
                 entry.revision++;
+            }, error => {
+                releaseFailedEntry(cache, key, entry, assets);
+                throw error;
             });
             return entry.loading;
         }));
