@@ -139,7 +139,7 @@
         renderEffects.call(this, prefix, uvX, uvY);
         const viewport = this.readBuffer.viewport;
         target.viewport.set(0, 0, viewport.z, viewport.w);
-        copyRenderTarget(this, target, this.readBuffer, uvX, uvY, preserveInputRGB || exportPolicy?.transparentBackground);
+        copyRenderTarget(this, target, this.readBuffer, uvX, uvY, preserveInputRGB || exportPolicy?.transparentBackground === true);
         didCapture = true;
         throw captured;
       };

@@ -113,3 +113,24 @@ test("capture clears the sequence for adjustments and clears layer inputs transp
     assert.deepEqual(layers, adjustment ? [h.source, h.owner] : [h.owner]);
   }
 });
+
+test("transparent exports give prepared adjustments the transparent composite and preserve sampled RGB", () => {
+  const h = host(true), clears = [], copies = [];
+  h.root.renderer.setClearColor = (_color, alpha) => clears.push(alpha);
+  const original = h.parts.sampler.copyRenderTarget;
+  h.parts.sampler.copyRenderTarget = function (...args) {
+    copies.push(args[5]);
+    return original.apply(this, args);
+  };
+  const stage = { layer: h.owner, clip: h.ownerClip, effect: h.effect, effectIndex: 1, trackIndex: 1 };
+  const target = new h.sandbox.THREE.WebGLRenderTarget(80, 40);
+  const runtime = h.parts.sampler.getFrameSamplerRuntime(h.state, h.root);
+  for (const transparentBackground of [false, true]) {
+    const exportPolicy = { transparentBackground };
+    assert.equal(h.parts.capture.captureFrameSamplerInput(h.state, h.root, runtime, stage, 30, 30, 1,
+      target, [], { exportPolicy }), true);
+  }
+  assert.deepEqual(clears.slice(0, 2), [1, 0]);
+  assert.deepEqual(clears.slice(2, 4), [0, 0]);
+  assert.deepEqual(copies, [false, true]);
+});
