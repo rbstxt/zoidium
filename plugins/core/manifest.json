@@ -66,6 +66,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "scene-backdrop",
+      "source": "./plugins/core/scene-backdrop.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "empty-keyframes",
       "source": "./plugins/core/empty-keyframes.js",
       "phase": "pre-init"

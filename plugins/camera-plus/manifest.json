@@ -3,7 +3,7 @@
   "id": "camera-plus",
   "name": "Camera+",
   "author": "DaviFX",
-  "version": "27",
+  "version": "28",
   "kind": "object",
   "description": "Camera layers, shared 3D tracking, and Camera+ objects with film controls, depth of field and deterministic shutter sampling.",
   "category": "CAMERA",
