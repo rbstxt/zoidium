@@ -123,6 +123,8 @@
     }
   }
 
+  PZ.schedule.zoidiumAnalyzeWithoutSeeking = analyzeSequenceWithoutSeeking;
+
   tracksPrototype.createTrackLabel = function (track, type, index) {
     var label = originalCreateTrackLabel.call(this, track, type, index);
     if (type !== audioTrackType || !isAudioTrack(track)) return label;
