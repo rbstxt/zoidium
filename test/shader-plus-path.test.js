@@ -101,6 +101,26 @@ test("Path defaults to JSON null, which parses to a missing source", () => {
   assert.equal(parseReference(KINDS.path.create().value), null);
 });
 
+test("a resolved Path binds Count as an integer uniform with the point count", () => {
+  const { installPathSampling } = require("../plugins/shader-plus/path-sample.js");
+  class Texture { constructor(data) { this.image = { data }; this.disposed = false; } dispose() { this.disposed = true; } }
+  class Shader { propertyRemoved() {} unload() {} }
+  const shared = new Texture(new Uint8Array(4));
+  const api = { parseReference: () => ({}),
+    evaluateReference: () => ({ signature: "bound", evaluated: [], size: { width: 10, height: 10 }, points: [], width: 10, height: 10, length: 5 }),
+    toUV: () => [[0, 0], [0.5, 0.5], [1, 1]], coverageTexture: () => shared, releaseCoverageTexture() {} };
+  const PZ = { effect: { shader: Shader }, zoidium: { layerMask: api } }, stages = [];
+  installPathSampling({ PZ, THREE: { DataTexture: Texture }, patch(holder, key, wrap) { holder[key] = wrap(holder[key]); },
+    pipeline: { register(stage) { stages.push(stage); return () => {}; } }, onDispose() {}, editor: () => null, report() {} });
+  const property = { definition: KINDS.path.create(), get: () => "{}", properties: { name: { get: () => "Mask_Layer" } } };
+  const effect = new Shader();
+  effect.customProperties = [property]; effect.parentProject = {}; effect.pass = { uniforms: {} }; effect.fixPropertyName = name => name;
+  stages[0].beforeUpdate.call(effect, 0);
+  assert.equal(effect.pass.uniforms.Mask_LayerCount.type, "i");
+  assert.equal(effect.pass.uniforms.Mask_LayerCount.value, 3);
+  assert.equal(effect.pass.uniforms.Mask_LayerLength.value, 0.5);
+});
+
 test("documented glow example binds only uniforms the host provides", () => {
   // The host binds <Name>Coverage, <Name>Points, <Name>Length and
   // <Name>Count (path-sample.js bind). The flagship example once gated its

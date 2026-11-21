@@ -55,6 +55,8 @@ const LayerInput = (() => {
     const loaded = loadParts(context);
     const state = loaded.shared.state;
     const deps = {};
+    deps.shaderPipeline =
+      (context && context.apis && context.apis.shaderPipeline) || null;
     const sources = loaded.sourcesFactory(state, deps);
     const render = loaded.renderFactory(state, deps);
     const ui = loaded.uiFactory(state, deps);
@@ -107,6 +109,7 @@ const LayerInput = (() => {
     deps.installTrackIdentityPatch();
     deps.installSourceInputPatch();
     deps.installShaderPropertyType();
+    deps.installShaderStage();
     deps.installShaderPatches();
     deps.installLayerSourceMaterial();
     deps.installCompositorPatch();
