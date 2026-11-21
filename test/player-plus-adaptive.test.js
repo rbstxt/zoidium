@@ -58,7 +58,7 @@ test("adaptive preview bypasses output caching and restores for pause and Render
   try {
     for (let i = 0; i < 33; i++) { now += 60; viewport._renderFn(); }
     assert.deepEqual(drawn.at(-1), [50, true]);
-    assert.equal(viewport.__zoidiumImmediateOutput, undefined);
+    assert.equal(viewport.__zoidiumImmediateOutput, true);
     assert.match(toolbar.children.find(child => child.classList.contains("zoidium-player-plus-quality")).children[0].textContent, /Adaptive/);
     toolbar.children.find(child => child.classList.contains("zoidium-player-plus-render-once")).dispatch("click");
     assert.deepEqual(drawn.at(-1), [100, undefined]);

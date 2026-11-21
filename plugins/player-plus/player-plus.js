@@ -244,6 +244,7 @@ const PlayerPlus = (() => {
     const constructor = viewportConstructor();
     if (!viewport || !constructor || !(viewport instanceof constructor)) return null;
     state.viewports.add(viewport);
+    updateCacheBypass(viewport);
     if (!viewport.__zoidiumPlayerPlusFrame) {
       const originalFrame = viewport._renderFn;
       if (typeof originalFrame === "function") {
@@ -255,9 +256,7 @@ const PlayerPlus = (() => {
             return;
           }
           sampleAdaptive(viewport);
-          const previous = viewport.__zoidiumImmediateOutput;
-          if (state.effectiveQuality !== state.quality && !viewport.renderMode) viewport.__zoidiumImmediateOutput = true;
-          try { return originalFrame(); } finally { viewport.__zoidiumImmediateOutput = previous; }
+          return originalFrame();
         };
         viewport.__zoidiumPlayerPlusOriginalFrame = originalFrame;
         viewport.__zoidiumPlayerPlusFrame = guardedFrame;
@@ -298,6 +297,17 @@ const PlayerPlus = (() => {
     }
   }
 
+  function updateCacheBypass(viewport) {
+    const reduced = state.effectiveQuality !== state.quality;
+    if (reduced && !viewport.__zoidiumPlayerPlusCacheBypass) {
+      viewport.__zoidiumPlayerPlusCacheBypass = { previous: viewport.__zoidiumImmediateOutput };
+      viewport.__zoidiumImmediateOutput = true;
+    } else if (!reduced && viewport.__zoidiumPlayerPlusCacheBypass) {
+      viewport.__zoidiumImmediateOutput = viewport.__zoidiumPlayerPlusCacheBypass.previous;
+      delete viewport.__zoidiumPlayerPlusCacheBypass;
+    }
+  }
+
   function applyQualityToAllViewports() {
     for (const viewport of getViewports()) applyQualityToViewport(viewport);
   }
@@ -323,7 +333,10 @@ const PlayerPlus = (() => {
   }
 
   function resetAdaptive() {
-    if (state.adaptive) setEffectiveQuality(state.adaptive.reset(state.quality));
+    if (!state.adaptive) return;
+    setEffectiveQuality(state.adaptive.reset(state.quality));
+    for (const viewport of getViewports()) updateCacheBypass(viewport);
+    updateAdaptiveLabel();
   }
 
   function sampleAdaptive(viewport) {
@@ -419,6 +432,7 @@ const PlayerPlus = (() => {
     }
     if (prototype.resize === state.patchedResize) prototype.resize = state.originalResize;
     for (const viewport of state.viewports) {
+      updateCacheBypass(viewport);
       if (viewport.__zoidiumPlayerPlusFrame === viewport._renderFn) {
         viewport._renderFn = viewport.__zoidiumPlayerPlusOriginalFrame;
       }
