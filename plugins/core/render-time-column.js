@@ -49,18 +49,24 @@
     if (!tracks || !keyframes) return;
     let layout = gutters.get(timeline);
     if (!layout && timing.enabled) {
+      // Entries are [element, property, value before the column was shown, value the style engine stored].
       layout = [
-        ...[header, keyframes.labels, tracks.labels, tracks.videoLabels, tracks.audioLabels].map(el => [el, "width", el.style.width]),
-        ...[timeline.timerule, timeline.scrollBar, timeline.markermask, keyframes.container, tracks.container].map(el => [el, "left", el.style.left]),
+        ...[header, keyframes.labels, tracks.labels, tracks.videoLabels, tracks.audioLabels].map(el => [el, "width", el.style.width, null]),
+        ...[timeline.timerule, timeline.scrollBar, timeline.markermask, keyframes.container, tracks.container].map(el => [el, "left", el.style.left, null]),
       ];
       gutters.set(timeline, layout);
     }
     if (!layout) return;
-    for (const [el, property, initial] of layout) {
+    for (const entry of layout) {
+      const [el, property, initial] = entry;
       const widened = "calc(" + initial + " + " + gutterExtra + "px)";
-      if (timing.enabled) el.style[property] = widened;
+      if (timing.enabled) {
+        el.style[property] = widened;
+        // Chrome re-serializes calc(), so compare against what the style engine stored, not the string written.
+        entry[3] = el.style[property];
+      }
       // Restore only what this column wrote; a value the timeline rewrote meanwhile is kept.
-      else if (el.style[property] === widened) el.style[property] = initial;
+      else if (el.style[property] === entry[3]) el.style[property] = initial;
     }
     if (!timing.enabled) gutters.delete(timeline);
   }
