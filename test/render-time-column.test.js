@@ -656,6 +656,132 @@ test("the timeline toggle restores the gutter and displays native layer and effe
   assert.equal(header.style.width, "200px");
 });
 
+// Chrome re-serializes calc() when it is written, so plain strings cannot stand in for style values.
+function serializeLikeChrome(value) {
+  const widened = /^calc\((.*) \+ (\d+)px\)$/.exec(value);
+  if (!widened) return value;
+  let inner = widened[1].trim();
+  const extra = Number(widened[2]);
+  const nested = /^calc\((.*)\)$/.exec(inner);
+  if (nested) inner = nested[1].trim();
+  if (!inner) return null;
+  const pixels = /^(\d+(?:\.\d+)?)px$/.exec(inner);
+  if (pixels) return `calc(${Number(pixels[1]) + extra}px)`;
+  const shifted = /^(.*) - (\d+(?:\.\d+)?)px$/.exec(inner);
+  if (shifted) return `calc(${shifted[1]} + ${extra - Number(shifted[2])}px)`;
+  return `calc(${inner} + ${extra}px)`;
+}
+
+test("repeated toggles restore gutter values that the style engine re-serializes", () => {
+  const { api, window, editor } = install();
+  const document = { createElement: () => new Element(), head: null };
+  class Element {
+    constructor() {
+      this.ownerDocument = document;
+      this.children = [];
+      this.dataset = {};
+      this.attributes = new Map();
+      const classes = new Set();
+      this.classList = { add: value => classes.add(value), remove: value => classes.delete(value),
+        contains: value => classes.has(value) };
+      const values = { width: "200px", left: "200px", gridTemplateColumns: "1fr auto" };
+      this.style = {
+        get width() { return values.width; },
+        set width(value) {
+          const stored = serializeLikeChrome(value);
+          if (stored !== null) values.width = stored;
+        },
+        get left() { return values.left; },
+        set left(value) {
+          const stored = serializeLikeChrome(value);
+          if (stored !== null) values.left = stored;
+        },
+        gridTemplateColumns: values.gridTemplateColumns,
+        setProperty: (name, value) => { values[name] = value; },
+        removeProperty: name => { delete values[name]; },
+      };
+    }
+    get lastElementChild() { return this.children.at(-1); }
+    setAttribute(name, value) { this.attributes.set(name, value); }
+    addEventListener() {}
+    querySelector() { return null; }
+    appendChild(node) { node.parentNode = this; this.children.push(node); }
+    insertBefore(node, before) {
+      node.parentNode = this;
+      this.children.splice(this.children.indexOf(before), 0, node);
+    }
+    remove() { this.parentNode.children.splice(this.parentNode.children.indexOf(this), 1); }
+  }
+  document.head = new Element();
+  window.document = document;
+  class Timeline {
+    create() {
+      this.timestamp = new Element();
+      new Element().appendChild(this.timestamp);
+      this.timerule = new Element();
+      this.scrollBar = new Element();
+      this.markermask = new Element();
+    }
+  }
+  Timeline.tracks = class {
+    create() {
+      for (const key of ["labels", "videoLabels", "audioLabels", "container"]) this[key] = new Element();
+    }
+    createTrackLabel() { return new Element(); }
+  };
+  Timeline.keyframes = class {
+    createKeyframeTrack() { return new Element(); }
+  };
+  window.PZ.ui = { timeline: Timeline };
+  runInNewContext(readFileSync(join(__dirname, "../plugins/core/render-time-column.js"), "utf8"),
+    { window, WeakRef });
+  const timeline = new Timeline();
+  timeline.editor = editor;
+  timeline.create();
+  timeline.tracks = new Timeline.tracks();
+  timeline.tracks.timeline = timeline;
+  timeline.keyframes = new Timeline.keyframes();
+  timeline.keyframes.timeline = timeline;
+  timeline.keyframes.labels = new Element();
+  timeline.keyframes.container = new Element();
+  timeline.tracks.create();
+  const header = timeline.timestamp.parentNode;
+  // The real header keeps a calc() width, and this track label keeps no inline width at all.
+  header.style.width = "calc(100% - 84px)";
+  timeline.tracks.audioLabels.style.width = "";
+  const widths = [header, timeline.keyframes.labels, timeline.tracks.labels,
+    timeline.tracks.videoLabels, timeline.tracks.audioLabels];
+  const lefts = [timeline.timerule, timeline.scrollBar, timeline.markermask,
+    timeline.keyframes.container, timeline.tracks.container];
+  const snapshot = () => [...widths.map(el => el.style.width), ...lefts.map(el => el.style.left)];
+  const before = snapshot();
+  assert.deepEqual(before, ["calc(100% - 84px)", "200px", "200px", "200px", "",
+    "200px", "200px", "200px", "200px", "200px"]);
+  const toggle = header.lastElementChild;
+  for (let cycle = 1; cycle <= 4; cycle++) {
+    toggle.onclick({ stopPropagation() {} });
+    assert.equal(api.enabled, true);
+    assert.equal(header.style.width, "calc(100% + 32px)");
+    assert.equal(timeline.tracks.labels.style.width, "calc(316px)");
+    assert.equal(timeline.timerule.style.left, "calc(316px)");
+    assert.equal(timeline.tracks.audioLabels.style.width, "");
+    toggle.onclick({ stopPropagation() {} });
+    assert.equal(api.enabled, false);
+    assert.deepEqual(snapshot(), before, `cycle ${cycle} restores the exact gutter`);
+  }
+  // A width the timeline rewrites while the column is shown survives hiding it.
+  toggle.onclick({ stopPropagation() {} });
+  timeline.tracks.videoLabels.style.width = "260px";
+  toggle.onclick({ stopPropagation() {} });
+  assert.equal(timeline.tracks.videoLabels.style.width, "260px");
+  assert.equal(header.style.width, "calc(100% - 84px)");
+  // The rewritten width becomes the new baseline for the next cycle.
+  toggle.onclick({ stopPropagation() {} });
+  assert.equal(timeline.tracks.videoLabels.style.width, "calc(376px)");
+  toggle.onclick({ stopPropagation() {} });
+  assert.equal(timeline.tracks.videoLabels.style.width, "260px");
+});
+
 test("cells show both metrics, frame age and cached output", () => {
   const gpu = fakeGpu();
   const h = install(gpu);
