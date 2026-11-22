@@ -391,6 +391,8 @@ each line describes one visible change.
 
 ### Fixed
 
+- Turning the timeline **Render Time** toggle off restores the track label
+  column. Before, each on/off moved the timeline further to the right.
 - Shape+ **Merge Paths** no longer erases the whole group when one shape
   becomes empty, for example a polygon animated to radius 0. Subtracting an
   empty shape keeps the other shape, and intersecting with one gives nothing.
