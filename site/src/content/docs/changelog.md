@@ -265,6 +265,17 @@ each line describes one visible change.
 
 ### Changed
 
+- Video playback and preview rendering skip redundant frames when the project
+  frame has not changed, and idle paused viewports stop redrawing until an edit,
+  seek, or resize occurs. Video textures update at the sequence frame rate
+  instead of every display refresh.
+- Supported video clips decode through a shared WebCodecs stream with forward
+  lookahead and a bounded frame cache, reducing seek stalls during playback and
+  letting the preview cache store exact video frames while playing. Unsupported
+  codecs fall back to the browser video element.
+- MP4 export overlaps WebGL2 YUV readback with double-buffered pixel buffer
+  objects and reuses decoded source frames when consecutive output frames land
+  in the same source frame interval. Exported pixels stay unchanged.
 - The **Render Time** column shows CPU and GPU time side by side
   (`CPU 0.12 · GPU 1.30 ms`). When the GPU timer is unavailable it shows
   `GPU —` with the reason in the tooltip, instead of a CPU label that looked

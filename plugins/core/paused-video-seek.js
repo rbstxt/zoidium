@@ -126,6 +126,7 @@
     const pending = [];
     for (const schedule of schedules) {
       if (!schedule || !schedule.el) continue;
+      if (schedule.__zoidiumWebCodecsActive) continue;
       if (!isVideoSchedule(PZ, schedule)) continue;
       if (isTemporalSchedule(PZ, schedule, frame)) continue;
       const mediaTime = expectedMediaTime(schedule, frame);
@@ -164,7 +165,10 @@
       } catch (_error) { /* A stale flag only costs one extra redraw. */ }
     }
     try {
-      if (schedule.texture && !removed) schedule.texture.needsUpdate = true;
+      if (schedule.texture && !removed) {
+        schedule.texture.needsUpdate = true;
+        global.ZoidiumFramePacing?.markVideoDirty?.(schedule);
+      }
     } catch (_error) { /* The redraw still presents the settled frame. */ }
     // A newer request supersedes this one: only the current frame redraws,
     // and only once every plain schedule for it has settled.

@@ -131,20 +131,82 @@
         await globalThis.ZoidiumVideoSeekPolicy?.ensure(video, schedule.currentItem?.media);
         await waitForMetadata(video, timeoutMs, policy);
         const mediaTime = clampMediaTime(video, requestedTime);
-        let seekTime = globalThis.ZoidiumVideoSeekPolicy?.seekTime(video, mediaTime) ?? mediaTime;
         const sourceId = getSourceId(video);
         const state = schedule.__zoidiumVideoExportState || {};
         schedule.__zoidiumVideoExportState = state;
+        if (state.sourceId && state.sourceId !== sourceId) {
+          state.frameStart = undefined;
+          state.frameEnd = undefined;
+          state.textureUploadedForInterval = false;
+          state.webcodecs = false;
+        }
+        if (globalThis.ZoidiumVideoStream?.decodeExportFrame && !context?.forceElementDecode) {
+          stage = "webcodecs";
+          const exportContext = context && typeof context === "object" ? {
+            ...context,
+            renderer: context.renderer || context.compositor?.renderer || null,
+            decodeNative: context.decodeNative || (async () => {
+              const target = globalThis.ZoidiumVideoSeekPolicy?.seekTime(video, mediaTime) ?? mediaTime;
+              if (Math.abs(video.currentTime - target) > SAME_TIME_EPSILON || video.seeking || video.readyState < HAVE_CURRENT_DATA) {
+                const p = presentedFrame(video);
+                try {
+                  await waitForEvent(video, "seeked", timeoutMs, policy, () => { video.currentTime = mediaTime; });
+                  await p.promise;
+                } finally { p.cancel(); }
+              }
+            }),
+          } : context;
+          const wc = await globalThis.ZoidiumVideoStream.decodeExportFrame(schedule, mediaTime, exportContext);
+          policy?.check?.();
+          if (wc?.handled) {
+            const presented = Number.isFinite(wc.pts) ? wc.pts : mediaTime;
+            Object.assign(state, {
+              sourceId,
+              requestedTime: mediaTime,
+              observedTime: wc.pts,
+              presentedMediaTime: wc.pts,
+              frameStart: wc.pts,
+              frameEnd: wc.end,
+              webcodecs: true,
+              textureUploadedForInterval: true,
+            });
+            recordDiagnostic({
+              source: sourceId,
+              requestedMediaTime: mediaTime,
+              presentedMediaTime: presented,
+              difference: presented - mediaTime,
+              reused: Boolean(wc.reused),
+            });
+            return;
+          }
+        }
+        const wasWebcodecs = Boolean(state.webcodecs);
+        if (wasWebcodecs || (schedule.texture && "image" in schedule.texture && schedule.texture.image !== video)) {
+          if (schedule.texture && ("image" in schedule.texture || wasWebcodecs)) {
+            schedule.texture.image = video;
+          }
+          state.webcodecs = false;
+          state.frameStart = undefined;
+          state.frameEnd = undefined;
+          state.textureUploadedForInterval = false;
+        }
+        let seekTime = globalThis.ZoidiumVideoSeekPolicy?.seekTime(video, mediaTime) ?? mediaTime;
         if (state.startSourceId === sourceId) seekTime = Math.max(seekTime, state.mediaStart);
         stage = "before seek";
         mediaError(video); policy?.check?.();
-        const sameRequest = state.sourceId === sourceId && state.requestedTime === mediaTime &&
+        const sameRequest = state.sourceId === sourceId && !wasWebcodecs && state.requestedTime === mediaTime &&
           Math.abs(video.currentTime - state.observedTime) <= SAME_TIME_EPSILON;
         const reused = (Math.abs(video.currentTime - seekTime) <= SAME_TIME_EPSILON || sameRequest) &&
           !video.seeking && video.readyState >= HAVE_CURRENT_DATA &&
           (!state.sourceId || state.sourceId === sourceId);
+        const sameInterval = state.sourceId === sourceId && !state.webcodecs &&
+          Number.isFinite(state.frameStart) && Number.isFinite(state.frameEnd) &&
+          seekTime >= state.frameStart - SAME_TIME_EPSILON &&
+          seekTime < state.frameEnd - SAME_TIME_EPSILON &&
+          !video.seeking && video.readyState >= HAVE_CURRENT_DATA;
+        const skipSeek = reused || sameInterval;
         let metadata = null;
-        if (!reused) {
+        if (!skipSeek) {
           presentation = presentedFrame(video);
           await waitForEvent(video, "seeked", timeoutMs, policy, () => { video.currentTime = mediaTime; });
           stage = "after seek";
@@ -175,14 +237,50 @@
         if (getSourceId(video) !== sourceId || video.readyState < HAVE_CURRENT_DATA) {
           throw new Error("The requested video frame is unavailable.");
         }
-        Object.assign(state, { sourceId, requestedTime: mediaTime, observedTime: video.currentTime,
-          presentedMediaTime: Number.isFinite(metadata?.mediaTime) ? metadata.mediaTime : video.currentTime });
-        if (schedule.texture) schedule.texture.needsUpdate = true;
-        recordDiagnostic({ source: sourceId, requestedMediaTime: mediaTime,
-          presentedMediaTime: state.presentedMediaTime, difference: state.presentedMediaTime - mediaTime, reused });
+        const presentedMediaTime = Number.isFinite(metadata?.mediaTime)
+          ? metadata.mediaTime
+          : (skipSeek && state.sourceId === sourceId && Number.isFinite(state.presentedMediaTime)
+            ? state.presentedMediaTime : video.currentTime);
+        let frameStart = sameInterval ? state.frameStart : undefined;
+        let frameEnd = sameInterval ? state.frameEnd : undefined;
+        if (!sameInterval) {
+          const interval = globalThis.ZoidiumVideoSeekPolicy?.frameInterval?.(video, seekTime);
+          if (interval && Number.isFinite(interval.start) && Number.isFinite(interval.end) &&
+              presentedMediaTime >= interval.start - SEEK_TIME_EPSILON &&
+              presentedMediaTime <= interval.end + SEEK_TIME_EPSILON) {
+            frameStart = interval.start;
+            frameEnd = interval.end;
+          }
+        }
+        const skipTextureUpload = sameInterval && !sameRequest && Boolean(state.textureUploadedForInterval);
+        Object.assign(state, {
+          sourceId,
+          requestedTime: mediaTime,
+          observedTime: video.currentTime,
+          presentedMediaTime,
+          frameStart,
+          frameEnd,
+          webcodecs: false,
+        });
+        if (schedule.texture && !skipTextureUpload) {
+          schedule.texture.needsUpdate = true;
+          state.textureUploadedForInterval = true;
+        }
+        recordDiagnostic({
+          source: sourceId,
+          requestedMediaTime: mediaTime,
+          presentedMediaTime: state.presentedMediaTime,
+          difference: state.presentedMediaTime - mediaTime,
+          reused: skipSeek,
+        });
         return;
       } catch (error) {
         presentation?.cancel();
+        if (schedule.__zoidiumVideoExportState) {
+          schedule.__zoidiumVideoExportState.frameStart = undefined;
+          schedule.__zoidiumVideoExportState.frameEnd = undefined;
+          schedule.__zoidiumVideoExportState.textureUploadedForInterval = false;
+        }
         // Reset the browser decoder once. The HTML element and its texture
         // stay bound to the same clip, and the retry repeats the exact time.
         if (attempt === 0 && policy && video.error && typeof video.load === "function") {

@@ -28,6 +28,7 @@
   function canClock(schedule) {
     const element = schedule && schedule.el;
     if (!element || !schedule.playing || !schedule.currentItem) return false;
+    if (schedule.__zoidiumWebCodecsActive) return false;
     // Native playback converts media time using clip.start. Video materials
     // start at item.start instead, so an offset material would rewind the
     // playhead by that offset if selected as the clock.
@@ -59,6 +60,7 @@
   function resume(playback, schedule) {
     const element = schedule && schedule.el;
     if (!element || !schedule.playing || !schedule.currentItem) return;
+    if (schedule.__zoidiumWebCodecsActive) return;
     if (!element.paused || element.ended || !(playback.speed > 0)) return;
     let state = schedule[STATE];
     if (!state) state = schedule[STATE] = { retryAt: 0 };

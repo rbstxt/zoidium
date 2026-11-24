@@ -67,3 +67,18 @@ test("temporal and multisample projects retain their existing preparation contra
   sequence.properties.motionBlur.get = () => 1;
   assert.equal(video.eligible(sequence, { usesSingleEvaluation: () => false }), false);
 });
+
+test("streaming mode expands prefetch window bounds within the fit limit and checks exact live frames", () => {
+  assert.deepEqual(video.windowBounds(200, false), { ahead: 30, behind: 4 });
+  assert.deepEqual(video.windowBounds(200, true), { ahead: 90, behind: 8 });
+  assert.deepEqual(video.windowBounds(20, true), { ahead: 12, behind: 8 });
+  const prev = globalThis.ZoidiumVideoStream;
+  try {
+    globalThis.ZoidiumVideoStream = { isFrameExact: (_seq, frame) => frame === 12 };
+    assert.equal(video.liveVideoExact({}, 12), true);
+    assert.equal(video.liveVideoExact({}, 13), false);
+  } finally {
+    if (prev === undefined) delete globalThis.ZoidiumVideoStream;
+    else globalThis.ZoidiumVideoStream = prev;
+  }
+});

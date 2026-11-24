@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "180",
+  "version": "181",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -381,6 +381,11 @@
       "phase": "pre-init"
     },
     {
+      "id": "viewport-frame-pacing",
+      "source": "./plugins/core/viewport-frame-pacing.js",
+      "phase": "pre-init"
+    },
+    {
       "id": "asset-registry-walk",
       "source": "./plugins/core/asset-registry-walk.js",
       "phase": "pre-init"
@@ -534,31 +539,60 @@
   "modules": [
     {
       "id": "single-graph-window",
-      "source": "./plugins/core/single-graph-window.js?v=180"
+      "source": "./plugins/core/single-graph-window.js?v=181"
     },
     {
       "id": "font-load",
-      "source": "./plugins/core/font-load.js?v=180"
+      "source": "./plugins/core/font-load.js?v=181"
     },
     {
       "id": "keyframe-row-reveal",
-      "source": "./plugins/core/keyframe-row-reveal.js?v=180"
+      "source": "./plugins/core/keyframe-row-reveal.js?v=181"
     },
     {
       "id": "video-texture-alpha",
-      "source": "./plugins/core/video-texture-alpha.js?v=180"
+      "source": "./plugins/core/video-texture-alpha.js?v=181"
     },
     {
       "id": "video-decode-hint",
-      "source": "./plugins/core/video-decode-hint.js?v=180"
+      "source": "./plugins/core/video-decode-hint.js?v=181"
+    },
+    {
+      "id": "video-playback-stream",
+      "source": "./plugins/core/video-playback-stream.js?v=181"
     },
     {
       "id": "output-frame-cache",
-      "source": "./plugins/core/output-frame-cache.js?v=180"
+      "source": "./plugins/core/output-frame-cache.js?v=181"
     },
     {
       "id": "media-drop",
-      "source": "./plugins/core/media-drop.js?v=180"
+      "source": "./plugins/core/media-drop.js?v=181"
+    }
+  ],
+  "resources": [
+    {
+      "id": "video-frame-decoder",
+      "type": "text",
+      "source": "./plugins/core/video-frame-decoder.js?v=181"
+    },
+    {
+      "id": "decoder-mediabunny",
+      "type": "text",
+      "source": "./plugins/mp4-export/vendor/mediabunny-1.62.0.cjs?v=181",
+      "optionalBundle": "video-decoder"
+    },
+    {
+      "id": "decoder-license",
+      "type": "text",
+      "source": "./plugins/mp4-export/vendor/LICENSE?v=181",
+      "optionalBundle": "video-decoder"
+    },
+    {
+      "id": "decoder-notice",
+      "type": "text",
+      "source": "./plugins/mp4-export/vendor/README.md?v=181",
+      "optionalBundle": "video-decoder"
     }
   ]
 }

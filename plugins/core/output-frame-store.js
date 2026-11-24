@@ -155,6 +155,9 @@
     const item = schedule.currentItem, video = schedule.el;
     if (!video || !item?.media || schedule.lastFrame < item.start) return true;
     const decoded = schedule.__zoidiumVideoExportState;
+    if (decoded?.webcodecs === true && schedule.__zoidiumWebCodecsActive === true && !schedule.__zoidiumWebCodecsPending) {
+      return decoded.sourceId === (video.currentSrc || video.src || "");
+    }
     return video.paused === true && !video.seeking && video.readyState >= 2 &&
       !!decoded && decoded.sourceId === (video.currentSrc || video.src || "") &&
       // Compare with the clock value accepted by the decoder after the seek.

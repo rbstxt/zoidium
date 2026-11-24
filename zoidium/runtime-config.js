@@ -8,10 +8,10 @@
     // loader appends it automatically, so per-file ?v= queries are never
     // hand-edited here. Plugin asset URLs are versioned separately by
     // tools/build-plugin-bundles.js from each manifest's own version.
-    assetVersion: 329,
+    assetVersion: 330,
     // Plugin registry consumed by plugins/plugin-manager.js. It is preloaded
     // below, so its URL lives here as the single source.
-    registryUrl: "./plugins/registry.json?v=286",
+    registryUrl: "./plugins/registry.json?v=287",
     // Source Code Pro is imported through fonts.css as its own sheet (listed
     // before runtime-fonts.css) so the font files are not discovered only
     // after an @import chain has finished downloading.
@@ -107,6 +107,7 @@
       // Keeps the editor's main preview reachable as editor.mainViewport. It
       // must be installed before initTool() builds the viewport.
       "./plugins/core/main-viewport.js",
+      "./plugins/core/viewport-frame-pacing.js",
       "./plugins/core/asset-registry-walk.js",
       "./plugins/core/asset-registry-status.js",
       "./plugins/core/asset-registry-reveal.js",

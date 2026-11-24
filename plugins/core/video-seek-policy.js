@@ -646,13 +646,46 @@
     return !!state && state.media === media && state.file === media?.file && state.resolved &&
       !state.unadjusted && video.paused === true && !video.seeking && video.readyState >= 2;
   }
-  const api = { readTiming, target, ensure, isReady, probeAudioTrack,
+  function intervalAt(time, duration, timing) {
+    if (!timing || !Number.isFinite(time) || time < 0) return null;
+    const clamped = Number.isFinite(duration) && duration > 0
+      ? Math.min(time, Math.max(0, duration - 1e-7)) : time;
+    if (timing.pts && timing.pts.length) {
+      const pts = timing.pts;
+      let low = 0, high = pts.length - 1;
+      while (low < high) {
+        const mid = (low + high + 1) >> 1;
+        if (pts[mid] <= clamped + 1e-9) low = mid;
+        else high = mid - 1;
+      }
+      const start = pts[low];
+      if (clamped + 1e-9 < start) return null;
+      const end = low + 1 < pts.length ? pts[low + 1]
+        : (Number.isFinite(duration) && duration > start ? duration : start + (low > 0 ? start - pts[low - 1] : 0));
+      return end > start ? { start, end } : null;
+    }
+    if (timing.period >= 0.001) {
+      const phase = Number.isFinite(timing.phase) ? timing.phase : 0;
+      const index = Math.floor((clamped - phase + 1e-9) / timing.period);
+      if (index < 0) return null;
+      const start = phase + index * timing.period;
+      const end = start + timing.period;
+      return { start, end: Number.isFinite(duration) && duration > start ? Math.min(end, duration) : end };
+    }
+    return null;
+  }
+  const api = { readTiming, target, intervalAt, ensure, isReady, probeAudioTrack,
     canCapture(sequence, frame) {
       return (sequence.videoSchedules || []).every(schedule => {
         const item = schedule.currentItem;
-        return !item?.media || frame < item.start || frame >= item.start + item.length || isReady(schedule.el, item.media);
+        if (!item?.media || frame < item.start || frame >= item.start + item.length) return true;
+        if (global.ZoidiumVideoStream?.isScheduleActive?.(schedule)) {
+          return schedule.__zoidiumWebCodecsFrame === frame && !schedule.__zoidiumWebCodecsPending;
+        }
+        return isReady(schedule.el, item.media);
       });
     },
+    frameInterval(video, time) { return intervalAt(time, video?.duration, elements.get(video)?.timing); },
     seekTime(video, time) { return target(time, video.duration, elements.get(video)?.timing); } };
   global.ZoidiumVideoSeekPolicy = api;
   const prototype = global.PZ?.schedule?.prototype;

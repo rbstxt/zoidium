@@ -44,6 +44,7 @@ function createCanvasSource(scope, bunny, options) {
       options.beforeSubmit();
       await source.add(timestamp, duration);
     },
+    async flush() {},
     dispose() {},
   };
 }
@@ -54,28 +55,54 @@ function createSampleSource(bunny, options, converter) {
   // config the muxer stores carries the rewritten avcC and colour space.
   config.onEncodedPacket = options.onEncodedPacket;
   const source = new bunny.VideoSampleSource(config);
+  async function submitFrame(frame, timestamp, duration, checkBeforeSubmit) {
+    const sample = new bunny.VideoSample(frame.data, {
+      format: "I420",
+      codedWidth: options.width,
+      codedHeight: options.height,
+      layout: frame.layout,
+      timestamp,
+      duration,
+      colorSpace: { ...LIMITED_BT709 },
+    });
+    try {
+      // VideoSampleSource.add does not close the sample, and the encoder has
+      // copied the pixels once this resolves.
+      if (checkBeforeSubmit) options.beforeSubmit();
+      await source.add(sample);
+    } finally {
+      sample.close();
+    }
+  }
+  if (converter.supportsPbo) {
+    return {
+      source,
+      async add(timestamp, duration, frameCanvas) {
+        options.beforeSubmit();
+        converter.enqueue(frameCanvas, { timestamp, duration });
+        if (converter.pendingCount > 1) {
+          const frame = await converter.drainOne();
+          if (frame) await submitFrame(frame, frame.meta.timestamp, frame.meta.duration, false);
+        }
+      },
+      async flush() {
+        while (converter.pendingCount > 0) {
+          const frame = await converter.drainOne();
+          if (frame) await submitFrame(frame, frame.meta.timestamp, frame.meta.duration, false);
+        }
+      },
+      dispose() {
+        converter.dispose();
+      },
+    };
+  }
   return {
     source,
     async add(timestamp, duration, frameCanvas) {
       const frame = converter.convert(frameCanvas);
-      const sample = new bunny.VideoSample(frame.data, {
-        format: "I420",
-        codedWidth: options.width,
-        codedHeight: options.height,
-        layout: frame.layout,
-        timestamp,
-        duration,
-        colorSpace: { ...LIMITED_BT709 },
-      });
-      try {
-        // VideoSampleSource.add does not close the sample, and the encoder has
-        // copied the pixels once this resolves.
-        options.beforeSubmit();
-        await source.add(sample);
-      } finally {
-        sample.close();
-      }
+      await submitFrame(frame, timestamp, duration, true);
     },
+    async flush() {},
     dispose() {
       converter.dispose();
     },

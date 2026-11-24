@@ -128,6 +128,55 @@ function createProgram(gl) {
   return program;
 }
 
+const PBO_SLOT_COUNT = 2;
+const PBO_WAIT_TIMEOUT_MS = 10000;
+
+const PBO_CONSTANTS = [
+  "PIXEL_PACK_BUFFER",
+  "STREAM_READ",
+  "SYNC_GPU_COMMANDS_COMPLETE",
+  "ALREADY_SIGNALED",
+  "CONDITION_SATISFIED",
+  "TIMEOUT_EXPIRED",
+  "WAIT_FAILED",
+];
+
+const PBO_METHODS = [
+  "createBuffer",
+  "bindBuffer",
+  "bufferData",
+  "deleteBuffer",
+  "getBufferSubData",
+  "fenceSync",
+  "clientWaitSync",
+  "deleteSync",
+  "flush",
+];
+
+function hasPboSupport(gl) {
+  return PBO_CONSTANTS.every((name) => typeof gl[name] === "number") &&
+    PBO_METHODS.every((name) => typeof gl[name] === "function");
+}
+
+function nowMs(scope) {
+  return scope && scope.performance && typeof scope.performance.now === "function"
+    ? scope.performance.now()
+    : Date.now();
+}
+
+function renderPass(state, sourceCanvas) {
+  const { gl, geometry } = state;
+  const sourceWidth = Math.max(1, Math.round(sourceCanvas.width));
+  const sourceHeight = Math.max(1, Math.round(sourceCanvas.height));
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, state.sourceTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
+  gl.uniform2i(state.sourceSizeLocation, sourceWidth, sourceHeight);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, state.framebuffer);
+  gl.viewport(0, 0, geometry.texels, geometry.rows);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
 // Builds the WebGL2 converter. Returns null when this environment has no
 // WebGL2, and throws when the GL objects cannot be created; the caller treats
 // both as "use the canvas source".
@@ -144,7 +193,20 @@ function createConverter(scope, width, height) {
     preserveDrawingBuffer: false,
   });
   if (!gl || typeof gl.createShader !== "function") return null;
-  const state = { gl, canvas, geometry, lost: false, sourceTexture: null, targetTexture: null, framebuffer: null, program: null };
+  const supportsPbo = hasPboSupport(gl);
+  const state = {
+    gl,
+    canvas,
+    geometry,
+    lost: false,
+    sourceTexture: null,
+    targetTexture: null,
+    framebuffer: null,
+    program: null,
+    pboSlots: null,
+    freeSlots: [],
+    pendingSlots: [],
+  };
   try {
     state.program = createProgram(gl);
     gl.useProgram(state.program);
@@ -178,7 +240,24 @@ function createConverter(scope, width, height) {
     gl.uniform2i(state.sourceSizeLocation, width, height);
     gl.uniform1i(gl.getUniformLocation(state.program, "uLumaHeight"), height);
     gl.uniform1i(gl.getUniformLocation(state.program, "uChromaHeight"), geometry.chromaHeight);
-    state.pixels = new Uint8Array(geometry.stride * geometry.rows);
+    const byteLength = geometry.stride * geometry.rows;
+    state.pixels = new Uint8Array(byteLength);
+    if (supportsPbo) {
+      state.pboSlots = [];
+      try {
+        for (let i = 0; i < PBO_SLOT_COUNT; i++) {
+          const buffer = gl.createBuffer();
+          if (!buffer) throw new Error("The YUV converter could not allocate a pixel pack buffer.");
+          gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
+          gl.bufferData(gl.PIXEL_PACK_BUFFER, byteLength, gl.STREAM_READ);
+          const slot = { buffer, pixels: new Uint8Array(byteLength), sync: null, meta: null };
+          state.pboSlots.push(slot);
+          state.freeSlots.push(slot);
+        }
+      } finally {
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+      }
+    }
     const error = gl.getError();
     if (error) throw new Error("The YUV converter reported GL error " + error + " during setup.");
   } catch (setupError) {
@@ -188,23 +267,115 @@ function createConverter(scope, width, height) {
   return {
     geometry,
     layout: geometry.layout,
+    supportsPbo,
+    get pendingCount() {
+      return state.pendingSlots.length;
+    },
     convert(sourceCanvas) {
       if (state.lost) throw new Error("The YUV converter context was lost.");
-      const sourceWidth = Math.max(1, Math.round(sourceCanvas.width));
-      const sourceHeight = Math.max(1, Math.round(sourceCanvas.height));
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, state.sourceTexture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
-      gl.uniform2i(state.sourceSizeLocation, sourceWidth, sourceHeight);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, state.framebuffer);
-      gl.viewport(0, 0, geometry.texels, geometry.rows);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      renderPass(state, sourceCanvas);
       gl.readPixels(0, 0, geometry.texels, geometry.rows, gl.RGBA, gl.UNSIGNED_BYTE, state.pixels);
       if (gl.isContextLost && gl.isContextLost()) {
         state.lost = true;
         throw new Error("The YUV converter context was lost.");
       }
       return { data: state.pixels, layout: geometry.layout, width, height };
+    },
+    enqueue(sourceCanvas, meta) {
+      if (!supportsPbo) throw new Error("The YUV converter does not support PBO readback.");
+      if (state.lost || (gl.isContextLost && gl.isContextLost())) {
+        state.lost = true;
+        throw new Error("The YUV converter context was lost.");
+      }
+      if (!state.freeSlots.length) {
+        throw new Error("The YUV converter has no free PBO slot; drain a pending frame first.");
+      }
+      const slot = state.freeSlots.shift();
+      let queued = false;
+      try {
+        renderPass(state, sourceCanvas);
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, slot.buffer);
+        try {
+          gl.readPixels(0, 0, geometry.texels, geometry.rows, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+        } finally {
+          gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+        }
+        const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (!sync || (gl.isContextLost && gl.isContextLost())) {
+          if (sync) {
+            try { gl.deleteSync(sync); } catch (_cleanupError) { /* Preserve context error. */ }
+          }
+          if (gl.isContextLost && gl.isContextLost()) {
+            state.lost = true;
+            throw new Error("The YUV converter context was lost.");
+          }
+          throw new Error("The YUV converter could not create a GPU fence.");
+        }
+        gl.flush();
+        slot.sync = sync;
+        slot.meta = meta;
+        state.pendingSlots.push(slot);
+        queued = true;
+      } finally {
+        if (!queued && !state.lost) state.freeSlots.push(slot);
+      }
+    },
+    async drainOne(timeoutMs = PBO_WAIT_TIMEOUT_MS) {
+      if (!state.pendingSlots.length) return null;
+      const slot = state.pendingSlots.shift();
+      const meta = slot.meta;
+      slot.meta = null;
+      const startedAt = nowMs(scope);
+      try {
+        while (true) {
+          if (state.lost || (gl.isContextLost && gl.isContextLost())) {
+            state.lost = true;
+            throw new Error("The YUV converter context was lost.");
+          }
+          const status = gl.clientWaitSync(slot.sync, 0, 0);
+          if (status === gl.ALREADY_SIGNALED || status === gl.CONDITION_SATISFIED) break;
+          if (status === gl.WAIT_FAILED) {
+            if (gl.isContextLost && gl.isContextLost()) {
+              state.lost = true;
+              throw new Error("The YUV converter context was lost.");
+            }
+            throw new Error("The YUV converter GPU fence wait failed.");
+          }
+          if (status !== gl.TIMEOUT_EXPIRED) {
+            throw new Error("The YUV converter returned an unexpected fence status: " + status);
+          }
+          if (nowMs(scope) - startedAt >= timeoutMs) {
+            throw new Error("Timed out waiting for YUV converter GPU readback.");
+          }
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+        if (slot.sync) {
+          gl.deleteSync(slot.sync);
+          slot.sync = null;
+        }
+        if (state.lost || (gl.isContextLost && gl.isContextLost())) {
+          state.lost = true;
+          throw new Error("The YUV converter context was lost.");
+        }
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, slot.buffer);
+        try {
+          gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, slot.pixels);
+        } finally {
+          gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+        }
+        if (state.lost || (gl.isContextLost && gl.isContextLost())) {
+          state.lost = true;
+          throw new Error("The YUV converter context was lost.");
+        }
+        return { data: slot.pixels, layout: geometry.layout, width, height, meta };
+      } finally {
+        if (slot.sync) {
+          try { gl.deleteSync(slot.sync); } catch (_cleanupError) { /* Preserve readback error. */ }
+          slot.sync = null;
+        }
+        slot.meta = null;
+        if (!state.lost) state.freeSlots.push(slot);
+      }
     },
     dispose() {
       disposeConverter(state);
@@ -217,6 +388,16 @@ function disposeConverter(state) {
   state.lost = true;
   try {
     if (gl) {
+      if (state.pboSlots) {
+        for (const slot of state.pboSlots) {
+          if (slot.sync) gl.deleteSync(slot.sync);
+          if (slot.buffer) gl.deleteBuffer(slot.buffer);
+          slot.sync = null;
+          slot.buffer = null;
+          slot.pixels = null;
+          slot.meta = null;
+        }
+      }
       if (state.program) gl.deleteProgram(state.program);
       if (state.sourceTexture) gl.deleteTexture(state.sourceTexture);
       if (state.targetTexture) gl.deleteTexture(state.targetTexture);
@@ -227,6 +408,9 @@ function disposeConverter(state) {
   } catch (_cleanupError) {
     // Disposal never replaces an export result.
   }
+  state.pboSlots = null;
+  state.freeSlots = [];
+  state.pendingSlots = [];
   state.program = null;
   state.sourceTexture = null;
   state.targetTexture = null;

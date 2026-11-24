@@ -402,7 +402,8 @@
       return reject(controller, "objects", "Waiting for procedural objects");
     }
     const videos = visibleVideos(sequence, frame);
-    if (videos.length && !previewCoversVideo(viewport, frame, videos, fromPreview)) {
+    if (videos.length && !previewCoversVideo(viewport, frame, videos, fromPreview) &&
+        !videoFrames?.liveVideoExact?.(sequence, frame)) {
       return reject(controller, "video", controller.videoJob ?
         "Preparing video frames for the preview cache." : "Video frames are not cached in this preview.");
     }
@@ -633,7 +634,7 @@
     // Keep the whole window inside the byte budget so the LRU never evicts
     // frames this pass just rendered, nor the frame on screen.
     const fits = Math.floor(store.effectiveLimit / (gl.drawingBufferWidth * gl.drawingBufferHeight * 4)) - 2;
-    const bounds = video ? videoFrames.windowBounds(fits) :
+    const bounds = video ? videoFrames.windowBounds(fits, Boolean(global.ZoidiumVideoStream?.isSupported?.())) :
       { ahead: Math.min(PREFETCH_AHEAD, Math.max(0, fits - PREFETCH_BEHIND)), behind: Math.min(PREFETCH_BEHIND, fits) };
     const wanted = frame => frame >= 0 && frame < length && !controller.prefetchSkipped.has(frame) &&
       !store.entries.has(entryKey(controller, frame)) && (!videoPrefetchBlocked(viewport.editor.project.sequence, frame) ||

@@ -3,9 +3,16 @@
   "use strict";
 
   const AHEAD = 30, BEHIND = 4;
+  const AHEAD_STREAM = 90, BEHIND_STREAM = 8;
 
-  function windowBounds(fits) {
-    return { ahead: Math.min(AHEAD, Math.max(0, fits - BEHIND)), behind: Math.min(BEHIND, Math.max(0, fits)) };
+  function windowBounds(fits, streaming = false) {
+    const ahead = streaming ? AHEAD_STREAM : AHEAD;
+    const behind = streaming ? BEHIND_STREAM : BEHIND;
+    return { ahead: Math.min(ahead, Math.max(0, fits - behind)), behind: Math.min(behind, Math.max(0, fits)) };
+  }
+
+  function liveVideoExact(sequence, frame) {
+    return Boolean(global.ZoidiumVideoStream?.isFrameExact?.(sequence, frame));
   }
 
   function inputs(sequence, frame, sampler) {
@@ -60,7 +67,7 @@
     return { samples, runtime, context };
   }
 
-  const api = { inputs, eligible, job, prepare, windowBounds };
+  const api = { inputs, eligible, job, prepare, windowBounds, liveVideoExact };
   global.ZoidiumOutputFrameVideo = api;
   if (typeof module === "object" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -78,6 +78,9 @@ function createJob(scope, PZ, exporter, loadBunny) {
         check();
         const totalSamples = Math.floor(count / params.rate * SAMPLE_RATE);
         let audioOffset = 0;
+        const now = () => (scope.performance && typeof scope.performance.now === "function"
+          ? scope.performance.now() : Date.now());
+        let lastYieldAt = now();
         exporter.totalFrames = count;
         for (let index = 0; index < count; index++) {
           check();
@@ -96,10 +99,15 @@ function createJob(scope, PZ, exporter, loadBunny) {
           const timing = frameTiming(index, params.rate);
           await video.add(timing.timestamp / 1000000, timing.duration / 1000000, canvas);
           exporter.__zoidiumPendingFrame = null;
-          // Yield even if the encoder immediately accepts this frame, so the
-          // native Cancel/back button remains responsive on small projects.
-          await new Promise((resolve) => setTimeout(resolve, 0));
+          // Yield periodically so the native Cancel/back button stays
+          // responsive without paying per-frame timer clamping overhead.
+          if (now() - lastYieldAt >= 16) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            lastYieldAt = now();
+          }
         }
+        check();
+        await video.flush?.();
         check();
         await audio?.finish();
         await output.finalize();
