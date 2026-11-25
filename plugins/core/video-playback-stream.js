@@ -528,6 +528,9 @@ function createVideoStream(options = {}) {
     }
     schedule.__zoidiumWebCodecsActive = true;
     schedule.__zoidiumWebCodecsPending = false;
+    schedule.__zoidiumWebCodecsPendingRequest = null;
+    schedule.__zoidiumWebCodecsLastBindAt = nowMs();
+    schedule.__zoidiumWebCodecsPendingSince = null;
     schedule.__zoidiumWebCodecsEntryId = entry.id;
     schedule.__zoidiumWebCodecsBindSeq = (schedule.__zoidiumWebCodecsBindSeq || 0) + 1;
     if (Number.isInteger(context?.frame)) schedule.__zoidiumWebCodecsFrame = context.frame;
