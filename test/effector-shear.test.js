@@ -103,6 +103,13 @@ test("Shear saves and loads its properties and reproduces the same vertices", ()
   const actual = Float32Array.from(before);
   copy.deformPositions(actual, 0, {});
   assert.deepEqual(Array.from(actual), Array.from(expected));
+
+  const command = copy.workerCommand(0);
+  assert.equal(command.kind, "shear");
+  assert.equal(command.amount, 0.5);
+  assert.equal(command.axis, 2);
+  assert.equal(command.direction, 0);
+  assert.deepEqual(Array.from(command.pivot), [1, 2, 3]);
 });
 
 test("Shear is registered in the Effector menu with an object class", () => {
