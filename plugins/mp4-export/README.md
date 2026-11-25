@@ -65,9 +65,10 @@ receiver and arguments, and never enter this pipeline.
 
 While an MP4 export runs, the progress page shows the last finished frame and a
 line with the percent, the frame count, the elapsed time and the estimated
-remaining time. The preview copies the canvas the encoder already received into
-a separate canvas of at most 480 pixels wide. It never renders a frame and it
-updates at most every 400 milliseconds. The estimate appears after five frames.
+remaining time. The preview copies the canvas the export just rendered and is
+about to encode into a separate canvas of at most 480 pixels wide. It never
+renders a frame and it updates at most every 400 milliseconds. The estimate
+appears after five frames.
 
 The "Show preview" checkbox is on by default. Its setting is stored in
 `localStorage` under `zoidium.mp4Export.showPreview`; a blocked storage area
