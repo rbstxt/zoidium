@@ -59,6 +59,8 @@ function createFakeMediabunny(tracksByBlob, opts = {}) {
       if (!spec || spec.missingTrack) return null;
       return {
         spec,
+        codec: spec.codec || null,
+        async getDecoderConfig() { return spec.decoderConfig || null; },
         async canDecode() {
           return spec.canDecode !== false;
         },
@@ -484,6 +486,52 @@ test("verifyParity caches per-(sourceKey, renderer) verdict and disposes tempora
   pool.dispose();
   assert.equal(disposed.targets, 1);
   assert.equal(disposed.passes, 1);
+});
+
+test("decoder exceptions report one diagnostic with source, codec, support, and pool stats", async () => {
+  const blob = new Blob(["diagnostic"]);
+  const frames = makeFrames(3, 0.1);
+  frames[0].throwError = new Error("video decode failed");
+  const tracks = new Map([[blob, {
+    id: "diagnostic", codec: "hvc1.1.6.L93.B0",
+    decoderConfig: { codec: "hvc1.1.6.L93.B0", codedWidth: 16, codedHeight: 16 },
+    frames,
+  }]]);
+  const { bunny } = createFakeMediabunny(tracks);
+  const events = [];
+
+  class ProbingVideoDecoder {
+    static async isConfigSupported(config) {
+      return { supported: true, config: { ...config, hardwareAcceleration: "prefer-hardware" } };
+    }
+  }
+  const pool = createDecoderPool({
+    scope: createFakeScope({ VideoDecoder: ProbingVideoDecoder }),
+    loadBunny: async () => bunny,
+    onDiagnostic: (detail) => events.push(detail),
+  });
+
+  const media = { sha256: "diagnostic-source", file: blob };
+  assert.equal(await pool.getFrame(media, 0.0, { streamId: "diag" }), null);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].reason, "decoder-error");
+  assert.equal(events[0].sourceKey, "diagnostic-source");
+  assert.equal(events[0].codec, "hvc1.1.6.L93.B0");
+  assert.deepEqual(events[0].decoderSupport, {
+    supported: true, hardwareAcceleration: "prefer-hardware",
+  });
+  assert.equal(events[0].errorName, "Error");
+  assert.match(events[0].errorMessage, /video decode failed/);
+  assert.equal(events[0].stats.fallbacks, 1);
+  assert.equal(events[0].stats.decoded, 0);
+
+  // A source marked unsupported after the failure does not emit another event.
+  assert.equal(await pool.getFrame(media, 0.1, { streamId: "diag" }), null);
+  assert.equal(events.length, 1);
+  assert.equal(pool.isUnsupported(media), true);
+  assert.equal(pool.sourceInfo(media).decoderSupport, null, "closed sources drop decoder support");
+
+  pool.dispose();
 });
 
 test("sourceKeyFor and patchFrameDimensions handle edge inputs cleanly", () => {

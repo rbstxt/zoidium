@@ -91,6 +91,7 @@
     const defaultLookahead = Number.isFinite(options.lookaheadCount) && options.lookaheadCount > 0
       ? Math.floor(options.lookaheadCount) : DEFAULT_LOOKAHEAD_COUNT;
     const loadBunnyFn = typeof options.loadBunny === "function" ? options.loadBunny : null;
+    const onDiagnostic = typeof options.onDiagnostic === "function" ? options.onDiagnostic : null;
 
     let disposed = false, bunnyPromise = null, nextEntryId = 1, nextScheduleSeq = 1;
     let cachedBytes = 0, activeFrames = 0;
@@ -104,6 +105,70 @@
     const isSupported = () => !disposed && typeof scope.VideoDecoder !== "undefined" && typeof scope.VideoFrame !== "undefined";
     const isUnsupported = (media, explicitKey) => { const k = sourceKeyFor(media, explicitKey); return Boolean(k && unsupportedSources.has(k)); };
     const getGl = () => options.gl || scope.ZoidiumPluginApis?.gl || global.ZoidiumPluginApis?.gl || null;
+
+    function statsSnapshot() {
+      return {
+        decoded: counters.decoded, cacheHits: counters.cacheHits,
+        prefetchHits: counters.prefetchHits, fallbacks: counters.fallbacks,
+        activeFrames, cachedBytes, evicted: counters.evicted,
+      };
+    }
+
+    // Decoder support is probed once per opened source. It is optional and
+    // informational: a missing or failing isConfigSupported leaves it null.
+    async function describeDecoderSupport(track) {
+      const Decoder = scope.VideoDecoder;
+      if (!track || typeof track.getDecoderConfig !== "function" ||
+        typeof Decoder?.isConfigSupported !== "function") return null;
+      try {
+        const config = await track.getDecoderConfig();
+        if (!config) return null;
+        const result = await Decoder.isConfigSupported(config);
+        if (!result || typeof result !== "object") return null;
+        const acceleration = typeof result.config?.hardwareAcceleration === "string"
+          ? result.config.hardwareAcceleration : null;
+        return { supported: result.supported === true, hardwareAcceleration: acceleration };
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    function sourceInfo(media, explicitKey) {
+      const key = sourceKeyFor(media, explicitKey);
+      if (!key) return null;
+      const source = sources.get(key) || null;
+      let codec = null;
+      try { codec = source?.track?.codec; } catch (_error) { codec = null; }
+      return {
+        key,
+        codec: typeof codec === "string" && codec ? codec : null,
+        decoderSupport: source?.decoderSupport || null,
+      };
+    }
+
+    function safeErrorText(value, limit = 240) {
+      let result = "";
+      try { result = String(value ?? ""); } catch (_error) { result = ""; }
+      return result.length > limit ? `${result.slice(0, limit)}…` : result;
+    }
+
+    function notifyDiagnostic(reason, info, schedule, error) {
+      if (!onDiagnostic || !info?.key) return;
+      try {
+        onDiagnostic({
+          reason,
+          sourceKey: info.key,
+          codec: info.codec,
+          decoderSupport: info.decoderSupport,
+          stats: statsSnapshot(),
+          schedule: schedule || null,
+          errorName: error ? safeErrorText(error.name || "Error", 80) : null,
+          errorMessage: error ? safeErrorText(error.message || error) : null,
+        });
+      } catch (_error) {
+        // Diagnostics must never interrupt decoding.
+      }
+    }
 
     async function ensureBunny() {
       if (disposed || !loadBunnyFn) return null;
@@ -296,7 +361,7 @@
     function getOrCreateSourceShell(key, media) {
       let source = sources.get(key);
       if (!source) {
-        source = { key, media, input: null, track: null, sink: null, streams: new Map(), opening: null, unsupported: false, generation: 1 };
+        source = { key, media, input: null, track: null, sink: null, decoderSupport: null, streams: new Map(), opening: null, unsupported: false, generation: 1 };
         sources.set(key, source);
       } else if (media && !source.media) {
         source.media = media;
@@ -326,8 +391,14 @@
           markUnsupported(source.key, source);
           return null;
         }
+        const decoderSupport = await describeDecoderSupport(track);
+        if (disposed || source.generation !== openGen) {
+          try { input.dispose?.(); } catch (_disposeError) { /* Best-effort cleanup. */ }
+          return null;
+        }
         source.input = input;
         source.track = track;
+        source.decoderSupport = decoderSupport;
         source.sink = new bunny.VideoSampleSink(track);
         evictIdleSource(source.key);
         return source;
@@ -443,9 +514,11 @@
           counters.decoded += 1;
           if (schedule) pin(schedule, entry);
           return entry;
-        } catch (_error) {
+        } catch (error) {
+          const info = sourceInfo(key);
           markUnsupported(key, source);
           counters.fallbacks += 1;
+          notifyDiagnostic("decoder-error", info, schedule, error);
           return null;
         }
       };
@@ -637,15 +710,10 @@
     }
 
     return {
-      isSupported, isUnsupported, sourceKeyFor, peek, pin, unpinSchedule, getFrame,
+      isSupported, isUnsupported, sourceKeyFor, sourceInfo, peek, pin, unpinSchedule, getFrame,
+      pinnedEntry: (schedule) => (schedule ? pinsBySchedule.get(schedule) || null : null),
       prefetchAhead, getParityVerdict, verifyParity, invalidateSource, clear, dispose,
-      get stats() {
-        return {
-          decoded: counters.decoded, cacheHits: counters.cacheHits,
-          prefetchHits: counters.prefetchHits, fallbacks: counters.fallbacks,
-          activeFrames, cachedBytes, evicted: counters.evicted,
-        };
-      },
+      get stats() { return statsSnapshot(); },
     };
   }
 

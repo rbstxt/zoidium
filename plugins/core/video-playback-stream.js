@@ -7,6 +7,13 @@ const MEDIABUNNY_ASSET_PATH = "/plugins/mp4-export/vendor/mediabunny-1.62.0.cjs"
 const MEDIABUNNY_BUNDLE_ID = "video-decoder";
 const DEFAULT_LOOKAHEAD_COUNT = 6;
 const DEFAULT_FRAME_RATE = 30;
+// A schedule that has not bound a frame for this long while requests stay
+// pending is considered stalled and returns to the native video element.
+const STALL_FALLBACK_MS = 1500;
+// A superseded request keeps its progress guarantee once no frame has bound
+// for two frame intervals or this floor, whichever is larger.
+const PROGRESS_FLOOR_MS = 100;
+const DEBUG_EVENT_INTERVAL_MS = 10000;
 const TEXTURE_COPY_KEYS = [
   "flipY", "premultiplyAlpha", "encoding", "format", "type",
   "minFilter", "magFilter", "wrapS", "wrapT",
@@ -64,11 +71,24 @@ function createVideoStream(options = {}) {
     loadBunny, maxBytes: options.maxBytes, maxFrames: options.maxFrames,
     streamWindowSeconds: options.streamWindowSeconds, lookaheadCount,
     scope: options.scope || host, fetch: options.fetch, gl: options.gl,
+    onDiagnostic: (detail) => recordDecoderDiagnostic(detail),
   }) : null);
+
+  const nowMs = typeof options.now === "function" ? options.now : () => Date.now();
+  const startTimer = typeof options.setTimer === "function" ? options.setTimer
+    : (fn, ms) => (typeof host.setTimeout === "function"
+      ? host.setTimeout(fn, ms) : globalThis.setTimeout(fn, ms));
+  const stopTimer = typeof options.clearTimer === "function" ? options.clearTimer
+    : (id) => (typeof host.clearTimeout === "function"
+      ? host.clearTimeout(id) : globalThis.clearTimeout(id));
 
   let disposed = false, nextScheduleId = 1;
   const scheduleIds = new WeakMap();
   const trackedSchedules = new Set();
+  const stalledSources = new Set();
+  const watchdogTimers = new Map();
+  const debugLogAt = new Map();
+  const counters = { stallFallbacks: 0, decoderErrors: 0, supersededRequests: 0 };
 
   function streamIdOf(schedule, channel) {
     let id = scheduleIds.get(schedule);
@@ -80,6 +100,107 @@ function createVideoStream(options = {}) {
     const seq = (schedule.__zoidiumWebCodecsSeq || 0) + 1;
     schedule.__zoidiumWebCodecsSeq = seq;
     return seq;
+  }
+
+  function sourceKeyOf(media) {
+    try { return pool?.sourceKeyFor?.(media) || null; } catch (_error) { return null; }
+  }
+
+  function isSourceStalled(media) {
+    const key = sourceKeyOf(media);
+    return Boolean(key && stalledSources.has(key));
+  }
+
+  function stepSecondsOf(schedule) {
+    const step = schedule?.__zoidiumWebCodecsStepSeconds;
+    return Number.isFinite(step) && step > 0 ? step : 1 / DEFAULT_FRAME_RATE;
+  }
+
+  function progressThresholdMs(schedule) {
+    return Math.max(2 * stepSecondsOf(schedule) * 1000, PROGRESS_FLOOR_MS);
+  }
+
+  function lastProgressAt(schedule) {
+    const boundAt = schedule?.__zoidiumWebCodecsLastBindAt;
+    if (Number.isFinite(boundAt)) return boundAt;
+    const pendingSince = schedule?.__zoidiumWebCodecsPendingSince;
+    return Number.isFinite(pendingSince) ? pendingSince : nowMs();
+  }
+
+  function clearPendingRequest(schedule) {
+    if (schedule) schedule.__zoidiumWebCodecsPendingRequest = null;
+  }
+
+  function clearWatchdog(schedule) {
+    if (!schedule) return;
+    const timer = watchdogTimers.get(schedule);
+    if (timer !== undefined) {
+      watchdogTimers.delete(schedule);
+      stopTimer(timer);
+    }
+  }
+
+  function armWatchdog(schedule) {
+    if (!schedule || watchdogTimers.has(schedule) || disposed) return;
+    const remaining = Math.max(0, lastProgressAt(schedule) + STALL_FALLBACK_MS - nowMs());
+    const timer = startTimer(() => onWatchdog(schedule), remaining);
+    watchdogTimers.set(schedule, timer);
+  }
+
+  function onWatchdog(schedule) {
+    watchdogTimers.delete(schedule);
+    if (disposed || !schedule?.__zoidiumWebCodecsPendingRequest) return;
+    const elapsed = nowMs() - lastProgressAt(schedule);
+    if (elapsed < STALL_FALLBACK_MS) { armWatchdog(schedule); return; }
+    fallbackStalledSchedule(schedule, elapsed);
+  }
+
+  function emitDiagnostic(reason, sourceKey, detail, sinceLastBindMs) {
+    if (!sourceKey) return;
+    const at = nowMs();
+    const previous = debugLogAt.get(sourceKey);
+    if (previous !== undefined && at - previous < DEBUG_EVENT_INTERVAL_MS) return;
+    debugLogAt.set(sourceKey, at);
+    let poolStats = null;
+    try { poolStats = pool?.stats || null; } catch (_error) { poolStats = null; }
+    const entry = {
+      reason,
+      source: sourceKey,
+      codec: detail?.codec || null,
+      decoderSupport: detail?.decoderSupport || null,
+      pool: detail?.stats || poolStats,
+      supersededRequests: counters.supersededRequests,
+      sinceLastBindMs: Number.isFinite(sinceLastBindMs) ? Math.round(sinceLastBindMs) : null,
+    };
+    if (detail?.errorName) entry.errorName = detail.errorName;
+    if (detail?.errorMessage) entry.errorMessage = detail.errorMessage;
+    try { globalThis.ZOIDIUM_DEBUG_LOG?.record?.("video-decode", entry); }
+    catch (_error) { /* Diagnostics must never interrupt playback. */ }
+  }
+
+  function recordDecoderDiagnostic(detail) {
+    if (!detail) return;
+    counters.decoderErrors += 1;
+    const schedule = detail.schedule || null;
+    emitDiagnostic(
+      detail.reason || "decoder-error",
+      detail.sourceKey || null,
+      detail,
+      schedule ? nowMs() - lastProgressAt(schedule) : null,
+    );
+  }
+
+  function fallbackStalledSchedule(schedule, elapsed) {
+    const request = schedule.__zoidiumWebCodecsPendingRequest;
+    const media = request?.item?.media || schedule.currentItem?.media || null;
+    const sourceKey = sourceKeyOf(media);
+    let detail = null;
+    try { detail = pool?.sourceInfo?.(media) || null; } catch (_error) { detail = null; }
+    counters.stallFallbacks += 1;
+    if (sourceKey) stalledSources.add(sourceKey);
+    nextScheduleSeq(schedule);
+    restoreNative(schedule, { markDirty: true });
+    emitDiagnostic("stall-fallback", sourceKey, detail, elapsed);
   }
 
   function resolveTargetTime(video, mediaTime) {
@@ -136,6 +257,10 @@ function createVideoStream(options = {}) {
     }
     schedule.__zoidiumWebCodecsActive = true;
     schedule.__zoidiumWebCodecsPending = false;
+    schedule.__zoidiumWebCodecsPendingRequest = null;
+    schedule.__zoidiumWebCodecsLastBindAt = nowMs();
+    schedule.__zoidiumWebCodecsPendingSince = null;
+    clearWatchdog(schedule);
     schedule.__zoidiumWebCodecsEntryId = entry.id;
     if (frame !== undefined && frame !== null) schedule.__zoidiumWebCodecsFrame = frame;
     trackedSchedules.add(schedule);
@@ -145,10 +270,15 @@ function createVideoStream(options = {}) {
   function restoreNative(schedule, { markDirty = false } = {}) {
     if (!schedule) return;
     pool?.unpinSchedule(schedule);
+    clearPendingRequest(schedule);
+    clearWatchdog(schedule);
     schedule.__zoidiumWebCodecsActive = false;
     schedule.__zoidiumWebCodecsPending = false;
     schedule.__zoidiumWebCodecsFrame = null;
     schedule.__zoidiumWebCodecsEntryId = null;
+    schedule.__zoidiumWebCodecsLastBindAt = null;
+    schedule.__zoidiumWebCodecsPendingSince = null;
+    schedule.__zoidiumWebCodecsLatest = null;
     if (schedule.texture && schedule.el && schedule.texture.image !== schedule.el) {
       schedule.texture.image = schedule.el;
       schedule.texture.needsUpdate = true;
@@ -182,13 +312,69 @@ function createVideoStream(options = {}) {
     return visibleCount > 0;
   }
 
+  function discardStaleEntry(schedule, entry) {
+    if (!entry || !schedule || disposed) return;
+    try {
+      // A request that lost its schedule can still return a decoded entry that
+      // the pool pinned for it. Release that pin unless the frame is displayed.
+      if (pool.pinnedEntry?.(schedule) === entry && schedule.__zoidiumWebCodecsEntryId !== entry.id) {
+        pool.unpinSchedule(schedule);
+      }
+    } catch (_error) { /* Pin bookkeeping is best-effort. */ }
+  }
+
+  function finishRequest(schedule, playback, item, request, entry) {
+    if (disposed) return;
+    const isCurrent = schedule.__zoidiumWebCodecsSeq === request.seq &&
+      schedule.__zoidiumWebCodecsPendingRequest === request;
+    if (!isCurrent || schedule.currentItem !== item) {
+      if (schedule.__zoidiumWebCodecsPendingRequest === request) clearPendingRequest(schedule);
+      discardStaleEntry(schedule, entry);
+      return;
+    }
+    clearPendingRequest(schedule);
+    if (!entry) { restoreNative(schedule, { markDirty: true }); return; }
+    bindEntry(schedule, entry, request.frame);
+    pauseNativeElement(schedule);
+    host.ZoidiumFramePacing?.markVideoDirty?.(schedule);
+    triggerLookahead(schedule, playback, item, request.frame, request.mediaTime, request.targetTime);
+    const latest = schedule.__zoidiumWebCodecsLatest;
+    if (request.chained && latest && latest.item === schedule.currentItem) {
+      syncSchedule(schedule, playback, latest.frame);
+    }
+  }
+
+  function startRequest(schedule, playback, item, mediaTime, targetTime, evalFrame, stepSeconds) {
+    const seq = nextScheduleSeq(schedule);
+    const request = {
+      item, seq, targetTime, mediaTime, frame: evalFrame, chained: false,
+    };
+    schedule.__zoidiumWebCodecsPendingRequest = request;
+    schedule.__zoidiumWebCodecsPending = true;
+    schedule.__zoidiumWebCodecsStepSeconds = stepSeconds;
+    if (!Number.isFinite(schedule.__zoidiumWebCodecsPendingSince) &&
+      !Number.isFinite(schedule.__zoidiumWebCodecsLastBindAt)) {
+      schedule.__zoidiumWebCodecsPendingSince = nowMs();
+    }
+    trackedSchedules.add(schedule);
+    if (schedule.__zoidiumWebCodecsActive) pauseNativeElement(schedule);
+    armWatchdog(schedule);
+    pool.getFrame(item.media, targetTime, {
+      streamId: streamIdOf(schedule, "playback"), schedule,
+    }).then(
+      (entry) => finishRequest(schedule, playback, item, request, entry),
+      () => finishRequest(schedule, playback, item, request, null),
+    );
+    return Boolean(schedule.__zoidiumWebCodecsActive);
+  }
+
   function syncSchedule(schedule, playback, frame) {
     if (!schedule || !isSupported() || schedule.__zoidiumExactDecodePending) return false;
     const item = schedule.currentItem;
     const evalFrame = Number.isFinite(frame)
       ? frame : (Number.isInteger(playback?.currentFrame) ? playback.currentFrame : playback?._exactFrame);
     const mediaTime = readItemMediaTime(item, evalFrame);
-    if (mediaTime === null || pool.isUnsupported(item.media)) {
+    if (mediaTime === null || pool.isUnsupported(item.media) || isSourceStalled(item.media)) {
       if (schedule.__zoidiumWebCodecsActive || schedule.__zoidiumWebCodecsPending) {
         nextScheduleSeq(schedule);
         restoreNative(schedule);
@@ -198,6 +384,8 @@ function createVideoStream(options = {}) {
 
     try { host.ZoidiumVideoSeekPolicy?.ensure?.(schedule.el, item.media); } catch (_error) { /* Best-effort probe. */ }
     const targetTime = resolveTargetTime(schedule.el, mediaTime);
+    const stepSeconds = estimateStepSeconds(item, playback, evalFrame, mediaTime);
+    schedule.__zoidiumWebCodecsStepSeconds = stepSeconds;
     const cached = pool.peek(item.media, targetTime, { schedule });
     if (cached) {
       nextScheduleSeq(schedule);
@@ -207,32 +395,43 @@ function createVideoStream(options = {}) {
       return true;
     }
 
-    const seq = nextScheduleSeq(schedule);
-    schedule.__zoidiumWebCodecsPending = true;
-    if (schedule.__zoidiumWebCodecsActive) pauseNativeElement(schedule);
+    const latest = { item, frame: evalFrame, targetTime };
+    schedule.__zoidiumWebCodecsLatest = latest;
 
-    pool.getFrame(item.media, targetTime, { streamId: streamIdOf(schedule, "playback"), schedule }).then(
-      (entry) => {
-        if (disposed || schedule.__zoidiumWebCodecsSeq !== seq || schedule.currentItem !== item) return;
-        if (!entry) { restoreNative(schedule, { markDirty: true }); return; }
-        bindEntry(schedule, entry, evalFrame);
-        pauseNativeElement(schedule);
-        host.ZoidiumFramePacing?.markVideoDirty?.(schedule);
-        triggerLookahead(schedule, playback, item, evalFrame, mediaTime, targetTime);
-      },
-      () => {
-        if (!disposed && schedule.__zoidiumWebCodecsSeq === seq && schedule.currentItem === item) {
-          restoreNative(schedule, { markDirty: true });
-        }
+    const pending = schedule.__zoidiumWebCodecsPendingRequest;
+    if (pending && pending.item === item) {
+      if (Math.abs(pending.targetTime - targetTime) <= stepSeconds / 2) {
+        pending.frame = evalFrame;
+        pending.mediaTime = mediaTime;
+        armWatchdog(schedule);
+        return Boolean(schedule.__zoidiumWebCodecsActive);
       }
-    );
-    return Boolean(schedule.__zoidiumWebCodecsActive);
+      // Progress guarantee: once nothing has bound for the threshold, stop
+      // superseding and let the in-flight decode finish, then chain from it.
+      if (!pending.chained && nowMs() - lastProgressAt(schedule) > progressThresholdMs(schedule)) {
+        pending.chained = true;
+      }
+      if (pending.chained) {
+        pending.frame = evalFrame;
+        pending.mediaTime = mediaTime;
+        armWatchdog(schedule);
+        return Boolean(schedule.__zoidiumWebCodecsActive);
+      }
+    }
+    if (pending) counters.supersededRequests += 1;
+    return startRequest(schedule, playback, item, mediaTime, targetTime, evalFrame, stepSeconds);
   }
 
   async function prepareFrame(schedule, mediaTime, context = {}) {
     if (!schedule || !isSupported() || !Number.isFinite(mediaTime)) return { handled: false };
     const item = schedule.currentItem, media = item?.media;
-    if (!media || pool.isUnsupported(media)) { restoreNative(schedule); return { handled: false }; }
+    if (!media || pool.isUnsupported(media) || isSourceStalled(media)) {
+      restoreNative(schedule);
+      return { handled: false };
+    }
+    // Export preparation is not subject to the stall watchdog: it awaits.
+    clearPendingRequest(schedule);
+    clearWatchdog(schedule);
 
     context?.exportPolicy?.check?.();
     try { await host.ZoidiumVideoSeekPolicy?.ensure?.(schedule.el, media); } catch (_error) { /* Best-effort probe. */ }
@@ -265,7 +464,12 @@ function createVideoStream(options = {}) {
     if (!media) return { handled: false };
 
     const sourceKey = pool.sourceKeyFor(media);
-    if (!sourceKey || pool.isUnsupported(media)) { restoreNative(schedule); return { handled: false }; }
+    if (!sourceKey || pool.isUnsupported(media) || stalledSources.has(sourceKey)) {
+      restoreNative(schedule);
+      return { handled: false };
+    }
+    // Sequential export awaits its own decode and is not stall-timer driven.
+    clearWatchdog(schedule);
 
     const skipParity = context?.skipParityCheck === true;
     const renderer = context?.renderer || null;
@@ -334,6 +538,9 @@ function createVideoStream(options = {}) {
     if (!pool || !media) return;
     const key = pool.sourceKeyFor(media);
     if (!key) return;
+    // A replaced asset is a new source: allow WebCodecs and diagnostics again.
+    stalledSources.delete(key);
+    debugLogAt.delete(key);
     for (const schedule of Array.from(trackedSchedules)) {
       if (pool.sourceKeyFor(schedule.currentItem?.media) === key) releaseSchedule(schedule);
     }
@@ -349,7 +556,11 @@ function createVideoStream(options = {}) {
     if (disposed) return;
     disposed = true;
     for (const schedule of Array.from(trackedSchedules)) releaseSchedule(schedule);
+    for (const schedule of Array.from(watchdogTimers.keys())) clearWatchdog(schedule);
+    watchdogTimers.clear();
     trackedSchedules.clear();
+    stalledSources.clear();
+    debugLogAt.clear();
     pool?.dispose();
   }
 
@@ -357,7 +568,21 @@ function createVideoStream(options = {}) {
     isSupported, isScheduleActive, isFrameExact, syncSchedule, prepareFrame,
     decodeExportFrame, releaseSchedule, invalidateAsset, clearAll, dispose,
     get stats() {
-      return pool ? pool.stats : { decoded: 0, cacheHits: 0, prefetchHits: 0, fallbacks: 0, activeFrames: 0, cachedBytes: 0, evicted: 0 };
+      const base = pool ? pool.stats : {
+        decoded: 0, cacheHits: 0, prefetchHits: 0, fallbacks: 0,
+        activeFrames: 0, cachedBytes: 0, evicted: 0,
+      };
+      return {
+        ...base,
+        stallFallbacks: counters.stallFallbacks,
+        decoderErrors: counters.decoderErrors,
+        supersededRequests: counters.supersededRequests,
+        stalledSources: stalledSources.size,
+        fallbackReasons: {
+          stall: counters.stallFallbacks,
+          decoderError: counters.decoderErrors,
+        },
+      };
     },
   };
 }
