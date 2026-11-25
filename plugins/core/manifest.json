@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "181",
+  "version": "182",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -223,6 +223,11 @@
     {
       "id": "object3d-enabled",
       "source": "./plugins/core/object3d-enabled.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "material-render-side",
+      "source": "./plugins/core/material-render-side.js",
       "phase": "pre-init"
     },
     {

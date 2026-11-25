@@ -73,6 +73,7 @@
       "./plugins/core/about-attribution.js",
       "./plugins/core/text-shape-winding.js",
       "./plugins/core/object3d-enabled.js",
+      "./plugins/core/material-render-side.js",
       "./plugins/core/object3d-registry.js",
       "./plugins/core/shadow-quality.js",
       "./plugins/core/named-property-lists.js",
