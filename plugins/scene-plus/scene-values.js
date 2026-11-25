@@ -5,6 +5,7 @@
 // functions with no host access, shared by the repeater and effector files.
 
 const MAX_REPEATS = 128;
+const FULL_TURN = Math.PI * 2;
 const SCHEMA_VERSION = 2;
 const EFFECTOR_SCHEMA_VERSION = 1;
 const TWIST_TYPE = "zoidium:repeater/twist";
@@ -73,6 +74,26 @@ function integerValue(value, fallback, minimum, maximum) {
 function getCount(property, frame) {
   const currentFrame = Number.isFinite(frame) ? frame : 0;
   return integerValue(property?.get?.(currentFrame), 1, 1, MAX_REPEATS);
+}
+
+function gridCounts(properties, frame) {
+  const currentFrame = Number.isFinite(frame) ? frame : 0;
+  return {
+    x: integerValue(properties?.countX?.get?.(currentFrame), 3, 1, MAX_REPEATS),
+    y: integerValue(properties?.countY?.get?.(currentFrame), 3, 1, MAX_REPEATS),
+    z: integerValue(properties?.countZ?.get?.(currentFrame), 1, 1, MAX_REPEATS),
+  };
+}
+
+// The grid volume is clamped so one repeater never clones more copies than
+// every other mode. Copies fill X first, then Y, then Z, so clamping keeps a
+// deterministic complete prefix of that order.
+function getRepeaterCount(mode, properties, frame) {
+  if (mode === "grid") {
+    const counts = gridCounts(properties, frame);
+    return Math.min(MAX_REPEATS, counts.x * counts.y * counts.z);
+  }
+  return getCount(properties?.count, frame);
 }
 
 function getEchoFrame(frame, index, delay) {
@@ -186,6 +207,72 @@ function safeRangeMaximum(minimum, maximum) {
   ];
 }
 
+// Option indices match the XY;XZ;YZ property items.
+function radialPosition(angle, radius, plane) {
+  const cos = Math.cos(angle) * radius;
+  const sin = Math.sin(angle) * radius;
+  if (plane === 0) return [cos, sin, 0];
+  if (plane === 2) return [0, cos, sin];
+  return [cos, 0, sin];
+}
+
+// Align spins every copy around the circle normal by its own angle, so the
+// source's local X axis (its local Y in the YZ plane) faces outward.
+function radialRotation(angle, plane, align, rotationStep, index) {
+  const rotation = scaleVector(rotationStep, index);
+  if (!align) return rotation;
+  if (plane === 0) rotation[2] += angle;
+  else if (plane === 2) rotation[0] += angle;
+  else rotation[1] -= angle;
+  return rotation;
+}
+
+function radialTransform(index, count, controls) {
+  const plane = Math.round(numberValue(controls.plane, 1));
+  const start = numberValue(controls.startAngle, 0);
+  const sweep = numberValue(controls.sweep, FULL_TURN);
+  const closed = Math.abs(Math.abs(sweep) - FULL_TURN) < 1e-9;
+  const step = closed ? sweep / count : count > 1 ? sweep / (count - 1) : 0;
+  const angle = start + step * index;
+  const amount = count > 1 ? index / (count - 1) : 0;
+  return {
+    position: radialPosition(angle, numberValue(controls.radius, 100), plane),
+    rotation: radialRotation(
+      angle,
+      plane,
+      Boolean(controls.align),
+      vectorValue(controls.rotationStep, [0, 0, 0]),
+      index,
+    ),
+    scale: lerpVector([1, 1, 1], vectorValue(controls.scaleEnd, [1, 1, 1]), amount),
+  };
+}
+
+function gridTransform(index, controls) {
+  const counts = controls.counts || {};
+  const x = integerValue(counts.x, 3, 1, MAX_REPEATS);
+  const y = integerValue(counts.y, 3, 1, MAX_REPEATS);
+  const z = integerValue(counts.z, 1, 1, MAX_REPEATS);
+  const cell = [
+    index % x,
+    Math.floor(index / x) % y,
+    Math.floor(index / (x * y)),
+  ];
+  const spacing = vectorValue(controls.spacing, [50, 50, 50]);
+  const centered = Boolean(controls.centered);
+  const offset = (value, count, gap) =>
+    (centered ? value - (count - 1) / 2 : value) * gap;
+  return {
+    position: [
+      offset(cell[0], x, spacing[0]),
+      offset(cell[1], y, spacing[1]),
+      offset(cell[2], z, spacing[2]),
+    ],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
+  };
+}
+
 function getTransform(mode, index, count, controls, seed) {
   if (mode === "linear") {
     const amount = count > 1 ? index / (count - 1) : 0;
@@ -194,6 +281,14 @@ function getTransform(mode, index, count, controls, seed) {
       rotation: scaleVector(controls.rotationEnd, amount),
       scale: lerpVector([1, 1, 1], controls.scaleEnd, amount),
     };
+  }
+
+  if (mode === "radial") {
+    return radialTransform(index, count, controls);
+  }
+
+  if (mode === "grid") {
+    return gridTransform(index, controls);
   }
 
   if (mode === "random") {
@@ -237,11 +332,12 @@ function migrateLegacyEffectorRecord(data) {
 }
 
 module.exports = {
-  MAX_REPEATS, SCHEMA_VERSION, EFFECTOR_SCHEMA_VERSION, TWIST_TYPE, WARP_TYPE,
-  VORONOI_TYPE, DEGREES_TO_RADIANS, DEFAULT_FRACTURE_CELLS, MAX_FRACTURE_CELLS,
-  FRACTURE_LIMITS, LEGACY_EFFECTOR_TYPES, SHAPE_KIND_NAMES, isPresetShape,
-  nameNewSourceShapes, numberValue, integerValue, getCount, getEchoFrame,
-  getEchoFrames, vectorValue, cloneJson, lerp, lerpVector, scaleVector,
-  migrateEffectorData, seededRandom, randomVector, safeRange, safeRangeMaximum,
-  getTransform, migrateLegacyEffectorRecord
+  MAX_REPEATS, FULL_TURN, SCHEMA_VERSION, EFFECTOR_SCHEMA_VERSION, TWIST_TYPE,
+  WARP_TYPE, VORONOI_TYPE, DEGREES_TO_RADIANS, DEFAULT_FRACTURE_CELLS,
+  MAX_FRACTURE_CELLS, FRACTURE_LIMITS, LEGACY_EFFECTOR_TYPES, SHAPE_KIND_NAMES,
+  isPresetShape, nameNewSourceShapes, numberValue, integerValue, getCount,
+  gridCounts, getRepeaterCount, getEchoFrame, getEchoFrames, vectorValue,
+  cloneJson, lerp, lerpVector, scaleVector, migrateEffectorData, seededRandom,
+  randomVector, safeRange, safeRangeMaximum, getTransform,
+  migrateLegacyEffectorRecord
 };

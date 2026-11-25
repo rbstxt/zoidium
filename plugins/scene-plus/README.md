@@ -5,8 +5,8 @@ deformation. It owns every Effector object: the Repeater family and the
 Twist, Warp, and Voronoi Fracture effectors. They appear under one `Effector`
 menu and use the published `zoidium:repeater/*` namespace.
 
-- Repeater, Linear Repeater, Random Repeater, and Echo Repeater copy source
-  objects.
+- Repeater, Linear Repeater, Radial Repeater, Grid Repeater, Random Repeater,
+  and Echo Repeater copy source objects.
 - Twist rotates descendant meshes around an axis.
 - Warp bends descendant meshes, optionally weighted by a linear, box, or sphere
   field.
@@ -16,6 +16,27 @@ menu and use the published `zoidium:repeater/*` namespace.
 Add affected objects with the `+` on the effector's own row. Objects added with
 the top-level `3D Objects` button are siblings and remain unaffected.
 Effector settings use the native property list.
+
+## Repeater placement
+
+Radial Repeater places copies on a circle. Radius sets the distance from the
+repeater origin, and Plane selects XY, XZ, or YZ. Start angle moves the first
+copy, and Sweep sets the arc. A sweep of 360 degrees divides the circle by
+Count, so the last copy stops short of the first. Other sweeps divide the arc by
+Count minus one and include both ends. Align to circle turns each copy around
+the circle normal by its own angle. Rotation step adds a fixed rotation at each
+copy index. Scale end interpolates from 1 to the end scale, like Linear
+Repeater.
+
+Grid Repeater fills a three-axis grid. Count X, Count Y, and Count Z set the
+number of cells, and Spacing sets the gap on each axis. Copies fill X first,
+then Y, then Z. Centered places the grid around the repeater origin instead of
+starting at the first cell. The product of the three counts stops at 128 copies.
+
+Selecting a repeater draws a small blue point at the transform origin of each
+copy. The points follow the repeater transform and do not follow effectors.
+They use the editor helper layer, so renders, previews, and exports never
+include them. Deselecting the repeater removes the points.
 
 ## Evaluation model
 
@@ -223,5 +244,5 @@ shared bundle module loader. `scene-values.js` holds constants and pure
 math, `scene-fields.js` the property definitions and readers,
 `scene-clone.js` the render-tree cloning, `scene-effectors.js` the effector
 classes, `scene-deform.js` the scene deformation support,
-`scene-repeaters.js` the repeater classes, and `scene-state.js` the shared
-mutable plugin state.
+`scene-repeaters.js` the repeater classes, `scene-repeater-points.js` the
+copy-position overlay, and `scene-state.js` the shared mutable plugin state.

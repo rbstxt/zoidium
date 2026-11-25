@@ -4,8 +4,8 @@
 // their property categories, instance cloning, and per-frame transforms.
 
 const {
-  SCHEMA_VERSION, cloneJson, getCount, getEchoFrames, getTransform,
-  nameNewSourceShapes, numberValue, vectorValue,
+  FULL_TURN, SCHEMA_VERSION, cloneJson, getEchoFrames, getRepeaterCount,
+  getTransform, gridCounts, nameNewSourceShapes, numberValue, vectorValue,
 } = require("./scene-values.js");
 const { createPropertyCategory, makeProperties } = require("./scene-fields.js");
 const {
@@ -124,7 +124,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       // so a completed asynchronous deformation survives the render update.
       // Authored source data catches edits to earlier animated keys as well.
       const currentFrame = Math.max(0, numberValue(frame, 0));
-      const count = getCount(this.repeaterProperties.count, currentFrame);
+      const count = getRepeaterCount(this._mode, this.repeaterProperties, currentFrame);
       const delay = Math.max(
         0,
         numberValue(this.repeaterProperties.delay?.get?.(currentFrame), 0),
@@ -170,7 +170,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
     rebuildInstances(frame) {
       if (!this.threeObj) return;
       this.clearInstances();
-      const count = getCount(this.repeaterProperties.count, frame);
+      const count = getRepeaterCount(this._mode, this.repeaterProperties, frame);
       const sources = this.objects.filter((source) => source?.threeObj);
       for (let index = 0; index < count; index += 1) {
         const root = new THREE.Object3D();
@@ -207,7 +207,7 @@ function createRepeaterClass(PZ, THREE, mode, type) {
       const signatureParts = [];
       for (const source of sources) objectSignature(source.threeObj, signatureParts);
       const signature = signatureParts.join("|");
-      const count = getCount(this.repeaterProperties.count, frame);
+      const count = getRepeaterCount(this._mode, this.repeaterProperties, frame);
       if (
         this._cloneDirty ||
         signature !== this._cloneSignature ||
@@ -232,11 +232,31 @@ function createRepeaterClass(PZ, THREE, mode, type) {
     readControls(frame) {
       const read = (name, fallback) =>
         vectorValue(this.repeaterProperties[name]?.get?.(frame), fallback);
+      const option = (name, fallback) =>
+        Math.round(numberValue(this.repeaterProperties[name]?.get?.(frame), fallback));
       if (this._mode === "linear") {
         return {
           positionEnd: read("positionEnd", [0, 0, 0]),
           rotationEnd: read("rotationEnd", [0, 0, 0]),
           scaleEnd: read("scaleEnd", [1, 1, 1]),
+        };
+      }
+      if (this._mode === "radial") {
+        return {
+          radius: numberValue(this.repeaterProperties.radius?.get?.(frame), 100),
+          plane: option("plane", 1),
+          startAngle: numberValue(this.repeaterProperties.startAngle?.get?.(frame), 0),
+          sweep: numberValue(this.repeaterProperties.sweep?.get?.(frame), FULL_TURN),
+          align: option("align", 0) === 1,
+          rotationStep: read("rotationStep", [0, 0, 0]),
+          scaleEnd: read("scaleEnd", [1, 1, 1]),
+        };
+      }
+      if (this._mode === "grid") {
+        return {
+          counts: gridCounts(this.repeaterProperties, frame),
+          spacing: read("spacing", [50, 50, 50]),
+          centered: option("centered", 1) === 1,
         };
       }
       if (this._mode === "random") {
