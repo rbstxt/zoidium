@@ -156,3 +156,9 @@ description: 補正済み UV を備えた PBR+、Node Material、Matcap、UV Cus
 ### Image+
 
 **Image+** は無照明マテリアルです。**Image** に画像アセットを指定します (初期値は空)。**Transparency**、**Opacity**、**Wrap**、**Repeat**、**Offset**、**Center**、**Rotation**、**Render side** は上の **PBR+** と同じ型・範囲・初期値です。
+
+## ネイティブの Video と Single Color マテリアル
+
+Zoidium はネイティブの **Video** マテリアルと **Single Color** マテリアルに **Render side** (**front**、**back**、**both**) を追加し、メッシュのどの面を描画するかを選べるようにします。たとえば、球体の内側に動画を映すには **Render side** を **back** にし、平面を両面から見せるには **both** にします。
+
+既定値は **Video** が **front**、**Single Color** が **both** です。元の CM3 の挙動と同じ既定値を使うため、既存の保存済みプロジェクトの見た目は変わりません。

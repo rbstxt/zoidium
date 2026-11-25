@@ -20,6 +20,12 @@ If a **Precomp+** composition is currently open, click **Back to Main** before o
 For MP4, the **Quality** selector is disabled; use **Bitrate** to control video quality.
 H.264 MP4 has no alpha channel. If an odd output dimension reaches the MP4 encoder, it pads one black pixel on the right or bottom.
 
+### MP4 progress preview
+
+While an MP4 export runs, the progress page shows the last finished frame above a status line with `percent% (n of N)`, **Elapsed**, and **Remaining**. **Remaining** displays `—` until five frames finish.
+
+Clear **Show preview** to turn the preview off during export. The browser saves this choice locally. The exported MP4 file is identical whether **Show preview** is on or off. This progress preview applies to MP4 exports only.
+
 ## Export audio only
 
 **MP4 Export** adds the WAV and M4A formats to **Device**.
