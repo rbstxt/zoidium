@@ -151,6 +151,7 @@ test("radial and grid property tables expose their documented defaults", () => {
     assert.equal(gridTable[name].min, 1);
     assert.equal(gridTable[name].max, 128);
     assert.equal(gridTable[name].dynamic, true);
+    assert.equal(typeof gridTable[name].changed, "function");
   }
   assert.equal(gridTable.spacing.name, "Spacing");
   assert.deepEqual(gridTable.spacing.objects.map((axis) => axis.value), [50, 50, 50]);
@@ -276,6 +277,71 @@ for (const [mode, type] of [
     }
   });
 }
+
+function instanceFixture(mode, repeaterProperties) {
+  let nextId = 0;
+  class Vector {
+    set(...values) { this.values = values; return this; }
+    copy(other) { this.values = other.values?.slice(); return this; }
+  }
+  class Node {
+    constructor() {
+      this.uuid = String(++nextId);
+      this.children = [];
+      this.position = new Vector();
+      this.quaternion = new Vector();
+      this.rotation = new Vector();
+      this.scale = new Vector();
+    }
+    add(child) { this.children.push(child); child.parent = this; }
+    remove(child) { this.children.splice(this.children.indexOf(child), 1); child.parent = null; }
+    traverse(visit) { visit(this); for (const child of this.children) child.traverse(visit); }
+    clone() {
+      const copy = new Node();
+      copy.geometry = this.geometry;
+      copy.material = this.material;
+      for (const child of this.children) copy.add(child.clone());
+      return copy;
+    }
+  }
+  class Group {
+    update(time) { for (const source of this.objects) source.update(time); }
+  }
+  const PZ = { object3d: { group: Group }, property: { type: { NUMBER: 0, VECTOR3: 2, OPTION: 3 } } };
+  const Repeater = createRepeaterClass(PZ, { Object3D: Node }, mode, "test");
+  const source = { threeObj: new Node(), update() {} };
+  const repeater = Object.assign(Object.create(Repeater.prototype), {
+    _mode: mode,
+    threeObj: new Node(),
+    _instanceRoots: [],
+    _cloneDirty: true,
+    objects: [source],
+    properties: { eulerOrder: { get: () => "XYZ" } },
+    repeaterProperties,
+  });
+  repeater.update(0);
+  return repeater._instanceRoots.map((instance) => instance.root.position.values);
+}
+
+test("radial and grid instances clone through the existing repeater path", () => {
+  const radialPositions = instanceFixture("radial", {
+    count: property(4), radius: property(100), plane: property(1),
+    startAngle: property(0), sweep: property(TAU), align: property(0),
+    rotationStep: property([0, 0, 0]), scaleEnd: property([1, 1, 1]),
+  });
+  assert.equal(radialPositions.length, 4);
+  near(radialPositions[0], [100, 0, 0]);
+  near(radialPositions[1], [0, 0, 100]);
+  near(radialPositions[3], [0, 0, -100]);
+
+  const gridPositions = instanceFixture("grid", {
+    countX: property(2), countY: property(2), countZ: property(1),
+    spacing: property([5, 5, 5]), centered: property(0),
+  });
+  assert.deepEqual(gridPositions, [
+    [0, 0, 0], [5, 0, 0], [0, 5, 0], [5, 5, 0],
+  ]);
+});
 
 function repeaterStub(mode, repeaterProperties) {
   const { PZ, THREE } = host();
