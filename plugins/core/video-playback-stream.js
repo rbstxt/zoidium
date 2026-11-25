@@ -538,9 +538,8 @@ function createVideoStream(options = {}) {
     if (!pool || !media) return;
     const key = pool.sourceKeyFor(media);
     if (!key) return;
-    // A replaced asset is a new source: allow WebCodecs and diagnostics again.
+    // A replaced asset is a new source: allow WebCodecs again.
     stalledSources.delete(key);
-    debugLogAt.delete(key);
     for (const schedule of Array.from(trackedSchedules)) {
       if (pool.sourceKeyFor(schedule.currentItem?.media) === key) releaseSchedule(schedule);
     }
