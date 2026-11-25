@@ -165,7 +165,7 @@ function install(context) {
         exporter = new PZ.export(owner.editor.sequence, owner.params);
         job = audioOnly ? createAudioJob(scope, exporter, () => load("./vendor/mediabunny-1.62.0.cjs")) :
           createJob(scope, PZ, exporter, () => load("./vendor/mediabunny-1.62.0.cjs"),
-            preview ? { onFrame: (canvas) => preview.update(canvas) } : null);
+            showPreview ? { onFrame: (canvas) => preview.update(canvas) } : null);
         const progress = page.appendChild(controls.generateProgressbar({
           get() { return exporter.framesRendered / exporter.totalFrames * 100; },
         }, owner));
@@ -183,7 +183,7 @@ function install(context) {
         }
         timer = setInterval(() => {
           progress.pz_update();
-          if (preview) preview.updateProgress(exporter.framesRendered, exporter.totalFrames, started);
+          if (showPreview) preview.updateProgress(exporter.framesRendered, exporter.totalFrames, started);
           else time.pz_update();
         }, 250);
         const blob = await job.run();

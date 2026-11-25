@@ -74,7 +74,7 @@ test("the progress line shows the percent, frame counts, elapsed and remaining",
   assert.equal(progressText(0, 0, 0), "0% (0 of 0)  Elapsed 00:00  Remaining —");
 });
 
-test("preview copies at most once per 250 ms into a canvas at most 480 px wide", () => {
+test("preview copies at most once per throttle interval into a canvas at most 480 px wide", () => {
   const document = previewDocument();
   let time = 1000;
   const panel = createPreviewPanel({ document, now: () => time, storage: memoryStorage() });

@@ -4,7 +4,7 @@
 // viewer. The exporter already owns that frame, so the preview copies it with
 // drawImage into a small canvas and never renders or reads back for itself.
 
-const THROTTLE_MS = 250;
+const THROTTLE_MS = 400;
 const MAX_PREVIEW_WIDTH = 480;
 const ESTIMATE_MIN_FRAMES = 5;
 const STORAGE_KEY = "zoidium.mp4Export.showPreview";
@@ -187,7 +187,7 @@ function createPreviewPanel(config) {
   function update(source) {
     if (disposed || !enabled || !source) return false;
     // The preview may only copy frames the export already produced, and no
-    // more often than four times a second.
+    // more often than the throttle allows.
     const time = now();
     if (!(time - lastDrawAt >= THROTTLE_MS)) return false;
     const width = Number(source.videoWidth || source.codedWidth || source.width || 0);
