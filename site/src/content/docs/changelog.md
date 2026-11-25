@@ -10,6 +10,16 @@ each line describes one visible change.
 
 ### Added
 
+- Drop clips on the boundary between two video tracks, or two audio tracks, to
+  insert a new track there. An insertion line shows where it goes, nothing is
+  overwritten, and one Undo reverts it. Dropping on the middle of a row still
+  overwrites as before.
+- The Player+ quality menu has **Upscale** (**Smooth** or **Sharp**) for reduced
+  preview quality, and **Exact effects (full-resolution layers)**, which renders
+  layers and effects at the sequence resolution and reduces only the viewer, so
+  shaders that read exact pixels look the same at every preview quality. Both
+  are off by default and do not change the export.
+
 - Effector has a **Radial Repeater** (copies on a circle, with radius, plane,
   start angle, sweep and an option to face outward) and a **Grid Repeater**
   (copies in a 3D grid with per-axis counts and spacing). While any repeater is
@@ -417,6 +427,10 @@ each line describes one visible change.
 
 ### Fixed
 
+- A video that stops getting new frames for 1.5 seconds while the playhead moves
+  switches to the browser's built-in decoder, and the debug log records the
+  switch. Repeated requests for the same frame are no longer sent while one is
+  decoding.
 - Scrubbing the timeline ruler ends correctly when the mouse button is released
   outside the window or the window loses focus. The playhead position is
   computed from the visible scroll position on every move.
