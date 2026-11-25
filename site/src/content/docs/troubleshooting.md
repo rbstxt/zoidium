@@ -75,6 +75,16 @@ Install or repair the missing package for a complete export.
 
 See [Preview and cache](/docs/workflow/preview-and-cache/) for the full heavy-project workflow.
 
+## Video stays on one frame while the playhead moves
+
+**Cause:** The streaming video decoder stalled while decoding that video clip. Zoidium automatically switches a stalled video to the browser's built-in decoder after 1.5 seconds without a new frame.
+
+**Fix:** If the video still freezes on one frame, save a debug log and report the issue together with the project:
+
+1. Open **Settings**.
+2. Under **Debug information**, click **Download debug log**. The log records the decoder fallback event.
+3. Review the log, then attach the log and the project to your bug report.
+
 ## Attach the debug log to a bug report
 
 **Cause:** A bug report without environment details is hard to reproduce.
