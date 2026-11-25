@@ -2,7 +2,7 @@
 title: Timeline and frame rate
 description: Jump to a typed frame or timecode, change sequence frame rate without shifting timing, trim multiple clips together, and manage linked timeline clips.
 ---
-Zoidium extends the native CM3 timeline with typed frame and timecode seeking, multi-clip trimming, linked-clip cleanup, and frame-rate changes that preserve timing in seconds.
+Zoidium extends the native CM3 timeline with typed frame and timecode seeking, track insertion between rows, multi-clip trimming, linked-clip cleanup, and frame-rate changes that preserve timing in seconds.
 
 ## Change the sequence frame rate without changing timing
 
@@ -73,6 +73,19 @@ Click **Render Time** at the top of the timeline labels to show how long each tr
 - **Cached** means the preview reused stored pixels for that frame instead of drawing it.
 
 Render Time affects the preview only; exports are unchanged.
+
+## Insert a track by dropping clips between rows
+
+Drag clips onto the boundary between two video tracks, or between two audio tracks, to insert a new track at that position. Clips on the adjacent rows stay intact.
+
+1. Drag the selected clips to the edge between two rows of the same track type. An insertion line appears along that boundary.
+2. Release the mouse button while the insertion line is visible. Zoidium creates a new track at that position and moves the clips onto it.
+
+- **Undo:** One **Undo** removes the inserted track and returns the clips to their previous tracks.
+- **Row drops:** Dropping clips on the middle of a row still overwrites the overlapping part of any clip on that row.
+- **Multiple source rows:** If you drag clips from several tracks of the same type, Zoidium inserts one new track per source track and keeps their order.
+- **Locked tracks:** You cannot drag clips from a locked track, so a locked clip or source track never inserts a track. If you drop unlocked clips on a boundary next to a locked track, Zoidium inserts a new unlocked track there. The locked track shifts position and its clips stay unchanged.
+- **Cancel:** Press **Escape** during the drag to cancel the insert without changing the timeline.
 
 ## Trim multiple clips at once
 

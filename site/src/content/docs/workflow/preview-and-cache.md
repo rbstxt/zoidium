@@ -17,12 +17,25 @@ Use **Player+** and the **Preview cache** to keep the viewport responsive on com
 | **Preview quality** | Scales both viewport pixel dimensions to **Full quality** (default), **1/2 quality**, **1/4 quality**, or **1/8 quality**. Saved locally. |
 | **Adaptive** | Lowers **Preview quality** one step at a time only while playback runs slower than real time, and steps back up when there is headroom. While playback is stopped, preview stays at the quality you chose. Off by default. Saved locally. |
 | **Lowest** | Shown in the quality menu when **Adaptive** is on. Sets the lowest quality **Adaptive** can use: **Auto** (1/8), **1/2**, **1/4**, or **1/8**. Saved locally. |
+| **Upscale** | Sets **Smooth** (default) or **Sharp** scaling for a reduced-quality preview. **Sharp** uses crisp, pixelated scaling. Does not change exports. Saved locally. |
+| **Exact effects (full-resolution layers)** | Renders layers and effects at the sequence resolution while reducing only the viewer at reduced preview quality. Off by default. Saved locally. |
 | **Playback speed** | Selects **Paused**, **0.25x**, **0.5x**, **0.75x**, **1x**, **1.25x**, **1.5x**, or **2x**. Follows **J**, **K**, and **L** shuttle shortcuts, including reverse and faster shuttle speeds. |
 
 Native audio playback follows the selected positive speed.
-Click the quality button to set **Preview quality**, **Adaptive**, and **Lowest**. The menu shows a hint line under **Adaptive** that explains quality drops only during slow playback and **Lowest** is the limit. When the toolbar is narrow, some controls move to the **⋯** menu.
+Click the quality button to set **Preview quality**, **Adaptive**, **Lowest**, **Upscale**, and **Exact effects (full-resolution layers)**. When **Exact effects** is off, the hint line under **Adaptive** explains that quality drops only during slow playback and **Lowest** is the limit. When **Exact effects** is on, that hint explains that **Adaptive** lowers only the viewport size while effects stay exact. When the toolbar is narrow, some controls move to the **⋯** menu.
 
-**Playback speed**, **Preview quality**, and **Adaptive** affect editor playback only. While **Adaptive** has lowered the quality, the quality menu shows it (for example **Auto · 1/4**) and the frame cache does not store those frames. Saved projects, project resolution, and export settings stay separate.
+**Playback speed**, **Preview quality**, **Adaptive**, **Upscale**, and **Exact effects** affect editor preview only. While **Adaptive** has lowered the quality, the quality menu shows it (for example **Auto · 1/4**) and the frame cache does not store those frames. Saved projects, project resolution, and export settings stay separate.
+
+### Upscale and Exact effects
+
+Use **Upscale** and **Exact effects (full-resolution layers)** in the quality menu to control how a reduced-quality preview scales and renders.
+
+- **Upscale:** Choose **Smooth** (default) to soften a reduced-quality preview when scaling it up to fit the viewer. Choose **Sharp** for crisp, pixelated scaling. Neither setting changes exports.
+- **Exact effects:** Turn on **Exact effects (full-resolution layers)** to render layers and effects at the sequence resolution while reducing only the viewer. Shaders that read exact pixels then look the same at every preview quality.
+- **Memory, speed, and cache:** At reduced quality, **Exact effects** uses more GPU memory and render time than standard reduced-quality preview. Zoidium bypasses the preview cache while **Exact effects** is active at reduced quality.
+- **Resolution limits:** **Exact effects** is disabled when either side of the sequence resolution is larger than `4096` px or the GPU texture limit. Hover the disabled option to read the tooltip.
+- **Adaptive behavior:** When **Exact effects** is on, **Adaptive** reduces only the viewer size during slow playback. Layers and effects stay at the sequence resolution.
+- **Downsample shimmer:** Zoidium downsamples the full-resolution composite to the smaller viewer with nearest-neighbor sampling, so very fine detail can shimmer.
 
 ## Check transparency
 
