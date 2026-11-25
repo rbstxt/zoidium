@@ -2,6 +2,9 @@
 
 const QUALITY = [[1, "Full"], [0.5, "1/2"], [0.25, "1/4"], [0.125, "1/8"]];
 const ADAPTIVE_HINT = "Lowers quality while playback is slow. Lowest is the limit.";
+const ADAPTIVE_HINT_EXACT = "Lowers only the viewport size while playback is slow. Effects stay exact.";
+const UPSCALE = [["smooth", "Smooth"], ["sharp", "Sharp"]];
+const EXACT_HINT = "Runs layers and effects at the sequence resolution while the preview stays smaller.";
 
 function createPopup(document, button, className) {
   const menu = document.createElement("div");
@@ -77,6 +80,26 @@ function createQualityMenu(document, options) {
   hint.className = "zoidium-player-plus-hint";
   hint.textContent = ADAPTIVE_HINT;
   popup.menu.appendChild(hint);
+  const upscaleLabel = document.createElement("label");
+  const upscaleText = document.createElement("span"); upscaleText.textContent = "Upscale"; upscaleLabel.appendChild(upscaleText);
+  const upscale = document.createElement("select");
+  upscale.className = "zoidium-player-plus-upscale";
+  upscale.title = "Preview upscale filter";
+  upscale.setAttribute("aria-label", "Preview upscale filter");
+  for (const [value, label] of UPSCALE) {
+    const item = document.createElement("option"); item.value = value; item.textContent = label; upscale.appendChild(item);
+  }
+  upscaleLabel.appendChild(upscale); popup.menu.appendChild(upscaleLabel);
+  const exactLabel = document.createElement("label");
+  const exact = document.createElement("input");
+  exact.type = "checkbox";
+  exact.className = "zoidium-player-plus-exact";
+  exact.setAttribute("aria-label", "Exact effects (full-resolution layers)");
+  const exactText = document.createElement("span"); exactText.textContent = "Exact effects (full-resolution layers)";
+  exactLabel.appendChild(exact); exactLabel.appendChild(exactText);
+  popup.menu.appendChild(exactLabel);
+  upscale.addEventListener("change", () => { options.setUpscale(upscale.value); update(); });
+  exact.addEventListener("change", () => { if (!exact.disabled) { options.setExact(exact.checked); update(); } });
   const fpsLabel = document.createElement("label");
   const fpsMeter = document.createElement("input");
   fpsMeter.type = "checkbox";
@@ -105,6 +128,13 @@ function createQualityMenu(document, options) {
     fpsMeter.checked = state.fpsMeter;
     limit.value = state.limit;
     limitLabel.hidden = !state.enabled;
+    upscale.value = state.upscale === "sharp" ? "sharp" : "smooth";
+    const available = state.exactAvailable !== false;
+    exact.checked = Boolean(state.exact);
+    exact.disabled = !available;
+    exact.title = available ? EXACT_HINT : (state.exactReason || "Exact effects are unavailable for this sequence.");
+    exactLabel.title = exact.title;
+    hint.textContent = state.exact === true && available ? ADAPTIVE_HINT_EXACT : ADAPTIVE_HINT;
   }
   update();
   return { button, update, dispose: popup.dispose };

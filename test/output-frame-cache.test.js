@@ -113,7 +113,39 @@ test("touch() forwards a programmatic write to the shared edit epoch", async () 
   h.api.dispose();
 });
 
-test("touch() without a project change keeps retained frames", async () => {
+test("a compositor size change invalidates retained preview frames", async () => {
+  const h = harness();
+  await h.warm(); h.cool(); h.viewport._render();
+  assert.equal(h.api.debug.hits >= 1, true);
+  h.viewport.compositor.readBuffer = { width: 8, height: 4 };
+  const live = h.counts.live;
+  h.viewport._render();
+  assert.equal(h.counts.live, live + 1, "a sequence-sized compositor cannot reuse reduced frames");
+  assert.equal(h.api.debug.entries, 0);
+  h.api.dispose();
+});
+
+test("Exact effects bypass retained frames and the prefetch paths", async () => {
+  const h = harness();
+  await h.warm(); h.cool(); h.viewport._render();
+  const entries = h.api.debug.entries, live = h.counts.live, hits = h.api.debug.hits;
+  assert.equal(entries, 1);
+  h.viewport.__zoidiumPlayerPlusExactEffects = true;
+  h.viewport._render();
+  assert.equal(h.counts.live, live + 1, "Exact frames draw live");
+  assert.equal(h.api.debug.hits, hits, "and never replay a retained frame");
+  h.api.capturePreview(h.viewport, 0);
+  await flush();
+  assert.equal(h.api.debug.entries, entries, "an Exact frame is not stored");
+  h.viewport.__zoidiumPlayerPlusExactEffects = false;
+  h.viewport.compositor.readBuffer = { width: 8, height: 4 };
+  h.viewport._render();
+  assert.equal(h.counts.live, live + 2);
+  assert.equal(h.api.debug.entries, 0, "turning Exact off drops the stale snapshot");
+  h.api.dispose();
+});
+
+test("a touch() without a project change keeps retained frames", async () => {
   const h = harness();
   await h.warm(); h.cool(); h.viewport._render();
   const live = h.counts.live, serialized = h.counts.serialized;

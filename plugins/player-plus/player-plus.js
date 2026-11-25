@@ -23,6 +23,7 @@ const PlayerPlus = (() => {
     renderOnceButton: null,
     qualitySelect: null,
     qualityMenu: null,
+    previewQuality: null,
     adaptive: null,
     adaptiveModule: null,
     adaptiveSettings: null,
@@ -39,6 +40,12 @@ const PlayerPlus = (() => {
     gridDraw: null,
     gridRefresh: null,
     quality: 1,
+    upscale: "smooth",
+    exactEffects: false,
+    exactAvailable: true,
+    exactReason: "",
+    exactSupportKey: null,
+    lastQualityViewport: null,
     paused: false,
     viewports: new Set(),
     viewportPrototype: null,
@@ -89,6 +96,22 @@ const PlayerPlus = (() => {
     } catch (_error) {
       // The setting still applies for the current session if storage is blocked.
     }
+  }
+
+  function readStoredUpscale() {
+    return state.previewQuality.readUpscale(state.window?.localStorage);
+  }
+
+  function storeUpscale(value) {
+    state.previewQuality.writeUpscale(state.window?.localStorage, value);
+  }
+
+  function readStoredExact() {
+    return state.previewQuality.readExact(state.window?.localStorage);
+  }
+
+  function storeExact(value) {
+    state.previewQuality.writeExact(state.window?.localStorage, value);
   }
 
   function installStyle(gridStyle, gridButtonClass) {
@@ -304,6 +327,7 @@ const PlayerPlus = (() => {
     if (!viewport || !constructor || !(viewport instanceof constructor)) return null;
     state.viewports.add(viewport);
     updateCacheBypass(viewport);
+    applyUpscaleToViewport(viewport);
     if (!viewport.__zoidiumPlayerPlusFrame) {
       const originalFrame = viewport._renderFn;
       if (typeof originalFrame === "function") {
@@ -339,22 +363,54 @@ const PlayerPlus = (() => {
     return Array.from(viewports).map(registerViewport).filter(Boolean);
   }
 
+  function applyUpscaleToViewport(viewport) {
+    state.previewQuality.applyUpscale(viewport, state.upscale);
+  }
+
+  function restoreUpscale(viewport) {
+    state.previewQuality.restoreUpscale(viewport);
+  }
+
+  function updateExactAvailability(support) {
+    const key = support.available ? "available" : "unavailable:" + support.reason;
+    if (state.exactSupportKey === key) return;
+    state.exactSupportKey = key;
+    state.exactAvailable = support.available;
+    state.exactReason = support.reason;
+    state.qualityMenu?.update();
+  }
+
   function applyQualityToViewport(viewport) {
     if (!viewport?.renderer || !viewport.canvas || !viewport.compositor || viewport.renderMode) return;
-    const cssWidth = parseFloat(viewport.canvas.style.width) || viewport.canvas.clientWidth;
-    const cssHeight = parseFloat(viewport.canvas.style.height) || viewport.canvas.clientHeight;
-    if (!(cssWidth > 0) || !(cssHeight > 0)) return;
+    const size = state.previewQuality.previewSize(viewport, state.effectiveQuality,
+      state.window?.devicePixelRatio || 1);
+    if (!size) return;
 
-    const devicePixelRatio = state.window?.devicePixelRatio || 1;
-    const width = Math.max(1, Math.round(cssWidth * devicePixelRatio * state.effectiveQuality));
-    const height = Math.max(1, Math.round(cssHeight * devicePixelRatio * state.effectiveQuality));
+    state.lastQualityViewport = viewport;
+    const width = size.width, height = size.height;
     if (viewport.canvas.width !== width || viewport.canvas.height !== height) {
       viewport.renderer.setDrawingBufferSize(width, height, 1);
-      viewport.compositor.setSize(viewport.canvas.width, viewport.canvas.height);
       if (viewport.camera) {
         viewport.camera.aspect = viewport.canvas.width / viewport.canvas.height;
         viewport.camera.updateProjectionMatrix();
       }
+    }
+
+    const support = state.previewQuality.exactSupport(viewport);
+    const exact = state.previewQuality.exactActive(viewport, state.exactEffects, state.effectiveQuality);
+    viewport.__zoidiumPlayerPlusExactEffects = exact;
+    updateExactAvailability(support);
+    updateCacheBypass(viewport);
+    applyUpscaleToViewport(viewport);
+
+    // The compositor keeps sequence-sized targets while the canvas stays at
+    // the reduced size. CM3's final copy renders into the drawing-buffer
+    // viewport, so it downsamples the finished composite on screen.
+    const compositorWidth = exact ? support.resolution[0] : viewport.canvas.width;
+    const compositorHeight = exact ? support.resolution[1] : viewport.canvas.height;
+    const readBuffer = viewport.compositor.readBuffer;
+    if (!readBuffer || readBuffer.width !== compositorWidth || readBuffer.height !== compositorHeight) {
+      viewport.compositor.setSize(compositorWidth, compositorHeight);
     }
   }
 
@@ -368,7 +424,10 @@ const PlayerPlus = (() => {
   }
 
   function updateCacheBypass(viewport) {
-    const reduced = state.effectiveQuality !== state.quality;
+    // Exact effects use a sequence-sized compositor that the frame cache's
+    // private snapshots do not reproduce, so they also bypass retained frames.
+    const reduced = state.effectiveQuality !== state.quality ||
+      viewport.__zoidiumPlayerPlusExactEffects === true;
     if (reduced && !viewport.__zoidiumPlayerPlusCacheBypass) {
       viewport.__zoidiumPlayerPlusCacheBypass = { previous: viewport.__zoidiumImmediateOutput };
       viewport.__zoidiumImmediateOutput = true;
@@ -441,6 +500,7 @@ const PlayerPlus = (() => {
           return;
         }
       }
+      applyQualityToViewport(this);
       if (this === state.editor?.mainViewport) {
         this.__zoidiumLivePreviewGrid = state.grid.enabled && !this.renderMode &&
           !legacyOutputRequested(this) && !this.__zoidiumCommunityPrepared &&
@@ -575,12 +635,25 @@ const PlayerPlus = (() => {
 
   function createQualitySelect(toolbar) {
     state.qualityMenu = state.menus.createQualityMenu(state.document, {
-      getState: () => ({ quality: state.quality, effective: state.effectiveQuality, fpsMeter: state.meter.enabled, ...state.adaptiveSettings }),
+      getState: () => ({ quality: state.quality, effective: state.effectiveQuality, fpsMeter: state.meter.enabled,
+        upscale: state.upscale, exact: state.exactEffects,
+        exactAvailable: state.exactAvailable, exactReason: state.exactReason, ...state.adaptiveSettings }),
       setFpsMeter(value) { state.meter.setEnabled(value); },
       setQuality(value) {
         state.quality = value;
         resetAdaptive();
         storeQuality(value);
+        applyQualityToAllViewports();
+        if (state.paused && state.grid.enabled) refreshGrid();
+      },
+      setUpscale(value) {
+        state.upscale = value === "sharp" ? "sharp" : "smooth";
+        storeUpscale(state.upscale);
+        applyQualityToAllViewports();
+      },
+      setExact(value) {
+        state.exactEffects = Boolean(value);
+        storeExact(state.exactEffects);
         applyQualityToAllViewports();
         if (state.paused && state.grid.enabled) refreshGrid();
       },
@@ -787,10 +860,13 @@ const PlayerPlus = (() => {
     state.menus = load ? load("./toolbar-menus.js") : require("./toolbar-menus.js");
     const gridModule = load ? load("./transparency-grid.js") : require("./transparency-grid.js");
     const meterModule = load ? load("./fps-meter.js") : require("./fps-meter.js");
+    state.previewQuality = load ? load("./preview-quality.js") : require("./preview-quality.js");
     state.meter = meterModule.createMeter(state.window);
     state.grid = gridModule.createTransparencyGrid(state.window);
     state.gridDraw = state.grid.draw;
     state.quality = readStoredQuality();
+    state.upscale = readStoredUpscale();
+    state.exactEffects = readStoredExact();
     const createRequire = context.apis?.modules?.createRequire || globalThis.ZoidiumPluginApis?.modules?.createRequire;
     state.adaptiveModule = createRequire ? createRequire(context.getAsset, { root: "./plugins/player-plus/" })("./adaptive-quality.js") : require("./adaptive-quality.js");
     let storage;
@@ -820,6 +896,12 @@ const PlayerPlus = (() => {
     setDrawingPaused(false);
     state.quality = 1;
     state.effectiveQuality = 1;
+    for (const viewport of getViewports()) {
+      restoreUpscale(viewport);
+      delete viewport.__zoidiumPlayerPlusExactEffects;
+    }
+    state.upscale = "smooth";
+    state.exactEffects = false;
     applyQualityToAllViewports();
     removeControls();
     restoreViewportPatches();
@@ -836,9 +918,16 @@ const PlayerPlus = (() => {
     state.window = null;
     state.quality = 1;
     state.paused = false;
+    state.upscale = "smooth";
+    state.exactEffects = false;
+    state.exactAvailable = true;
+    state.exactReason = "";
+    state.exactSupportKey = null;
+    state.lastQualityViewport = null;
     state.adaptive = null;
     state.menus = null;
     state.adaptiveModule = null;
+    state.previewQuality = null;
     state.adaptiveSettings = null;
     state.timingViewport = null;
   }
