@@ -2,14 +2,16 @@
 
 Effector is the Zoidium 3D object plugin for procedural copies and mesh
 deformation. It owns every Effector object: the Repeater family and the
-Twist, Warp, and Voronoi Fracture effectors. They appear under one `Effector`
-menu and use the published `zoidium:repeater/*` namespace.
+Twist, Warp, Shear, and Voronoi Fracture effectors. They appear under one
+`Effector` menu and use the published `zoidium:repeater/*` namespace.
 
 - Repeater, Linear Repeater, Random Repeater, and Echo Repeater copy source
   objects.
 - Twist rotates descendant meshes around an axis.
 - Warp bends descendant meshes, optionally weighted by a linear, box, or sphere
   field.
+- Shear offsets descendant meshes along a direction in proportion to their
+  distance along an axis, optionally weighted by a field.
 - Voronoi Fracture splits descendant meshes into seeded Voronoi pieces with
   optional cap faces.
 
@@ -57,7 +59,7 @@ Fragments keep the shading of the surface they were cut from. Their normals
 are the source normals carried through each piece's own transform (Voronoi
 motion, Plain and Delay move whole pieces), so resting pieces shade exactly
 like the unfractured mesh and moving pieces turn their shading with them. After
-a Twist or Warp, normals are averaged from the bent faces instead. Fragments
+a Twist, Warp, or Shear, normals are averaged from the bent faces instead. Fragments
 render with two clones of the object's material: one for the cut walls of the
 original surface and one for the inner faces. The inner-face clone uses a
 polygon offset so that, where both meet along a cut, the wall wins instead of
@@ -139,6 +141,22 @@ this behavior across save and reload. Editing rotation, falloff, curve, invert,
 or sweep selects the new field formulas. Namespaced and numeric object types
 continue using the existing migration and compatibility shim.
 
+## Shear
+
+Axis selects the axis along which the offset grows, Direction selects the axis
+that receives the offset, and Pivot sets the fixed point in effector space. A
+vertex moves along Direction by Amount times its signed distance from Pivot
+along Axis. Amount is the offset per unit of extent: 1 moves a point by its
+pivot distance, which is a 45 degree shear, and 0 leaves the mesh unchanged.
+Negative values reverse the offset. When Direction and Axis are the same, the
+result is a stretch along that axis.
+
+Field weight scales the offset per vertex, so a linear, box, sphere, cylinder,
+or noise field can limit the deformation. Subdivision refines the mesh before
+the shear when a field makes the offset vary across a face. Shear is not a
+rigid piece transform, so Delay filters it with the vertex filter, the same as
+Twist and Warp.
+
 ## Piece transforms and field guides
 
 Plain applies Position offset, Rotation offset in degrees, Scale offset, and
@@ -152,7 +170,7 @@ Place Delay below Plain or another upstream effector in the object tree. Blend
 uses exponentially weighted earlier samples, Average weights them equally,
 and Spring uses a damped oscillating kernel. Rotation uses normalized
 quaternions so rotating pieces retain their dimensions. Position and scale
-filter separately. Twist, Warp, planar pieces, and existing shear use the
+filter separately. Twist, Warp, Shear, planar pieces, and existing shear use the
 vertex filter. Strength blends the filtered
 result with the current result. History frames selects 1 to 120 earlier samples
 at a fixed one-frame step. Spring damping and Spring cycles shape the Spring

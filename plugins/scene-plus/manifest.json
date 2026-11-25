@@ -3,7 +3,7 @@
   "id": "repeater",
   "name": "Effector",
   "author": "Zoidium",
-  "version": "47",
+  "version": "48",
   "kind": "object",
   "objectCategory": "EFFECTOR",
   "objectClassParent": {
@@ -14,7 +14,7 @@
     {
       "target": "object3d",
       "name": "Effector",
-      "desc": "Create repeated, twisted, warped, and fractured 3D object groups.",
+      "desc": "Create repeated, twisted, warped, sheared, and fractured 3D object groups.",
       "type": 5,
       "list": [
         {
@@ -89,6 +89,18 @@
             "schemaVersion": 1,
             "properties": {
               "name": "Warp"
+            },
+            "objects": []
+          }
+        },
+        {
+          "name": "Shear",
+          "type": "zoidium:repeater/shear",
+          "data": {
+            "type": "zoidium:repeater/shear",
+            "schemaVersion": 1,
+            "properties": {
+              "name": "Shear"
             },
             "objects": []
           }
@@ -176,6 +188,13 @@
       "schemaVersion": 1
     },
     {
+      "id": "shear",
+      "type": "zoidium:repeater/shear",
+      "name": "Shear",
+      "description": "Offsets descendant 3D meshes along a direction in proportion to their distance along an axis, with an optional falloff field.",
+      "schemaVersion": 1
+    },
+    {
       "id": "voronoi-fracture",
       "type": "zoidium:repeater/voronoi-fracture",
       "name": "Voronoi Fracture",
@@ -203,7 +222,7 @@
       "source": "./plugins/scene-plus/scene-plus.js?v=47"
     }
   ],
-  "description": "Procedural repeaters plus Twist, Warp, and Voronoi Fracture effectors.",
+  "description": "Procedural repeaters plus Twist, Warp, Shear, and Voronoi Fracture effectors.",
   "resources": [
     {
       "id": "effector-core",

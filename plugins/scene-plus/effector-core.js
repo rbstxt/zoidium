@@ -273,6 +273,28 @@ function warpPositions(positions, strength, axis, offset, field, sharedBounds) {
   return positions;
 }
 
+// Shears vertices: each vertex moves along `direction` by Amount times its
+// distance from the pivot along `axis`. Amount is the offset per unit of
+// extent along Axis, so 1 moves a point by its pivot distance (a 45 degree
+// shear) and 0 is an identity. The pivot is a point in effector space; only
+// its component on Axis sets the fixed plane. The field weight scales the
+// offset per vertex. Because the offset grows with the axis coordinate, this
+// is a nonlinear deformation relative to a piece transform and must use the
+// vertex filter. Positions change in place.
+function shearPositions(positions, amount, axis, direction, pivot, field) {
+  if (!amount || !Number.isFinite(amount)) return positions;
+  const along = clampIndex(axis, 2);
+  const move = clampIndex(direction, 2);
+  const pivotValue = finiteOr(pivot && pivot[along], 0);
+  const prepared = prepareField(field, positions);
+  for (let index = 0; index + 2 < positions.length; index += 3) {
+    const weight = evaluateField(positions[index], positions[index + 1], positions[index + 2], prepared);
+    if (!weight) continue;
+    positions[index + move] += amount * (positions[index + along] - pivotValue) * weight;
+  }
+  return positions;
+}
+
 // Column-major 4x4 helpers. Matrices are arrays or typed arrays of 16 values
 // as produced by THREE.Matrix4.elements.
 function multiplyMatrices(a, b) {
@@ -688,6 +710,7 @@ module.exports = {
   subdivideStage,
   transformPoint,
   transformPositions,
+  shearPositions,
   twistPositions,
   warpPositions,
   getSubdivisionTemplate,

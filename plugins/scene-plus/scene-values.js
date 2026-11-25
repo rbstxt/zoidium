@@ -9,6 +9,7 @@ const SCHEMA_VERSION = 2;
 const EFFECTOR_SCHEMA_VERSION = 1;
 const TWIST_TYPE = "zoidium:repeater/twist";
 const WARP_TYPE = "zoidium:repeater/warp";
+const SHEAR_TYPE = "zoidium:repeater/shear";
 const DEGREES_TO_RADIANS = Math.PI / 180;
 const VORONOI_TYPE = "zoidium:repeater/voronoi-fracture";
 const DEFAULT_FRACTURE_CELLS = 24;
@@ -238,7 +239,7 @@ function migrateLegacyEffectorRecord(data) {
 
 module.exports = {
   MAX_REPEATS, SCHEMA_VERSION, EFFECTOR_SCHEMA_VERSION, TWIST_TYPE, WARP_TYPE,
-  VORONOI_TYPE, DEGREES_TO_RADIANS, DEFAULT_FRACTURE_CELLS, MAX_FRACTURE_CELLS,
+  SHEAR_TYPE, VORONOI_TYPE, DEGREES_TO_RADIANS, DEFAULT_FRACTURE_CELLS, MAX_FRACTURE_CELLS,
   FRACTURE_LIMITS, LEGACY_EFFECTOR_TYPES, SHAPE_KIND_NAMES, isPresetShape,
   nameNewSourceShapes, numberValue, integerValue, getCount, getEchoFrame,
   getEchoFrames, vectorValue, cloneJson, lerp, lerpVector, scaleVector,

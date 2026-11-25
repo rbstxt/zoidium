@@ -183,6 +183,7 @@ function activate(context) {
       ["zoidium:repeater/delay", "Delay", effectors.createDelayClass(PZ, THREE)],
       [values.TWIST_TYPE, "Twist", effectors.createTwistClass(PZ, THREE)],
       [values.WARP_TYPE, "Warp", effectors.createWarpClass(PZ, THREE)],
+      [values.SHEAR_TYPE, "Shear", effectors.createShearClass(PZ, THREE)],
       [values.VORONOI_TYPE, "Voronoi Fracture", effectors.createVoronoiClass(PZ, THREE)],
     ];
     for (const [type, name, EffectorClass] of effectorClasses) {
@@ -258,6 +259,7 @@ function populateTestSurface() {
     createDelayClass: parts.effectors.createDelayClass,
     createTwistClass: parts.effectors.createTwistClass,
     createWarpClass: parts.effectors.createWarpClass,
+    createShearClass: parts.effectors.createShearClass,
     createVoronoiClass: parts.effectors.createVoronoiClass,
     curvePolygonCount: parts.deform.curvePolygonCount,
     fieldFromProperties: parts.fields.fieldFromProperties,
