@@ -45,7 +45,6 @@ const PlayerPlus = (() => {
     exactAvailable: true,
     exactReason: "",
     exactSupportKey: null,
-    lastQualityViewport: null,
     paused: false,
     viewports: new Set(),
     viewportPrototype: null,
@@ -338,6 +337,7 @@ const PlayerPlus = (() => {
             viewport.animFrameReq = null;
             return;
           }
+          applyQualityToViewport(viewport);
           sampleAdaptive(viewport);
           const result = originalFrame();
           if (state.meter?.enabled) state.meter.sample(viewport);
@@ -386,7 +386,6 @@ const PlayerPlus = (() => {
       state.window?.devicePixelRatio || 1);
     if (!size) return;
 
-    state.lastQualityViewport = viewport;
     const width = size.width, height = size.height;
     if (viewport.canvas.width !== width || viewport.canvas.height !== height) {
       viewport.renderer.setDrawingBufferSize(width, height, 1);
@@ -923,7 +922,6 @@ const PlayerPlus = (() => {
     state.exactAvailable = true;
     state.exactReason = "";
     state.exactSupportKey = null;
-    state.lastQualityViewport = null;
     state.adaptive = null;
     state.menus = null;
     state.adaptiveModule = null;
