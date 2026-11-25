@@ -188,7 +188,7 @@ function evaluateMesh(input, cache = createStageCache()) {
   const warnings = new Set();
   let curved = false;
   for (const command of commands) {
-    if (command.kind === "twist" || command.kind === "warp") curved = true;
+    if (command.kind === "twist" || command.kind === "warp" || command.kind === "shear") curved = true;
     if (command.kind === "fracture") {
       const key = prefix + ":fracture:" + JSON.stringify([command.topology, command.limits]);
       const result = cache.get(key, () => fracture.buildVoronoiFracture(
@@ -255,6 +255,7 @@ function evaluateMesh(input, cache = createStageCache()) {
       if (!relation.identity) core.transformPositions(work, relation.forward);
       if (command.kind === "twist") core.twistPositions(work, command.angle, command.axis, command.offset, command.field, command.bounds);
       if (command.kind === "warp") core.warpPositions(work, command.strength, command.axis, command.offset, command.field, command.bounds);
+      if (command.kind === "shear") core.shearPositions(work, command.amount, command.axis, command.direction, command.pivot, command.field);
       if (command.kind === "plain") core.plainPositions(work, stage, command);
       if (command.kind === "fracture" && stage.pieceIds) fracture.applyFragmentMotion(work, stage, command.motion, relation.identity ? null : relation.forward);
       if (!relation.identity) core.transformPositions(work, relation.inverse);

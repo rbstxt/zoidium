@@ -1,12 +1,12 @@
 "use strict";
 
-// Effector object classes: the shared base plus Twist, Warp, Plain, Delay,
-// and Voronoi Fracture. Deformers read the pure library through the shared
-// plugin state, which the entry sets on activation.
+// Effector object classes: the shared base plus Twist, Warp, Shear, Plain,
+// Delay, and Voronoi Fracture. Deformers read the pure library through the
+// shared plugin state, which the entry sets on activation.
 
 const {
   DEGREES_TO_RADIANS, DEFAULT_FRACTURE_CELLS, EFFECTOR_SCHEMA_VERSION,
-  FRACTURE_LIMITS, MAX_FRACTURE_CELLS, TWIST_TYPE,
+  FRACTURE_LIMITS, MAX_FRACTURE_CELLS, SHEAR_TYPE, TWIST_TYPE,
   VORONOI_TYPE, WARP_TYPE, integerValue, migrateEffectorData,
   nameNewSourceShapes, vectorValue,
 } = require("./scene-values.js");
@@ -304,6 +304,74 @@ function createWarpClass(PZ, THREE, type = WARP_TYPE) {
   return WarpObject;
 }
 
+function createShearClass(PZ, THREE, type = SHEAR_TYPE) {
+  const BaseEffector = createEffectorBaseClass(PZ, THREE);
+  class ShearObject extends BaseEffector {
+    constructor() {
+      super();
+      this.properties.addAll({
+        axis: {
+          name: "Axis",
+          type: PZ.property.type.OPTION,
+          value: 1,
+          items: "X;Y;Z",
+        },
+        direction: {
+          name: "Direction",
+          type: PZ.property.type.OPTION,
+          value: 0,
+          items: "X;Y;Z",
+        },
+        subdivision: {
+          name: "Subdivision", type: PZ.property.type.OPTION,
+          value: 2, items: "1;2;4;8;16",
+        },
+        // Amount is the offset per unit of extent along Axis, measured from
+        // Pivot. One offsets by the pivot distance (a 45 degree shear); zero
+        // is an identity.
+        amount: {
+          dynamic: true,
+          name: "Amount",
+          type: PZ.property.type.NUMBER,
+          value: 0,
+          min: -10,
+          max: 10,
+          step: 0.01,
+          decimals: 3,
+        },
+        pivot: vectorDefinition(PZ, { name: "Pivot", value: [0, 0, 0], step: 1, decimals: 2 }),
+        ...fieldProperties(PZ),
+      });
+      this.type = type;
+    }
+
+    workerCommand(frame) {
+      return { kind: "shear", amount: numberPropertyValue(this.properties.amount, frame, 0),
+        axis: optionPropertyValue(this.properties.axis, frame, 1),
+        direction: optionPropertyValue(this.properties.direction, frame, 0),
+        pivot: vectorValue(propertyValue(this.properties.pivot, frame, [0, 0, 0]), [0, 0, 0]),
+        field: fieldFromProperties(this.properties, frame, this._legacyField) };
+    }
+
+    // Pure function of (positions, amount, axis, direction, pivot) at this frame.
+    deformPositions(positions, frame, context) {
+      const amount = numberPropertyValue(this.properties.amount, frame, 0);
+      if (!amount) return positions;
+      return state.library.core.shearPositions(
+        positions,
+        amount,
+        optionPropertyValue(this.properties.axis, frame, 1),
+        optionPropertyValue(this.properties.direction, frame, 0),
+        vectorValue(propertyValue(this.properties.pivot, frame, [0, 0, 0]), [0, 0, 0]),
+        state.library.core.fieldForBounds(fieldFromProperties(this.properties, frame, this._legacyField), context?.bounds)
+      );
+    }
+  }
+
+  ShearObject.prototype.defaultName = "Shear";
+  return ShearObject;
+}
+
 function createPlainClass(PZ, THREE) {
   const Base = createEffectorBaseClass(PZ, THREE);
   class Plain extends Base {
@@ -596,5 +664,5 @@ function fractureErrorText(code) {
 
 module.exports = {
   createEffectorBaseClass, createTwistClass, createWarpClass,
-  createPlainClass, createDelayClass, createVoronoiClass, fractureErrorText
+  createShearClass, createPlainClass, createDelayClass, createVoronoiClass, fractureErrorText
 };
