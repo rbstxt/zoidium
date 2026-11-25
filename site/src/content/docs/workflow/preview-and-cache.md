@@ -15,12 +15,12 @@ Use **Player+** and the **Preview cache** to keep the viewport responsive on com
 | **Resume drawing** | Restores automatic viewport updates. Drawing starts enabled. |
 | **Show transparency grid** | Shows a checkerboard behind transparent parts of the preview instead of black. Off by default. Saved locally. |
 | **Preview quality** | Scales both viewport pixel dimensions to **Full quality** (default), **1/2 quality**, **1/4 quality**, or **1/8 quality**. Saved locally. |
-| **Adaptive** | While playing, lowers **Preview quality** one step at a time when frames take too long, and raises it again when there is headroom. Pausing returns to the quality you chose. Off by default. Saved locally. |
-| **Lowest** | Available in the quality menu when **Adaptive** is on. The lowest quality **Adaptive** may use: **Auto** (1/8), **1/2**, **1/4**, or **1/8**. Saved locally. |
+| **Adaptive** | Lowers **Preview quality** one step at a time only while playback runs slower than real time, and steps back up when there is headroom. While playback is stopped, preview stays at the quality you chose. Off by default. Saved locally. |
+| **Lowest** | Shown in the quality menu when **Adaptive** is on. Sets the lowest quality **Adaptive** can use: **Auto** (1/8), **1/2**, **1/4**, or **1/8**. Saved locally. |
 | **Playback speed** | Selects **Paused**, **0.25x**, **0.5x**, **0.75x**, **1x**, **1.25x**, **1.5x**, or **2x**. Follows **J**, **K**, and **L** shuttle shortcuts, including reverse and faster shuttle speeds. |
 
 Native audio playback follows the selected positive speed.
-Click the quality button to set **Preview quality**, **Adaptive**, and **Lowest**. When the toolbar is narrow, some controls move to the **⋯** menu.
+Click the quality button to set **Preview quality**, **Adaptive**, and **Lowest**. The menu shows a hint line under **Adaptive** that explains quality drops only during slow playback and **Lowest** is the limit. When the toolbar is narrow, some controls move to the **⋯** menu.
 
 **Playback speed**, **Preview quality**, and **Adaptive** affect editor playback only. While **Adaptive** has lowered the quality, the quality menu shows it (for example **Auto · 1/4**) and the frame cache does not store those frames. Saved projects, project resolution, and export settings stay separate.
 

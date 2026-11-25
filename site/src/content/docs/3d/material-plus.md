@@ -156,3 +156,9 @@ A dash (`—`) means no declared minimum or maximum.
 ### Image+
 
 **Image+** is unlit. Assign an image asset to **Image** (default empty). **Transparency**, **Opacity**, **Wrap**, **Repeat**, **Offset**, **Center**, **Rotation**, and **Render side** match the **PBR+** types, ranges, and defaults above.
+
+## Native Video and Single Color materials
+
+Zoidium adds **Render side** (**front**, **back**, or **both**) to native **Video** and **Single Color** materials so you can choose which faces of a mesh draw. For example, set **Render side** to **back** to show a video on the inside of a sphere, or set it to **both** to show a flat plane from either side.
+
+**Video** defaults to **front** and **Single Color** defaults to **both**. These defaults match CM3's original behavior, so existing saved projects keep their look.

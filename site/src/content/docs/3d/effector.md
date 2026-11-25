@@ -1,6 +1,6 @@
 ---
 title: Effector
-description: Repeat, twist, bend, fracture, transform, and delay 3D object hierarchies with Effector and Effector+ compatibility.
+description: Repeat, twist, bend, shear, fracture, transform, and delay 3D object hierarchies with Effector and Effector+ compatibility.
 ---
 Use **Effector** (enabled by default) to make procedural copies or deform 3D objects placed inside its hierarchy. Top-level siblings outside the effector are not affected.
 
@@ -8,18 +8,18 @@ Use **Effector** (enabled by default) to make procedural copies or deform 3D obj
 
 ### Repeat source children
 
-1. Open the scene's 3D object picker and choose **Effector > Repeater** (or **Linear Repeater**, **Random Repeater**, or **Echo Repeater**).
+1. Open the scene's 3D object picker and choose **Effector > Repeater**, **Linear Repeater**, **Radial Repeater**, **Grid Repeater**, **Random Repeater**, or **Echo Repeater**.
 2. Click **+** on the repeater's row to add a source object as its child.
-3. In the **Repeater** section, set **Count** (`1` to `128`) and adjust the transform controls to separate copies.
+3. In the **Repeater** section, set **Count** (`1` to `128`, or **Count X**, **Count Y**, and **Count Z** on **Grid Repeater**) and adjust the placement controls to separate copies.
 
-Use **Linear Repeater** to distribute copies between start and end transforms, **Random Repeater** to scatter copies inside seeded ranges, and **Echo Repeater** to evaluate copies at earlier frames.
+Use **Linear Repeater** to distribute copies between start and end transforms, **Radial Repeater** to place copies on a circle, **Grid Repeater** to fill a three-axis grid, **Random Repeater** to scatter copies inside seeded ranges, and **Echo Repeater** to evaluate copies at earlier frames.
 
-### Deform a mesh with Twist or Warp
+### Deform a mesh with Twist, Warp, or Shear
 
-1. Add **Effector > Twist** or **Effector > Warp** and place your mesh inside it.
-2. Adjust **Axis** and **Angle** (Twist) or **Strength** (Warp).
-3. To limit the bend to a region, change **Field** from **infinite** to **linear**, **box**, **sphere**, **cylinder**, or **noise**, then tune **Field position**, **Field rotation**, **Field scale**, and **Falloff**.
-4. Increase **Subdivision** if the bend needs smoother geometry (within the 400,000-triangle budget).
+1. Add **Effector > Twist**, **Effector > Warp**, or **Effector > Shear** and place your mesh inside it.
+2. Adjust **Axis** and **Angle** on **Twist**, **Axis** and **Strength** on **Warp**, or **Axis**, **Direction**, **Amount**, and **Pivot** on **Shear**.
+3. To limit the deformation to a region, change **Field** from **infinite** to **linear**, **box**, **sphere**, **cylinder**, or **noise**, then tune **Field position**, **Field rotation**, **Field scale**, and **Falloff**.
+4. Increase **Subdivision** if the deformation needs smoother geometry (within the 400,000-triangle budget).
 
 The effector's own transform sets its local axis and field frame.
 
@@ -52,34 +52,44 @@ Field and falloff guides display for **linear**, **box**, **sphere**, and **cyli
 | --- | --- |
 | **Repeater** | Copies sources by a fixed transform step. |
 | **Linear Repeater** | Distributes copies between first and last transforms. |
+| **Radial Repeater** | Places copies around a circle. |
+| **Grid Repeater** | Places copies in a three-axis grid. |
 | **Random Repeater** | Copies sources with seeded random transforms inside ranges. |
 | **Echo Repeater** | Evaluates copies at explicitly sampled earlier frames. |
 | **Twist** | Twists descendant meshes around a local axis. |
 | **Warp** | Bends descendant meshes in the effector frame. |
+| **Shear** | Offsets descendant meshes along a direction in proportion to distance along an axis. |
 | **Voronoi Fracture** | Splits descendant meshes into rigid seeded Voronoi pieces. |
 | **Plain** | Applies field-weighted transforms to connected pieces, text characters, or upstream fracture pieces. |
 | **Delay** | Filters upstream motion through earlier-frame samples. |
 
 ### Repeaters
 
-**Count** defaults to `5` (`1` to `128`). Scale controls have a minimum of `0.001` per axis; rotations use degrees.
+**Count** accepts `1` to `128` copies. It defaults to `8` on **Radial Repeater** and `5` on the other single-count repeaters. Scale controls have a minimum of `0.001` per axis, and rotations use degrees.
 
 | Type | Controls | Meaning and defaults |
 | --- | --- | --- |
 | **Repeater** | **Position**, **Rotation**, **Scale** | Per-copy step. Position `[10, 0, 0]`, Scale `[1, 1, 1]`. |
 | **Linear Repeater** | **Position**, **Rotation**, **Scale** | Last copy relative to first. Position `[40, 0, 0]`, Rotation `[0, 0, 90]`. |
+| **Radial Repeater** | **Count**, **Radius**, **Plane**, **Start angle**, **Sweep**, **Align to circle**, **Rotation step**, **Scale end** | Copies on a circle. **Count** `8`, **Radius** `100` (min `0`), **Plane** **XY**, **XZ** (default), or **YZ**, **Start angle** `0`, **Sweep** `360` (`0` to `720`), **Align to circle** **off**, **Rotation step** `[0, 0, 0]`, **Scale end** `[1, 1, 1]`. |
+| **Grid Repeater** | **Count X**, **Count Y**, **Count Z**, **Spacing**, **Centered** | Three-axis grid. **Count X** `3`, **Count Y** `3`, **Count Z** `1` (each `1` to `128`), **Spacing** `[50, 50, 50]`, **Centered** **on**. |
 | **Random Repeater** | **Min/Max position**, **Min/Max rotation**, **Min/Max scale**, **Seed** | Seeded ranges. **Seed** defaults to `1`. |
 | **Echo Repeater** | **Offset** | Earlier-time spacing per copy in frames (`0` to `100000`, default `5`). |
 
-### Twist, Warp, and subdivision
+- **Radial Repeater spacing and orientation:** When **Sweep** is `360` degrees, the circle divides by **Count**, so the last copy stops one step before the first instead of overlapping it. For any other **Sweep**, the arc divides by `Count - 1` and places copies on both ends. **Align to circle** turns each copy around the circle normal by its angle on the circle. **Rotation step** adds a fixed rotation per copy index, and **Scale end** interpolates scale from `[1, 1, 1]` at the first copy to **Scale end** at the last.
+- **Grid Repeater order and cap:** Copies fill X first, then Y, then Z. **Centered** places the grid symmetrically around the repeater origin instead of starting at the first cell. Total copies (`Count X × Count Y × Count Z`) cap at `128`.
+- **Clone-position points:** While one repeater is selected, the 3D editing view shows a small blue point at each copy's position. The points follow the repeater transform and ignore effectors. They use the editor helper layer, so they never appear in renders, previews, or exports. Deselecting the repeater hides the points.
+
+### Twist, Warp, Shear, and subdivision
 
 - **Twist:** **Axis** (**X**, **Y**, **Z**; default **Y**), **Angle** (`-1440` to `1440` degrees, default `0`), **Offset** (pivot along axis).
 - **Warp:** **Axis** (**X**, **Z**; default **X**), **Strength** (`-720` to `720` degrees, default `0`), **Offset** (bend pivot).
+- **Shear:** **Axis** (**X**, **Y**, **Z**; default **Y**), **Direction** (**X**, **Y**, **Z**; default **X**), **Amount** (`-10` to `10`, default `0`), **Pivot** (`[0, 0, 0]` in effector space). Each vertex moves along **Direction** by **Amount** times its signed distance from **Pivot** along **Axis**, scaled by the field weight. **Amount** is the offset per unit of distance along **Axis**. A value of `1` shifts a point by its full distance from **Pivot** (a 45-degree shear), `0` leaves the mesh unchanged, and negative values reverse the offset. When **Direction** matches **Axis**, the mesh stretches along that axis. **Shear** uses the shared field properties below. Because **Shear** moves vertices rather than rigid pieces, **Delay** filters it with the vertex filter, the same as **Twist** and **Warp**.
 - **Subdivision:** `1`, `2`, `4` (default), `8`, or `16` edge segments. Budget is `400,000` triangles per mesh; subdivision steps down by whole levels to stay within budget (and never simplifies a source already over the cap).
 
 ### Fields
 
-Shared by **Twist**, **Warp**, **Voronoi Fracture**, and **Plain**:
+Shared by **Twist**, **Warp**, **Shear**, **Voronoi Fracture**, and **Plain**:
 
 | Control | Meaning and default |
 | --- | --- |
