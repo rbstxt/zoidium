@@ -132,12 +132,10 @@ function createVideoStream(options = {}) {
   }
 
   function clearWatchdog(schedule) {
-    if (!schedule) return;
+    if (!schedule || !watchdogTimers.has(schedule)) return;
     const timer = watchdogTimers.get(schedule);
-    if (timer !== undefined) {
-      watchdogTimers.delete(schedule);
-      stopTimer(timer);
-    }
+    watchdogTimers.delete(schedule);
+    if (timer !== undefined) stopTimer(timer);
   }
 
   function armWatchdog(schedule) {
