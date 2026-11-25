@@ -201,7 +201,7 @@ function progressHarness({ format = "mp4_h264" } = {}) {
     start: () => PZ.ui.export.device.prototype.createProgressPage.call(owner),
     settled: () => new Promise(resolve => setImmediate(resolve)),
     cancel: () => back(),
-    finish: (error = new Error("cancelled")) => finishJob(error),
+    finish: (error = new Error("cancelled")) => { if (finishJob) finishJob(error); },
     dispose: () => { for (const fn of disposers.splice(0)) fn(); },
   };
 }
@@ -238,6 +238,7 @@ test("finish and cancel dispose the preview canvas and stop its timer", async ()
     assert.equal(cancelledCanvas.height, 1);
     assert.equal(cancelledCanvas.parentElement.parentElement.removed, true);
   } finally {
+    run.finish();
     run.dispose();
     global.document = originalDocument;
     global.localStorage = originalStorage;
@@ -256,6 +257,7 @@ test("audio-only exports keep the native time row and add no preview", async () 
     run.finish(null);
     await run.settled();
   } finally {
+    run.finish();
     run.dispose();
     global.document = originalDocument;
   }
