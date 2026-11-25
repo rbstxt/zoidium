@@ -344,7 +344,7 @@ function createVideoStream(options = {}) {
     host.ZoidiumFramePacing?.markVideoDirty?.(schedule);
     triggerLookahead(schedule, playback, item, request.frame, request.mediaTime, request.targetTime);
     const latest = schedule.__zoidiumWebCodecsLatest;
-    if (request.chained && latest && latest.item === schedule.currentItem) {
+    if (request.chained && latest && latest.item === schedule.currentItem && latest.frame !== request.frame) {
       syncSchedule(schedule, playback, latest.frame);
     }
   }
