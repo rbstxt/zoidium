@@ -263,6 +263,24 @@ test("audio-only exports keep the native time row and add no preview", async () 
   }
 });
 
+test("a preview UI failure does not stop the export or its cleanup", async () => {
+  const originalDocument = global.document;
+  global.document = { createElement() { throw new Error("no drawing surface"); } };
+  const run = progressHarness();
+  try {
+    run.start();
+    await run.settled();
+    run.finish(null);
+    await run.settled();
+    assert.equal(run.owner.editor.enabled, true);
+    assert.equal(run.owner.editor.playback.enabled, true);
+  } finally {
+    run.finish();
+    run.dispose();
+    global.document = originalDocument;
+  }
+});
+
 function fakeBunny(hashes, document) {
   return {
     Output: class {

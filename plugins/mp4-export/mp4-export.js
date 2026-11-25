@@ -155,10 +155,15 @@ function install(context) {
           bitrateScale: owner.params.bitrateScale,
         });
         if (!audioOnly) {
-          preview = createPreviewPanel({ document: scope.document });
-          if (preview.element) {
-            page.appendChild(preview.element);
-            preview.updateProgress(0, startFrames, started);
+          try {
+            preview = createPreviewPanel({ document: scope.document });
+            if (preview.element) {
+              page.appendChild(preview.element);
+              preview.updateProgress(0, startFrames, started);
+            }
+          } catch (_previewError) {
+            // A preview UI failure must not stop the export.
+            preview = null;
           }
         }
         const showPreview = Boolean(preview && preview.element);
@@ -218,7 +223,7 @@ function install(context) {
         owner.export.navigate(failed);
       } finally {
         clearInterval(timer);
-        preview?.dispose();
+        try { preview?.dispose(); } catch (_previewError) { /* The page is leaving. */ }
         exporter?.unload();
         activeJobs--;
         // A cancelled job can finish after the user started another render.
