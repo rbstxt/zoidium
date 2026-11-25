@@ -7,10 +7,11 @@ const { createAudioEncoding } = require("./audio-encode.js");
 const { createVideoSource } = require("./video-source.js");
 const { createPacketTagger } = require("./avc-vui.js");
 
-function createJob(scope, PZ, exporter, loadBunny) {
+function createJob(scope, PZ, exporter, loadBunny, hooks) {
   let cancelled = false;
   let output = null;
   let cancellation = null;
+  const onFrame = hooks && typeof hooks.onFrame === "function" ? hooks.onFrame : null;
   const controller = new AbortController();
   function check() {
     exporter.checkExportContext?.();
@@ -96,6 +97,11 @@ function createJob(scope, PZ, exporter, loadBunny) {
           exporter.frame = projectFrame(index, params.start, exporter.sequence.properties.rate.get(), params.rate);
           await exporter.renderVideoFrame();
           check();
+          // Copy the finished frame before the encoder consumes it. The
+          // preview only reads the canvas the export already rendered.
+          if (onFrame) {
+            try { onFrame(canvas); } catch (_previewError) { /* Never interrupt the export. */ }
+          }
           const timing = frameTiming(index, params.rate);
           await video.add(timing.timestamp / 1000000, timing.duration / 1000000, canvas);
           exporter.__zoidiumPendingFrame = null;

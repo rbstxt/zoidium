@@ -3,7 +3,7 @@
   "id": "mp4-export",
   "name": "MP4 Export",
   "author": "Zoidium",
-  "version": "18",
+  "version": "19",
   "kind": "extension",
   "description": "Export H.264 MP4 with AAC audio or an Opus fallback through the native Export panel.",
   "category": "utilities",
@@ -23,6 +23,11 @@
       "id": "export-math-js",
       "type": "text",
       "source": "./plugins/mp4-export/export-math.js?v=18"
+    },
+    {
+      "id": "export-preview-js",
+      "type": "text",
+      "source": "./plugins/mp4-export/export-preview.js?v=18"
     },
     {
       "id": "audio-mix-js",

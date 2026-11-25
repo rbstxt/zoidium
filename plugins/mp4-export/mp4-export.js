@@ -8,6 +8,7 @@ function install(context) {
   const scope = globalThis;
   const load = context.apis.modules.createRequire(context.getAsset, { root: "./plugins/mp4-export/" });
   const { MP4_FORMAT, isMp4, frameCount } = load("./export-math.js");
+  const { createPreviewPanel } = load("./export-preview.js");
   const { createJob } = load("./render.js");
   const { installAlphaVideo } = load("./alpha-video.js");
   const { WAV, isAudio, createAudioJob } = load("./audio-only.js");
@@ -135,6 +136,7 @@ function install(context) {
     // the renderer or loading the bundled writer.
     Promise.resolve().then(async () => {
       let exporter = null;
+      let preview = null;
       const started = performance.now();
       try {
         if (cancelled) return;
@@ -152,22 +154,38 @@ function install(context) {
           frames: startFrames,
           bitrateScale: owner.params.bitrateScale,
         });
+        if (!audioOnly) {
+          preview = createPreviewPanel({ document: scope.document });
+          if (preview.element) {
+            page.appendChild(preview.element);
+            preview.updateProgress(0, startFrames, started);
+          }
+        }
+        const showPreview = Boolean(preview && preview.element);
         exporter = new PZ.export(owner.editor.sequence, owner.params);
         job = audioOnly ? createAudioJob(scope, exporter, () => load("./vendor/mediabunny-1.62.0.cjs")) :
-          createJob(scope, PZ, exporter, () => load("./vendor/mediabunny-1.62.0.cjs"));
+          createJob(scope, PZ, exporter, () => load("./vendor/mediabunny-1.62.0.cjs"),
+            preview ? { onFrame: (canvas) => preview.update(canvas) } : null);
         const progress = page.appendChild(controls.generateProgressbar({
           get() { return exporter.framesRendered / exporter.totalFrames * 100; },
         }, owner));
-        const time = page.appendChild(controls.generateValue({
-          title: "Time left:",
-          get() {
-            if (!exporter.framesRendered) return "Preparing...";
-            const seconds = (performance.now() - started) / 1000 / exporter.framesRendered *
-              (exporter.totalFrames - exporter.framesRendered);
-            return seconds > 0 ? PZ.ui.controls.getTimeString(seconds) : "Finalizing...";
-          },
-        }, owner));
-        timer = setInterval(() => { progress.pz_update(); time.pz_update(); }, 250);
+        let time = null;
+        if (!showPreview) {
+          time = page.appendChild(controls.generateValue({
+            title: "Time left:",
+            get() {
+              if (!exporter.framesRendered) return "Preparing...";
+              const seconds = (performance.now() - started) / 1000 / exporter.framesRendered *
+                (exporter.totalFrames - exporter.framesRendered);
+              return seconds > 0 ? PZ.ui.controls.getTimeString(seconds) : "Finalizing...";
+            },
+          }, owner));
+        }
+        timer = setInterval(() => {
+          progress.pz_update();
+          if (preview) preview.updateProgress(exporter.framesRendered, exporter.totalFrames, started);
+          else time.pz_update();
+        }, 250);
         const blob = await job.run();
         if (cancelled) return;
         PZ.downloadBlob = blob;
@@ -192,6 +210,7 @@ function install(context) {
         owner.export.navigate(failed);
       } finally {
         clearInterval(timer);
+        preview?.dispose();
         exporter?.unload();
         activeJobs--;
         // A cancelled job can finish after the user started another render.
