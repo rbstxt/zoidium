@@ -19,7 +19,6 @@ each line describes one visible change.
   layers and effects at the sequence resolution and reduces only the viewer, so
   shaders that read exact pixels look the same at every preview quality. Both
   are off by default and do not change the export.
-
 - Effector has a **Radial Repeater** (copies on a circle, with radius, plane,
   start angle, sweep and an option to face outward) and a **Grid Repeater**
   (copies in a 3D grid with per-axis counts and spacing). While any repeater is
