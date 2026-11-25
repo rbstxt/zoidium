@@ -25,10 +25,11 @@ function defaultStorage() {
 
 function formatClock(milliseconds, round) {
   if (!Number.isFinite(milliseconds) || milliseconds < 0) return "—";
-  const totalSeconds = Math[round ? "round" : "floor"](milliseconds / 1000);
+  const seconds = milliseconds / 1000;
+  const totalSeconds = round ? Math.round(seconds) : Math.floor(seconds);
   const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+  const remainder = totalSeconds % 60;
+  return String(minutes).padStart(2, "0") + ":" + String(remainder).padStart(2, "0");
 }
 
 function estimateRemaining(framesRendered, totalFrames, elapsedMs) {
@@ -48,8 +49,8 @@ function formatRemaining(remainingMs) {
 
 function progressText(framesRendered, totalFrames, elapsedMs) {
   const total = Number.isFinite(totalFrames) && totalFrames > 0 ? Math.floor(totalFrames) : 0;
-  const done = Number.isFinite(framesRendered) && framesRendered > 0
-    ? Math.min(Math.floor(framesRendered), total || Math.floor(framesRendered)) : 0;
+  const done = total > 0 && Number.isFinite(framesRendered) && framesRendered > 0
+    ? Math.min(Math.floor(framesRendered), total) : 0;
   const percent = total > 0 ? Math.floor(done / total * 100) : 0;
   let remaining = estimateRemaining(done, total, elapsedMs);
   if (remaining === null && total > 0 && done >= total) remaining = 0;
@@ -190,8 +191,8 @@ function createPreviewPanel(config) {
     // more often than the throttle allows.
     const time = now();
     if (!(time - lastDrawAt >= THROTTLE_MS)) return false;
-    const width = Number(source.videoWidth || source.codedWidth || source.width || 0);
-    const height = Number(source.videoHeight || source.codedHeight || source.height || 0);
+    const width = Number(source.displayWidth || source.videoWidth || source.codedWidth || source.width || 0);
+    const height = Number(source.displayHeight || source.videoHeight || source.codedHeight || source.height || 0);
     if (!(width > 0 && height > 0)) return false;
     lastDrawAt = time;
     const painter = targetContext();
