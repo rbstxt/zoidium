@@ -10,6 +10,19 @@ each line describes one visible change.
 
 ### Added
 
+- Effector has a **Radial Repeater** (copies on a circle, with radius, plane,
+  start angle, sweep and an option to face outward) and a **Grid Repeater**
+  (copies in a 3D grid with per-axis counts and spacing). While any repeater is
+  selected, the editing view marks each copy's position with a point. The points
+  never appear in the render or the export.
+- Effector has a **Shear** deformer next to Twist and Warp. It slants meshes
+  along one axis, and fields and Delay work with it like they do with Twist.
+- Video and Single Color materials have a **Render side** setting (front, back
+  or both), for example to show a video on the inside of a sphere. Existing
+  projects keep their current look.
+- The MP4 export progress page shows the last finished frame and a line with
+  the percentage, frame count, elapsed time and estimated remaining time. Turn
+  it off with **Show preview**. The exported file is the same either way.
 - Shape+ groups can hold your own properties (Slider, Toggle, Angle, Point,
   Color, Dropdown) from the **+** on the group header. They animate like other
   properties and Expressions+ can read them from any layer.
@@ -265,6 +278,8 @@ each line describes one visible change.
 
 ### Changed
 
+- The Player+ quality menu explains **Adaptive**: it lowers quality only while
+  playback runs slower than real time, and **Lowest** is the limit.
 - Video playback and preview rendering skip redundant frames when the project
   frame has not changed, and idle paused viewports stop redrawing until an edit,
   seek, or resize occurs. Video textures update at the sequence frame rate
@@ -402,6 +417,9 @@ each line describes one visible change.
 
 ### Fixed
 
+- Scrubbing the timeline ruler ends correctly when the mouse button is released
+  outside the window or the window loses focus. The playhead position is
+  computed from the visible scroll position on every move.
 - Turning the timeline **Render Time** toggle off restores the track label
   column. Before, each on/off moved the timeline further to the right.
 - Shape+ **Merge Paths** no longer erases the whole group when one shape
