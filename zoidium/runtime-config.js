@@ -104,6 +104,7 @@
       "./plugins/core/project-resources.js",
       "./plugins/core/shader-program-cache.js",
       "./plugins/core/timeline-track-lock.js",
+      "./plugins/core/timeline-track-insert.js",
       // Keeps the editor's main preview reachable as editor.mainViewport. It
       // must be installed before initTool() builds the viewport.
       "./plugins/core/main-viewport.js",
