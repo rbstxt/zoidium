@@ -3,7 +3,7 @@
   "id": "player-plus",
   "name": "Player+",
   "author": "Zoidium",
-  "version": "23",
+  "version": "24",
   "kind": "extension",
   "modules": [
     {

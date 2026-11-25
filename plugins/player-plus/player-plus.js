@@ -269,6 +269,17 @@ const PlayerPlus = (() => {
       .zoidium-player-plus-popup > button:hover, .zoidium-player-plus-popup > button:focus {
         background: var(--zui-accent);
       }
+      .zoidium-player-plus-hint {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 130px;
+        padding: 0 4px 4px 22px;
+        color: var(--zui-text-muted, #999);
+        font-size: var(--zui-font-size-small);
+        line-height: 1.35;
+        white-space: normal;
+        overflow-wrap: break-word;
+      }
       ${gridStyle}
     `;
     state.document.head.appendChild(style);
