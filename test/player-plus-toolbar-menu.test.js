@@ -4,21 +4,49 @@ const assert = require("node:assert/strict");
 const { makeDocument } = require("./fake-dom.js");
 const { createQualityMenu, createOverflow } = require("../plugins/player-plus/toolbar-menus.js");
 
+const ADAPTIVE_HINT = "Lowers quality while playback is slow. Lowest is the limit.";
+
+function qualityOptions(state) {
+  return { getState: () => state,
+    setQuality: value => { state.quality = state.effective = value; },
+    setAdaptive: value => { state.enabled = value; }, setLimit: value => { state.limit = value; } };
+}
+
 test("quality menu reflects and changes quality, adaptive, and limit", () => {
   const document = makeDocument();
   const state = { quality: 1, effective: 1, enabled: false, limit: "auto" };
-  const menu = createQualityMenu(document, { getState: () => state,
-    setQuality: value => { state.quality = state.effective = value; },
-    setAdaptive: value => { state.enabled = value; }, setLimit: value => { state.limit = value; } });
+  const menu = createQualityMenu(document, qualityOptions(state));
   const popup = document.body.children[0];
   assert.equal(menu.button.textContent, "Full");
   popup.children[2].dispatch("click"); assert.equal(state.quality, 0.25);
-  const checkbox = popup.children[4].children[0]; checkbox.checked = true; checkbox.dispatch("change");
-  assert.equal(state.enabled, true); assert.equal(popup.children[5].hidden, false);
-  const select = popup.children[5].children[1]; select.value = "0.125"; select.dispatch("change");
+  const checkbox = popup.querySelector(".zoidium-player-plus-adaptive");
+  checkbox.checked = true; checkbox.dispatch("change");
+  assert.equal(state.enabled, true);
+  const select = popup.querySelector(".zoidium-player-plus-limit");
+  assert.equal(select.parentElement.hidden, false);
+  select.value = "0.125"; select.dispatch("change");
   assert.equal(state.limit, "0.125"); state.effective = 0.125; menu.update();
   assert.equal(menu.button.textContent, "Auto · 1/8");
   menu.dispose(); assert.equal(document.body.children.length, 0);
+});
+
+test("quality menu explains adaptive quality and shows the effective quality", () => {
+  const document = makeDocument();
+  const state = { quality: 1, effective: 1, enabled: true, limit: "auto" };
+  const menu = createQualityMenu(document, qualityOptions(state));
+  const popup = document.body.children[0];
+  const hint = popup.querySelector(".zoidium-player-plus-hint");
+  assert.ok(hint, "the menu shows an adaptive hint");
+  assert.equal(hint.textContent, ADAPTIVE_HINT);
+  const adaptive = popup.querySelector(".zoidium-player-plus-adaptive");
+  assert.equal(adaptive.title, ADAPTIVE_HINT);
+  assert.equal(popup.querySelector(".zoidium-player-plus-limit").title, ADAPTIVE_HINT);
+  assert.equal(hint.parentElement, popup);
+  assert.equal(popup.children[popup.children.indexOf(adaptive.parentElement) + 1], hint);
+  assert.equal(menu.button.textContent, "Full");
+  state.effective = 0.5; menu.update();
+  assert.equal(menu.button.textContent, "Auto · 1/2");
+  menu.dispose();
 });
 
 test("overflow moves controls as width changes and cleans up", () => {

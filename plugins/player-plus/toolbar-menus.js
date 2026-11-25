@@ -1,6 +1,7 @@
 "use strict";
 
 const QUALITY = [[1, "Full"], [0.5, "1/2"], [0.25, "1/4"], [0.125, "1/8"]];
+const ADAPTIVE_HINT = "Lowers quality while playback is slow. Lowest is the limit.";
 
 function createPopup(document, button, className) {
   const menu = document.createElement("div");
@@ -66,10 +67,16 @@ function createQualityMenu(document, options) {
   const adaptiveLabel = document.createElement("label");
   const adaptive = document.createElement("input");
   adaptive.type = "checkbox";
+  adaptive.className = "zoidium-player-plus-adaptive";
+  adaptive.title = ADAPTIVE_HINT;
   adaptive.setAttribute("aria-label", "Adaptive preview quality");
   adaptiveLabel.appendChild(adaptive);
   const text = document.createElement("span"); text.textContent = "Adaptive"; adaptiveLabel.appendChild(text);
   popup.menu.appendChild(adaptiveLabel);
+  const hint = document.createElement("div");
+  hint.className = "zoidium-player-plus-hint";
+  hint.textContent = ADAPTIVE_HINT;
+  popup.menu.appendChild(hint);
   const fpsLabel = document.createElement("label");
   const fpsMeter = document.createElement("input");
   fpsMeter.type = "checkbox";
@@ -80,7 +87,8 @@ function createQualityMenu(document, options) {
   const limitLabel = document.createElement("label");
   const limitText = document.createElement("span"); limitText.textContent = "Lowest"; limitLabel.appendChild(limitText);
   const limit = document.createElement("select");
-  limit.title = "Lowest adaptive quality"; limit.setAttribute("aria-label", limit.title);
+  limit.className = "zoidium-player-plus-limit";
+  limit.title = ADAPTIVE_HINT; limit.setAttribute("aria-label", "Lowest adaptive quality");
   for (const [value, label] of [["auto", "Auto"], ["0.5", "1/2"], ["0.25", "1/4"], ["0.125", "1/8"]]) {
     const item = document.createElement("option"); item.value = value; item.textContent = label; limit.appendChild(item);
   }
