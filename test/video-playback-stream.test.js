@@ -6,6 +6,185 @@ const test = require("node:test");
 const decoderModule = require("../plugins/core/video-frame-decoder.js");
 const streamModule = require("../plugins/core/video-playback-stream.js");
 
+function createManualClock() {
+  let time = 0, nextTimerId = 1;
+  const timers = new Map();
+  return {
+    now: () => time,
+    setTimer(fn, ms) {
+      const id = nextTimerId++;
+      timers.set(id, { fn, at: time + Math.max(0, ms) });
+      return id;
+    },
+    clearTimer(id) { timers.delete(id); },
+    advance(ms) {
+      time += ms;
+      let fired = true;
+      while (fired) {
+        fired = false;
+        for (const [id, timer] of Array.from(timers)) {
+          if (timer.at <= time) {
+            timers.delete(id);
+            fired = true;
+            timer.fn();
+          }
+        }
+      }
+    },
+    get pendingTimers() { return timers.size; },
+  };
+}
+
+function createStreamHost() {
+  const dirtySchedules = [];
+  return {
+    dirtySchedules,
+    ZoidiumFramePacing: { markVideoDirty(schedule) { dirtySchedules.push(schedule); } },
+    ZoidiumVideoSeekPolicy: { ensure: async () => {}, seekTime: (_video, time) => time },
+  };
+}
+
+function makeVideoSchedule(media, rate = 30) {
+  const el = {
+    paused: true,
+    duration: 10,
+    pauseCalls: 0,
+    pause() { this.paused = true; this.pauseCalls += 1; },
+  };
+  return {
+    type: 0,
+    el,
+    texture: { image: el, needsUpdate: false },
+    currentItem: {
+      start: 0,
+      length: 300,
+      media,
+      clip: { properties: { time: { get: (localFrame) => localFrame / rate } } },
+    },
+  };
+}
+
+function createDeferredPool() {
+  const calls = [], pending = [];
+  let pinned = null;
+  return {
+    calls,
+    pending,
+    pool: {
+      isSupported: () => true,
+      isUnsupported: () => false,
+      sourceKeyFor: (media) => (media && media.sha256) || null,
+      peek: () => null,
+      pin(_schedule, entry) { pinned = entry || null; },
+      unpinSchedule() { pinned = null; },
+      pinnedEntry() { return pinned; },
+      prefetchAhead: async () => 0,
+      getFrame(media, targetTime, opts) {
+        calls.push({ media, targetTime, opts });
+        let resolve, reject;
+        const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+        pending.push({ promise, resolve, reject });
+        return promise;
+      },
+      stats: {
+        decoded: 0, cacheHits: 0, prefetchHits: 0, fallbacks: 0,
+        activeFrames: 0, cachedBytes: 0, evicted: 0,
+      },
+    },
+  };
+}
+
+function createGatedMediabunny(gates, frameCount = 40, options = {}) {
+  const frames = makeFrames(frameCount);
+  const state = { sampleStarts: [], nextCalls: 0 };
+  const throwAtCall = Number.isFinite(options.throwAtCall) ? options.throwAtCall : 0;
+  class BlobSource {
+    constructor(blob) { this.blob = blob; }
+  }
+  class Input {
+    constructor({ source }) { this.blob = source.blob; }
+    async getPrimaryVideoTrack() {
+      return {
+        spec: { frames },
+        codec: "avc1.640028",
+        async canDecode() { return true; },
+      };
+    }
+    dispose() {}
+  }
+  class VideoSampleSink {
+    constructor(track) { this.frames = track.spec.frames; }
+    samples(startTime) {
+      state.sampleStarts.push(startTime);
+      let idx = this.frames.findIndex((frame, index) => {
+        const end = index + 1 < this.frames.length
+          ? this.frames[index + 1].pts : frame.pts + 1 / 30;
+        return end > startTime + 1e-6;
+      });
+      if (idx === -1) idx = this.frames.length;
+      const all = this.frames;
+      return {
+        async next() {
+          state.nextCalls += 1;
+          if (throwAtCall && state.nextCalls === throwAtCall) throw new Error("decode failed");
+          await new Promise((resolve) => gates.push(resolve));
+          if (idx >= all.length) return { done: true, value: undefined };
+          const spec = all[idx++];
+          return {
+            done: false,
+            value: {
+              timestamp: spec.pts,
+              duration: spec.duration,
+              rotation: 0,
+              flip: false,
+              toVideoFrame() {
+                return {
+                  displayWidth: 8,
+                  displayHeight: 8,
+                  pts: spec.pts,
+                  closed: false,
+                  close() { this.closed = true; },
+                };
+              },
+              close() {},
+            },
+          };
+        },
+        async return() { return { done: true, value: undefined }; },
+      };
+    }
+  }
+  return {
+    state,
+    bunny: { ALL_FORMATS: ["mp4"], BlobSource, Input, VideoSampleSink },
+  };
+}
+
+function createDecoderScope() {
+  class FakeVideoDecoder {}
+  class FakeVideoFrame {}
+  return { VideoDecoder: FakeVideoDecoder, VideoFrame: FakeVideoFrame, Blob };
+}
+
+function spyOnGetFrame(pool) {
+  const calls = [];
+  const proxy = new Proxy(pool, {
+    get(target, property) {
+      if (property === "getFrame") {
+        return (media, targetTime, opts) => {
+          calls.push({ media, targetTime, opts });
+          return target.getFrame(media, targetTime, opts);
+        };
+      }
+      const value = target[property];
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  return { proxy, calls };
+}
+
+const flushTurn = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 function createMockMediabunny(framesByBlob) {
   const state = { loadCalls: 0, sampleStarts: [] };
   class BlobSource {
@@ -458,4 +637,201 @@ test("createMediabunnyLoader loads optional bundle lazily once and degrades grac
   failingAsset.loadOptional = async () => { throw new Error("offline"); };
   const failLoad = streamModule.createMediabunnyLoader(failingAsset);
   assert.equal(await failLoad(), null);
+});
+
+test("same-frame schedule updates reuse one in-flight request and bind its frame", async () => {
+  const { pool, calls, pending } = createDeferredPool();
+  const clock = createManualClock();
+  const host = createStreamHost();
+  const stream = streamModule.createVideoStream({
+    window: host, pool,
+    now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer,
+  });
+  const schedule = makeVideoSchedule({ sha256: "dedupe-source" });
+  const playback = { speed: 0, currentFrame: 0 };
+
+  assert.equal(stream.syncSchedule(schedule, playback, 0), false);
+  assert.equal(stream.syncSchedule(schedule, playback, 0), false);
+  assert.equal(calls.length, 1, "an identical in-flight target must not start a second decode");
+  assert.equal(calls[0].targetTime, 0);
+
+  const frame = { tag: "decoded-frame" };
+  pending[0].resolve({ id: 1, pts: 0, end: 1 / 30, frame });
+  await flushTurn();
+
+  assert.equal(schedule.texture.image, frame, "the pending request must still bind");
+  assert.equal(schedule.__zoidiumWebCodecsFrame, 0);
+});
+
+test("fast decoders issue one request per distinct target and bind the latest frame", async () => {
+  const { pool, calls, pending } = createDeferredPool();
+  const clock = createManualClock();
+  const host = createStreamHost();
+  const stream = streamModule.createVideoStream({
+    window: host, pool,
+    now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer,
+  });
+  const schedule = makeVideoSchedule({ sha256: "fast-source" });
+  const playback = { speed: 0, currentFrame: 0 };
+
+  stream.syncSchedule(schedule, playback, 0);
+  playback.currentFrame = 1;
+  stream.syncSchedule(schedule, playback, 1);
+  assert.equal(calls.length, 2, "distinct targets still start their own request");
+
+  const firstFrame = { tag: "frame-0" };
+  const secondFrame = { tag: "frame-1" };
+  pending[0].resolve({ id: 1, pts: 0, end: 1 / 30, frame: firstFrame });
+  pending[1].resolve({ id: 2, pts: 1 / 30, end: 2 / 30, frame: secondFrame });
+  await flushTurn();
+
+  assert.equal(schedule.texture.image, secondFrame);
+  assert.equal(schedule.__zoidiumWebCodecsFrame, 1);
+});
+
+test("a slow decoder binds advancing frames when new targets arrive every tick", async () => {
+  const gates = [];
+  const { bunny } = createGatedMediabunny(gates);
+  const clock = createManualClock();
+  const host = createStreamHost();
+  const realPool = decoderModule.createDecoderPool({
+    scope: createDecoderScope(),
+    loadBunny: async () => bunny,
+  });
+  const { proxy: pool, calls } = spyOnGetFrame(realPool);
+  const stream = streamModule.createVideoStream({
+    window: host, pool,
+    now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer,
+  });
+  const blob = new Blob(["slow"]);
+  const media = { sha256: "slow-source", file: blob };
+  const schedule = makeVideoSchedule(media);
+  const playback = { speed: 0, currentFrame: 0 };
+  const boundFrames = [];
+
+  for (let tick = 0; tick < 40; tick++) {
+    playback.currentFrame = tick;
+    stream.syncSchedule(schedule, playback, tick);
+    await flushTurn();
+    clock.advance(50);
+    const gate = gates.shift();
+    if (gate) gate();
+    await flushTurn();
+    if (schedule.texture.image !== schedule.el && Number.isInteger(schedule.__zoidiumWebCodecsFrame)) {
+      boundFrames.push(schedule.__zoidiumWebCodecsFrame);
+    }
+  }
+
+  assert.ok(calls.length >= 3, "the decoder must keep receiving requests");
+  assert.ok(boundFrames.length >= 2, "starvation must not leave the schedule without a bound frame");
+  assert.ok(
+    boundFrames[boundFrames.length - 1] > boundFrames[0],
+    "bound frames must advance over time",
+  );
+  assert.notEqual(schedule.texture.image, schedule.el);
+  realPool.dispose();
+});
+
+test("a decoder that never settles falls back to native after 1500 ms and records one diagnostic", async () => {
+  const gates = [];
+  const { bunny } = createGatedMediabunny(gates);
+  const clock = createManualClock();
+  const host = createStreamHost();
+  const realPool = decoderModule.createDecoderPool({
+    scope: createDecoderScope(),
+    loadBunny: async () => bunny,
+  });
+  const { proxy: pool, calls } = spyOnGetFrame(realPool);
+  const stream = streamModule.createVideoStream({
+    window: host, pool,
+    now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer,
+  });
+  const debugEvents = [];
+  const previousDebugLog = globalThis.ZOIDIUM_DEBUG_LOG;
+  globalThis.ZOIDIUM_DEBUG_LOG = {
+    record(type, details) { debugEvents.push({ type, details }); },
+  };
+
+  try {
+    const blob = new Blob(["never"]);
+    const media = { sha256: "never-source", file: blob };
+    const schedule = makeVideoSchedule(media);
+    const playback = { speed: 0, currentFrame: 0 };
+
+    stream.syncSchedule(schedule, playback, 0);
+    await flushTurn();
+    assert.equal(schedule.__zoidiumWebCodecsPending, true);
+
+    clock.advance(1400);
+    assert.equal(schedule.__zoidiumWebCodecsPending, true, "fallback must wait for 1500 ms");
+
+    clock.advance(200);
+    assert.equal(schedule.__zoidiumWebCodecsPending, false);
+    assert.equal(schedule.texture.image, schedule.el, "fallback must restore the native video element");
+    assert.ok(host.dirtySchedules.includes(schedule), "fallback must mark the frame dirty");
+    assert.equal(debugEvents.length, 1);
+    assert.equal(debugEvents[0].type, "video-decode");
+    assert.equal(debugEvents[0].details.reason, "stall-fallback");
+    assert.equal(debugEvents[0].details.source, "never-source");
+    assert.equal(debugEvents[0].details.codec, "avc1.640028");
+    assert.equal(debugEvents[0].details.pool.decoded, 0);
+    assert.equal(typeof debugEvents[0].details.sinceLastBindMs, "number");
+    assert.equal(stream.stats.stallFallbacks, 1);
+    assert.equal(stream.stats.stalledSources, 1);
+
+    const callsAfterFallback = calls.length;
+    assert.equal(stream.syncSchedule(schedule, playback, 5), false);
+    assert.equal(calls.length, callsAfterFallback, "a stalled source must go straight to native");
+    assert.equal(schedule.texture.image, schedule.el);
+  } finally {
+    realPool.dispose();
+    if (previousDebugLog === undefined) delete globalThis.ZOIDIUM_DEBUG_LOG;
+    else globalThis.ZOIDIUM_DEBUG_LOG = previousDebugLog;
+  }
+});
+
+test("decoder exceptions record a rate-limited diagnostic with source, codec, and stats", async () => {
+  const gates = [];
+  const { bunny } = createGatedMediabunny(gates, 40, { throwAtCall: 1 });
+  const clock = createManualClock();
+  const host = createStreamHost();
+  const debugEvents = [];
+  const previousDebugLog = globalThis.ZOIDIUM_DEBUG_LOG;
+  globalThis.ZOIDIUM_DEBUG_LOG = {
+    record(type, details) { debugEvents.push({ type, details }); },
+  };
+
+  try {
+    const stream = streamModule.createVideoStream({
+      window: host,
+      decoderModule: {
+        createDecoderPool(options) {
+          return decoderModule.createDecoderPool({
+            ...options,
+            scope: createDecoderScope(),
+            loadBunny: async () => bunny,
+          });
+        },
+      },
+      now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer,
+    });
+
+    const blob = new Blob(["throws"]);
+    const media = { sha256: "throws-source", file: blob };
+    const schedule = makeVideoSchedule(media);
+    stream.syncSchedule(schedule, { speed: 0, currentFrame: 0 }, 0);
+    await flushTurn();
+    await flushTurn();
+
+    assert.equal(debugEvents.length, 1);
+    assert.equal(debugEvents[0].type, "video-decode");
+    assert.equal(debugEvents[0].details.reason, "decoder-error");
+    assert.equal(debugEvents[0].details.source, "throws-source");
+    assert.equal(debugEvents[0].details.codec, "avc1.640028");
+    assert.equal(debugEvents[0].details.errorName, "Error");
+    assert.equal(typeof debugEvents[0].details.supersededRequests, "number");
+  } finally {
+    if (previousDebugLog === undefined) delete globalThis.ZOIDIUM_DEBUG_LOG;
+    else globalThis.ZOIDIUM_DEBUG_LOG = previousDebugLog;
+  }
 });
