@@ -260,6 +260,7 @@ function createVideoStream(options = {}) {
     schedule.__zoidiumWebCodecsPendingRequest = null;
     schedule.__zoidiumWebCodecsLastBindAt = nowMs();
     schedule.__zoidiumWebCodecsPendingSince = null;
+    schedule.__zoidiumWebCodecsBindSeq = (schedule.__zoidiumWebCodecsBindSeq || 0) + 1;
     clearWatchdog(schedule);
     schedule.__zoidiumWebCodecsEntryId = entry.id;
     if (frame !== undefined && frame !== null) schedule.__zoidiumWebCodecsFrame = frame;
@@ -326,9 +327,13 @@ function createVideoStream(options = {}) {
   function finishRequest(schedule, playback, item, request, entry) {
     if (disposed) return;
     const isCurrent = schedule.__zoidiumWebCodecsSeq === request.seq &&
-      schedule.__zoidiumWebCodecsPendingRequest === request;
+      schedule.__zoidiumWebCodecsPendingRequest === request &&
+      (schedule.__zoidiumWebCodecsBindSeq || 0) === request.bindSeq;
     if (!isCurrent || schedule.currentItem !== item) {
-      if (schedule.__zoidiumWebCodecsPendingRequest === request) clearPendingRequest(schedule);
+      if (schedule.__zoidiumWebCodecsPendingRequest === request) {
+        clearPendingRequest(schedule);
+        schedule.__zoidiumWebCodecsPending = false;
+      }
       discardStaleEntry(schedule, entry);
       return;
     }
@@ -348,6 +353,7 @@ function createVideoStream(options = {}) {
     const seq = nextScheduleSeq(schedule);
     const request = {
       item, seq, targetTime, mediaTime, frame: evalFrame, chained: false,
+      bindSeq: schedule.__zoidiumWebCodecsBindSeq || 0,
     };
     schedule.__zoidiumWebCodecsPendingRequest = request;
     schedule.__zoidiumWebCodecsPending = true;
@@ -523,6 +529,7 @@ function createVideoStream(options = {}) {
     schedule.__zoidiumWebCodecsActive = true;
     schedule.__zoidiumWebCodecsPending = false;
     schedule.__zoidiumWebCodecsEntryId = entry.id;
+    schedule.__zoidiumWebCodecsBindSeq = (schedule.__zoidiumWebCodecsBindSeq || 0) + 1;
     if (Number.isInteger(context?.frame)) schedule.__zoidiumWebCodecsFrame = context.frame;
     trackedSchedules.add(schedule);
     return { handled: true, reused, pts: entry.pts, end: entry.end };
