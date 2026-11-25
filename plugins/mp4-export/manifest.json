@@ -3,96 +3,101 @@
   "id": "mp4-export",
   "name": "MP4 Export",
   "author": "Zoidium",
-  "version": "18",
+  "version": "19",
   "kind": "extension",
   "description": "Export H.264 MP4 with AAC audio or an Opus fallback through the native Export panel.",
   "category": "utilities",
   "modules": [
     {
       "id": "mp4-export",
-      "source": "./plugins/mp4-export/mp4-export.js?v=18"
+      "source": "./plugins/mp4-export/mp4-export.js?v=19"
     }
   ],
   "resources": [
     {
       "id": "alpha-video",
       "type": "text",
-      "source": "./plugins/mp4-export/alpha-video.js?v=18"
+      "source": "./plugins/mp4-export/alpha-video.js?v=19"
     },
     {
       "id": "export-math-js",
       "type": "text",
-      "source": "./plugins/mp4-export/export-math.js?v=18"
+      "source": "./plugins/mp4-export/export-math.js?v=19"
+    },
+    {
+      "id": "export-preview-js",
+      "type": "text",
+      "source": "./plugins/mp4-export/export-preview.js?v=19"
     },
     {
       "id": "audio-mix-js",
       "type": "text",
-      "source": "./plugins/mp4-export/audio-mix.js?v=18"
+      "source": "./plugins/mp4-export/audio-mix.js?v=19"
     },
     {
       "id": "render-js",
       "type": "text",
-      "source": "./plugins/mp4-export/render.js?v=18"
+      "source": "./plugins/mp4-export/render.js?v=19"
     },
     {
       "id": "stream-target-js",
       "type": "text",
-      "source": "./plugins/mp4-export/stream-target.js?v=18"
+      "source": "./plugins/mp4-export/stream-target.js?v=19"
     },
     {
       "id": "video-source-js",
       "type": "text",
-      "source": "./plugins/mp4-export/video-source.js?v=18"
+      "source": "./plugins/mp4-export/video-source.js?v=19"
     },
     {
       "id": "yuv-math-js",
       "type": "text",
-      "source": "./plugins/mp4-export/yuv-math.js?v=18"
+      "source": "./plugins/mp4-export/yuv-math.js?v=19"
     },
     {
       "id": "yuv-convert-js",
       "type": "text",
-      "source": "./plugins/mp4-export/yuv-convert.js?v=18"
+      "source": "./plugins/mp4-export/yuv-convert.js?v=19"
     },
     {
       "id": "avc-vui-js",
       "type": "text",
-      "source": "./plugins/mp4-export/avc-vui.js?v=18"
+      "source": "./plugins/mp4-export/avc-vui.js?v=19"
     },
     {
       "id": "vendor-mediabunny-1-62-0-cjs",
       "type": "text",
-      "source": "./plugins/mp4-export/vendor/mediabunny-1.62.0.cjs?v=18"
+      "source": "./plugins/mp4-export/vendor/mediabunny-1.62.0.cjs?v=19"
     },
     {
       "id": "vendor-license",
       "type": "text",
-      "source": "./plugins/mp4-export/vendor/LICENSE?v=18"
+      "source": "./plugins/mp4-export/vendor/LICENSE?v=19"
     },
     {
       "id": "vendor-readme-md",
       "type": "text",
-      "source": "./plugins/mp4-export/vendor/README.md?v=18"
+      "source": "./plugins/mp4-export/vendor/README.md?v=19"
     },
     {
       "id": "audio-encode",
       "type": "text",
-      "source": "./plugins/mp4-export/audio-encode.js?v=18"
+      "source": "./plugins/mp4-export/audio-encode.js?v=19"
     },
     {
       "id": "audio-decode",
       "type": "text",
-      "source": "./plugins/mp4-export/audio-decode.js?v=18"
+      "source": "./plugins/mp4-export/audio-decode.js?v=19"
     },
     {
       "id": "audio-only-js",
       "type": "text",
-      "source": "./plugins/mp4-export/audio-only.js?v=18"
+      "source": "./plugins/mp4-export/audio-only.js?v=19"
     },
     {
       "id": "audio-options-js",
       "type": "text",
-      "source": "./plugins/mp4-export/audio-options.js?v=18"
+      "source": "./plugins/mp4-export/audio-options.js?v=19"
     }
   ]
 }

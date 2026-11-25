@@ -61,6 +61,21 @@ audio fallback worker terminates on cancel. Temporary files are removed on
 success, cancel and failure. Existing MKV/WebM methods receive their original
 receiver and arguments, and never enter this pipeline.
 
+## Progress preview
+
+While an MP4 export runs, the progress page shows the last finished frame and a
+line with the percent, the frame count, the elapsed time and the estimated
+remaining time. The preview copies the canvas the export just rendered and is
+about to encode into a separate canvas of at most 480 pixels wide. It never
+renders a frame and it updates at most every 400 milliseconds. The estimate
+appears after five frames.
+
+The "Show preview" checkbox is on by default. Its setting is stored in
+`localStorage` under `zoidium.mp4Export.showPreview`; a blocked storage area
+keeps the default. Turning the checkbox off stops every preview copy. The
+preview canvas and its timer are released when the export finishes, fails or is
+cancelled.
+
 ## Limits
 
 WebCodecs codec support depends on the browser, operating system, size and rate.
