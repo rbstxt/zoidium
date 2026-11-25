@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "181",
+  "version": "182",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -373,6 +373,11 @@
     {
       "id": "timeline-track-lock",
       "source": "./plugins/core/timeline-track-lock.js",
+      "phase": "pre-init"
+    },
+    {
+      "id": "timeline-track-insert",
+      "source": "./plugins/core/timeline-track-insert.js",
       "phase": "pre-init"
     },
     {
