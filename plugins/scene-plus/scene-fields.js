@@ -3,7 +3,7 @@
 // Effector property surface: CM3 property definitions for repeaters and
 // fields, plus the per-frame readers every deformer evaluates through.
 
-const { MAX_REPEATS, numberValue, vectorValue } = require("./scene-values.js");
+const { FULL_TURN, MAX_REPEATS, numberValue, vectorValue } = require("./scene-values.js");
 
 function vectorDefinition(PZ, definition) {
   const axisDefinition = (index, fallbackName) => ({
@@ -48,22 +48,28 @@ function createPropertyCategory(PZ, owner, name, definitions) {
   return properties;
 }
 
-function makeProperties(PZ, mode, markDirty) {
-  const properties = {
-    count: {
-      dynamic: true,
-      name: "Count",
-      type: PZ.property.type.NUMBER,
-      value: 5,
-      min: 1,
-      max: MAX_REPEATS,
-      step: 1,
-      decimals: 0,
-      changed: function () {
-        markDirty(this.parentObject);
-      },
+function copiedCount(PZ, markDirty, value) {
+  return {
+    dynamic: true,
+    name: "Count",
+    type: PZ.property.type.NUMBER,
+    value,
+    min: 1,
+    max: MAX_REPEATS,
+    step: 1,
+    decimals: 0,
+    changed: function () {
+      markDirty(this.parentObject);
     },
   };
+}
+
+function makeProperties(PZ, mode, markDirty) {
+  const properties = {};
+  // A grid repeats along three axes, so it has no single Count row.
+  if (mode !== "grid") {
+    properties.count = copiedCount(PZ, markDirty, mode === "radial" ? 8 : 5);
+  }
 
   const rotation = Math.PI / 180;
   if (mode === "step") {
@@ -112,6 +118,95 @@ function makeProperties(PZ, mode, markDirty) {
       decimals: 3,
       linkRatio: true,
     });
+  } else if (mode === "radial") {
+    properties.radius = {
+      dynamic: true,
+      name: "Radius",
+      type: PZ.property.type.NUMBER,
+      value: 100,
+      min: 0,
+      step: 1,
+      decimals: 2,
+    };
+    properties.plane = {
+      dynamic: true,
+      name: "Plane",
+      type: PZ.property.type.OPTION,
+      value: 1,
+      items: "XY;XZ;YZ",
+    };
+    properties.startAngle = {
+      dynamic: true,
+      name: "Start angle",
+      type: PZ.property.type.NUMBER,
+      value: 0,
+      scaleFactor: rotation,
+      step: 1,
+      decimals: 1,
+    };
+    properties.sweep = {
+      dynamic: true,
+      name: "Sweep",
+      type: PZ.property.type.NUMBER,
+      value: FULL_TURN,
+      min: 0,
+      max: FULL_TURN * 2,
+      scaleFactor: rotation,
+      step: 1,
+      decimals: 1,
+    };
+    properties.align = {
+      dynamic: true,
+      name: "Align to circle",
+      type: PZ.property.type.OPTION,
+      value: 0,
+      items: "off;on",
+    };
+    properties.rotationStep = vectorDefinition(PZ, {
+      name: "Rotation step",
+      value: [0, 0, 0],
+      scaleFactor: rotation,
+      step: 1,
+      decimals: 1,
+    });
+    properties.scaleEnd = vectorDefinition(PZ, {
+      name: "Scale end",
+      value: [1, 1, 1],
+      min: [0.001, 0.001, 0.001],
+      step: 0.01,
+      decimals: 3,
+      linkRatio: true,
+    });
+  } else if (mode === "grid") {
+    const count = (name, value) => ({
+      dynamic: true,
+      name,
+      type: PZ.property.type.NUMBER,
+      value,
+      min: 1,
+      max: MAX_REPEATS,
+      step: 1,
+      decimals: 0,
+      changed: function () {
+        markDirty(this.parentObject);
+      },
+    });
+    properties.countX = count("Count X", 3);
+    properties.countY = count("Count Y", 3);
+    properties.countZ = count("Count Z", 1);
+    properties.spacing = vectorDefinition(PZ, {
+      name: "Spacing",
+      value: [50, 50, 50],
+      step: 1,
+      decimals: 2,
+    });
+    properties.centered = {
+      dynamic: true,
+      name: "Centered",
+      type: PZ.property.type.OPTION,
+      value: 1,
+      items: "off;on",
+    };
   } else if (mode === "random") {
     properties.positionMin = vectorDefinition(PZ, {
       name: "Min position",

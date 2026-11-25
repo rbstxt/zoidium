@@ -22,6 +22,7 @@ const SIBLING_IDS = [
   "scene-effectors.js",
   "scene-deform.js",
   "scene-repeaters.js",
+  "scene-repeater-points.js",
   "scene-state.js",
 ];
 
@@ -64,6 +65,7 @@ function loadParts(getAsset) {
         effectors: loaded["scene-effectors.js"],
         deform: loaded["scene-deform.js"],
         repeaters: loaded["scene-repeaters.js"],
+        points: loaded["scene-repeater-points.js"],
         state: loaded["scene-state.js"],
       };
       populateTestSurface();
@@ -82,6 +84,7 @@ function loadParts(getAsset) {
     effectors: bundleRequire("./scene-effectors.js"),
     deform: bundleRequire("./scene-deform.js"),
     repeaters: bundleRequire("./scene-repeaters.js"),
+    points: bundleRequire("./scene-repeater-points.js"),
     state: bundleRequire("./scene-state.js"),
   };
   populateTestSurface();
@@ -166,6 +169,8 @@ function activate(context) {
       ["linear", "zoidium:repeater/linear-repeater", "Linear Repeater"],
       ["random", "zoidium:repeater/random-repeater", "Random Repeater"],
       ["echo", "zoidium:repeater/echo-repeater", "Echo Repeater"],
+      ["radial", "zoidium:repeater/radial-repeater", "Radial Repeater"],
+      ["grid", "zoidium:repeater/grid-repeater", "Grid Repeater"],
     ];
     for (const [mode, type, name] of definitions) {
       const RepeaterObject = repeaters.createRepeaterClass(PZ, THREE, mode, type);
@@ -262,6 +267,10 @@ function populateTestSurface() {
     curvePolygonCount: parts.deform.curvePolygonCount,
     fieldFromProperties: parts.fields.fieldFromProperties,
     getCount: parts.values.getCount,
+    gridCounts: parts.values.gridCounts,
+    getRepeaterCount: parts.values.getRepeaterCount,
+    repeaterPointPositions: parts.points.repeaterPointPositions,
+    installRepeaterPoints: parts.points.installRepeaterPoints,
     getEchoFrame: parts.values.getEchoFrame,
     getEchoFrames: parts.values.getEchoFrames,
     getTransform: parts.values.getTransform,

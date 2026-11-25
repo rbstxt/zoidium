@@ -3,7 +3,7 @@
   "id": "repeater",
   "name": "Effector",
   "author": "Zoidium",
-  "version": "47",
+  "version": "48",
   "kind": "object",
   "objectCategory": "EFFECTOR",
   "objectClassParent": {
@@ -64,6 +64,32 @@
             "schemaVersion": 2,
             "properties": {
               "name": "Echo Repeater"
+            },
+            "repeaterProperties": {},
+            "objects": []
+          }
+        },
+        {
+          "name": "Radial Repeater",
+          "type": "zoidium:repeater/radial-repeater",
+          "data": {
+            "type": "zoidium:repeater/radial-repeater",
+            "schemaVersion": 2,
+            "properties": {
+              "name": "Radial Repeater"
+            },
+            "repeaterProperties": {},
+            "objects": []
+          }
+        },
+        {
+          "name": "Grid Repeater",
+          "type": "zoidium:repeater/grid-repeater",
+          "data": {
+            "type": "zoidium:repeater/grid-repeater",
+            "schemaVersion": 2,
+            "properties": {
+              "name": "Grid Repeater"
             },
             "repeaterProperties": {},
             "objects": []
@@ -162,6 +188,20 @@
       "schemaVersion": 2
     },
     {
+      "id": "radial-repeater",
+      "type": "zoidium:repeater/radial-repeater",
+      "name": "Radial Repeater",
+      "description": "Copies source objects evenly around a circle with optional alignment and rotation step.",
+      "schemaVersion": 2
+    },
+    {
+      "id": "grid-repeater",
+      "type": "zoidium:repeater/grid-repeater",
+      "name": "Grid Repeater",
+      "description": "Copies source objects through a three-axis grid with configurable spacing and centring.",
+      "schemaVersion": 2
+    },
+    {
       "id": "twist",
       "type": "zoidium:repeater/twist",
       "name": "Twist",
@@ -200,7 +240,7 @@
   "modules": [
     {
       "id": "effector-runtime",
-      "source": "./plugins/scene-plus/scene-plus.js?v=47"
+      "source": "./plugins/scene-plus/scene-plus.js?v=48"
     }
   ],
   "description": "Procedural repeaters plus Twist, Warp, and Voronoi Fracture effectors.",
@@ -208,107 +248,112 @@
     {
       "id": "effector-core",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-core.js?v=47"
+      "source": "./plugins/scene-plus/effector-core.js?v=48"
     },
     {
       "id": "effector-fracture-index",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-fracture-index.js?v=47"
+      "source": "./plugins/scene-plus/effector-fracture-index.js?v=48"
     },
     {
       "id": "effector-fracture",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-fracture.js?v=47"
+      "source": "./plugins/scene-plus/effector-fracture.js?v=48"
     },
     {
       "id": "effector-mesh",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-mesh.js?v=47"
+      "source": "./plugins/scene-plus/effector-mesh.js?v=48"
     },
     {
       "id": "effector-evaluate",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-evaluate.js?v=47"
+      "source": "./plugins/scene-plus/effector-evaluate.js?v=48"
     },
     {
       "id": "effector-jobs",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-jobs.js?v=47"
+      "source": "./plugins/scene-plus/effector-jobs.js?v=48"
     },
     {
       "id": "earcut",
       "type": "text",
-      "source": "./plugins/scene-plus/earcut.js?v=47"
+      "source": "./plugins/scene-plus/earcut.js?v=48"
     },
     {
       "id": "scene-values",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-values.js?v=47"
+      "source": "./plugins/scene-plus/scene-values.js?v=48"
     },
     {
       "id": "scene-fields",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-fields.js?v=47"
+      "source": "./plugins/scene-plus/scene-fields.js?v=48"
     },
     {
       "id": "scene-clone",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-clone.js?v=47"
+      "source": "./plugins/scene-plus/scene-clone.js?v=48"
     },
     {
       "id": "scene-effectors",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-effectors.js?v=47"
+      "source": "./plugins/scene-plus/scene-effectors.js?v=48"
     },
     {
       "id": "scene-deform",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-deform.js?v=47"
+      "source": "./plugins/scene-plus/scene-deform.js?v=48"
     },
     {
       "id": "scene-repeaters",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-repeaters.js?v=47"
+      "source": "./plugins/scene-plus/scene-repeaters.js?v=48"
+    },
+    {
+      "id": "scene-repeater-points",
+      "type": "text",
+      "source": "./plugins/scene-plus/scene-repeater-points.js?v=48"
     },
     {
       "id": "scene-state",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-state.js?v=47"
+      "source": "./plugins/scene-plus/scene-state.js?v=48"
     },
     {
       "id": "effector-fracture-status",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-fracture-status.js?v=47"
+      "source": "./plugins/scene-plus/effector-fracture-status.js?v=48"
     },
     {
       "id": "scene-field-edit",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-field-edit.js?v=47"
+      "source": "./plugins/scene-plus/scene-field-edit.js?v=48"
     },
     {
       "id": "scene-field-edit-math",
       "type": "text",
-      "source": "./plugins/scene-plus/scene-field-edit-math.js?v=47"
+      "source": "./plugins/scene-plus/scene-field-edit-math.js?v=48"
     },
     {
       "id": "effector-fracture-characters",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-fracture-characters.js?v=47"
+      "source": "./plugins/scene-plus/effector-fracture-characters.js?v=48"
     },
     {
       "id": "legacy-subdivision",
       "type": "text",
-      "source": "./plugins/scene-plus/legacy-subdivision.js?v=47"
+      "source": "./plugins/scene-plus/legacy-subdivision.js?v=48"
     },
     {
       "id": "effector-preview",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-preview.js?v=47"
+      "source": "./plugins/scene-plus/effector-preview.js?v=48"
     },
     {
       "id": "effector-material",
       "type": "text",
-      "source": "./plugins/scene-plus/effector-material.js?v=47"
+      "source": "./plugins/scene-plus/effector-material.js?v=48"
     }
   ]
 }

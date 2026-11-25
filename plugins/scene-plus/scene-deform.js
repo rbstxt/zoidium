@@ -11,6 +11,7 @@ const {
 const state = require("./scene-state.js");
 const { installPreviewHold } = require("./effector-preview.js");
 const { installFieldEdit } = require("./scene-field-edit.js");
+const { installRepeaterPoints } = require("./scene-repeater-points.js");
 const legacySubdivision = require("./legacy-subdivision.js");
 const PREVIEW_PREPARE_TIMEOUT_MS = 10000;
 
@@ -187,6 +188,7 @@ function createDeformationSupport(PZ, THREE, editor) {
   const originalUnload = prototype.unload;
   const meshDeformer = getMeshDeformer(THREE);
   const disposeFieldHelpers = installFieldHelpers(THREE);
+  const disposeRepeaterPoints = installRepeaterPoints(THREE, editor);
   const presentation = installPreviewHold(PZ, meshDeformer, editor);
 
   let project = editor?.project, generation = 0;
@@ -522,6 +524,7 @@ function createDeformationSupport(PZ, THREE, editor) {
       editor?.onProjectChanged?.unwatch(projectChanged);
       releaseLayers();
       disposeFieldHelpers();
+      disposeRepeaterPoints();
       presentation.dispose();
       meshDeformer.dispose();
       if (prototype.prepare === patchedPrepare) prototype.prepare = originalPrepare;
@@ -535,5 +538,5 @@ function createDeformationSupport(PZ, THREE, editor) {
 
 module.exports = {
   PREVIEW_PREPARE_TIMEOUT_MS, getMeshDeformer, installFieldHelpers, fieldGuidePoints, curvePolygonCount,
-  createDeformationSupport, liveObjectLayer
+  createDeformationSupport, liveObjectLayer, installRepeaterPoints
 };
