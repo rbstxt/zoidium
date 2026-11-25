@@ -3,7 +3,7 @@
   "id": "core",
   "name": "Zoidium Core",
   "author": "Zoidium",
-  "version": "182",
+  "version": "183",
   "kind": "core",
   "visibility": "hidden",
   "alwaysEnabled": true,
@@ -544,59 +544,59 @@
   "modules": [
     {
       "id": "single-graph-window",
-      "source": "./plugins/core/single-graph-window.js?v=182"
+      "source": "./plugins/core/single-graph-window.js?v=183"
     },
     {
       "id": "font-load",
-      "source": "./plugins/core/font-load.js?v=182"
+      "source": "./plugins/core/font-load.js?v=183"
     },
     {
       "id": "keyframe-row-reveal",
-      "source": "./plugins/core/keyframe-row-reveal.js?v=182"
+      "source": "./plugins/core/keyframe-row-reveal.js?v=183"
     },
     {
       "id": "video-texture-alpha",
-      "source": "./plugins/core/video-texture-alpha.js?v=182"
+      "source": "./plugins/core/video-texture-alpha.js?v=183"
     },
     {
       "id": "video-decode-hint",
-      "source": "./plugins/core/video-decode-hint.js?v=182"
+      "source": "./plugins/core/video-decode-hint.js?v=183"
     },
     {
       "id": "video-playback-stream",
-      "source": "./plugins/core/video-playback-stream.js?v=182"
+      "source": "./plugins/core/video-playback-stream.js?v=183"
     },
     {
       "id": "output-frame-cache",
-      "source": "./plugins/core/output-frame-cache.js?v=182"
+      "source": "./plugins/core/output-frame-cache.js?v=183"
     },
     {
       "id": "media-drop",
-      "source": "./plugins/core/media-drop.js?v=182"
+      "source": "./plugins/core/media-drop.js?v=183"
     }
   ],
   "resources": [
     {
       "id": "video-frame-decoder",
       "type": "text",
-      "source": "./plugins/core/video-frame-decoder.js?v=182"
+      "source": "./plugins/core/video-frame-decoder.js?v=183"
     },
     {
       "id": "decoder-mediabunny",
       "type": "text",
-      "source": "./plugins/mp4-export/vendor/mediabunny-1.62.0.cjs?v=182",
+      "source": "./plugins/mp4-export/vendor/mediabunny-1.62.0.cjs?v=183",
       "optionalBundle": "video-decoder"
     },
     {
       "id": "decoder-license",
       "type": "text",
-      "source": "./plugins/mp4-export/vendor/LICENSE?v=182",
+      "source": "./plugins/mp4-export/vendor/LICENSE?v=183",
       "optionalBundle": "video-decoder"
     },
     {
       "id": "decoder-notice",
       "type": "text",
-      "source": "./plugins/mp4-export/vendor/README.md?v=182",
+      "source": "./plugins/mp4-export/vendor/README.md?v=183",
       "optionalBundle": "video-decoder"
     }
   ]

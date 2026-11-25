@@ -9,7 +9,8 @@ const ADAPTIVE_HINT = "Lowers quality while playback is slow. Lowest is the limi
 function qualityOptions(state) {
   return { getState: () => state,
     setQuality: value => { state.quality = state.effective = value; },
-    setAdaptive: value => { state.enabled = value; }, setLimit: value => { state.limit = value; } };
+    setAdaptive: value => { state.enabled = value; }, setLimit: value => { state.limit = value; },
+    setUpscale: value => { state.upscale = value; }, setExact: value => { state.exact = value; } };
 }
 
 test("quality menu reflects and changes quality, adaptive, and limit", () => {
@@ -46,6 +47,32 @@ test("quality menu explains adaptive quality and shows the effective quality", (
   assert.equal(menu.button.textContent, "Full");
   state.effective = 0.5; menu.update();
   assert.equal(menu.button.textContent, "Auto · 1/2");
+  menu.dispose();
+});
+
+test("the history reads the Exact toggle and explains the adaptive hint for it", () => {
+  const document = makeDocument();
+  const state = { quality: 0.5, effective: 0.5, enabled: true, limit: "auto",
+    upscale: "sharp", exact: true, exactAvailable: true, exactReason: "" };
+  const menu = createQualityMenu(document, qualityOptions(state));
+  const popup = document.body.children[0];
+  assert.equal(popup.querySelector(".zoidium-player-plus-upscale").value, "sharp");
+  const exact = popup.querySelector(".zoidium-player-plus-exact");
+  assert.equal(exact.checked, true);
+  assert.equal(exact.disabled, false);
+  assert.match(exact.title, /sequence resolution/);
+  assert.match(popup.querySelector(".zoidium-player-plus-hint").textContent, /viewport size/);
+  const upscale = popup.querySelector(".zoidium-player-plus-upscale");
+  upscale.value = "smooth"; upscale.dispatch("change");
+  assert.equal(state.upscale, "smooth");
+  exact.checked = false; exact.dispatch("change");
+  assert.equal(state.exact, false);
+  state.exact = true; state.exactAvailable = false;
+  state.exactReason = "Exact effects are unavailable above 4096 px on a side (5000 × 2800).";
+  menu.update();
+  assert.equal(exact.disabled, true);
+  assert.match(exact.title, /4096 px/);
+  assert.equal(popup.querySelector(".zoidium-player-plus-hint").textContent, ADAPTIVE_HINT);
   menu.dispose();
 });
 

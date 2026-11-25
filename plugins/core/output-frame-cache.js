@@ -141,6 +141,8 @@
           model.assetCompletion(asset, identity)]),
       project.sequence.videoTracks.map(track => track.enabled),
       gl.drawingBufferWidth, gl.drawingBufferHeight,
+      viewport.__zoidiumPlayerPlusExactEffects === true,
+      [viewport.compositor?.readBuffer?.width ?? null, viewport.compositor?.readBuffer?.height ?? null],
       viewport.compositor.__zoidiumRenderSettings || null,
       renderer.shadowMap.enabled, renderer.shadowMap.type, renderer.toneMapping, renderer.toneMappingExposure,
       editSignals.pluginEpoch, global.PZ?.zoidium?.getDebugPlugins?.().map(plugin =>
@@ -465,7 +467,8 @@
     // A clock change needs one live evaluation, with no private project,
     // serialization or speculative renders. Samplers keep their cache path.
     if (plainTimeProject(viewport)) return fallback();
-    if (disposed || viewport.__zoidiumImmediateOutput || viewport.renderMode || !store.effectiveLimit ||
+    if (disposed || viewport.__zoidiumImmediateOutput || viewport.__zoidiumPlayerPlusExactEffects === true ||
+      viewport.renderMode || !store.effectiveLimit ||
       !viewport.options?.widget2dObjects) return fallback();
     const frame = viewport.editor.playback.currentFrame;
     if (!Number.isInteger(frame) || frame < 0) return fallback();
@@ -526,7 +529,7 @@
     const controller = viewport.__zoidiumOutputFrames;
     if (controller) shown(frame);
     if (disposed || debug.disabled || !store.effectiveLimit || !controller || viewport.renderMode ||
-      viewport.__zoidiumLivePreviewGrid ||
+      viewport.__zoidiumLivePreviewGrid || viewport.__zoidiumPlayerPlusExactEffects === true ||
       !Number.isInteger(frame) || frame < 0) return;
     const key = keyFor(controller);
     if (!key || key === LIVE || key !== controller.key || store.entries.has(entryKey(controller, frame))) return;
@@ -652,7 +655,8 @@
     const valid = () => !hidden() && visibility === visibilityEpoch && !disposed && !controller.disposed && !debug.disabled && controller.key === key &&
       editSignals.epoch === epoch && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
       !plainTimeProject(viewport) && viewport.editor.playback.speed === 0 &&
-      viewport.editor.playback.currentFrame === current && !viewport.renderMode && !viewport.__zoidiumLivePreviewGrid;
+      viewport.editor.playback.currentFrame === current && !viewport.renderMode && !viewport.__zoidiumLivePreviewGrid &&
+      viewport.__zoidiumPlayerPlusExactEffects !== true;
     if (videoPrefetchBlocked(viewport.editor.project.sequence, frame)) return false;
     const snapshot = snapshotFor(controller, key);
     const sequence = snapshot.project.sequence;
@@ -709,6 +713,7 @@
       controller.key === key && controller.generation === generation && editSignals.epoch === epoch &&
       viewport.editor.playback.speed === 0 && viewport.editor.playback.currentFrame === current &&
       !viewport.renderMode && !viewport.__zoidiumLivePreviewGrid && contextAvailable(viewport.renderer.context) && !!store.effectiveLimit &&
+      viewport.__zoidiumPlayerPlusExactEffects !== true &&
       cheapKey(viewport) === cheap;
     const policy = controller.videoJob = videoFrames.job(valid);
     const start = performance.now();
@@ -820,6 +825,7 @@
         continue;
       }
       if (controller.prefetching || controller.disposed || viewport.renderMode || viewport.__zoidiumLivePreviewGrid ||
+          viewport.__zoidiumPlayerPlusExactEffects === true ||
           viewport.editor.playback.speed !== 0) continue;
       // Draws that ran live left the key unvalidated; validate it now.
       if (currentKey(controller) === LIVE) {
