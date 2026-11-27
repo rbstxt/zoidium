@@ -18,6 +18,9 @@ const {
   Element,
   setup,
   pointer,
+  placeProxy,
+  nativeRowIndex,
+  scrollWindow,
   videoTrack,
   audioTrack,
   serialize,
@@ -89,7 +92,8 @@ test("rowRects ignores elements without a track object", () => {
   proxyRow.rectHeight = 40;
   container.appendChild(first);
   container.appendChild(proxyRow);
-  assert.deepEqual(rowRects(container), [{ top: 20, height: 40 }]);
+  assert.deepEqual(rowRects(container).map(row => ({ top: row.top, height: row.height })),
+    [{ top: 20, height: 40 }]);
 });
 
 // ---------------------------------------------------------------------------
@@ -473,6 +477,87 @@ test("a drag past the last audio row keeps the native new-row path", () => {
 
   dragContext.clipDragEnd({ type: "mouseup", altKey: false, shiftKey: false });
   assert.equal(tracks.createdTracks.length, 0);
+});
+
+test("a far outer edge drop never plans a second row", () => {
+  const { tracks, drag } = setup();
+  const neighbour = tracks.addClip(videoTrack(tracks, 2), "THYRO", 0, 100);
+  const color = tracks.addClip(videoTrack(tracks, 0), "COLOR", 10, 30);
+  const proxy = tracks.makeProxy(color);
+  const dragContext = drag([proxy]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  // The pointer is past the top row, and the proxy sits on that row where it
+  // overlaps the neighbour. A no-overwrite plan would insert a second row next
+  // to the one insertTrackProxies already creates.
+  placeProxy(tracks, proxy, 2, 10);
+  pointer(dragContext, -10);
+  assert.equal(dragContext[DRAG_STATE_KEY].candidate.native, true);
+
+  dragContext.clipDragEnd({ type: "mouseup", altKey: false, shiftKey: false });
+
+  assert.equal(tracks.createdTracks.length, 0, "the native path owns the new row");
+  assert.equal(tracks.trackProxyCalls.length, 1, "the native insert path still runs");
+  assert.equal(tracks.moveCalls.length, 1, "the move reaches the host directly");
+  assert.equal(neighbour.start, 0);
+  assert.equal(neighbour.length, 100);
+});
+
+test("holding Shift still inserts a track on a boundary", () => {
+  const { tracks, drag } = setup();
+  const clip = tracks.addClip(videoTrack(tracks, 0), "COLOR", 10, 30);
+  const dragContext = drag([tracks.makeProxy(clip)]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  pointer(dragContext, 78, { shiftKey: true });
+  assert.equal(dragContext[DRAG_STATE_KEY].candidate.index, 1, "the boundary line still shows");
+
+  dragContext.clipDragEnd({ type: "mouseup", altKey: false, shiftKey: true });
+
+  assert.equal(tracks.createdTracks.length, 1, "Shift keeps the boundary insert");
+  assert.equal(tracks.createdTracks[0].newTrackIdx, 1);
+  assert.equal(videoTrack(tracks, 1).clips[0], clip);
+});
+
+// ---------------------------------------------------------------------------
+// Coordinate space
+// ---------------------------------------------------------------------------
+
+test("a scrolled, offset, zoomed pointer picks the native row", () => {
+  const { tracks, drag, videoContainer } = setup({ scrollTop: 40, scrollLeft: 12, offset: 120, zoom: 2 });
+  const clip = tracks.addClip(videoTrack(tracks, 1), "COLOR", 10, 30);
+  const dragContext = drag([tracks.makeProxy(clip)]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+
+  // Row 1 spans content 40..80 and client 120..160.
+  pointer(dragContext, 140);
+  const state = dragContext[DRAG_STATE_KEY];
+  assert.equal(nativeRowIndex(videoContainer, 0, dragContext.currentPt.y), 1);
+  assert.equal(state.candidate, null, "the row middle is not a boundary");
+
+  pointer(dragContext, 120);
+  assert.equal(nativeRowIndex(videoContainer, 0, dragContext.currentPt.y), 2);
+  assert.equal(state.candidate.index, 2, "the boundary above native row 2");
+  assert.equal(state.candidate.type, 0);
+});
+
+test("a window scroll during the drag keeps the native boundary", () => {
+  const { tracks, drag, videoContainer } = setup();
+  const clip = tracks.addClip(videoTrack(tracks, 1), "COLOR", 10, 30);
+  const dragContext = drag([tracks.makeProxy(clip)]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  pointer(dragContext, 40);
+  assert.equal(dragContext[DRAG_STATE_KEY].candidate.index, 2);
+
+  // The window scrolls by 20 without a new drag start: the client rects move,
+  // the drag origin does not. Native uses the drag-relative y, so the same
+  // page position still selects the same boundary.
+  scrollWindow(tracks, 20);
+  pointer(dragContext, 40);
+  assert.equal(nativeRowIndex(videoContainer, 0, dragContext.currentPt.y), 2);
+  assert.equal(dragContext[DRAG_STATE_KEY].candidate.index, 2);
 });
 
 // ---------------------------------------------------------------------------

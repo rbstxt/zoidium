@@ -31,10 +31,12 @@
     );
   }
 
-  // rows are the real track rows of one container in array order. The shared
-  // edge of two abutting rows is their midpoint, so this works for video rows
-  // (index 0 at the bottom) and audio rows (index 0 at the top). growsUp marks
-  // the video order, where the last row is the top one.
+  // rows are the real track rows of one container in array order, with the
+  // content position the native row detection reads (style.top/style.height)
+  // and the client rect used to draw the line. The shared edge of two abutting
+  // rows is their midpoint, so this works for video rows (index 0 at the
+  // bottom) and audio rows (index 0 at the top). growsUp marks the video order,
+  // where the last row is the top one.
   //
   // The outer edge of the first row is always a boundary (index 0). The outer
   // edge of the last row is reported as a native boundary: the native
@@ -43,11 +45,11 @@
   function findBoundary(rows, y, growsUp) {
     if (!Array.isArray(rows) || rows.length === 0 || !Number.isFinite(y)) return null;
     let best = null;
-    const consider = (index, edge, height, outer, native) => {
+    const consider = (index, edge, height, rowIndex, side, outer, native) => {
       const distance = Math.abs(y - edge);
       if (distance > boundaryTolerance(height)) return;
       if (!best || distance < best.distance) {
-        best = { index, edge, distance, rowHeight: height, outer, native };
+        best = { index, edge, distance, rowHeight: height, rowIndex, side, outer, native };
       }
     };
     for (let index = 0; index < rows.length - 1; index += 1) {
@@ -58,22 +60,29 @@
           !Number.isFinite(next.top) || !Number.isFinite(next.height)) continue;
       const edge = (current.top + current.height + next.top) / 2;
       const height = Math.min(current.height, next.height);
-      consider(index + 1, edge, height, false, false);
+      consider(index + 1, edge, height, index, growsUp === false ? "bottom" : "top", false, false);
     }
     const first = rows[0];
     if (first && Number.isFinite(first.top) && Number.isFinite(first.height)) {
       const edge = growsUp === false ? first.top : first.top + first.height;
-      consider(0, edge, first.height, true, false);
+      consider(0, edge, first.height, 0, growsUp === false ? "top" : "bottom", true, false);
     }
     const last = rows[rows.length - 1];
     if (last && Number.isFinite(last.top) && Number.isFinite(last.height)) {
       const edge = growsUp === false ? last.top + last.height : last.top;
       const beyond = growsUp === false ? y > edge : y < edge;
-      if (beyond) consider(rows.length, edge, last.height, true, true);
+      if (beyond) {
+        consider(rows.length, edge, last.height, rows.length - 1,
+          growsUp === false ? "bottom" : "top", true, true);
+      }
     }
     return best;
   }
 
+  // Content rows plus the client rect of each row. The native drag detects the
+  // row under the pointer from style.top/style.height and the container
+  // scrollTop, so the boundary must use the same space. The client rect only
+  // positions the line.
   function rowRects(container) {
     const rows = [];
     if (!container || !container.children) return rows;
@@ -83,7 +92,15 @@
       const rect = typeof element.getBoundingClientRect === "function"
         ? element.getBoundingClientRect() : null;
       if (!rect || !Number.isFinite(rect.top) || !Number.isFinite(rect.height) || rect.height <= 0) continue;
-      rows.push({ top: rect.top, height: rect.height });
+      const style = element.style || {};
+      const top = parseFloat(style.top);
+      const height = parseFloat(style.height);
+      rows.push({
+        top: Number.isFinite(top) ? top : rect.top,
+        height: Number.isFinite(height) && height > 0 ? height : rect.height,
+        clientTop: rect.top,
+        clientHeight: rect.height,
+      });
     }
     return rows;
   }
@@ -97,13 +114,23 @@
     return false;
   }
 
+  // The pointer position in the container's content space, exactly as the
+  // native clipDragUpdate row detection computes it: the drag-relative y plus
+  // the container scrollTop (video), or minus the container's own offset
+  // (audio). The window scroll and the client rects are not part of it.
+  function pointerContentY(dragCtx, type, container) {
+    const point = dragCtx && dragCtx.currentPt;
+    const value = Number(point && point.y);
+    if (!Number.isFinite(value)) return null;
+    const scrollTop = Number(container && container.scrollTop) || 0;
+    if (type === 0) return value + scrollTop;
+    const offset = parseFloat(container && container.style && container.style.top);
+    return value - (Number.isFinite(offset) ? offset : 0) + scrollTop;
+  }
+
   function boundaryUnderPointer(dragCtx) {
     const tracks = dragCtx && dragCtx.ctx;
-    const origin = dragCtx && dragCtx.origin;
-    const point = dragCtx && dragCtx.currentPt;
-    if (!tracks || !origin || !point) return null;
-    const viewportY = Number(origin.y) + Number(point.y);
-    if (!Number.isFinite(viewportY)) return null;
+    if (!tracks) return null;
     const kinds = [
       { type: 0, container: tracks.videoContainer },
       { type: 1, container: tracks.audioContainer },
@@ -112,15 +139,19 @@
     for (const kind of kinds) {
       if (!hasProxyOfType(dragCtx, kind.type)) continue;
       const container = kind.container;
-      if (!container || !container.children || typeof container.getBoundingClientRect !== "function") continue;
-      const rect = container.getBoundingClientRect();
-      if (!rect || !Number.isFinite(rect.top) || !Number.isFinite(rect.height)) continue;
-      const hit = findBoundary(rowRects(container), viewportY, kind.type === 0);
+      if (!container || !container.children) continue;
+      const rows = rowRects(container);
+      if (rows.length === 0) continue;
+      const y = pointerContentY(dragCtx, kind.type, container);
+      if (y === null) continue;
+      const hit = findBoundary(rows, y, kind.type === 0);
       if (!hit) continue;
-      const inside = viewportY >= rect.top && viewportY <= rect.top + rect.height;
-      if (!inside && !hit.outer) continue;
+      const row = rows[hit.rowIndex];
+      if (!row) continue;
+      const edge = hit.side === "top" ? row.clientTop : row.clientTop + row.clientHeight;
+      if (!Number.isFinite(edge)) continue;
       if (!best || hit.distance < best.distance) {
-        best = { type: kind.type, index: hit.index, edge: hit.edge, container, outer: hit.outer, native: hit.native };
+        best = { type: kind.type, index: hit.index, edge, container, outer: hit.outer, native: hit.native };
       }
     }
     return best;
@@ -438,6 +469,37 @@
     clearCandidate(dragCtx, state);
   }
 
+  // The line follows Shift while the pointer is still, so the feedback matches
+  // the drop that will happen. The native drag reads Shift only on the move
+  // and end events, so the state is updated from the key events too.
+  function attachKeyFeedback(dragCtx) {
+    const state = dragCtx && dragCtx[DRAG_STATE_KEY];
+    const root = dragCtx && dragCtx.ctx && dragCtx.ctx.el;
+    const doc = state && (state.document || (root && root.ownerDocument));
+    if (!state || !doc || typeof doc.addEventListener !== "function") return;
+    const handler = event => {
+      const current = dragCtx[DRAG_STATE_KEY];
+      if (!current || !event || typeof event.shiftKey !== "boolean") return;
+      current.shiftKey = event.shiftKey;
+      updateIndicator(dragCtx);
+    };
+    state.keyHandler = handler;
+    state.keyDocument = doc;
+    doc.addEventListener("keydown", handler);
+    doc.addEventListener("keyup", handler);
+  }
+
+  function detachKeyFeedback(state) {
+    if (!state || !state.keyHandler || !state.keyDocument) return;
+    const doc = state.keyDocument;
+    if (typeof doc.removeEventListener === "function") {
+      doc.removeEventListener("keydown", state.keyHandler);
+      doc.removeEventListener("keyup", state.keyHandler);
+    }
+    state.keyHandler = null;
+    state.keyDocument = null;
+  }
+
   function isCancelEvent(event) {
     return Boolean(event) && typeof event.type === "string" &&
       event.type.startsWith("key") && event.key === "Escape";
@@ -483,7 +545,9 @@
       if (result === false) {
         removeLine(state);
         delete this[DRAG_STATE_KEY];
+        return result;
       }
+      attachKeyFeedback(this);
       return result;
     };
 
@@ -509,6 +573,7 @@
       if (isCancelEvent(event)) {
         clearCandidate(dragCtx, state);
         removeLine(state);
+        detachKeyFeedback(state);
         const proxies = dragCtx.clip_proxies || [];
         for (const proxy of proxies) {
           if (proxy && typeof proxy.remove === "function") proxy.remove();
@@ -524,10 +589,11 @@
       const moved = dragCtx.moved === true;
       const candidate = state && !altKey && moved ? state.candidate : null;
       const drop = state && !altKey && moved ? {
-        // A native outer edge is created by insertTrackProxies; publishing it
-        // here would insert a second row.
-        boundary: candidate && !candidate.native
-          ? { type: candidate.type, index: candidate.index } : null,
+        // A native outer edge is created by insertTrackProxies. Carry the flag
+        // so the move wrapper takes the original path and never plans a second
+        // row there.
+        boundary: candidate ? { type: candidate.type, index: candidate.index } : null,
+        native: Boolean(candidate && candidate.native),
         overwrite: Boolean(event && event.shiftKey),
       } : null;
       if (drop && tracks) tracks[DROP_STATE_KEY] = drop;
@@ -538,6 +604,7 @@
         if (state) {
           state.candidate = null;
           removeLine(state);
+          detachKeyFeedback(state);
         }
         setProxiesHidden(dragCtx, false);
         delete dragCtx[DRAG_STATE_KEY];
@@ -549,6 +616,7 @@
       if (!active) return originalMove.apply(this, arguments);
       if (this[DROP_STATE_KEY]) delete this[DROP_STATE_KEY];
       if (createOnly) return originalMove.apply(this, arguments);
+      if (active.native) return originalMove.apply(this, arguments);
       if (active.boundary) {
         const plan = planBoundaryInsert(this, proxies, active.boundary.type, active.boundary.index, isLocked);
         if (plan) return applyBoundaryInsert(this, plan, movedRight);
@@ -577,6 +645,7 @@
       findBoundary,
       rowRects,
       boundaryUnderPointer,
+      pointerContentY,
       planBoundaryInsert,
       applyBoundaryInsert,
       proxyFrameRange,

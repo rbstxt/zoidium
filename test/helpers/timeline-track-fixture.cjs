@@ -98,29 +98,107 @@ const VIDEO_TOP = 0;
 const AUDIO_TOP = 200;
 const ROW_HEIGHT = 40;
 
-function proxyFrameStart(proxy) {
+function createDocument() {
+  const listeners = new Map();
+  return {
+    createElement: tag => new Element(tag),
+    addEventListener(type, handler) {
+      if (!listeners.has(type)) listeners.set(type, []);
+      listeners.get(type).push(handler);
+    },
+    removeEventListener(type, handler) {
+      const list = listeners.get(type);
+      if (!list) return;
+      const index = list.indexOf(handler);
+      if (index >= 0) list.splice(index, 1);
+    },
+    dispatch(type, event) {
+      const list = listeners.get(type);
+      if (!list) return;
+      for (const handler of Array.from(list)) handler(event);
+    },
+    listenerCount(type) {
+      const list = listeners.get(type);
+      return list ? list.length : 0;
+    },
+  };
+}
+
+function proxyFrameRange(proxy, timeline) {
+  const toFrame = timeline && typeof timeline.pxToFrame === "function" ? timeline.pxToFrame : value => value;
   const left = parseFloat(proxy.style && proxy.style.left);
-  return Number.isFinite(left) ? left : proxy.start;
+  const width = parseFloat(proxy.style && proxy.style.width);
+  const start = Number.isFinite(left) ? toFrame(left) : Number(proxy.start);
+  const length = Number.isFinite(width)
+    ? toFrame(width)
+    : Number(proxy.pz_object && proxy.pz_object.length);
+  return { start: Math.round(start), length: Math.round(length) };
+}
+
+// The cached native clipDragUpdate row detection, so a test can compare the
+// module's boundary choice with the row the clips will land on.
+function nativeRowIndex(container, type, pointerY) {
+  if (!container || !container.children || !Number.isFinite(Number(pointerY))) return null;
+  const scrollTop = Number(container.scrollTop) || 0;
+  if (type === 0) {
+    const e = Number(pointerY) + scrollTop;
+    let index = 1;
+    for (; index < container.children.length; index += 1) {
+      const child = container.children[index];
+      const top = parseFloat(child && child.style && child.style.top);
+      const height = parseFloat(child && child.style && child.style.height);
+      if (!Number.isFinite(top) || !Number.isFinite(height)) break;
+      if (e > top + height) break;
+    }
+    return index - 1;
+  }
+  const e = Number(pointerY) - (parseFloat(container.style && container.style.top) || 0) + scrollTop;
+  let index = 1;
+  for (; index < container.children.length; index += 1) {
+    const child = container.children[index];
+    const top = parseFloat(child && child.style && child.style.top);
+    if (!Number.isFinite(top)) break;
+    if (e < top) break;
+  }
+  return index - 1;
+}
+
+// A window scroll during the drag moves the client rects but not the content
+// positions or the drag origin, as in the browser.
+function scrollWindow(tracks, delta) {
+  tracks.el.rectTop -= delta;
+  tracks.videoContainer.rectTop -= delta;
+  tracks.audioContainer.rectTop -= delta;
+  tracks.layout();
 }
 
 function setup(options = {}) {
   const videoCount = options.videoCount ?? 3;
   const audioCount = options.audioCount ?? 2;
-  const document = { createElement: tag => new Element(tag) };
+  const zoom = options.zoom ?? 1;
+  const offset = options.offset ?? 0;
+  const scrollTop = options.scrollTop ?? 0;
+  const scrollLeft = options.scrollLeft ?? 0;
+  const document = createDocument();
   const history = createHistory();
 
   const videoContainer = new Element("div");
-  videoContainer.rectTop = VIDEO_TOP;
+  videoContainer.rectTop = offset + VIDEO_TOP;
   videoContainer.rectHeight = videoCount * ROW_HEIGHT;
   videoContainer.rectLeft = 200;
   videoContainer.rectWidth = 600;
+  videoContainer.scrollTop = scrollTop;
+  videoContainer.scrollLeft = scrollLeft;
   const audioContainer = new Element("div");
-  audioContainer.rectTop = AUDIO_TOP;
+  audioContainer.rectTop = offset + AUDIO_TOP;
   audioContainer.rectHeight = audioCount * ROW_HEIGHT;
   audioContainer.rectLeft = 200;
   audioContainer.rectWidth = 600;
+  audioContainer.scrollTop = scrollTop;
+  audioContainer.scrollLeft = scrollLeft;
+  audioContainer.style.top = String(AUDIO_TOP);
   const root = new Element("div");
-  root.rectTop = 0;
+  root.rectTop = offset;
   root.rectHeight = 480;
 
   const sequence = {
@@ -137,12 +215,20 @@ function setup(options = {}) {
       return type === 0 ? this.videoContainer : this.audioContainer;
     }
     layout() {
+      const videoScroll = Number(this.videoContainer.scrollTop) || 0;
+      const audioScroll = Number(this.audioContainer.scrollTop) || 0;
       this.timeline.sequence.videoTracks.forEach((track, index) => {
-        track.element.rectTop = VIDEO_TOP + (this.timeline.sequence.videoTracks.length - 1 - index) * ROW_HEIGHT;
+        const contentTop = (this.timeline.sequence.videoTracks.length - 1 - index) * ROW_HEIGHT;
+        track.element.style.top = contentTop + "px";
+        track.element.style.height = ROW_HEIGHT + "px";
+        track.element.rectTop = this.videoContainer.rectTop + contentTop - videoScroll;
         track.element.rectHeight = ROW_HEIGHT;
       });
       this.timeline.sequence.audioTracks.forEach((track, index) => {
-        track.element.rectTop = AUDIO_TOP + index * ROW_HEIGHT;
+        const contentTop = index * ROW_HEIGHT;
+        track.element.style.top = contentTop + "px";
+        track.element.style.height = ROW_HEIGHT + "px";
+        track.element.rectTop = this.audioContainer.rectTop + contentTop - audioScroll;
         track.element.rectHeight = ROW_HEIGHT;
       });
     }
@@ -171,8 +257,8 @@ function setup(options = {}) {
       proxy.pz_start = clip.start;
       proxy.pz_length = clip.length;
       proxy.start = start === undefined ? clip.start : start;
-      proxy.style.left = String(proxy.start);
-      proxy.style.width = String(clip.length);
+      proxy.style.left = String(this.timeline.frameToPx(proxy.start));
+      proxy.style.width = String(this.timeline.frameToPx(clip.length));
       clip.track.element.appendChild(proxy);
       return proxy;
     }
@@ -263,7 +349,8 @@ function setup(options = {}) {
         const destIndex = container.children.indexOf(proxy.parentElement);
         const sourceTrack = this.tracksFor(type)[sourceIndex];
         const destTrack = this.tracksFor(type)[destIndex];
-        const start = proxyFrameStart(proxy);
+        const range = proxyFrameRange(proxy, this.timeline);
+        const start = range.start;
         const draggedClip = proxy.pz_clip.pz_object;
         const oldIdx = sourceTrack.clips.indexOf(draggedClip);
         let newIdx = 0;
@@ -274,7 +361,7 @@ function setup(options = {}) {
         }
         this.moveClip({
           type, oldTrackIdx: sourceIndex, oldIdx, newTrackIdx: destIndex, newIdx,
-          start, length: proxy.pz_object.length,
+          start, length: range.length,
         });
       }
       if (movedRight) ordered.reverse();
@@ -290,8 +377,8 @@ function setup(options = {}) {
     editor: { history },
     sequence,
     updateZoom() { tracks.zoomUpdates += 1; },
-    frameToPx: frames => frames,
-    pxToFrame: px => Math.round(px),
+    frameToPx: frames => frames * zoom,
+    pxToFrame: px => Math.round(px / zoom),
   };
   tracks.createdTracks = [];
   tracks.deletedTracks = [];
@@ -319,7 +406,7 @@ function setup(options = {}) {
     const dragContext = Object.create(Tracks.prototype);
     Object.assign(dragContext, {
       ctx: tracks,
-      origin: { x: 0, y: 0 },
+      origin: { x: 0, y: root.rectTop },
       currentPt: { x: 0, y: 0 },
       clip_proxies: proxies,
       track_proxies: [],
@@ -344,8 +431,8 @@ function placeProxy(tracks, proxy, destIndex, start) {
   assert.ok(row, "the destination row exists");
   proxy.remove();
   row.appendChild(proxy);
-  proxy.style.left = String(start);
-  proxy.style.width = String(proxy.pz_object.length);
+  proxy.style.left = String(tracks.timeline.frameToPx(start));
+  proxy.style.width = String(tracks.timeline.frameToPx(proxy.pz_object.length));
   return proxy;
 }
 
@@ -418,12 +505,15 @@ function load(project) {
 module.exports = {
   Element,
   createHistory,
+  createDocument,
   VIDEO_TOP,
   AUDIO_TOP,
   ROW_HEIGHT,
   setup,
   pointer,
   placeProxy,
+  nativeRowIndex,
+  scrollWindow,
   videoTrack,
   audioTrack,
   serialize,

@@ -248,6 +248,66 @@ test("holding Shift keeps the native overwrite on a row drop", () => {
   assert.equal(videoTrack(tracks, 1).clips.includes(color), true, "the clip uses the native row drop");
 });
 
+test("a zoomed drop reads the frame range through pxToFrame", () => {
+  // 0.5 zoom: frame 60 is 30 px. A px-only read of 30..45 would overlap the
+  // neighbour 0..40; the frames 60..90 do not.
+  const { tracks, drag } = setup({ zoom: 0.5 });
+  tracks.addClip(videoTrack(tracks, 1), "THYRO", 0, 40);
+  const color = tracks.addClip(videoTrack(tracks, 0), "COLOR", 60, 30);
+  const proxy = tracks.makeProxy(color);
+  const dragContext = drag([proxy]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  placeProxy(tracks, proxy, 1, 60);
+  pointer(dragContext, 60);
+  dragContext.clipDragEnd({ type: "mouseup", altKey: false, shiftKey: false });
+
+  assert.equal(tracks.createdTracks.length, 0, "the frame ranges do not overlap");
+  assert.equal(videoTrack(tracks, 1).clips.includes(color), true);
+  assert.equal(color.start, 60);
+});
+
+test("the insertion line follows Shift without a mouse move", () => {
+  const { tracks, drag, document } = setup();
+  tracks.addClip(videoTrack(tracks, 1), "THYRO", 0, 100);
+  const color = tracks.addClip(videoTrack(tracks, 0), "COLOR", 10, 30);
+  const proxy = tracks.makeProxy(color);
+  const dragContext = drag([proxy]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  placeProxy(tracks, proxy, 1, 10);
+  pointer(dragContext, 60);
+
+  const state = dragContext[DRAG_STATE_KEY];
+  assert.equal(state.line.style.display, "", "the overlap line shows");
+  assert.equal(document.listenerCount("keydown"), 1);
+
+  document.dispatch("keydown", { type: "keydown", key: "Shift", shiftKey: true });
+  assert.equal(state.shiftKey, true);
+  assert.equal(state.line.style.display, "none", "Shift hides the line");
+
+  document.dispatch("keyup", { type: "keyup", key: "Shift", shiftKey: false });
+  assert.equal(state.shiftKey, false);
+  assert.equal(state.line.style.display, "", "releasing Shift shows it again");
+
+  dragContext.clipDragEnd({ type: "mouseup", altKey: false, shiftKey: false });
+  assert.equal(document.listenerCount("keydown"), 0, "the listeners are removed on end");
+  assert.equal(document.listenerCount("keyup"), 0);
+});
+
+test("Escape removes the drag key listeners", () => {
+  const { tracks, drag, document } = setup();
+  const color = tracks.addClip(videoTrack(tracks, 0), "COLOR", 10, 30);
+  const proxy = tracks.makeProxy(color);
+  const dragContext = drag([proxy]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  assert.equal(document.listenerCount("keydown"), 1);
+  dragContext.clipDragEnd({ type: "keydown", key: "Escape", altKey: false, shiftKey: false });
+  assert.equal(document.listenerCount("keydown"), 0);
+  assert.equal(document.listenerCount("keyup"), 0);
+});
+
 test("Escape cancels an overlapping row drop and changes nothing", () => {
   const { tracks, drag, history } = setup();
   const thyro = tracks.addClip(videoTrack(tracks, 1), "THYRO", 0, 100);
