@@ -5,7 +5,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 
-const { planBoundaryInsert, applyBoundaryInsert } = require("../plugins/core/timeline-track-insert");
+const { planBoundaryInsert, applyBoundaryInsert, planNoOverwrite, applyNoOverwrite } =
+  require("../plugins/core/timeline-track-insert");
 const { host, fixture } = require("./helpers/editor-identity-host.cjs");
 
 const root = path.resolve(__dirname, "..");
@@ -145,6 +146,22 @@ function setup() {
   return { PZ, sequence, tracks, history, color, thyro, proxy, first, second, third, trackElements, videoContainer };
 }
 
+// The real createTrack only splices the sequence; the timeline UI inserts the
+// row element from its trackCreated handler. Emulate that so the following
+// moveClipProxies call sees the same DOM the browser builds.
+function installTrackCreated(tracks, sequence, videoContainer) {
+  const createTrack = tracks.createTrack;
+  tracks.createTrack = function (command) {
+    createTrack.call(this, command);
+    const list = command.type === 0 ? sequence.videoTracks : sequence.audioTracks;
+    const container = command.type === 0 ? videoContainer : tracks.audioContainer;
+    const node = element("new row");
+    node.pz_object = list[command.newTrackIdx];
+    container.children.splice(command.newTrackIdx, 0, node);
+    node.parentElement = container;
+  };
+}
+
 test("the real moveClipProxies moves the clip into the inserted empty row", { skip }, () => {
   const { sequence, tracks, history, color, thyro, proxy, first, second } = setup();
 
@@ -188,4 +205,72 @@ test("the real createTrack inverse restores the row and the clip", { skip }, () 
   assert.equal(sequence.videoTracks[1].clips[0], color, "redo moves the clip again");
   assert.equal(sequence.videoTracks[0].clips.length, 0);
   assert.equal(sequence.videoTracks[2].clips[0], thyro);
+});
+
+test("the real moveClipProxies leaves a neighbour untouched on an overlapping row drop", { skip }, () => {
+  const { sequence, tracks, history, color, thyro, proxy, trackElements, videoContainer } = setup();
+  installTrackCreated(tracks, sequence, videoContainer);
+
+  // The native drag has moved the proxy onto V2 at the dropped time, where it
+  // overlaps the neighbour clip THYRO 0..100.
+  proxy.remove();
+  trackElements[1].appendChild(proxy);
+  proxy.style.left = "10px";
+  proxy.style.width = "30px";
+
+  const plan = planNoOverwrite(tracks, [proxy], undefined);
+  assert.ok(plan, "the overlap produces a plan");
+  assert.deepEqual(plan.entries.map(entry => [entry.type, entry.destIndex]), [[0, 1]]);
+
+  history.startOperation();
+  applyNoOverwrite(tracks, plan, [proxy], false);
+  history.finishOperation();
+
+  assert.equal(sequence.videoTracks.length, 4);
+  assert.equal(sequence.videoTracks[2].clips[0], color, "the clip lands on the new row");
+  assert.equal(color.start, 10, "the dragged time survives");
+  assert.equal(sequence.videoTracks[1].clips[0], thyro, "the neighbour keeps its clip");
+  assert.equal(thyro.start, 0, "the neighbour keeps its start");
+  assert.equal(thyro.length, 100, "the neighbour is not trimmed");
+  assert.equal(history.undoStack.length, 1, "the row and the move are one operation");
+});
+
+test("one undo reverts an overlapping row drop and redo repeats it", { skip }, () => {
+  const { sequence, tracks, history, color, thyro, proxy, trackElements, videoContainer } = setup();
+  installTrackCreated(tracks, sequence, videoContainer);
+  proxy.remove();
+  trackElements[1].appendChild(proxy);
+  proxy.style.left = "10px";
+  proxy.style.width = "30px";
+
+  const plan = planNoOverwrite(tracks, [proxy], undefined);
+  history.startOperation();
+  applyNoOverwrite(tracks, plan, [proxy], false);
+  history.finishOperation();
+  assert.equal(sequence.videoTracks.length, 4);
+
+  assert.equal(history.undo(), true);
+  assert.equal(sequence.videoTracks.length, 3, "undo removes the new row");
+  assert.equal(sequence.videoTracks[0].clips[0], color, "the clip returns to V1");
+  assert.equal(sequence.videoTracks[0].clips[0].start, 10);
+  assert.equal(sequence.videoTracks[1].clips[0], thyro);
+  assert.equal(thyro.length, 100);
+
+  assert.equal(history.redo(), true);
+  assert.equal(sequence.videoTracks.length, 4, "redo recreates the row");
+  assert.equal(sequence.videoTracks[2].clips[0], color);
+  assert.equal(sequence.videoTracks[1].clips[0], thyro);
+  assert.equal(thyro.length, 100);
+});
+
+test("the plan leaves a row drop onto empty space alone", { skip }, () => {
+  const { sequence, tracks, proxy, trackElements } = setup();
+  installTrackCreated(tracks, sequence, trackElements[0].parentElement);
+  proxy.remove();
+  trackElements[2].appendChild(proxy);
+  proxy.style.left = "10px";
+  proxy.style.width = "30px";
+
+  assert.equal(planNoOverwrite(tracks, [proxy], undefined), null);
+  assert.equal(sequence.videoTracks.length, 3);
 });

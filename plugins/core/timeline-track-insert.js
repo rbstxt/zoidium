@@ -3,31 +3,53 @@
 
   // Dropping a clip on the boundary between two rows inserts an empty track
   // there and moves the dragged clips onto it inside the drag's existing
-  // history operation. Ordinary row drops keep the native overwrite path.
+  // history operation. A drop on the middle of a row that would trim or delete
+  // another clip does the same, one row above the destination, instead of
+  // overwriting. Every other row drop keeps the native move path.
   //
   // Everything below is one gesture: clipDragStart creates the per-drag state,
-  // clipDragUpdate measures the pointer against the row edges, clipDragEnd
-  // publishes the chosen boundary, and the moveClipProxies wrapper performs
-  // the insert before delegating the actual clip moves to the host.
+  // clipDragUpdate measures the pointer against the row edges and the
+  // destination rows, clipDragEnd publishes the chosen drop, and the
+  // moveClipProxies wrapper performs the insert before delegating the actual
+  // clip moves to the host.
 
   const PATCH_MARKER = "__zoidiumTimelineTrackInsertPatch";
   const DRAG_STATE_KEY = "__zoidiumTrackInsertDrag";
   const DROP_STATE_KEY = "__zoidiumTrackInsertDrop";
   const LINE_CLASS = "zoidium-track-insert-line";
-  const BOUNDARY_TOLERANCE_PX = 4;
-  const BOUNDARY_TOLERANCE_RATIO = 0.25;
+  const BOUNDARY_TOLERANCE_PX = 6;
+  const BOUNDARY_TOLERANCE_RATIO = 0.3;
+  const BOUNDARY_TOLERANCE_MAX_RATIO = 0.45;
 
+  // max(6 px, 30% of the shorter row), capped at 45% so the middle of every
+  // row still places a clip on that row.
   function boundaryTolerance(rowHeight) {
     if (!Number.isFinite(rowHeight) || rowHeight <= 0) return 0;
-    return Math.min(BOUNDARY_TOLERANCE_PX, rowHeight * BOUNDARY_TOLERANCE_RATIO);
+    return Math.min(
+      Math.max(BOUNDARY_TOLERANCE_PX, rowHeight * BOUNDARY_TOLERANCE_RATIO),
+      rowHeight * BOUNDARY_TOLERANCE_MAX_RATIO,
+    );
   }
 
   // rows are the real track rows of one container in array order. The shared
   // edge of two abutting rows is their midpoint, so this works for video rows
-  // (index 0 at the bottom) and audio rows (index 0 at the top).
-  function findBoundary(rows, y) {
-    if (!Array.isArray(rows) || rows.length < 2 || !Number.isFinite(y)) return null;
+  // (index 0 at the bottom) and audio rows (index 0 at the top). growsUp marks
+  // the video order, where the last row is the top one.
+  //
+  // The outer edge of the first row is always a boundary (index 0). The outer
+  // edge of the last row is reported as a native boundary: the native
+  // insertTrackProxies path already creates that row, so the module must only
+  // show the line there.
+  function findBoundary(rows, y, growsUp) {
+    if (!Array.isArray(rows) || rows.length === 0 || !Number.isFinite(y)) return null;
     let best = null;
+    const consider = (index, edge, height, outer, native) => {
+      const distance = Math.abs(y - edge);
+      if (distance > boundaryTolerance(height)) return;
+      if (!best || distance < best.distance) {
+        best = { index, edge, distance, rowHeight: height, outer, native };
+      }
+    };
     for (let index = 0; index < rows.length - 1; index += 1) {
       const current = rows[index];
       const next = rows[index + 1];
@@ -36,11 +58,18 @@
           !Number.isFinite(next.top) || !Number.isFinite(next.height)) continue;
       const edge = (current.top + current.height + next.top) / 2;
       const height = Math.min(current.height, next.height);
-      const distance = Math.abs(y - edge);
-      if (distance > boundaryTolerance(height)) continue;
-      if (!best || distance < best.distance) {
-        best = { index: index + 1, edge, distance, rowHeight: height };
-      }
+      consider(index + 1, edge, height, false, false);
+    }
+    const first = rows[0];
+    if (first && Number.isFinite(first.top) && Number.isFinite(first.height)) {
+      const edge = growsUp === false ? first.top : first.top + first.height;
+      consider(0, edge, first.height, true, false);
+    }
+    const last = rows[rows.length - 1];
+    if (last && Number.isFinite(last.top) && Number.isFinite(last.height)) {
+      const edge = growsUp === false ? last.top + last.height : last.top;
+      const beyond = growsUp === false ? y > edge : y < edge;
+      if (beyond) consider(rows.length, edge, last.height, true, true);
     }
     return best;
   }
@@ -59,6 +88,15 @@
     return rows;
   }
 
+  function hasProxyOfType(dragCtx, type) {
+    const proxies = dragCtx && dragCtx.clip_proxies;
+    if (!proxies || typeof proxies.length !== "number") return false;
+    for (let index = 0; index < proxies.length; index += 1) {
+      if (Number(proxies[index] && proxies[index].pz_type) === type) return true;
+    }
+    return false;
+  }
+
   function boundaryUnderPointer(dragCtx) {
     const tracks = dragCtx && dragCtx.ctx;
     const origin = dragCtx && dragCtx.origin;
@@ -70,26 +108,22 @@
       { type: 0, container: tracks.videoContainer },
       { type: 1, container: tracks.audioContainer },
     ];
+    let best = null;
     for (const kind of kinds) {
+      if (!hasProxyOfType(dragCtx, kind.type)) continue;
       const container = kind.container;
       if (!container || !container.children || typeof container.getBoundingClientRect !== "function") continue;
       const rect = container.getBoundingClientRect();
       if (!rect || !Number.isFinite(rect.top) || !Number.isFinite(rect.height)) continue;
-      if (viewportY < rect.top || viewportY > rect.top + rect.height) continue;
-      const hit = findBoundary(rowRects(container), viewportY);
+      const hit = findBoundary(rowRects(container), viewportY, kind.type === 0);
       if (!hit) continue;
-      return { type: kind.type, index: hit.index, edge: hit.edge, container };
+      const inside = viewportY >= rect.top && viewportY <= rect.top + rect.height;
+      if (!inside && !hit.outer) continue;
+      if (!best || hit.distance < best.distance) {
+        best = { type: kind.type, index: hit.index, edge: hit.edge, container, outer: hit.outer, native: hit.native };
+      }
     }
-    return null;
-  }
-
-  function hasProxyOfType(dragCtx, type) {
-    const proxies = dragCtx && dragCtx.clip_proxies;
-    if (!proxies || typeof proxies.length !== "number") return false;
-    for (let index = 0; index < proxies.length; index += 1) {
-      if (Number(proxies[index] && proxies[index].pz_type) === type) return true;
-    }
-    return false;
+    return best;
   }
 
   function trackCountOf(container) {
@@ -134,10 +168,12 @@
     }
     if (groups.length === 0) return null;
     const trackCount = trackCountOf(container);
-    if (trackCount < 2) return null;
+    if (trackCount < 1) return null;
 
     groups.sort((left, right) => left.sourceIndex - right.sourceIndex);
-    const base = Math.max(1, Math.min(Math.trunc(dropIndex), trackCount - 1));
+    // 0 and trackCount are the outer edges of the container and are valid
+    // createTrack indices.
+    const base = Math.max(0, Math.min(Math.trunc(dropIndex), trackCount));
     const entries = groups.map((group, position) => ({
       sourceIndex: group.sourceIndex,
       newIndex: base + position,
@@ -164,6 +200,139 @@
       for (const proxy of entry.proxies) target.appendChild(proxy);
     }
     tracks.moveClipProxies(plan.proxies, false, Boolean(movedRight));
+    return true;
+  }
+
+  // The dropped frame range of a proxy, read the way the native
+  // moveClipProxies reads it. The pz_start fallback only serves hosts that do
+  // not style the proxy.
+  function proxyFrameRange(proxy, timeline) {
+    if (!proxy) return null;
+    const style = proxy.style || {};
+    const toFrame = timeline && typeof timeline.pxToFrame === "function"
+      ? timeline.pxToFrame : value => value;
+    let start = parseFloat(style.left);
+    let length = parseFloat(style.width);
+    if (Number.isFinite(start)) start = toFrame(start);
+    if (Number.isFinite(length)) length = toFrame(length);
+    if (!Number.isFinite(start)) {
+      start = Number(proxy.start !== undefined ? proxy.start : proxy.pz_start);
+    }
+    if (!Number.isFinite(length)) {
+      length = Number(proxy.pz_length !== undefined
+        ? proxy.pz_length : proxy.pz_object && proxy.pz_object.length);
+    }
+    if (!Number.isFinite(start) || !Number.isFinite(length)) return null;
+    return { start: Math.round(start), length: Math.round(length) };
+  }
+
+  // Touching end to start is not an overlap.
+  function rangesOverlap(left, right) {
+    return left.start < right.start + right.length && right.start < left.start + left.length;
+  }
+
+  function sourceLocked(proxy, isLocked) {
+    const clipElement = proxy && proxy.pz_clip;
+    const sourceElement = clipElement && clipElement.parentElement;
+    return Boolean(
+      (clipElement && isLocked(clipElement.pz_object)) ||
+      (sourceElement && isLocked(sourceElement.pz_object)),
+    );
+  }
+
+  function destinationGroups(tracks, proxies, type) {
+    const container = type === 0 ? tracks.videoContainer : tracks.audioContainer;
+    const groups = [];
+    if (!container || !container.children) return { container: null, groups };
+    const byElement = new Map();
+    for (let index = 0; index < proxies.length; index += 1) {
+      const proxy = proxies[index];
+      if (!proxy || Number(proxy.pz_type) !== type) continue;
+      const destElement = proxy.parentElement;
+      if (!destElement || destElement.parentElement !== container) continue;
+      let group = byElement.get(destElement);
+      if (!group) {
+        group = {
+          destElement,
+          destIndex: Array.prototype.indexOf.call(container.children, destElement),
+          proxies: [],
+        };
+        byElement.set(destElement, group);
+        groups.push(group);
+      }
+      group.proxies.push(proxy);
+    }
+    groups.sort((left, right) => left.destIndex - right.destIndex);
+    return { container, groups };
+  }
+
+  function groupOverlaps(group, timeline, dragged) {
+    const track = group.destElement && group.destElement.pz_object;
+    if (!track || !Array.isArray(track.clips) || track.clips.length === 0) return false;
+    for (const proxy of group.proxies) {
+      const range = proxyFrameRange(proxy, timeline);
+      if (!range || range.length <= 0) continue;
+      for (const clip of track.clips) {
+        if (!clip || dragged.has(clip)) continue;
+        if (!Number.isFinite(clip.start) || !Number.isFinite(clip.length)) continue;
+        if (rangesOverlap(range, clip)) return true;
+      }
+    }
+    return false;
+  }
+
+  // A row drop that would make a dragged clip overlap a clip that is not being
+  // dragged must not overwrite. Each overlapping destination row gets one new
+  // row at destinationIndex + 1 and the dragged clips of that row move onto
+  // it. Returns null when the native path must stay: no overlap, a locked
+  // source, or a locked destination row.
+  function planNoOverwrite(tracks, proxies, isLocked) {
+    if (!tracks || !proxies || typeof proxies.length !== "number") return null;
+    const dragged = new Set();
+    for (const proxy of proxies) {
+      if (proxy && proxy.pz_object) dragged.add(proxy.pz_object);
+    }
+    const entries = [];
+    for (const type of [0, 1]) {
+      const { container, groups } = destinationGroups(tracks, proxies, type);
+      if (!container || groups.length === 0) continue;
+      for (const group of groups) {
+        if (typeof isLocked === "function") {
+          if (isLocked(group.destElement.pz_object)) return null;
+          if (group.proxies.some(proxy => sourceLocked(proxy, isLocked))) return null;
+        }
+        if (!groupOverlaps(group, tracks.timeline, dragged)) continue;
+        entries.push({
+          type,
+          container,
+          destElement: group.destElement,
+          destIndex: group.destIndex,
+          proxies: group.proxies,
+        });
+      }
+    }
+    return entries.length > 0 ? { entries } : null;
+  }
+
+  // Rows are created in ascending destination order. The native deleteTrack
+  // inverses then replay in reverse without shifting each other, and the
+  // current index of each destination element is read again after the earlier
+  // inserts.
+  function applyNoOverwrite(tracks, plan, proxies, movedRight) {
+    if (!plan || !Array.isArray(plan.entries)) return false;
+    if (!tracks || typeof tracks.createTrack !== "function" ||
+        typeof tracks.moveClipProxies !== "function") return false;
+    for (const entry of plan.entries) {
+      const container = entry.container;
+      if (!container || !container.children) continue;
+      const current = Array.prototype.indexOf.call(container.children, entry.destElement);
+      const newIndex = (current < 0 ? entry.destIndex : current) + 1;
+      tracks.createTrack({ type: entry.type, newTrackIdx: newIndex, data: null });
+      const target = container.children[newIndex];
+      if (!target) continue;
+      for (const proxy of entry.proxies) target.appendChild(proxy);
+    }
+    tracks.moveClipProxies(proxies, false, Boolean(movedRight));
     return true;
   }
 
@@ -227,6 +396,24 @@
     setProxiesHidden(dragCtx, false);
   }
 
+  // The new row of an overlapping destination sits above it for video and
+  // below it for audio, so the line marks that edge of the destination row.
+  function overlapHit(dragCtx, isLocked) {
+    const plan = planNoOverwrite(dragCtx.ctx, dragCtx.clip_proxies, isLocked);
+    if (!plan) return null;
+    const entry = plan.entries[0];
+    if (!entry || typeof entry.destElement.getBoundingClientRect !== "function") return null;
+    const rect = entry.destElement.getBoundingClientRect();
+    if (!rect || !Number.isFinite(rect.top) || !Number.isFinite(rect.height)) return null;
+    return {
+      type: entry.type,
+      index: entry.destIndex + 1,
+      container: entry.container,
+      edge: entry.type === 0 ? rect.top : rect.top + rect.height,
+      overlap: true,
+    };
+  }
+
   function updateIndicator(dragCtx) {
     const state = dragCtx && dragCtx[DRAG_STATE_KEY];
     if (!state) return;
@@ -235,13 +422,20 @@
       return;
     }
     const hit = boundaryUnderPointer(dragCtx);
-    if (!hit || !hasProxyOfType(dragCtx, hit.type)) {
-      clearCandidate(dragCtx, state);
+    if (hit) {
+      state.candidate = hit;
+      showLine(dragCtx, state, hit, state.document);
+      setProxiesHidden(dragCtx, true);
       return;
     }
-    state.candidate = hit;
-    showLine(dragCtx, state, hit, state.document);
-    setProxiesHidden(dragCtx, true);
+    const overlap = state.shiftKey ? null : overlapHit(dragCtx, state.isLocked);
+    if (overlap) {
+      state.candidate = null;
+      showLine(dragCtx, state, overlap, state.document);
+      setProxiesHidden(dragCtx, true);
+      return;
+    }
+    clearCandidate(dragCtx, state);
   }
 
   function isCancelEvent(event) {
@@ -270,7 +464,12 @@
         candidate: null,
         line: null,
         altKey: Boolean(event && event.altKey),
+        // Shift keeps the native overwrite, so it also suppresses the new-row
+        // feedback. Ctrl is not usable: the native clipDragStart refuses a
+        // drag that starts with it, and a Ctrl drop skips the move entirely.
+        shiftKey: Boolean(event && event.shiftKey),
         document,
+        isLocked,
       };
       this[DRAG_STATE_KEY] = state;
       let result;
@@ -290,7 +489,10 @@
 
     prototype.clipDrag = function zoidiumTrackInsertDrag(event) {
       const state = this[DRAG_STATE_KEY];
-      if (state) state.altKey = Boolean(event && event.altKey);
+      if (state) {
+        state.altKey = Boolean(event && event.altKey);
+        state.shiftKey = Boolean(event && event.shiftKey);
+      }
       return originalDrag.apply(this, arguments);
     };
 
@@ -318,10 +520,17 @@
         delete dragCtx[DRAG_STATE_KEY];
         return undefined;
       }
-      const candidate = state && !state.altKey && dragCtx.moved === true ? state.candidate : null;
-      if (candidate && tracks) {
-        tracks[DROP_STATE_KEY] = { type: candidate.type, index: candidate.index };
-      }
+      const altKey = Boolean(event && event.altKey);
+      const moved = dragCtx.moved === true;
+      const candidate = state && !altKey && moved ? state.candidate : null;
+      const drop = state && !altKey && moved ? {
+        // A native outer edge is created by insertTrackProxies; publishing it
+        // here would insert a second row.
+        boundary: candidate && !candidate.native
+          ? { type: candidate.type, index: candidate.index } : null,
+        overwrite: Boolean(event && event.shiftKey),
+      } : null;
+      if (drop && tracks) tracks[DROP_STATE_KEY] = drop;
       try {
         return originalEnd.apply(this, arguments);
       } finally {
@@ -340,9 +549,15 @@
       if (!active) return originalMove.apply(this, arguments);
       if (this[DROP_STATE_KEY]) delete this[DROP_STATE_KEY];
       if (createOnly) return originalMove.apply(this, arguments);
-      const plan = planBoundaryInsert(this, proxies, active.type, active.index, isLocked);
-      if (!plan) return originalMove.apply(this, arguments);
-      return applyBoundaryInsert(this, plan, movedRight);
+      if (active.boundary) {
+        const plan = planBoundaryInsert(this, proxies, active.boundary.type, active.boundary.index, isLocked);
+        if (plan) return applyBoundaryInsert(this, plan, movedRight);
+        return originalMove.apply(this, arguments);
+      }
+      if (active.overwrite) return originalMove.apply(this, arguments);
+      const plan = planNoOverwrite(this, proxies, isLocked);
+      if (plan) return applyNoOverwrite(this, plan, proxies, movedRight);
+      return originalMove.apply(this, arguments);
     };
 
     prototype[PATCH_MARKER] = true;
@@ -357,12 +572,16 @@
       LINE_CLASS,
       BOUNDARY_TOLERANCE_PX,
       BOUNDARY_TOLERANCE_RATIO,
+      BOUNDARY_TOLERANCE_MAX_RATIO,
       boundaryTolerance,
       findBoundary,
       rowRects,
       boundaryUnderPointer,
       planBoundaryInsert,
       applyBoundaryInsert,
+      proxyFrameRange,
+      planNoOverwrite,
+      applyNoOverwrite,
       installTimelineTrackInsert,
     };
     return;
