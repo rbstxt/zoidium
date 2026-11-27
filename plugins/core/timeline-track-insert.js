@@ -240,8 +240,9 @@
   function proxyFrameRange(proxy, timeline) {
     if (!proxy) return null;
     const style = proxy.style || {};
+    // Native pxToFrame reads this.editor, so it must be called on the timeline.
     const toFrame = timeline && typeof timeline.pxToFrame === "function"
-      ? timeline.pxToFrame : value => value;
+      ? value => timeline.pxToFrame(value) : value => value;
     let start = parseFloat(style.left);
     let length = parseFloat(style.width);
     if (Number.isFinite(start)) start = toFrame(start);

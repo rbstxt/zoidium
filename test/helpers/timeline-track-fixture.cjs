@@ -125,7 +125,7 @@ function createDocument() {
 }
 
 function proxyFrameRange(proxy, timeline) {
-  const toFrame = timeline && typeof timeline.pxToFrame === "function" ? timeline.pxToFrame : value => value;
+  const toFrame = timeline && typeof timeline.pxToFrame === "function" ? value => timeline.pxToFrame(value) : value => value;
   const left = parseFloat(proxy.style && proxy.style.left);
   const width = parseFloat(proxy.style && proxy.style.width);
   const start = Number.isFinite(left) ? toFrame(left) : Number(proxy.start);
@@ -377,8 +377,10 @@ function setup(options = {}) {
     editor: { history },
     sequence,
     updateZoom() { tracks.zoomUpdates += 1; },
-    frameToPx: frames => frames * zoom,
-    pxToFrame: px => Math.round(px / zoom),
+    // Like native, these read the timeline through `this`, so a detached call throws.
+    frameToPx(frames) { return frames * this.zoomFactor; },
+    pxToFrame(px) { return Math.round(px / this.zoomFactor); },
+    zoomFactor: zoom,
   };
   tracks.createdTracks = [];
   tracks.deletedTracks = [];
