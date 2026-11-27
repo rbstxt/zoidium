@@ -7,394 +7,25 @@ const {
   DRAG_STATE_KEY,
   BOUNDARY_TOLERANCE_PX,
   BOUNDARY_TOLERANCE_RATIO,
+  BOUNDARY_TOLERANCE_MAX_RATIO,
   boundaryTolerance,
   findBoundary,
   rowRects,
   planBoundaryInsert,
-  installTimelineTrackInsert,
 } = require("../plugins/core/timeline-track-insert");
 
-// ---------------------------------------------------------------------------
-// Fixture: an element tree with the pieces the native timeline drag reads, and
-// a tracks object whose createTrack / deleteTrack / moveClip / moveClipProxies
-// follow the native splice + history-command shape closely enough to observe
-// the operation the insert joins.
-// ---------------------------------------------------------------------------
-
-class Element {
-  constructor(tag) {
-    this.tag = tag;
-    this.style = {};
-    this.children = [];
-    this.pz_object = null;
-    this.className = "";
-    this._parent = null;
-    this.classList = { add() {}, remove() {}, contains: () => false };
-  }
-  get parentElement() { return this._parent; }
-  get ownerDocument() { return this.document; }
-  appendChild(child) {
-    if (child._parent) child._parent.removeChild(child);
-    child._parent = this;
-    this.children.push(child);
-    return child;
-  }
-  insertBefore(child, before) {
-    if (child._parent) child._parent.removeChild(child);
-    const index = before ? this.children.indexOf(before) : -1;
-    this.children.splice(index < 0 ? this.children.length : index, 0, child);
-    child._parent = this;
-    return child;
-  }
-  removeChild(child) {
-    const index = this.children.indexOf(child);
-    if (index >= 0) this.children.splice(index, 1);
-    child._parent = null;
-  }
-  remove() {
-    if (this._parent) this._parent.removeChild(this);
-    this.removed = true;
-  }
-  getBoundingClientRect() {
-    return {
-      top: this.rectTop ?? 0,
-      height: this.rectHeight ?? this.height ?? 40,
-      left: this.rectLeft ?? 0,
-      width: this.rectWidth ?? 800,
-    };
-  }
-}
-
-function createHistory() {
-  const undoStack = [];
-  const redoStack = [];
-  let operation = null;
-  const run = (commands, target) => {
-    operation = [];
-    for (let index = commands.length - 1; index >= 0; index -= 1) {
-      commands[index].fn(commands[index].arg);
-    }
-    if (operation.length) target.push(operation);
-    operation = null;
-  };
-  return {
-    undoStack,
-    redoStack,
-    get operation() { return operation; },
-    startOperation() { operation = []; },
-    pushCommand(fn, arg) { operation.push({ fn, arg }); },
-    finishOperation(redo) {
-      if (operation.length) {
-        if (redo === true) redoStack.push(operation);
-        else {
-          undoStack.push(operation);
-          if (redo === undefined) redoStack.length = 0;
-        }
-      }
-      operation = null;
-    },
-    undo() {
-      if (!undoStack.length || operation !== null) return false;
-      run(undoStack.pop(), redoStack);
-      return true;
-    },
-    redo() {
-      if (!redoStack.length || operation !== null) return false;
-      run(redoStack.pop(), undoStack);
-      return true;
-    },
-  };
-}
-
-const VIDEO_TOP = 0;
-const AUDIO_TOP = 200;
-const ROW_HEIGHT = 40;
-
-function setup(options = {}) {
-  const videoCount = options.videoCount ?? 3;
-  const audioCount = options.audioCount ?? 2;
-  const document = { createElement: tag => new Element(tag) };
-  const history = createHistory();
-
-  const videoContainer = new Element("div");
-  videoContainer.rectTop = VIDEO_TOP;
-  videoContainer.rectHeight = videoCount * ROW_HEIGHT;
-  videoContainer.rectLeft = 200;
-  videoContainer.rectWidth = 600;
-  const audioContainer = new Element("div");
-  audioContainer.rectTop = AUDIO_TOP;
-  audioContainer.rectHeight = audioCount * ROW_HEIGHT;
-  audioContainer.rectLeft = 200;
-  audioContainer.rectWidth = 600;
-  const root = new Element("div");
-  root.rectTop = 0;
-  root.rectHeight = 480;
-
-  const sequence = {
-    videoTracks: [],
-    audioTracks: [],
-    clipLinks: { links: {}, seed: 1 },
-  };
-
-  class Tracks {
-    tracksFor(type) {
-      return type === 0 ? this.timeline.sequence.videoTracks : this.timeline.sequence.audioTracks;
-    }
-    containerFor(type) {
-      return type === 0 ? this.videoContainer : this.audioContainer;
-    }
-    layout() {
-      this.timeline.sequence.videoTracks.forEach((track, index) => {
-        track.element.rectTop = VIDEO_TOP + (this.timeline.sequence.videoTracks.length - 1 - index) * ROW_HEIGHT;
-        track.element.rectHeight = ROW_HEIGHT;
-      });
-      this.timeline.sequence.audioTracks.forEach((track, index) => {
-        track.element.rectTop = AUDIO_TOP + index * ROW_HEIGHT;
-        track.element.rectHeight = ROW_HEIGHT;
-      });
-    }
-    addTrack(type) {
-      const track = { type, clips: [], element: new Element("div") };
-      track.element.pz_object = track;
-      this.containerFor(type).appendChild(track.element);
-      this.tracksFor(type).push(track);
-      return track;
-    }
-    addClip(track, name, start, length) {
-      const clip = { name, start, length, link: null, track };
-      const element = new Element("div");
-      element.pz_object = clip;
-      element.document = document;
-      clip.element = element;
-      track.clips.push(clip);
-      track.element.appendChild(element);
-      return clip;
-    }
-    makeProxy(clip, start) {
-      const proxy = new Element("div");
-      proxy.pz_clip = clip.element;
-      proxy.pz_object = clip;
-      proxy.pz_type = clip.track.type;
-      proxy.start = start === undefined ? clip.start : start;
-      clip.track.element.appendChild(proxy);
-      return proxy;
-    }
-    // --- native-shaped host methods ---------------------------------------
-    clipDragStart(event) {
-      this.started = event;
-    }
-    clipDrag(event) {
-      this.currentPt = { x: event.pageX - this.origin.x, y: event.pageY - this.origin.y };
-    }
-    clipDragUpdate() {
-      this.moved = true;
-      for (const proxy of this.clip_proxies) proxy.style.display = "";
-    }
-    clipDragEnd(event) {
-      this.ctx.endEvents.push(event);
-      this.ctx.timeline.editor.history.startOperation();
-      this.ctx.insertTrackProxies(this.track_proxies);
-      if (this.moved) this.ctx.moveClipProxies(this.clip_proxies, this.createOnly || event.altKey, this.deltaFrames > 0);
-      this.ctx.timeline.editor.history.finishOperation();
-      for (const proxy of this.clip_proxies) proxy.remove();
-      this.ctx.verticalZoom();
-      this.ctx.timeline.updateZoom();
-    }
-    insertTrackProxies(proxies) {
-      this.trackProxyCalls.push(proxies);
-    }
-    verticalZoom() { this.zoomed += 1; }
-    moveClip(command) {
-      const list = this.tracksFor(command.type);
-      const from = list[command.oldTrackIdx];
-      const to = list[command.newTrackIdx];
-      let clip;
-      if (command.oldTrackIdx !== command.newTrackIdx || command.oldIdx !== command.newIdx) {
-        clip = from.clips.splice(command.oldIdx, 1)[0];
-        to.clips.splice(command.newIdx, 0, clip);
-        to.element.insertBefore(clip.element, to.element.children[command.newIdx] || null);
-      }
-      clip = to.clips[command.newIdx];
-      const previous = { start: clip.start, length: clip.length };
-      if (command.start !== undefined) clip.start = command.start;
-      if (command.length !== undefined) clip.length = command.length;
-      this.moveClipCalls.push(command);
-      this.timeline.editor.history.pushCommand(this.moveClip.bind(this), {
-        type: command.type,
-        oldTrackIdx: command.newTrackIdx, oldIdx: command.newIdx,
-        newTrackIdx: command.oldTrackIdx, newIdx: command.oldIdx,
-        start: previous.start, length: previous.length,
-      });
-    }
-    createTrack(command) {
-      const track = { type: command.type, clips: [], element: new Element("div") };
-      track.element.pz_object = track;
-      this.tracksFor(command.type).splice(command.newTrackIdx, 0, track);
-      this.containerFor(command.type).children.splice(command.newTrackIdx, 0, track.element);
-      track.element._parent = this.containerFor(command.type);
-      this.layout();
-      this.createdTracks.push(command);
-      this.timeline.editor.history.pushCommand(this.deleteTrack.bind(this), {
-        type: command.type, oldTrackIdx: command.newTrackIdx,
-      });
-    }
-    deleteTrack(command) {
-      const [track] = this.tracksFor(command.type).splice(command.oldTrackIdx, 1);
-      this.containerFor(command.type).removeChild(track.element);
-      this.layout();
-      this.deletedTracks.push(command);
-      this.timeline.editor.history.pushCommand(this.createTrack.bind(this), {
-        type: command.type, newTrackIdx: command.oldTrackIdx, data: { type: command.type, clips: [] },
-      });
-    }
-    moveClipProxies(proxies, createOnly, movedRight) {
-      this.moveCalls.push({ proxies: Array.from(proxies), createOnly, movedRight });
-      if (createOnly) return;
-      const blocked = proxy => this.isLocked?.(proxy.pz_clip?.pz_object) ||
-        this.isLocked?.(proxy.pz_clip?.parentElement?.pz_object);
-      if (Array.from(proxies).some(blocked)) {
-        this.blockedMoves += 1;
-        return;
-      }
-      const ordered = Array.from(proxies);
-      if (movedRight) ordered.reverse();
-      for (const proxy of ordered) {
-        const type = proxy.pz_type;
-        const container = this.containerFor(type);
-        const sourceIndex = container.children.indexOf(proxy.pz_clip.parentElement);
-        const destIndex = container.children.indexOf(proxy.parentElement);
-        const sourceTrack = this.tracksFor(type)[sourceIndex];
-        const destTrack = this.tracksFor(type)[destIndex];
-        const oldIdx = sourceTrack.clips.indexOf(proxy.pz_clip.pz_object);
-        let newIdx = 0;
-        while (newIdx < destTrack.clips.length && destTrack.clips[newIdx].start <= proxy.start) newIdx += 1;
-        this.moveClip({
-          type, oldTrackIdx: sourceIndex, oldIdx, newTrackIdx: destIndex, newIdx,
-          start: proxy.start, length: proxy.pz_clip.pz_object.length,
-        });
-      }
-      if (movedRight) ordered.reverse();
-    }
-  }
-
-  const tracks = new Tracks();
-  tracks.videoContainer = videoContainer;
-  tracks.audioContainer = audioContainer;
-  tracks.el = root;
-  tracks.container = root;
-  tracks.timeline = {
-    editor: { history },
-    sequence,
-    updateZoom() { tracks.zoomUpdates += 1; },
-    frameToPx: frames => frames,
-  };
-  tracks.createdTracks = [];
-  tracks.deletedTracks = [];
-  tracks.moveClipCalls = [];
-  tracks.moveCalls = [];
-  tracks.trackProxyCalls = [];
-  tracks.endEvents = [];
-  tracks.blockedMoves = 0;
-  tracks.zoomed = 0;
-  tracks.zoomUpdates = 0;
-  tracks.isLocked = options.isLocked;
-  tracks.rootContainsLine = () =>
-    tracks.el.children.some(child => child.className === "timeline-track-insert-line");
-
-  for (let index = 0; index < videoCount; index += 1) tracks.addTrack(0);
-  for (let index = 0; index < audioCount; index += 1) tracks.addTrack(1);
-  tracks.layout();
-
-  const installed = installTimelineTrackInsert(
-    { ui: { timeline: { tracks: Tracks } } },
-    { document, isLocked: options.isLocked },
-  );
-
-  function drag(proxies) {
-    const dragContext = Object.create(Tracks.prototype);
-    Object.assign(dragContext, {
-      ctx: tracks,
-      origin: { x: 0, y: 0 },
-      currentPt: { x: 0, y: 0 },
-      clip_proxies: proxies,
-      track_proxies: [],
-      moved: false,
-    });
-    return dragContext;
-  }
-
-  return { tracks, sequence, history, document, root, videoContainer, audioContainer, drag, installed };
-}
-
-function pointer(dragContext, y, extra = {}) {
-  dragContext.clipDrag({ pageX: 100, pageY: y, ...extra });
-  dragContext.clipDragUpdate();
-}
-
-function videoTrack(tracks, index) {
-  return tracks.timeline.sequence.videoTracks[index];
-}
-function audioTrack(tracks, index) {
-  return tracks.timeline.sequence.audioTracks[index];
-}
-
-function addressOf(sequence, clip) {
-  const lists = [[1, sequence.videoTracks], [2, sequence.audioTracks]];
-  for (const [listIndex, list] of lists) {
-    for (let trackIndex = 0; trackIndex < list.length; trackIndex += 1) {
-      const clipIndex = list[trackIndex].clips.indexOf(clip);
-      if (clipIndex >= 0) return [0, listIndex, trackIndex, 0, clipIndex];
-    }
-  }
-  return null;
-}
-
-function serialize(sequence) {
-  const links = {};
-  for (const key of Object.keys(sequence.clipLinks.links)) {
-    links[key] = { clips: sequence.clipLinks.links[key].clips.map(clip => addressOf(sequence, clip)) };
-  }
-  const track = item => ({
-    type: item.type,
-    clips: item.clips.map(clip => ({
-      name: clip.name,
-      start: clip.start,
-      length: clip.length,
-      link: clip.link ? clip.link.key : null,
-    })),
-  });
-  return {
-    videoTracks: sequence.videoTracks.map(track),
-    audioTracks: sequence.audioTracks.map(track),
-    clipLinks: { seed: sequence.clipLinks.seed, links },
-  };
-}
-
-function load(project) {
-  const sequence = {
-    videoTracks: [],
-    audioTracks: [],
-    clipLinks: { links: {}, seed: project.clipLinks.seed },
-  };
-  const lists = [[0, project.videoTracks], [1, project.audioTracks]];
-  for (const [type, savedTracks] of lists) {
-    for (const savedTrack of savedTracks) {
-      const track = { type, clips: [] };
-      for (const savedClip of savedTrack.clips) {
-        const clip = { name: savedClip.name, start: savedClip.start, length: savedClip.length, link: null };
-        track.clips.push(clip);
-      }
-      sequence[type === 0 ? "videoTracks" : "audioTracks"].push(track);
-    }
-  }
-  const lookup = address => sequence[address[1] === 1 ? "videoTracks" : "audioTracks"][address[2]].clips[address[4]];
-  for (const key of Object.keys(project.clipLinks.links)) {
-    const link = { key, clips: project.clipLinks.links[key].clips.map(lookup) };
-    sequence.clipLinks.links[key] = link;
-    for (const clip of link.clips) clip.link = link;
-  }
-  return sequence;
-}
+const {
+  Element,
+  setup,
+  pointer,
+  placeProxy,
+  nativeRowIndex,
+  scrollWindow,
+  videoTrack,
+  audioTrack,
+  serialize,
+  load,
+} = require("./helpers/timeline-track-fixture.cjs");
 
 // ---------------------------------------------------------------------------
 // Boundary selection
@@ -407,11 +38,11 @@ test("a boundary hit picks the index of the upper array row for video", () => {
     { top: 40, height: 40 },
     { top: 0, height: 40 },
   ];
-  assert.equal(findBoundary(rows, 80).index, 1, "edge between V1 and V2");
-  assert.equal(findBoundary(rows, 40).index, 2, "edge between V2 and V3");
-  assert.equal(findBoundary(rows, 80 - 3).index, 1, "3 px above the edge");
-  assert.equal(findBoundary(rows, 60), null, "row centre is not a boundary");
-  assert.equal(findBoundary(rows, 100), null, "4 px past the tolerance away from an edge");
+  assert.equal(findBoundary(rows, 80, true).index, 1, "edge between V1 and V2");
+  assert.equal(findBoundary(rows, 40, true).index, 2, "edge between V2 and V3");
+  assert.equal(findBoundary(rows, 80 - 8, true).index, 1, "8 px above the edge is inside the 12 px band");
+  assert.equal(findBoundary(rows, 60, true), null, "row centre is not a boundary");
+  assert.equal(findBoundary(rows, 100, true), null, "20 px past the band away from an edge");
 });
 
 test("a boundary hit picks the index of the lower array row for audio", () => {
@@ -420,21 +51,34 @@ test("a boundary hit picks the index of the lower array row for audio", () => {
     { top: 240, height: 40 },
     { top: 280, height: 40 },
   ];
-  assert.equal(findBoundary(rows, 240).index, 1);
-  assert.equal(findBoundary(rows, 280).index, 2);
-  assert.equal(findBoundary(rows, 220), null, "A1 centre");
+  assert.equal(findBoundary(rows, 240, false).index, 1);
+  assert.equal(findBoundary(rows, 280, false).index, 2);
+  assert.equal(findBoundary(rows, 220, false), null, "A1 centre");
 });
 
-test("the tolerance is 4 px or a quarter of the row, whichever is smaller", () => {
-  assert.equal(boundaryTolerance(40), BOUNDARY_TOLERANCE_PX);
-  assert.equal(boundaryTolerance(12), 3);
-  assert.equal(boundaryTolerance(12), 12 * BOUNDARY_TOLERANCE_RATIO);
-  assert.equal(boundaryTolerance(4), 1);
+test("the band is 6 px, 30% of the row, capped at 45%", () => {
+  const almost = (actual, expected, message) =>
+    assert.ok(Math.abs(actual - expected) < 1e-9, message || actual + " != " + expected);
+  assert.equal(BOUNDARY_TOLERANCE_PX, 6);
+  assert.equal(BOUNDARY_TOLERANCE_RATIO, 0.3);
+  assert.equal(BOUNDARY_TOLERANCE_MAX_RATIO, 0.45);
+  assert.equal(boundaryTolerance(40), 12);
+  almost(boundaryTolerance(24), 7.2);
+  assert.equal(boundaryTolerance(16), 6);
+  almost(boundaryTolerance(10), 4.5, "the 45% cap wins on very short rows");
+  almost(boundaryTolerance(4), 1.8);
   assert.equal(boundaryTolerance(0), 0);
   assert.equal(boundaryTolerance(undefined), 0);
-  const shortRows = [{ top: 0, height: 12 }, { top: 12, height: 12 }];
-  assert.equal(findBoundary(shortRows, 15).index, 1);
-  assert.equal(findBoundary(shortRows, 16), null, "4 px is outside a 3 px tolerance");
+});
+
+test("the middle of a 16, 24 and 40 px row is never a boundary", () => {
+  for (const height of [16, 24, 40]) {
+    const rows = [{ top: height, height }, { top: 0, height }];
+    const band = boundaryTolerance(height);
+    assert.equal(findBoundary(rows, height / 2, true), null, "middle of a " + height + " px row");
+    assert.equal(findBoundary(rows, height - band, true).index, 1, "band edge of a " + height + " px row");
+    assert.equal(findBoundary(rows, height - band - 0.5, true), null, "just outside the band");
+  }
 });
 
 test("rowRects ignores elements without a track object", () => {
@@ -448,7 +92,8 @@ test("rowRects ignores elements without a track object", () => {
   proxyRow.rectHeight = 40;
   container.appendChild(first);
   container.appendChild(proxyRow);
-  assert.deepEqual(rowRects(container), [{ top: 20, height: 40 }]);
+  assert.deepEqual(rowRects(container).map(row => ({ top: row.top, height: row.height })),
+    [{ top: 20, height: 40 }]);
 });
 
 // ---------------------------------------------------------------------------
@@ -739,6 +384,180 @@ test("planBoundaryInsert refuses a locked source and groups several source rows"
 
   const locked = planBoundaryInsert(first, [proxyA], 0, 1, () => true);
   assert.equal(locked, null);
+});
+
+// ---------------------------------------------------------------------------
+// Outer edges
+// ---------------------------------------------------------------------------
+
+test("the outer bottom edge of the video container inserts at index 0", () => {
+  const { tracks, drag, history } = setup();
+  const clip = tracks.addClip(videoTrack(tracks, 1), "COLOR", 10, 30);
+  const dragContext = drag([tracks.makeProxy(clip)]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  pointer(dragContext, 124);
+
+  const state = dragContext[DRAG_STATE_KEY];
+  assert.equal(state.candidate.type, 0);
+  assert.equal(state.candidate.index, 0);
+  assert.equal(state.candidate.outer, true);
+  assert.equal(state.candidate.native, false);
+  assert.equal(state.line.style.display, "");
+  assert.ok(Math.abs(Number.parseFloat(state.line.style.top) - 119) <= 1);
+
+  dragContext.clipDragEnd({ type: "mouseup", altKey: false, shiftKey: false });
+
+  assert.equal(tracks.createdTracks.length, 1);
+  assert.equal(tracks.createdTracks[0].type, 0);
+  assert.equal(tracks.createdTracks[0].newTrackIdx, 0);
+  assert.equal(tracks.timeline.sequence.videoTracks.length, 4);
+  assert.equal(videoTrack(tracks, 0).clips[0], clip, "the clip lands on the new bottom row");
+  assert.equal(videoTrack(tracks, 0).clips[0].start, 10);
+  assert.equal(history.undoStack.length, 1);
+});
+
+test("the outer top edge of the audio container inserts at index 0", () => {
+  const { tracks, drag } = setup();
+  const clip = tracks.addClip(audioTrack(tracks, 1), "MUSIC", 10, 30);
+  const dragContext = drag([tracks.makeProxy(clip)]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  pointer(dragContext, 196);
+
+  const state = dragContext[DRAG_STATE_KEY];
+  assert.equal(state.candidate.type, 1);
+  assert.equal(state.candidate.index, 0);
+  assert.equal(state.candidate.outer, true);
+  assert.equal(state.candidate.native, false);
+
+  dragContext.clipDragEnd({ type: "mouseup", altKey: false, shiftKey: false });
+
+  assert.equal(tracks.createdTracks.length, 1);
+  assert.equal(tracks.createdTracks[0].type, 1);
+  assert.equal(tracks.createdTracks[0].newTrackIdx, 0);
+  assert.equal(audioTrack(tracks, 0).clips[0], clip);
+  assert.equal(audioTrack(tracks, 0).clips[0].start, 10);
+  assert.equal(tracks.timeline.sequence.videoTracks.length, 3, "an audio edge never adds video");
+});
+
+test("a drag past the last video row keeps the native new-row path", () => {
+  const { tracks, drag } = setup();
+  const clip = tracks.addClip(videoTrack(tracks, 2), "COLOR", 10, 30);
+  const dragContext = drag([tracks.makeProxy(clip)]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  pointer(dragContext, -10);
+
+  const state = dragContext[DRAG_STATE_KEY];
+  assert.equal(state.candidate.type, 0);
+  assert.equal(state.candidate.index, 3, "a new row above the last row");
+  assert.equal(state.candidate.native, true, "the native insertTrackProxies path owns it");
+  assert.equal(state.line.style.display, "", "the insertion line still shows");
+
+  dragContext.clipDragEnd({ type: "mouseup", altKey: false, shiftKey: false });
+
+  assert.equal(tracks.createdTracks.length, 0, "the module does not insert a second row");
+  assert.equal(tracks.trackProxyCalls.length, 1, "the native insert path still runs");
+  assert.equal(tracks.moveCalls.length, 1);
+});
+
+test("a drag past the last audio row keeps the native new-row path", () => {
+  const { tracks, drag } = setup();
+  const clip = tracks.addClip(audioTrack(tracks, 1), "MUSIC", 10, 30);
+  const dragContext = drag([tracks.makeProxy(clip)]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  pointer(dragContext, 284);
+
+  const state = dragContext[DRAG_STATE_KEY];
+  assert.equal(state.candidate.type, 1);
+  assert.equal(state.candidate.index, 2);
+  assert.equal(state.candidate.native, true);
+
+  dragContext.clipDragEnd({ type: "mouseup", altKey: false, shiftKey: false });
+  assert.equal(tracks.createdTracks.length, 0);
+});
+
+test("a far outer edge drop never plans a second row", () => {
+  const { tracks, drag } = setup();
+  const neighbour = tracks.addClip(videoTrack(tracks, 2), "THYRO", 0, 100);
+  const color = tracks.addClip(videoTrack(tracks, 0), "COLOR", 10, 30);
+  const proxy = tracks.makeProxy(color);
+  const dragContext = drag([proxy]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  // The pointer is past the top row, and the proxy sits on that row where it
+  // overlaps the neighbour. A no-overwrite plan would insert a second row next
+  // to the one insertTrackProxies already creates.
+  placeProxy(tracks, proxy, 2, 10);
+  pointer(dragContext, -10);
+  assert.equal(dragContext[DRAG_STATE_KEY].candidate.native, true);
+
+  dragContext.clipDragEnd({ type: "mouseup", altKey: false, shiftKey: false });
+
+  assert.equal(tracks.createdTracks.length, 0, "the native path owns the new row");
+  assert.equal(tracks.trackProxyCalls.length, 1, "the native insert path still runs");
+  assert.equal(tracks.moveCalls.length, 1, "the move reaches the host directly");
+  assert.equal(neighbour.start, 0);
+  assert.equal(neighbour.length, 100);
+});
+
+test("holding Shift still inserts a track on a boundary", () => {
+  const { tracks, drag } = setup();
+  const clip = tracks.addClip(videoTrack(tracks, 0), "COLOR", 10, 30);
+  const dragContext = drag([tracks.makeProxy(clip)]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  pointer(dragContext, 78, { shiftKey: true });
+  assert.equal(dragContext[DRAG_STATE_KEY].candidate.index, 1, "the boundary line still shows");
+
+  dragContext.clipDragEnd({ type: "mouseup", altKey: false, shiftKey: true });
+
+  assert.equal(tracks.createdTracks.length, 1, "Shift keeps the boundary insert");
+  assert.equal(tracks.createdTracks[0].newTrackIdx, 1);
+  assert.equal(videoTrack(tracks, 1).clips[0], clip);
+});
+
+// ---------------------------------------------------------------------------
+// Coordinate space
+// ---------------------------------------------------------------------------
+
+test("a scrolled, offset, zoomed pointer picks the native row", () => {
+  const { tracks, drag, videoContainer } = setup({ scrollTop: 40, scrollLeft: 12, offset: 120, zoom: 2 });
+  const clip = tracks.addClip(videoTrack(tracks, 1), "COLOR", 10, 30);
+  const dragContext = drag([tracks.makeProxy(clip)]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+
+  // Row 1 spans content 40..80 and client 120..160.
+  pointer(dragContext, 140);
+  const state = dragContext[DRAG_STATE_KEY];
+  assert.equal(nativeRowIndex(videoContainer, 0, dragContext.currentPt.y), 1);
+  assert.equal(state.candidate, null, "the row middle is not a boundary");
+
+  pointer(dragContext, 120);
+  assert.equal(nativeRowIndex(videoContainer, 0, dragContext.currentPt.y), 2);
+  assert.equal(state.candidate.index, 2, "the boundary above native row 2");
+  assert.equal(state.candidate.type, 0);
+});
+
+test("a window scroll during the drag keeps the native boundary", () => {
+  const { tracks, drag, videoContainer } = setup();
+  const clip = tracks.addClip(videoTrack(tracks, 1), "COLOR", 10, 30);
+  const dragContext = drag([tracks.makeProxy(clip)]);
+
+  dragContext.clipDragStart({ type: "mousedown" });
+  pointer(dragContext, 40);
+  assert.equal(dragContext[DRAG_STATE_KEY].candidate.index, 2);
+
+  // The window scrolls by 20 without a new drag start: the client rects move,
+  // the drag origin does not. Native uses the drag-relative y, so the same
+  // page position still selects the same boundary.
+  scrollWindow(tracks, 20);
+  pointer(dragContext, 40);
+  assert.equal(nativeRowIndex(videoContainer, 0, dragContext.currentPt.y), 2);
+  assert.equal(dragContext[DRAG_STATE_KEY].candidate.index, 2);
 });
 
 // ---------------------------------------------------------------------------
