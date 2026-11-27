@@ -10,10 +10,11 @@ each line describes one visible change.
 
 ### Added
 
-- Drop clips on the boundary between two video tracks, or two audio tracks, to
-  insert a new track there. An insertion line shows where it goes, nothing is
-  overwritten, and one Undo reverts it. Dropping on the middle of a row still
-  overwrites as before.
+- Moving clips no longer overwrites other clips. Dropping clips where they would
+  overlap another clip puts them on a new track directly above that row, and
+  dropping on the boundary between two tracks, or past the first or last track,
+  inserts a new track there. An insertion line shows where the new track goes,
+  and one Undo reverts it. Hold **Shift** while dropping to overwrite as before.
 - The Player+ quality menu has **Upscale** (**Smooth** or **Sharp**) for reduced
   preview quality, and **Exact effects (full-resolution layers)**, which renders
   layers and effects at the sequence resolution and reduces only the viewer, so
